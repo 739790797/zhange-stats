@@ -1,0 +1,31 @@
+---
+description: 战鸽助手嵌入：同源 WebView、侧栏、本机截图/日志文件桥
+globs: frontend/src/components/AppLayout.tsx,frontend/src/components/AuthGuestShell.tsx,frontend/src/components/QqLoginButton.tsx,frontend/src/components/guides/tarkov/**/*,frontend/src/lib/tarkovGameLog*.ts,frontend/src/lib/tarkovLiveWatch*.ts,frontend/src/lib/tarkovLiveWatchContext.tsx,frontend/src/lib/tarkovScreenshotPos.ts,frontend/src/lib/tarkovTaskLogSync.ts,frontend/src/api/http.ts,frontend/src/api/guidesApi.ts,frontend/src/lib/csrfCookie.ts,backend/app/core/cors.py,backend/app/core/session_cookies.py,backend/app/core/http_headers.py,backend/tests/test_cors.py
+alwaysApply: false
+---
+
+# 战鸽助手（zhange-app）
+
+人读：[`docs/security.md`](../../docs/security.md)「战鸽助手」。助手用系统 WebView **打开站点同源地址**。`X-Frame-Options: DENY` 与 `frame-ancestors 'none'` 禁止 iframe。
+
+开发 CORS 正则里的 `tauri.localhost` 只给本机联调。生产会话仍是 HttpOnly Cookie + CSRF，`SameSite=Lax`，前端 `baseURL` 为 `/api`。不要把生产登录改成壳源跨站打 API，也不要为助手把 JWT 写入 localStorage 或让页面改走 `Authorization`。QQ / Steam 回跳必须落在站点地址。
+
+## 外壳
+
+助手自带侧栏时，站点认嵌入标记（查询参数或加载前注入的全局）后不渲染 `AppLayout` 的 Sider。浏览器直接打开不隐藏。塔科夫栏目顶栏、页内登录链、`AuthGuestShell` 另算，不要为藏站点侧栏顺手拆掉。
+
+个人中心子菜单要只要当前 tab 主体时，再加 `pane: "body"`（或 `?pane=body`，且已是嵌入）。此时 `/guides/tarkov/me` 不画塔科夫顶栏、面包屑、tab 条和备案脚，只留该 tab 面板。综合查询用 `?pane=search`（且已是嵌入）：首页不画顶栏、目录和页脚，只留搜索框；有查询词时仍列出结果。`pane=search` 不写入会话。其它塔科夫页仍保留顶栏。浏览器没有嵌入标记时 `pane` 无效。
+
+## 本机文件
+
+截图目录与游戏日志的**读盘**交给助手：列目录、读日志文本 `{name,text,lastModified,size}`、读最新截图的文件名与字节、按页面剪枝偏好删旧图、目录变更通知。展示路径用真实路径，不必再存 FileSystemHandle。
+
+解析留在站点：`tarkovGameLogs`、`tarkovScreenshotPos`、`tarkovTaskLogSync`。战局只走现有摘要 `POST /api/guides/tarkov/raid-logs`；房间定位只走 WS `player_fix` 的数字。钥匙箱与局前任务 OCR 仍 POST 现有 `recognize`，图只进服务器内存。
+
+## 禁止
+
+- iframe 嵌站，或生产沿用默认 localhost/Tauri CORS 正则当会话方案
+- 助手重写截图文件名坐标或游戏日志解析
+- 为读盘新开接收日志原文或定位原图的接口
+
+地图全屏、外链、管理端下载、酒馆贴图、极验、localStorage 偏好：同源 WebView 一般可用，不要为此另开接口。

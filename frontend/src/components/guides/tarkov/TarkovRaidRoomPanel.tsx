@@ -52,6 +52,7 @@ import {
   groupRaidPrepRowsByProgress,
   hydrateRaidPrepCatalogRows,
   planRaidPrepTaskProgressSync,
+  raidPrepOnMapTaskIds,
   objectiveDonesToSkipMap,
   raidPrepMapOptions,
   raidPrepSkippedIds,
@@ -817,16 +818,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         if (!raidPrepSkipMapsEqual(local, merged)) replaceObjDone(merged);
       }
       if (!canEdit) return;
-      const plan = planRaidPrepTaskProgressSync({
-        catalogIds: catalog.map((row) => row.id),
-        selectedIds: myClaimIds,
-        startedIds: detail.started,
-        doneIds: detail.done,
-        occupiedIds: groups.map((row) => row.taskId),
-      });
-      if (plan.addedIds.length) {
-        void runQuiet(() => claimTarkovRaidRoomTasks(publicId, plan.addedIds));
-      }
       const settled = settleRaidPrepSelection({
         selectedIds: myClaimIds,
         completedIds: detail.completedIds?.length
@@ -842,10 +833,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
   }, [
     canEdit,
-    catalog,
     flushCompletedTaskMarks,
     gameMode,
-    groups,
     myClaimIds,
     objDoneLegacy,
     objDoneScope,
@@ -1045,9 +1034,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     if (!canEdit || !mapId || dockMapId !== mapId || !room?.is_member || !prepQuery.isSuccess) return;
     const key = `${publicId}:${mapId}:${gameMode}`;
     if (autoClaimKeyRef.current === key) return;
+    // 进房（或换到这张图）只勾一次。之后取消勾选不再按进行中补回。
     autoClaimKeyRef.current = key;
     const plan = planRaidPrepTaskProgressSync({
-      catalogIds: catalog.map((row) => row.id),
+      catalogIds: raidPrepOnMapTaskIds(catalog),
       selectedIds: myClaimIds,
       startedIds: loadTaskStartedIds(gameMode),
       doneIds: loadTaskDoneIds(gameMode),

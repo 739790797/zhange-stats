@@ -1,29 +1,16 @@
 import { client } from "./http";
 import type {
-  MemberPlayStats,
   SteamDayData,
   SteamNowItem,
   SteamPollResult,
   SteamAppStoreCard,
 } from "./types";
 
-export async function fetchMemberPlayStats(memberId: number) {
-  const { data } = await client.get<MemberPlayStats>(
-    `/steam/members/${memberId}`,
-  );
-  return data;
-}
-
-export async function fetchSteamDay(
-  date: string,
-  end?: string,
-  memberId?: number,
-) {
+export async function fetchSteamDay(date: string, end?: string) {
   const { data } = await client.get<SteamDayData>("/steam/day", {
     params: {
       date,
       ...(end ? { end } : {}),
-      ...(memberId != null ? { member_id: memberId } : {}),
     },
   });
   return data;

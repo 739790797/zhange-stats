@@ -7,6 +7,7 @@ import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
   TARKOV_ADMIN_NAV,
   TARKOV_HOME_PATH,
+  TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
   buildTarkovBossNavGroups,
   isTarkovAdminPath,
@@ -16,6 +17,7 @@ import {
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/lib/tarkovHomeNav";
+import { isAssistantBodyPane, isAssistantSearchPane } from "@/lib/assistantShell";
 import { focusWithoutVisibleRing } from "@/lib/focusRouteTarget";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
@@ -242,11 +244,17 @@ export function TarkovGuideShell({ children }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [pathname]);
+  const meBody =
+    isAssistantBodyPane() && pathname.replace(/\/$/, "") === TARKOV_ME_PATH;
+  const searchPane =
+    isAssistantSearchPane() &&
+    (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`);
   const bossesQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,
     staleTime: 5 * 60_000,
     retry: 1,
+    enabled: !meBody && !searchPane,
   });
   const navItems = useMemo(() => {
     const groups = buildTarkovBossNavGroups(bossesQuery.data?.items);
@@ -264,6 +272,7 @@ export function TarkovGuideShell({ children }: Props) {
       <a className={styles.skipLink} href="#tarkov-main">
         跳到正文
       </a>
+      {meBody || searchPane ? null : (
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
           <div className={styles.topLeft}>
@@ -398,14 +407,15 @@ export function TarkovGuideShell({ children }: Props) {
           </div>
         </div>
       </header>
+      )}
       <main
         ref={bodyRef}
         id="tarkov-main"
         tabIndex={-1}
-        className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}`}
+        className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}${searchPane ? ` ${styles.bodySearch}` : ""}`}
       >
         <div className={styles.bodyPage}>{children}</div>
-        {fills ? null : <IcpBeianFooter variant="tarkov" />}
+        {fills || meBody || searchPane ? null : <IcpBeianFooter variant="tarkov" />}
       </main>
     </div>
     </TarkovGoonTrackerProvider>

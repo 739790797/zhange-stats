@@ -67,6 +67,7 @@ import {
   sortRaidPrepRowsByProgress,
   groupRaidPrepRowsByProgress,
   splitRaidPrepRowsByCurrentMap,
+  raidPrepOnMapTaskIds,
   filterRaidPrepRowsByScope,
   countRaidPrepRowsByScope,
   mergeRaidPrepNeededItems,
@@ -3590,6 +3591,23 @@ describe("raid prep packing and settle", () => {
       todo: [{ id: "c" }],
       done: [{ id: "a" }],
     });
+  });
+
+  it("keeps off-map tasks out of automatic room claims", () => {
+    const rows = [
+      { id: "on", on_this_map: true },
+      { id: "off", on_this_map: false },
+      { id: "also" },
+      { id: " on ", on_this_map: true },
+    ];
+    expect(raidPrepOnMapTaskIds(rows)).toEqual(["on", "also"]);
+    const plan = planRaidPrepTaskProgressSync({
+      catalogIds: raidPrepOnMapTaskIds(rows),
+      selectedIds: [],
+      startedIds: ["on", "off", "also"],
+    });
+    expect(plan.addedIds).toEqual(["on", "also"]);
+    expect(plan.matchedIds).not.toContain("off");
   });
 
   it("splits in-progress rows into current-map and other-map", () => {

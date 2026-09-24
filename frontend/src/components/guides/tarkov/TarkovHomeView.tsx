@@ -22,6 +22,7 @@ import {
   LEGAL_TERMS_PATH,
   TARKOV_PUBLIC_DISCLAIMER,
 } from "@/lib/legalDocs";
+import { isAssistantSearchPane } from "@/lib/assistantShell";
 import { TarkovHomeToolRail } from "@/components/guides/tarkov/TarkovHomeToolRail";
 import {
   TarkovRaidPrepEntryModal,
@@ -234,15 +235,43 @@ export function TarkovHomeView() {
   };
 
   const waiting = searching && searchQuery.isLoading && !searchQuery.data;
+  const searchOnly = isAssistantSearchPane();
 
   const openEntry = (step: RaidPrepEntryStep) => {
     setEntryStep(step);
     setEntryOpen(true);
   };
 
-  return (
+  const results = (
     <>
-      <section className={styles.hero}>
+      {searchQuery.isError ? (
+        <div className={styles.empty}>
+          {apiError(searchQuery.error, "搜索失败")}
+        </div>
+      ) : null}
+      {waiting ? (
+        <div className={styles.empty}>搜索中…</div>
+      ) : sections.length ? (
+        sections.map((section) => (
+          <section key={section.id}>
+            <SectionHead title={section.label} extra={section.extra} />
+            <div className={styles.resultList}>
+              {section.hits.map((hit) => (
+                <SearchResultRow key={hit.key} hit={hit} />
+              ))}
+            </div>
+          </section>
+        ))
+      ) : searchQuery.isError ? null : (
+        <div className={styles.empty}>无匹配结果</div>
+      )}
+    </>
+  );
+
+  const hero = (
+    <section
+      className={`${styles.hero}${searchOnly && !searching ? ` ${styles.heroOnly}` : ""}`}
+    >
         <div className={styles.heroInner}>
           <h1 className={styles.title}>逃离塔科夫</h1>
           <p className={styles.subtitle}>ESCAPE FROM TARKOV · 中文攻略站</p>
@@ -263,38 +292,31 @@ export function TarkovHomeView() {
               aria-label="全站搜索攻略"
               autoComplete="off"
               enterKeyHint="search"
+              autoFocus={searchOnly}
             />
             <kbd className={styles.kbd}>Enter</kbd>
           </form>
         </div>
-      </section>
+    </section>
+  );
+
+  if (searchOnly) {
+    return (
+      <div className={styles.searchOnly}>
+        {hero}
+        {searching ? <div className={styles.searchResults}>{results}</div> : null}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {hero}
 
       <div className={styles.layout}>
         <div className={styles.main}>
           {searching ? (
-            <>
-              {searchQuery.isError ? (
-                <div className={styles.empty}>
-                  {apiError(searchQuery.error, "搜索失败")}
-                </div>
-              ) : null}
-              {waiting ? (
-                <div className={styles.empty}>搜索中…</div>
-              ) : sections.length ? (
-                sections.map((section) => (
-                  <section key={section.id}>
-                    <SectionHead title={section.label} extra={section.extra} />
-                    <div className={styles.resultList}>
-                      {section.hits.map((hit) => (
-                        <SearchResultRow key={hit.key} hit={hit} />
-                      ))}
-                    </div>
-                  </section>
-                ))
-              ) : searchQuery.isError ? null : (
-                <div className={styles.empty}>无匹配结果</div>
-              )}
-            </>
+            results
           ) : (
             <>
               <section>

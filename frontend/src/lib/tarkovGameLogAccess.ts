@@ -12,6 +12,14 @@ import {
   screenshotWalkCandidatesFrom,
   type TarkovLogSessionStub,
 } from "@/lib/tarkovGameLogs";
+import {
+  assistantLogsBinding,
+  assistantScreenshotsBinding,
+  hasAssistantTarkovFiles,
+  rebindAssistantLogs,
+  rebindAssistantScreenshots,
+} from "@/lib/assistantShell";
+import { assistantBoundToDir, assistantDirWatch } from "@/lib/assistantTarkovDir";
 import { notifyTarkovLiveDirsChanged } from "@/lib/tarkovLiveWatch";
 
 const DB_NAME = "zhange-tarkov-game-logs";
@@ -108,7 +116,10 @@ export type TarkovScreenshotStub = {
 
 export function isFileSystemAccessSupported(): boolean {
   if (typeof window === "undefined") return false;
-  return typeof (window as PickerWindow).showDirectoryPicker === "function";
+  return (
+    typeof (window as PickerWindow).showDirectoryPicker === "function" ||
+    hasAssistantTarkovFiles()
+  );
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -153,6 +164,8 @@ async function idbSet(key: string, value: unknown): Promise<void> {
 }
 
 export async function loadStoredLogsDir(): Promise<ReadableDir | null> {
+  const bound = assistantLogsBinding();
+  if (bound) return assistantBoundToDir(bound);
   try {
     const handle = await idbGet<ReadableDir>(LOGS_HANDLE_KEY);
     return handle || null;
@@ -167,6 +180,8 @@ export async function saveLogsDir(handle: ReadableDir): Promise<void> {
 }
 
 export async function loadStoredLogsPath(): Promise<string> {
+  const bound = assistantLogsBinding();
+  if (bound?.path) return bound.path;
   try {
     const path = await idbGet<string>(LOGS_PATH_KEY);
     return typeof path === "string" ? path : "";
@@ -180,6 +195,8 @@ export async function saveLogsDisplayPath(path: string): Promise<void> {
 }
 
 export async function loadStoredScreenshotsDir(): Promise<ReadableDir | null> {
+  const bound = assistantScreenshotsBinding();
+  if (bound) return assistantBoundToDir(bound);
   try {
     const handle = await idbGet<ReadableDir>(SHOTS_HANDLE_KEY);
     return handle || null;
@@ -194,6 +211,8 @@ export async function saveScreenshotsDir(handle: ReadableDir): Promise<void> {
 }
 
 export async function loadStoredScreenshotsPath(): Promise<string> {
+  const bound = assistantScreenshotsBinding();
+  if (bound?.path) return bound.path;
   try {
     const path = await idbGet<string>(SHOTS_PATH_KEY);
     return typeof path === "string" ? path : "";
@@ -272,6 +291,14 @@ function requirePicker() {
 export async function pickLogsDirectory(
   startIn?: ReadableDir | null,
 ): Promise<ReadableDir> {
+  if (assistantLogsBinding()) {
+    if (!(await rebindAssistantLogs())) {
+      throw new Error("请在战鸽助手里更换日志目录。");
+    }
+    const bound = assistantLogsBinding();
+    if (!bound) throw new Error("请在战鸽助手里更换日志目录。");
+    return assistantBoundToDir(bound);
+  }
   return requirePicker()({
     id: "zhange-tarkov-logs",
     mode: "read",
@@ -282,6 +309,14 @@ export async function pickLogsDirectory(
 export async function pickScreenshotsDirectory(
   startIn?: ReadableDir | null,
 ): Promise<ReadableDir> {
+  if (assistantScreenshotsBinding()) {
+    if (!(await rebindAssistantScreenshots())) {
+      throw new Error("请在战鸽助手里更换截图目录。");
+    }
+    const bound = assistantScreenshotsBinding();
+    if (!bound) throw new Error("请在战鸽助手里更换截图目录。");
+    return assistantBoundToDir(bound);
+  }
   return requirePicker()({
     id: "zhange-tarkov-screenshots",
     mode: "readwrite",
@@ -293,6 +328,8 @@ export async function observeDirectory(
   handle: ReadableDir,
   onChange: (appeared: string[]) => void,
 ): Promise<(() => void) | null> {
+  const watch = assistantDirWatch(handle);
+  if (watch) return watch(() => onChange([]));
   const Ctor = (window as ObserverWindow).FileSystemObserver;
   if (!Ctor) return null;
   let dead = false;

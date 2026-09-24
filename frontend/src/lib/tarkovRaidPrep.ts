@@ -1615,6 +1615,21 @@ export function splitRaidPrepRowsByCurrentMap<T extends { on_this_map?: boolean 
   return { onMap, offMap };
 }
 
+/** 房间自动勾选只用本图任务。缺省 on_this_map 当成本图，与侧栏分段一致。 */
+export function raidPrepOnMapTaskIds(
+  rows: readonly { id: string; on_this_map?: boolean }[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of splitRaidPrepRowsByCurrentMap(rows).onMap) {
+    const id = (row.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 export function filterRaidPrepRowsByScope<T extends { id: string }>(
   rows: readonly T[],
   scope: RaidPrepListScope,

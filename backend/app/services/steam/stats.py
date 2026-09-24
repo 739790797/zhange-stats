@@ -13,7 +13,6 @@ from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
 from app.models.user import User
 from app.services.steam.friends import (
-    can_view_member_steam,
     visibility_meta,
     visible_member_ids_for_user,
 )
@@ -477,6 +476,7 @@ def build_range_detail(
                 "member_id": m.id,
                 "member_nickname": pres["member_nickname"],
                 "avatar_url": pres["avatar_url"],
+                "steam_id": m.steam_id,
                 "segments": segs,
             }
         )
@@ -634,167 +634,4 @@ def build_overview(db: Session, viewer: User) -> dict:
         "now_playing": now_playing,
         "recent_sessions": recent_sessions,
         "visibility": visibility_meta(db, viewer, visible_ids),
-    }
-
-
-def _games_in_window(
-    sessions: list[PlaySession],
-    window_start: datetime,
-    window_end: datetime,
-    name_map: dict[str, str],
-    icon_map: dict[str, str],
-) -> tuple[int, list[dict]]:
-    """按与日历相同的窗口重叠，把会话折成总时长和分游戏列表。"""
-    totals: dict[str, dict] = {}
-    total_seconds = 0
-    for session in sessions:
-        seconds = _overlap_seconds(
-            _to_aware(session.started_at),
-            _session_end(session),
-            window_start,
-            window_end,
-        )
-        if seconds <= 0:
-            continue
-        total_seconds += seconds
-        app_id = (session.steam_app_id or "").strip()
-        row = totals.get(app_id)
-        if row is None:
-            row = {
-                "steam_app_id": app_id,
-                "game_name": _localize(app_id, session.game_name, name_map)
-                or session.game_name
-                or app_id,
-                "icon_url": icon_map.get(app_id),
-                "total_seconds": 0,
-                "session_count": 0,
-            }
-            totals[app_id] = row
-        row["total_seconds"] += seconds
-        row["session_count"] += 1
-    games = sorted(
-        totals.values(),
-        key=lambda item: (-item["total_seconds"], item["game_name"]),
-    )
-    return total_seconds, games
-
-
-def build_member_play_stats(
-    db: Session, member_id: int, viewer: User
-) -> dict | None:
-    member = (
-        db.query(Member)
-        .filter(Member.id == member_id, Member.user_id.isnot(None))
-        .first()
-    )
-    if not member:
-        return None
-    if not can_view_member_steam(db, viewer, member_id):
-        return None
-
-    today_d = today()
-    week_start = today_d - timedelta(days=today_d.weekday())
-    month_start = today_d.replace(day=1)
-    trend_start = today_d - timedelta(days=13)
-
-    week_ws, _ = _day_bounds(week_start)
-    _, week_we = _day_bounds(today_d)
-    month_ws, _ = _day_bounds(month_start)
-    today_ws, today_we = _day_bounds(today_d)
-
-    # 周首或近两周可能落在本月之前，查询窗口取最早的一天。
-    fetch_start = min(week_start, month_start, trend_start)
-    fetch_ws, _ = _day_bounds(fetch_start)
-    window_sessions = _sessions_in_window(
-        db, fetch_ws, today_we, member_id=member_id
-    )
-
-    recent = (
-        db.query(PlaySession)
-        .filter(PlaySession.source == "steam", PlaySession.member_id == member_id)
-        .order_by(PlaySession.started_at.desc())
-        .limit(50)
-        .all()
-    )
-    app_ids = [s.steam_app_id for s in window_sessions] + [
-        s.steam_app_id for s in recent
-    ]
-    name_map = resolve_app_names(db, app_ids)
-    icon_map = resolve_app_icons(db, app_ids, fetch_missing=False)
-
-    today_seconds, games_today = _games_in_window(
-        window_sessions, today_ws, today_we, name_map, icon_map
-    )
-    week_seconds, games_week = _games_in_window(
-        window_sessions, week_ws, week_we, name_map, icon_map
-    )
-    month_seconds, games_month = _games_in_window(
-        window_sessions, month_ws, today_we, name_map, icon_map
-    )
-
-    trend: list[dict] = []
-    d = trend_start
-    while d <= today_d:
-        day_start, day_end = _day_bounds(d)
-        seconds = 0
-        count = 0
-        for s in window_sessions:
-            sec = _overlap_seconds(
-                _to_aware(s.started_at), _session_end(s), day_start, day_end
-            )
-            if sec > 0:
-                seconds += sec
-                count += 1
-        trend.append(
-            {
-                "date": d.isoformat(),
-                "total_seconds": seconds,
-                "session_count": count,
-            }
-        )
-        d += timedelta(days=1)
-
-    now_dt = now()
-    recent_sessions = []
-    for s in recent:
-        start = _to_aware(s.started_at)
-        end = _session_end(s)
-        if s.ended_at is None:
-            duration = max(0, int((now_dt - start).total_seconds()))
-        else:
-            duration = max(0, int((end - start).total_seconds()))
-        recent_sessions.append(
-            {
-                "id": s.id,
-                "member_id": s.member_id,
-                "member_nickname": member.steam_persona_name or member.nickname,
-                "avatar_url": member.steam_avatar_url or member.avatar_url,
-                "steam_app_id": s.steam_app_id,
-                "game_name": _localize(s.steam_app_id, s.game_name, name_map),
-                "icon_url": icon_map.get(s.steam_app_id),
-                "started_at": s.started_at,
-                "ended_at": s.ended_at,
-                "duration_seconds": duration,
-                "is_ongoing": s.ended_at is None,
-            }
-        )
-
-    return {
-        "member": {
-            "id": member.id,
-            "nickname": member.steam_persona_name or member.nickname,
-            "avatar_url": member.steam_avatar_url or member.avatar_url,
-            "user_id": member.user_id,
-            "joined_at": member.joined_at,
-            "steam_id": member.steam_id,
-        },
-        "today_play_seconds": today_seconds,
-        "week_play_seconds": week_seconds,
-        "month_play_seconds": month_seconds,
-        "session_count": len(recent),
-        "games_today": games_today,
-        "games_week": games_week,
-        "games_month": games_month,
-        "trend": trend,
-        "recent_sessions": recent_sessions,
     }

@@ -5,6 +5,7 @@ import {
   type TarkovRaidPrepOcrMatch,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { assistantCanPickImage, pickAssistantImage } from "@/lib/assistantShell";
 import { formatKeyOcrEngines } from "@/lib/tarkovOcr";
 import { newRaidPrepOcrIds } from "@/lib/tarkovRaidPrepOcr";
 import { RAID_PREP_MAX_SELECTED, tarkovReadableName } from "@/lib/tarkovRaidPrep";
@@ -236,6 +237,28 @@ export function TarkovRaidPrepOcrModal({
           <p className={styles.ocrPasteHint}>
             {user ? "Ctrl+V粘贴截图进行识别" : "登录后才能截图识别"}
           </p>
+          {user && assistantCanPickImage() ? (
+            <button
+              type="button"
+              className={`${styles.dockChip} ${styles.dockChipOn}`}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const file = await pickAssistantImage();
+                    if (file) void runRecognize(file);
+                  } catch (err) {
+                    setError(
+                      err instanceof Error && err.message
+                        ? err.message
+                        : apiError(err, "选择截图失败"),
+                    );
+                  }
+                })();
+              }}
+            >
+              从助手选择截图
+            </button>
+          ) : null}
           <p className={styles.ocrMeta}>
             截图只进本站内存。按系统「文字识别」里为局前任务勾选的引擎对照当前地图任务名，不存盘。
           </p>

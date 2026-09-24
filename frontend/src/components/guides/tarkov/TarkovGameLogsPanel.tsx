@@ -1,6 +1,10 @@
 import { Alert, Button, Input, InputNumber, Spin, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  hasAssistantTarkovFiles,
+  isAssistantEmbed,
+} from "@/lib/assistantShell";
+import {
   displayPathForResolved,
   isFileSystemAccessSupported,
   isPickerAbort,
@@ -57,6 +61,11 @@ function friendlyError(error: unknown, fallback: string): string {
 
 export function TarkovGameLogsPanel() {
   const supported = isFileSystemAccessSupported();
+  const assistantEmbed = isAssistantEmbed();
+  const assistantBound = hasAssistantTarkovFiles();
+  const pathInputTitle = assistantBound
+    ? "路径由战鸽助手提供"
+    : "浏览器选目录拿不到盘符，可在此补全完整路径";
   const handleRef = useRef<ReadableDir | null>(null);
   const shotRef = useRef<ReadableDir | null>(null);
   const [perm, setPerm] = useState<Perm>("unknown");
@@ -302,6 +311,16 @@ export function TarkovGameLogsPanel() {
     }
   };
 
+  if (assistantEmbed && !assistantBound) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="战鸽助手还没有绑定截图和日志目录"
+      />
+    );
+  }
+
   if (!supported) {
     return (
       <Alert
@@ -333,7 +352,7 @@ export function TarkovGameLogsPanel() {
             id="tarkov-bind-shots"
             value={shotLabel}
             placeholder={TARKOV_SCREENSHOTS_PATH_HINT}
-            title="浏览器选目录拿不到盘符，可在此补全完整路径"
+            title={pathInputTitle}
             className={`${styles.pathInput}${active === "shots" ? ` ${styles.pathOn}` : ""}`}
             onFocus={() => setActive("shots")}
             onChange={(event) => setShotLabel(event.target.value)}
@@ -438,7 +457,7 @@ export function TarkovGameLogsPanel() {
             id="tarkov-bind-logs"
             value={dirName}
             placeholder={TARKOV_LOGS_PATH_HINT}
-            title="浏览器选目录拿不到盘符，可在此补全完整路径"
+            title={pathInputTitle}
             className={`${styles.pathInput}${active === "logs" ? ` ${styles.pathOn}` : ""}`}
             onFocus={() => setActive("logs")}
             onChange={(event) => setDirName(event.target.value)}

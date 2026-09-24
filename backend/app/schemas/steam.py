@@ -91,6 +91,7 @@ class SteamTimelineRow(BaseModel):
     member_id: int
     member_nickname: str
     avatar_url: str | None
+    steam_id: str | None = None
     segments: list[SteamTimelineSegment]
 
 
@@ -176,38 +177,3 @@ class SteamOverviewResponse(BaseModel):
     recent_sessions: list[SteamSessionBrief]
     visibility: SteamVisibilityMeta | None = None
 
-
-class PlayTrendPoint(BaseModel):
-    date: str
-    total_seconds: int
-    session_count: int
-
-
-class MemberPlayMember(BaseModel):
-    id: int
-    nickname: str
-    avatar_url: str | None
-    user_id: int | None
-    joined_at: datetime
-    steam_id: str | None = None
-
-
-class MemberPlayGame(BaseModel):
-    steam_app_id: str
-    game_name: str
-    icon_url: str | None = None
-    total_seconds: int
-    session_count: int
-
-
-class MemberPlayStatsResponse(BaseModel):
-    member: MemberPlayMember
-    today_play_seconds: int
-    week_play_seconds: int
-    month_play_seconds: int
-    session_count: int
-    games_today: list[MemberPlayGame]
-    games_week: list[MemberPlayGame]
-    games_month: list[MemberPlayGame]
-    trend: list[PlayTrendPoint]
-    recent_sessions: list[SteamSessionBrief]

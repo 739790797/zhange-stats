@@ -7,6 +7,7 @@ import {
 } from "@/api/guidesApi";
 import { TarkovGuideItemCell } from "@/components/guides/tarkov/TarkovGuideItemCell";
 import { apiError } from "@/lib/apiError";
+import { assistantCanPickImage, pickAssistantImage } from "@/lib/assistantShell";
 import {
   paintKeyOcrOverlay,
   type TarkovKeyOcrOverlay,
@@ -237,6 +238,28 @@ export function TarkovKeyOcrModal({
               ? "Ctrl+V 粘贴游戏内钥匙箱截图"
               : "登录后才能截图识别"}
           </p>
+          {user && assistantCanPickImage() ? (
+            <button
+              type="button"
+              className={`${ocr.dockChip} ${ocr.dockChipOn}`}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const file = await pickAssistantImage();
+                    if (file) void runRecognize(file);
+                  } catch (err) {
+                    setError(
+                      err instanceof Error && err.message
+                        ? err.message
+                        : apiError(err, "选择截图失败"),
+                    );
+                  }
+                })();
+              }}
+            >
+              从助手选择截图
+            </button>
+          ) : null}
           <p className={ocr.ocrMeta}>
             截图只进本站内存。按系统「文字识别」里为钥匙箱勾选的引擎交叉识别短名，不存盘。确认后才写入「我有」。模型由任务配置「文字识别模型」维护。
           </p>

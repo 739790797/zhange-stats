@@ -23,7 +23,6 @@ export {
 } from "./authApi";
 
 export {
-  fetchMemberPlayStats,
   fetchSteamDay,
   fetchSteamNow,
   fetchSteamAppStore,

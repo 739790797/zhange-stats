@@ -21,6 +21,10 @@ export function steamStoreUrl(appId: string): string {
   return `https://store.steampowered.com/app/${encodeURIComponent(appId)}`;
 }
 
+export function steamProfileUrl(steamId: string): string {
+  return `https://steamcommunity.com/profiles/${encodeURIComponent(steamId)}`;
+}
+
 /** 把「自然日×2」的接口结果裁成从中午起的 24 小时窗口（查询仍用 date/end）。 */
 export function clipTimelineToNoonWindow(data: SteamDayData): SteamDayData {
   const shift = 12 * 3600;

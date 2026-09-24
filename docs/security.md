@@ -7,6 +7,21 @@
 - 签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username`
 - 浏览器会话：登录 / 注册 / QQ 换票 / 安装向导 `Set-Cookie` `zhange_access`（HttpOnly、`SameSite=Lax`、生产 `Secure`、`Path=/`）。前端 **不** 把 JWT 写入 localStorage，axios **不** 塞 `Authorization`。可变方法须带 `X-CSRF-Token`（与可读 Cookie `zhange_csrf` Double Submit）。脚本 / OpenAPI 仍可用 `Authorization: Bearer`（此时免 CSRF）。`POST /api/auth/logout` 清 Cookie。QQ 回调仍只带 ticket
 - 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用默认 localhost/Tauri 正则
+
+## 战鸽助手
+
+Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。站点响应带 `X-Frame-Options: DENY` 与 CSP `frame-ancestors 'none'`，不能用 iframe 嵌进来。开发环境 CORS 正则里的 `https://tauri.localhost` 只给本机联调；生产不要把壳源跨站打 API 当成登录方案（Cookie 为 `SameSite=Lax`，前端请求相对路径 `/api`，生产默认不放行该正则）。会话仍是 HttpOnly Cookie + CSRF。QQ / Steam 回跳必须落在站点地址。
+
+助手自带侧栏时，站点在嵌入标记下不画 `AppLayout` 的「战鸽数据」侧栏；浏览器直接打开不变。塔科夫页内栏目顶栏仍由页面负责。个人中心要嵌成子页时，嵌入之外再标 `pane: "body"`（或 `?pane=body`）：`/guides/tarkov/me?tab=collection&embed=assistant&pane=body` 只画该 tab 主体（收集格子、任务列表等），不画顶栏、面包屑和 tab 条。综合查询用 `?pane=search`：`/guides/tarkov?embed=assistant&pane=search` 只画搜索框，不画顶栏、目录和页脚；搜到结果后仍列出结果。`pane=search` 只认当前地址。没有嵌入标记时 `pane` 不生效。
+
+截图目录与游戏日志的读盘交给助手：列目录、读日志文本、读最新截图、按页面「多于 N 张删旧图」删除、目录一变就通知页面。文件名里的坐标、日志解析、任务回放留在站点前端。战局只提交现有摘要接口，房间定位只广播数字。钥匙箱与局前任务的截图识别仍走现有 `recognize`，图只进服务器内存，确认后只存 id。
+
+助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。`pickImage()` 返回 `{ name, type, bytes }` 时，钥匙箱与局前任务识别弹窗多一个「从助手选择截图」，识别仍走现有接口。
+
+助手首页是 `/app`。打开时请求 `/auth/me`：401 去登录页；没有状态码或其它 4xx/5xx 留在页上重试，不当成未登录。页内卡片仍是演示。
+
+改这些行为时对照 [`.cursor/rules/zhange-assistant.mdc`](../.cursor/rules/zhange-assistant.mdc)。
+
 - 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧发码限流 10/IP、5/账号、5/邮箱 / 10 分钟；校验失败再限 12/账号、12/邮箱 / 10 分钟
 - 注销账号：个人中心邮箱验证码；**anonymize** 保留 `users.id`（联机房间历史外键不炸），清空邮箱/口令/显示名，解绑平台与头像（`user_files` 标 `deleted` 并清盘），删酒馆草稿。管理员代删同一套 service，写 `job_runs`
 - 平台凭证 Fernet 加密存库。QQ 回调不要把 JWT 放进 URL

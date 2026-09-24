@@ -8,6 +8,7 @@ import { TarkovHideoutPanel } from "@/components/guides/tarkov/TarkovHideoutPane
 import { TarkovKeyPacksPanel } from "@/components/guides/tarkov/TarkovKeyPacksPanel";
 import { TarkovProfilePanel } from "@/components/guides/tarkov/TarkovProfilePanel";
 import { TarkovTaskManagerPanel } from "@/components/guides/tarkov/TarkovTaskManagerPanel";
+import { isAssistantBodyPane } from "@/lib/assistantShell";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   resolveTarkovMeTab,
@@ -35,6 +36,7 @@ export function TarkovMePanel() {
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveTarkovMeTab(searchParams.get("tab"));
+  const bodyPane = isAssistantBodyPane();
   const profileQuery = useQuery({
     queryKey: ["guides-tarkov-profile", gameMode],
     queryFn: fetchTarkovProfile,
@@ -77,6 +79,7 @@ export function TarkovMePanel() {
     <div
       className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}
     >
+      {bodyPane ? null : (
       <div
         className={`${trade.chipBar} ${styles.tabs}`}
         role="tablist"
@@ -95,6 +98,7 @@ export function TarkovMePanel() {
           </button>
         ))}
       </div>
+      )}
       {tab === "profile" ? <TarkovProfilePanel /> : null}
       {tab === "tasks" ? <TarkovTaskManagerPanel /> : null}
       {tab === "keys" ? <TarkovKeyPacksPanel /> : null}

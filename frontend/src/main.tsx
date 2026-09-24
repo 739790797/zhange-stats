@@ -17,6 +17,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import "@/lib/time";
+import { rememberAssistantEmbed } from "@/lib/assistantShell";
 import { startRum } from "@/lib/rumCollect";
 import {
   QUERY_PERSIST_KEY,
@@ -81,6 +82,7 @@ const appTree = queryPersister ? (
   </QueryClientProvider>
 );
 
+rememberAssistantEmbed();
 startRum();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>{appTree}</StrictMode>,

@@ -23,6 +23,7 @@ const AdminHubLayout = lazy(() =>
 );
 const SetupPage = lazy(() => import("@/pages/SetupPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const AppHomePage = lazy(() => import("@/pages/AppHomePage"));
 const LegalTermsPage = lazy(() => import("@/pages/LegalTermsPage"));
 const LegalPrivacyPage = lazy(() => import("@/pages/LegalPrivacyPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
@@ -34,7 +35,6 @@ const TaygedoPage = lazy(() => import("@/pages/TaygedoPage"));
 const ExiliumPage = lazy(() => import("@/pages/ExiliumPage"));
 const KujiequPage = lazy(() => import("@/pages/KujiequPage"));
 const MihoyoPage = lazy(() => import("@/pages/MihoyoPage"));
-const MemberDetailPage = lazy(() => import("@/pages/MemberDetailPage"));
 const MyDailyPage = lazy(() => import("@/pages/MyDailyPage"));
 const ProfileSettingsPage = lazy(() => import("@/pages/ProfileSettingsPage"));
 const UserManagementPage = lazy(() => import("@/pages/UserManagementPage"));
@@ -178,6 +178,7 @@ export default function App() {
                 }
               >
                 <Route path="/" element={<HomeRedirect />} />
+                <Route path="/app" element={<AppHomePage />} />
                 <Route
                   path="/tavern"
                   element={
@@ -383,14 +384,6 @@ export default function App() {
                   }
                 />
                 <Route path="/members" element={<HomeRedirect />} />
-                <Route
-                  path="/members/:id"
-                  element={
-                    <PlatformRoute featureId="steam">
-                      <MemberDetailPage />
-                    </PlatformRoute>
-                  }
-                />
                 <Route path="/daily" element={<MyDailyPage />} />
                 <Route
                   path="/guides/minecraft"

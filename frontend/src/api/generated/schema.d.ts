@@ -1367,23 +1367,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/steam/members/{member_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Steam Member Stats */
-        get: operations["steam_member_stats_api_steam_members__member_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/steam/calendar": {
         parameters: {
             query?: never;
@@ -5081,6 +5064,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/{full_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spa Fallback */
+        get: operations["spa_fallback__full_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7877,59 +7877,6 @@ export interface components {
              */
             joined_at: string;
         };
-        /** MemberPlayGame */
-        MemberPlayGame: {
-            /** Steam App Id */
-            steam_app_id: string;
-            /** Game Name */
-            game_name: string;
-            /** Icon Url */
-            icon_url?: string | null;
-            /** Total Seconds */
-            total_seconds: number;
-            /** Session Count */
-            session_count: number;
-        };
-        /** MemberPlayMember */
-        MemberPlayMember: {
-            /** Id */
-            id: number;
-            /** Nickname */
-            nickname: string;
-            /** Avatar Url */
-            avatar_url: string | null;
-            /** User Id */
-            user_id: number | null;
-            /**
-             * Joined At
-             * Format: date-time
-             */
-            joined_at: string;
-            /** Steam Id */
-            steam_id?: string | null;
-        };
-        /** MemberPlayStatsResponse */
-        MemberPlayStatsResponse: {
-            member: components["schemas"]["MemberPlayMember"];
-            /** Today Play Seconds */
-            today_play_seconds: number;
-            /** Week Play Seconds */
-            week_play_seconds: number;
-            /** Month Play Seconds */
-            month_play_seconds: number;
-            /** Session Count */
-            session_count: number;
-            /** Games Today */
-            games_today: components["schemas"]["MemberPlayGame"][];
-            /** Games Week */
-            games_week: components["schemas"]["MemberPlayGame"][];
-            /** Games Month */
-            games_month: components["schemas"]["MemberPlayGame"][];
-            /** Trend */
-            trend: components["schemas"]["PlayTrendPoint"][];
-            /** Recent Sessions */
-            recent_sessions: components["schemas"]["SteamSessionBrief"][];
-        };
         /** MemberProfileOut */
         MemberProfileOut: {
             /** Member Id */
@@ -10106,15 +10053,6 @@ export interface components {
                 [key: string]: components["schemas"]["PlatformFeatureJobUpdate"];
             };
         };
-        /** PlayTrendPoint */
-        PlayTrendPoint: {
-            /** Date */
-            date: string;
-            /** Total Seconds */
-            total_seconds: number;
-            /** Session Count */
-            session_count: number;
-        };
         /** QqExchangeRequest */
         QqExchangeRequest: {
             /** Ticket */
@@ -11119,6 +11057,8 @@ export interface components {
             member_nickname: string;
             /** Avatar Url */
             avatar_url: string | null;
+            /** Steam Id */
+            steam_id?: string | null;
             /** Segments */
             segments: components["schemas"]["SteamTimelineSegment"][];
         };
@@ -19538,37 +19478,6 @@ export interface operations {
             };
         };
     };
-    steam_member_stats_api_steam_members__member_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                member_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemberPlayStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     steam_calendar_api_steam_calendar_get: {
         parameters: {
             query: {
@@ -27266,6 +27175,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    spa_fallback__full_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                full_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

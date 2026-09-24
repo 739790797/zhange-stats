@@ -121,10 +121,6 @@ from app.schemas.skland import (
     SklandStatusOut,
 )
 from app.schemas.steam import (
-    MemberPlayGame,
-    MemberPlayMember,
-    MemberPlayStatsResponse,
-    PlayTrendPoint,
     SteamAppIcon,
     SteamAppStoreCard,
     SteamBindPreviewRequest,
@@ -318,8 +314,4 @@ __all__ = [
     "SteamAppIcon",
     "SteamSessionBrief",
     "SteamOverviewResponse",
-    "PlayTrendPoint",
-    "MemberPlayGame",
-    "MemberPlayMember",
-    "MemberPlayStatsResponse",
 ]

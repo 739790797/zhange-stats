@@ -15,6 +15,7 @@
 | [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc) | 盒子 / 旁路 raw / 签到今日 logs |
 | [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred、渠道测 |
 | [`.cursor/rules/tarkov-upstream.mdc`](.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴只走 json.tarkov.dev，不打 GraphQL |
+| [`.cursor/rules/zhange-assistant.mdc`](.cursor/rules/zhange-assistant.mdc) | 战鸽助手：同源 WebView、侧栏、本机截图/日志 |
 | [`.cursor/rules/db-schema-readme.mdc`](.cursor/rules/db-schema-readme.mdc) | Alembic + `docs/database.md` 表结构 |
 | [`.cursor/rules/frontend-conventions.mdc`](.cursor/rules/frontend-conventions.mdc) | 前端约定（含 status `force` 显式传参） |
 | [`.cursor/rules/frontend-ui.mdc`](.cursor/rules/frontend-ui.mdc) | Ant Design 主题、按钮角色/尺寸 |
@@ -63,6 +64,7 @@ alembic upgrade head
 - 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
 - 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
 - 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/地图/人数/是否要密码等，无棋盘）；房间码当秘密；访客占座
+- 战鸽助手用 iframe 嵌站，或生产用 `tauri.localhost` 跨源当登录；为读游戏目录新开收日志原文/定位原图的接口；在助手里重写截图文件名与日志解析
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
@@ -87,6 +89,7 @@ alembic upgrade head
 - [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
 - [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
 - [ ] 改塔科夫联机：未登录可看大厅与房间预览；非成员 GET 仅为预览；访客不能占座；限流与 `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」一致
+- [ ] 改战鸽助手嵌入 / 本机目录：对照 `zhange-assistant.mdc`（同源 WebView、侧栏、文件桥不收原文）
 - [ ] 改文件管理：只扫安装根；密钥 / MariaDB 数据 / 备份不可下/改/删；相关 `test_file_manager` 通过
 - [ ] 改用户附件：走 `user_files`；OpenAPI `serial`；相关 `test_user_files` 通过
 - [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）

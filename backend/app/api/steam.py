@@ -8,7 +8,6 @@ from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
 from app.models.user import User
 from app.schemas import (
-    MemberPlayStatsResponse,
     SteamAppIcon,
     SteamAppStoreCard,
     SteamCalendarResponse,
@@ -22,7 +21,6 @@ from app.services.steam.poller import run_steam_presence_poll
 from app.services.steam.stats import (
     build_calendar,
     build_range_detail,
-    build_member_play_stats,
     build_overview,
     list_now_playing,
 )
@@ -40,21 +38,6 @@ def steam_overview(
     user: User = Depends(get_current_user),
 ) -> dict:
     return build_overview(db, user)
-
-
-@router.get("/members/{member_id}", response_model=MemberPlayStatsResponse)
-def steam_member_stats(
-    member_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> dict:
-    data = build_member_play_stats(db, member_id, user)
-    if not data:
-        raise HTTPException(
-            status_code=404,
-            detail="成员不存在",
-        )
-    return data
 
 
 @router.get("/calendar", response_model=SteamCalendarResponse)

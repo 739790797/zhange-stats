@@ -24,7 +24,7 @@
 | 克隆后跑起来 | [`develop.md`](develop.md) |
 | 上生产 / 一键更新 / 发版 | [`deploy.md`](deploy.md) |
 | 查某张表、改表 | [`database.md`](database.md) + [`backend/alembic/README.md`](../backend/alembic/README.md) |
-| 安全 / JWT Cookie / CSRF / Redis / 弱口令 / 塔科夫公开图鉴与联机 / 文件管理 | [`security.md`](security.md) |
+| 安全 / JWT Cookie / CSRF / Redis / 弱口令 / 塔科夫公开图鉴与联机 / 文件管理 / 战鸽助手 | [`security.md`](security.md) |
 | 什么时候打 logger、平台日志怎么记 | [`logging.md`](logging.md) |
 | 对外宣传前核对 | [`deploy.md`](deploy.md)「公开运营检查」 |
 | 规范对齐归档（安全头 / 备份 / Cookie / CSP） | [`hardening-roadmap.md`](hardening-roadmap.md) |
@@ -53,7 +53,7 @@
 | [`develop.md`](develop.md) | 技术栈、Windows 本地开发、工程 / CI、目录树 |
 | [`deploy.md`](deploy.md) | LXC / Windows 本机安装、管理端更新、发版（仅质量门绿才打 Release）、部署形态、公开运营检查、Minecraft / Pelican |
 | [`database.md`](database.md) | 表结构总览（改模型必须同步本文） |
-| [`security.md`](security.md) | Cookie/CSRF、请求 ID、CSP、弱口令、Redis、塔科夫公开图鉴与联机读权限/限流、条款页、ICP 备案号、邮件验证码日志、`config/` 密钥 |
+| [`security.md`](security.md) | Cookie/CSRF、请求 ID、CSP、弱口令、Redis、塔科夫公开图鉴与联机读权限/限流、战鸽助手嵌入、条款页、ICP 备案号、邮件验证码日志、`config/` 密钥 |
 | [`logging.md`](logging.md) | 运行时日志：级别、禁刷、管道（环缓冲 / JSONL）、与业务落库的区别 |
 | [`hardening-roadmap.md`](hardening-roadmap.md) | 公开站点规范对齐（1～8 期 + 附件已落地） |
 | [`directory-layout.md`](directory-layout.md) | `data/` 与 services/components 分包映射（已落地） |
@@ -71,6 +71,7 @@ Cursor 规则，不是给人当手册从头读的。架构索引始终加载；�
 | [`platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc) | 签到/盒子/API | 盒子与旁路 raw **读库优先**；签到展示打开页始终 **force 回源** |
 | [`skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc) | 森空岛相关 | 官服 / B 服渠道语义、补奖、`unknown`、cred 缓存 |
 | [`tarkov-upstream.mdc`](../.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴 | 只走 json.tarkov.dev；禁止 GraphQL 回源 |
+| [`zhange-assistant.mdc`](../.cursor/rules/zhange-assistant.mdc) | 外壳、塔科夫本机目录、CORS | 战鸽助手同源 WebView；侧栏与截图/日志文件桥 |
 | [`db-schema-readme.mdc`](../.cursor/rules/db-schema-readme.mdc) | `models/`、迁移 | 改表必须 Alembic + 同步 `docs/database.md` |
 | [`backend-conventions.mdc`](../.cursor/rules/backend-conventions.mdc) | `backend/app/` | `api/` 薄、`services/` 厚；新平台 Adapter + 注册表 |
 | [`logging.mdc`](../.cursor/rules/logging.mdc) | `backend/app/` | 运行时日志级别与禁刷；全文 `logging.md` |

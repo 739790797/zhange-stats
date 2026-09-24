@@ -1,7 +1,6 @@
 import { Avatar, Empty, Space, Spin, Tag, Tooltip, Typography } from "antd";
 import { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 
 import type { SteamTimelineRow } from "@/api/types";
 import {
@@ -15,6 +14,7 @@ import { TimelineSegmentLogo } from "@/components/steam/SteamClientIcon";
 import {
   hashColor,
   segmentColor,
+  steamProfileUrl,
   steamStoreUrl,
 } from "@/components/steam/timelineUtils";
 
@@ -25,7 +25,6 @@ export function DayTimeline({
   spanSeconds,
   rangeStart,
   emptyText = "暂无绑定 Steam 的圈子成员",
-  showMemberLabel = true,
 }: {
   rows: SteamTimelineRow[];
   gamesLegend: {
@@ -37,16 +36,14 @@ export function DayTimeline({
   spanSeconds: number;
   rangeStart: Dayjs;
   emptyText?: string;
-  /** 成员详情只画一个人时隐藏左侧昵称列。 */
-  showMemberLabel?: boolean;
 }) {
   const [hoveredAppId, setHoveredAppId] = useState<string | null>(null);
   const [showOffline, setShowOffline] = useState(true);
   const [showOnline, setShowOnline] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
   const trackMeasureRef = useRef<HTMLDivElement>(null);
-  const labelWidth = showMemberLabel ? 112 : 0;
-  const marksOffset = showMemberLabel ? labelWidth : 8;
+  const labelWidth = 112;
+  const marksOffset = labelWidth;
   const trackHeight = 28;
   const rowGap = 10;
   const logoSize = 18;
@@ -244,7 +241,6 @@ export function DayTimeline({
                 padding: "0 8px",
               }}
             >
-              {showMemberLabel ? (
               <div
                 style={{
                   width: labelWidth,
@@ -258,10 +254,22 @@ export function DayTimeline({
                 <Avatar size={24} src={row.avatar_url || undefined}>
                   {row.member_nickname[0]}
                 </Avatar>
-                <Link
-                  to={`/members/${row.member_id}`}
-                  style={{ minWidth: 0 }}
-                >
+                {row.steam_id ? (
+                  <Typography.Link
+                    href={steamProfileUrl(row.steam_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ minWidth: 0 }}
+                  >
+                    <Typography.Text
+                      ellipsis
+                      style={{ maxWidth: 72, fontSize: 13 }}
+                      title={row.member_nickname}
+                    >
+                      {row.member_nickname}
+                    </Typography.Text>
+                  </Typography.Link>
+                ) : (
                   <Typography.Text
                     ellipsis
                     style={{ maxWidth: 72, fontSize: 13 }}
@@ -269,9 +277,8 @@ export function DayTimeline({
                   >
                     {row.member_nickname}
                   </Typography.Text>
-                </Link>
+                )}
               </div>
-              ) : null}
               <div
                 style={{
                   flex: 1,

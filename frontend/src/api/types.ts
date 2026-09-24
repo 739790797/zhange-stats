@@ -113,9 +113,6 @@ export type KujiequAttendanceCalendar =
 export type WwBox = components["schemas"]["WwBoxOut"];
 export type WwBoxItem = components["schemas"]["WwBoxItemOut"];
 
-/** 与后端 OpenAPI `MemberPlayStatsResponse` 对齐。 */
-export type MemberPlayStats = components["schemas"]["MemberPlayStatsResponse"];
-
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);

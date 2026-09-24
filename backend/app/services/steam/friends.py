@@ -17,10 +17,6 @@ def visible_member_ids_for_user(db: Session, user: User) -> set[int]:
     return {r[0] for r in rows}
 
 
-def can_view_member_steam(db: Session, viewer: User, target_member_id: int) -> bool:
-    return target_member_id in visible_member_ids_for_user(db, viewer)
-
-
 def visibility_meta(
     db: Session,
     user: User,

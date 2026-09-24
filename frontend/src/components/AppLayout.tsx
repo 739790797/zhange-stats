@@ -41,6 +41,7 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
+import { isAssistantEmbed } from "@/lib/assistantShell";
 import {
   ADMIN_HUBS,
   ADMIN_LEAF_PATHS,
@@ -135,6 +136,7 @@ export function AppLayout() {
   const [siderCollapsed, setSiderCollapsed] = useState(loadAppSiderCollapsed);
   const screens = Grid.useBreakpoint();
   const isMobile = screens.md === false;
+  const assistantEmbed = isAssistantEmbed();
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const contentShell = adminContentShell(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
@@ -227,6 +229,7 @@ export function AppLayout() {
   }, [location.pathname]);
 
   const selected = useMemo(() => {
+    if (location.pathname === "/app") return "/app";
     if (/^\/members\/\d+\/profile/.test(location.pathname)) {
       return ADMIN_USERS_PATH;
     }
@@ -596,7 +599,7 @@ export function AppLayout() {
           跳到正文
         </a>
       )}
-      {isMobile ? (
+      {assistantEmbed ? null : isMobile ? (
         <Drawer
           placement="left"
           open={drawerOpen}
@@ -633,7 +636,7 @@ export function AppLayout() {
           background: isTarkovGuide ? "#161710" : undefined,
         }}
       >
-        {isMobile ? (
+        {isMobile && !assistantEmbed ? (
           <Header
             style={{
               background: "#1a2332",
@@ -675,7 +678,9 @@ export function AppLayout() {
           tabIndex={isTarkovGuide ? undefined : -1}
           className={[
             isTarkovGuide ? "app-main-tarkov" : "app-main-scroll",
-            !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
+            !assistantEmbed && !isMobile && siderCollapsed
+              ? "app-main--sider-collapsed"
+              : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -742,7 +747,7 @@ export function AppLayout() {
           {isTarkovGuide ? null : <IcpBeianFooter />}
         </Content>
       </Layout>
-      {isMobile || !siderCollapsed ? null : (
+      {assistantEmbed || isMobile || !siderCollapsed ? null : (
         <div className="app-sider-edge-slot">
           <Tooltip title="展开侧栏" placement="right">
             <Button
