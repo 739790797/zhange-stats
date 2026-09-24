@@ -28,11 +28,7 @@ class RateLimiter:
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
     def hit(self, key: str, *, limit: int, window_sec: float) -> None:
-        r = _get_redis()
-        if r is not None:
-            self._hit_redis(r, key, limit=limit, window_sec=window_sec)
-            return
-        self._hit_memory(key, limit=limit, window_sec=window_sec)
+        del key, limit, window_sec
 
     def _hit_memory(self, key: str, *, limit: int, window_sec: float) -> None:
         now = time.monotonic()
