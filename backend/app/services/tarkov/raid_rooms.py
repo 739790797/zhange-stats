@@ -197,8 +197,6 @@ def _clean_create_visibility(
         if raw:
             raise RaidRoomError("公开房间不能设密码", 400)
         return True, ""
-    if not raw:
-        raise RaidRoomError("私密房间需要密码", 400)
     if len(raw) > MAX_ROOM_PASSWORD_LEN:
         raise RaidRoomError(f"密码最多 {MAX_ROOM_PASSWORD_LEN} 个字符", 400)
     return False, raw
@@ -1667,10 +1665,13 @@ def set_room_map(
     if slug == (room.map_slug or ""):
         return serialize_room(db, room, viewer=user)
     seated = _seated_members(db, room.id)
+    host_id = int(room.host_user_id or 0)
+    caller_is_host = bool(host_id and int(user.id) == host_id)
     actor = acting_host_user_id(room.host_user_id, seated, online_user_ids)
     seated_ids = {int(row.user_id) for row in seated}
     shared = shared_raid_map_slug(user.id, seated_ids, log_phases)
-    if actor != user.id and shared != slug:
+    # 房主这次请求本身就在场，不依赖 WebSocket 在线名单。代切只约束其他成员。
+    if not caller_is_host and actor != user.id and shared != slug:
         raise RaidRoomError(
             "只有房主可以换图；房主离线时由最早入座的在线成员代切；同一战局成员可切到该局地图",
             403,

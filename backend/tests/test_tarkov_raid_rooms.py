@@ -241,6 +241,23 @@ def test_set_map_wipes_board_keeps_members() -> None:
     assert same["map_slug"] == "woods"
 
 
+def test_host_can_set_map_without_websocket_presence() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.set_room_map(db, pid, host, "customs", now=now)
+    snap = rooms.set_room_map(
+        db,
+        pid,
+        host,
+        "woods",
+        now=now,
+        online_user_ids=set(),
+    )
+    assert snap["map_slug"] == "woods"
+
+
 def test_acting_host_can_set_map_when_titled_host_offline() -> None:
     db = _session()
     host = _user(db, "host", "甲")
@@ -1000,14 +1017,9 @@ def test_create_private_room_hidden_from_lobby() -> None:
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")
     now = now_naive()
-    try:
-        rooms.create_room(db, host, now=now, listed=False)
-        missing = True
-    except rooms.RaidRoomError as exc:
-        missing = False
-        assert exc.status_code == 400
-        assert "密码" in exc.message
-    assert not missing
+    plain, _joined, _vacated = rooms.create_room(db, host, now=now, listed=False)
+    assert plain[0]["listed"] is False
+    assert plain[0]["has_password"] is False
     try:
         rooms.create_room(db, host, now=now, listed=True, password="secret")
         public_pwd = True
