@@ -154,6 +154,13 @@
   color: #c7c5b3;
 }
 
+.presence {
+  flex: none;
+  color: #8f8d7c;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .name {
   display: inline-flex;
   align-items: center;

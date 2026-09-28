@@ -16,7 +16,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 截图目录与游戏日志的读盘交给助手：列目录、读日志文本、读最新截图、按页面「多于 N 张删旧图」删除、目录一变就通知页面。文件名里的坐标、日志解析、任务回放留在站点前端。战局只提交现有摘要接口，房间定位只广播数字。钥匙箱与局前任务的截图识别仍走现有 `recognize`，图只进服务器内存，确认后只存 id。
 
-助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。`pickImage()` 返回 `{ name, type, bytes }` 时，钥匙箱与局前任务识别弹窗多一个「从助手选择截图」，识别仍走现有接口。
+助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。联机房间 WebSocket 鉴权在嵌入时带 `client=desktop`，浏览器为 `web`。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。`pickImage()` 返回 `{ name, type, bytes }` 时，钥匙箱与局前任务识别弹窗多一个「从助手选择截图」，识别仍走现有接口。
 
 助手首页是 `/app`。打开时请求 `/auth/me`：401 去登录页；没有状态码或其它 4xx/5xx 留在页上重试，不当成未登录。页内卡片仍是演示。
 
@@ -60,8 +60,8 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/lib/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
 
-- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。`map_slug` 恒为空。不含各人查看图、人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠。公开大厅列表仍展示公开房的在座昵称，不展示地图。房间 WebSocket 须已入座。访客不能占座
-- **写权限**：认领 / 标点 / 设密等须在座；密码只在 **join** 时校验
+- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。房间级 `map_slug` 恒为空。不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠、各人查看图。公开大厅列表展示在座昵称，以及每人当前地图和相位（战局 / 匹配用进程内日志相位里的图，否则用查看图；不入库）。房间 WebSocket 须已入座。在线标记带端类型：浏览器报 `web`，战鸽助手嵌入报 `desktop`；同一账号任一端连着即在线。端类型不进大厅列表。访客不能占座
+- **写权限**：认领 / 标点等须在座；密码只在 **join** 时校验。公开或私密在创建时确定，之后不能改
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存
 - **日志**：客户端本机解析；同步后在浏览器审阅（日志行、任务名、状态变更），原文不入库。库表 `tarkov_user_raid_logs` 只存摘要。离线战局手选地图只在本机 localStorage。截图坐标只广播数字，不传图片；最近一次坐标留在进程内存，供同房间晚加入的入座成员（含同一账号的其他设备）从 WS snapshot 拿到，不落库
@@ -72,7 +72,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 ## 文件管理
 
-管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`、`.env`（不含 `.env.example`）、密钥类后缀、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、重命名或删除；也不能新建同名敏感项。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停）。删除普通目录时跳过其中的敏感子项。文本编辑 ≤2MB，上传 ≤256MB。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
+管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`、`.env`（不含 `.env.example`）、密钥类后缀、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、重命名或删除；也不能新建同名敏感项。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停）。删除普通目录时跳过其中的敏感子项。文本编辑 ≤2MB，上传 ≤256MB。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
 
 ## 塔科夫钥匙截图识别
 

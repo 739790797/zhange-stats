@@ -246,12 +246,31 @@ export type RaidRoomViewMapLike = {
 export const STROKE_MAX_POINTS = 160;
 export const STROKE_MIN_DIST = 1.6;
 
+export type RaidRoomClientKind = "web" | "desktop";
+
+/** 战鸽助手嵌入算桌面端，浏览器算网页。 */
+export function raidRoomSocketClient(assistantEmbed: boolean): RaidRoomClientKind {
+  return assistantEmbed ? "desktop" : "web";
+}
+
+/** 本机这条连接还活着时，把本端补进名单；服务端已经记过同一端则不重复加。 */
+export function mergeLocalPresenceClient(
+  clients: readonly string[] | null | undefined,
+  live: boolean,
+  client: RaidRoomClientKind,
+): RaidRoomClientKind[] {
+  const next = normalizePresenceClients(clients);
+  if (live && !next.includes(client)) next.push(client);
+  return next;
+}
+
 export type RaidRoomMemberLike = {
   user_id: number;
   display_name: string;
   is_host?: boolean;
   in_room?: boolean;
   online?: boolean;
+  clients?: readonly string[] | null;
   joined_at?: string | null;
 };
 
@@ -260,6 +279,7 @@ export type RaidRoomOccupantLike = {
   display_name: string;
   is_host?: boolean;
   online?: boolean;
+  clients?: readonly string[] | null;
   joined_at?: string | null;
 };
 
@@ -461,6 +481,118 @@ export function formatRaidRoomMemberActivity(status: RaidRoomMemberActivity): st
   return "未知";
 }
 
+export function normalizePresenceClients(
+  raw: readonly string[] | null | undefined,
+): RaidRoomClientKind[] {
+  const out: RaidRoomClientKind[] = [];
+  for (const item of raw || []) {
+    const text = String(item || "").trim();
+    if (text === "web" || text === "desktop") out.push(text);
+  }
+  return out;
+}
+
+/** 任一端还连着就是在线；两条及以上连接记成多端。 */
+export function formatRaidRoomOnlineLabel(
+  online?: boolean,
+  clients?: readonly string[] | null,
+): string {
+  const kinds = normalizePresenceClients(clients);
+  if (kinds.length >= 2) return "在线·多端";
+  if (kinds[0] === "web") return "在线·网页";
+  if (kinds[0] === "desktop") return "在线·桌面";
+  return online ? "在线" : "离线";
+}
+
+export type RaidRoomPresenceMember = {
+  user_id: number;
+  display_name: string;
+  is_host?: boolean;
+  online?: boolean;
+  clients?: readonly string[] | null;
+};
+
+export type RaidRoomPresencePhase = {
+  userId: number;
+  kind?: string | null;
+  mapId?: string | null;
+};
+
+export type RaidRoomMapSeat = "raid" | "matching";
+
+export type RaidRoomMapPresencePerson = RaidRoomPresenceMember & {
+  seat: RaidRoomMapSeat;
+};
+
+export type RaidRoomMapPresence = {
+  mapId: string;
+  people: RaidRoomMapPresencePerson[];
+};
+
+export type RaidRoomPresenceBoard = {
+  lobby: RaidRoomPresenceMember[];
+  matching: RaidRoomPresenceMember[];
+  maps: RaidRoomMapPresence[];
+};
+
+/**
+ * 选图方块上的人。只认在线成员的日志相位：
+ * 开战挂到该图，匹配有图也挂上并标匹配中，结束回大厅。
+ * 查看图不算占据；离线、无相位、开战但没有能对上的图都不进方块。
+ */
+export function groupRaidRoomMapPresence(opts: {
+  members: readonly RaidRoomPresenceMember[];
+  phases: readonly RaidRoomPresencePhase[];
+  mapIds: readonly string[];
+}): RaidRoomPresenceBoard {
+  const phaseByUser = new Map<number, RaidRoomPresencePhase>();
+  for (const phase of opts.phases) {
+    const userId = Number(phase.userId);
+    if (!Number.isFinite(userId) || userId <= 0) continue;
+    phaseByUser.set(userId, phase);
+  }
+  const buckets = new Map<string, RaidRoomMapPresencePerson[]>();
+  for (const raw of opts.mapIds) {
+    const mapId = normalizeRaidPrepMapId(raw) || String(raw || "").trim();
+    if (!mapId || buckets.has(mapId)) continue;
+    buckets.set(mapId, []);
+  }
+  const lobby: RaidRoomPresenceMember[] = [];
+  const matching: RaidRoomPresenceMember[] = [];
+  for (const member of opts.members) {
+    if (!member.online) continue;
+    const phase = phaseByUser.get(member.user_id);
+    const activity = raidRoomMemberActivity({
+      online: true,
+      kind: phase?.kind,
+    });
+    if (activity === "lobby") {
+      lobby.push(member);
+      continue;
+    }
+    if (activity !== "in_raid" && activity !== "matching") continue;
+    const mapId = normalizeRaidPrepMapId(String(phase?.mapId || ""));
+    const bucket = mapId ? buckets.get(mapId) : undefined;
+    if (activity === "matching") {
+      if (bucket) bucket.push({ ...member, seat: "matching" });
+      else matching.push(member);
+      continue;
+    }
+    if (bucket) bucket.push({ ...member, seat: "raid" });
+  }
+  return {
+    lobby,
+    matching,
+    maps: [...buckets.entries()].map(([mapId, people]) => ({
+      mapId,
+      people: [
+        ...people.filter((row) => row.seat === "raid"),
+        ...people.filter((row) => row.seat === "matching"),
+      ],
+    })),
+  };
+}
+
 const RAID_ROOM_VIEW_MAP_PREFIX = "zhange.tarkov.raidRoomViewMap.";
 
 export function readRaidRoomViewMap(publicId: string): string {
@@ -512,13 +644,14 @@ export function formatRaidRoomMemberChipLine(opts: {
   name?: string;
   isHost?: boolean;
   online?: boolean;
+  clients?: readonly string[] | null;
   kind?: string | null;
   mapLabel?: string | null;
   mapId?: string | null;
 }): string {
   const name = (opts.name || "").trim() || "?";
   const prefix = opts.isHost ? "⭐" : "";
-  const status = opts.online ? "在线" : "离线";
+  const status = formatRaidRoomOnlineLabel(opts.online, opts.clients);
   const region = raidRoomMemberRegionLabel(opts);
   return [prefix + name, status, region].filter(Boolean).join(" ");
 }
@@ -956,19 +1089,26 @@ export function keepRaidRoomPresence<T extends RaidRoomSnapshotLike>(
 ): T {
   if (!current) return next;
   const byId = new Map<number, boolean>();
-  for (const row of current.occupants || []) {
+  const clientsById = new Map<number, readonly string[]>();
+  const take = (row: { user_id: number; online?: boolean; clients?: readonly string[] | null }) => {
     byId.set(row.user_id, Boolean(row.online));
-  }
-  for (const row of current.members || []) {
-    byId.set(row.user_id, Boolean(row.online));
-  }
+    if (Array.isArray(row.clients)) clientsById.set(row.user_id, row.clients);
+  };
+  for (const row of current.occupants || []) take(row);
+  for (const row of current.members || []) take(row);
   if (!byId.size) return next;
-  const patch = <R extends { user_id: number; online?: boolean }>(
+  const patch = <R extends { user_id: number; online?: boolean; clients?: readonly string[] | null }>(
     rows: R[] | undefined,
   ): R[] | undefined =>
     rows?.map((row) =>
       byId.has(row.user_id)
-        ? { ...row, online: Boolean(byId.get(row.user_id)) }
+        ? {
+            ...row,
+            online: Boolean(byId.get(row.user_id)),
+            ...(clientsById.has(row.user_id)
+              ? { clients: clientsById.get(row.user_id) || [] }
+              : {}),
+          }
         : row,
     );
   return {
@@ -1017,10 +1157,16 @@ export function raidRoomLiveSig(
   ].join("|");
 }
 
+export type RaidRoomOnlineClient = {
+  user_id: number;
+  clients?: readonly string[] | null;
+};
+
 export type RaidRoomWsEvent<T extends RaidRoomSnapshotLike = RaidRoomSnapshotLike> = {
   event?: string;
   snapshot?: T;
   online_user_ids?: number[];
+  online_clients?: readonly RaidRoomOnlineClient[] | null;
   mark?: RaidRoomMarkLike;
   mark_id?: number;
   claims?: RaidRoomClaimLike[];
@@ -1039,20 +1185,36 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   userId?: number | null,
 ): (T & { is_host: boolean; is_member: boolean; can_edit: boolean }) | null {
   const online = event.online_user_ids;
+  const clientMap = event.online_clients
+    ? new Map(
+        event.online_clients.map((row) => [
+          Number(row.user_id),
+          normalizePresenceClients(row.clients),
+        ]),
+      )
+    : null;
   const withPresence = (room: T) => {
-    if (!online) return withRaidRoomViewerFlags(room, userId);
-    const ids = new Set(online);
+    if (!online && !clientMap) return withRaidRoomViewerFlags(room, userId);
+    const ids = online ? new Set(online) : null;
+    const patch = <R extends { user_id: number; online?: boolean; clients?: readonly string[] | null }>(
+      rows: R[] | undefined,
+    ) =>
+      rows?.map((row) => {
+        const nextClients = clientMap ? clientMap.get(row.user_id) ?? [] : row.clients;
+        const nextOnline = ids
+          ? ids.has(row.user_id)
+          : Boolean(nextClients && nextClients.length) || Boolean(row.online);
+        return {
+          ...row,
+          online: nextOnline,
+          ...(clientMap ? { clients: nextClients } : {}),
+        };
+      });
     return withRaidRoomViewerFlags(
       {
         ...room,
-        occupants: (room.occupants || []).map((row) => ({
-          ...row,
-          online: ids.has(row.user_id),
-        })),
-        members: (room.members || []).map((row) => ({
-          ...row,
-          online: ids.has(row.user_id),
-        })),
+        occupants: patch(room.occupants) ?? room.occupants,
+        members: patch(room.members) ?? room.members,
       },
       userId,
     );

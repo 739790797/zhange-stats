@@ -18,7 +18,6 @@ from app.api.guides.schemas import (
     TarkovRaidRoomMapIn,
     TarkovRaidRoomMarkIn,
     TarkovRaidRoomMarkMoveIn,
-    TarkovRaidRoomPasswordIn,
     TarkovRaidRoomTaskProgressIn,
 )
 from app.core.database import get_db
@@ -61,6 +60,7 @@ def room_ws_payload(
     extra: dict | None = None,
     *,
     online_user_ids: list[int] | None = None,
+    online_clients: list[dict] | None = None,
 ) -> dict:
     """成员进离/换图等仍带整份 snapshot；画笔/声明只发补丁。"""
     extra = dict(extra or {})
@@ -72,6 +72,8 @@ def room_ws_payload(
             if field not in payload:
                 payload[field] = snapshot.get(field)
     payload["online_user_ids"] = list(online_user_ids or [])
+    if online_clients is not None:
+        payload["online_clients"] = online_clients
     return payload
 
 
@@ -83,6 +85,7 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
             snapshot,
             extra,
             online_user_ids=list(hub.online_user_ids(public_id)),
+            online_clients=hub.online_clients(public_id),
         ),
     )
 
@@ -324,28 +327,6 @@ def set_tarkov_raid_room_game_mode(
 ) -> TarkovRaidRoomDetailOut:
     try:
         data = rooms_svc.set_room_game_mode(db, public_id, user, body.game_mode)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
-    _publish(public_id, "snapshot", data)
-    return TarkovRaidRoomDetailOut.model_validate(data)
-
-
-@router.post(
-    "/raid-rooms/{public_id}/password",
-    response_model=TarkovRaidRoomDetailOut,
-    dependencies=[_FEATURE],
-)
-def set_tarkov_raid_room_password(
-    public_id: str,
-    body: TarkovRaidRoomPasswordIn,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.set_room_password(db, public_id, user, body.password)
     except rooms_svc.RaidRoomError as extra_exc:
         db.rollback()
         _raise(extra_exc)

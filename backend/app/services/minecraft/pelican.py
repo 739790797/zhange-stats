@@ -159,6 +159,20 @@ def friendly_error(status_code: int, detail: str) -> str:
     return msg
 
 
+def pelican_browser_status(status_code: int | None) -> int:
+    """上游鉴权失败不能原样回给浏览器。
+
+    Pelican 401/403 表示面板 Client Token 无效或权限不对。前端把已登录请求的
+    HTTP 401 当成战鸽会话失效并整站登出，所以改成 502。文案仍用 friendly_error。
+    """
+    code = int(status_code or 0)
+    if code in {401, 403}:
+        return 502
+    if 400 <= code <= 599:
+        return code
+    return 502
+
+
 def is_absent_file_error(exc: PelicanError) -> bool:
     """Wings/Panel 常把缺文件、读目录当成 400/404，或包成通用 500。"""
     return exc.status_code in {400, 404, 500}

@@ -1461,10 +1461,6 @@ class TarkovRaidRoomCreateIn(BaseModel):
     game_mode: str | None = None
 
 
-class TarkovRaidRoomPasswordIn(BaseModel):
-    password: str | None = Field(default=None, max_length=32)
-
-
 class TarkovRaidRoomGameModeIn(BaseModel):
     game_mode: str = Field(min_length=1, max_length=16)
 
@@ -1815,6 +1811,8 @@ class TarkovRaidRoomOccupantOut(BaseModel):
     display_name: str
     is_host: bool = False
     online: bool = False
+    map_slug: str = ""
+    phase_kind: str = ""
 
 
 class TarkovRaidRoomLobbyItemOut(BaseModel):

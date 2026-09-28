@@ -28,7 +28,6 @@ import {
   removeTarkovRaidRoomMember,
   resetTarkovRaidRoom,
   setTarkovRaidRoomMap,
-  setTarkovRaidRoomPassword,
   tarkovRaidRoomWsUrl,
   transferTarkovRaidRoomHost,
   removeTarkovKeyOwn,
@@ -38,10 +37,11 @@ import {
   type TarkovRaidRoomDetail,
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
+import { isAssistantEmbed } from "@/lib/assistantShell";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
-import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { TARKOV_HOME_PATH, TARKOV_RAID_PREP_PATH } from "@/lib/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   clipRaidPrepStateObjectiveDones,
@@ -105,6 +105,8 @@ import {
 import {
   applyRoomWsEvent,
   keepRaidRoomPresence,
+  mergeLocalPresenceClient,
+  raidRoomSocketClient,
   groupClaimsByTask,
   raidRoomTasksCountingTowardMapCap,
   claimTaskIdsForUser,
@@ -277,14 +279,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [sidebarsOpen, setSidebarsOpen] = useState(true);
   const [statsOpen, setStatsOpen] = useState(false);
   const [viewMapId, setViewMapId] = useState(() => readRaidRoomViewMap(publicId));
-  const [previewMapId, setPreviewMapId] = useState("");
   const [pickingMap, setPickingMap] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [privacyPass, setPrivacyPass] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
-  const [passwordDraft, setPasswordDraft] = useState("");
-  const [managePassLocked, setManagePassLocked] = useState(true);
   const [focusRequest, setFocusRequest] = useState<TarkovMapFocusRequest | null>(
     null,
   );
@@ -304,6 +301,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const wsRef = useRef<WebSocket | null>(null);
   const lastProgressKeyRef = useRef("");
   const autoMapSigRef = useRef("");
+  const accountPhaseSigRef = useRef("");
+  const accountPhaseReadyRef = useRef(false);
+  const logPhaseRoomRef = useRef("");
+  const publishViewSigRef = useRef("");
 
   const roomQuery = useQuery({
     queryKey: ["guides-tarkov-raid-room", publicId],
@@ -355,7 +356,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       }),
     [goonStatus?.map_slug, mapId, mapOptions, overlapSlugs],
   );
-  const dockMapId = showOverlap ? previewMapId || defaultDockMapId : mapId;
+  const dockMapId = showOverlap ? defaultDockMapId : mapId;
   const canClaimOnDock = Boolean(canEdit && mapId && dockMapId === mapId);
   const canEditRef = useRef(canEdit);
   canEditRef.current = canEdit;
@@ -383,7 +384,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       wsRef.current = ws;
       ws.onopen = () => {
         retry = 0;
-        ws?.send(JSON.stringify({ event: "auth" }));
+        ws?.send(
+          JSON.stringify({
+            event: "auth",
+            client: raidRoomSocketClient(isAssistantEmbed()),
+          }),
+        );
       };
       ws.onmessage = (event) => {
         let payload: RaidRoomWsEvent<TarkovRaidRoomDetail> & {
@@ -409,6 +415,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         if (payload.event === "snapshot") {
           setWsLive(true);
           setWsGen((n) => n + 1);
+          logPhaseRoomRef.current = publicId;
           setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
           const store = useRaidRoomLiveStore.getState();
           store.bind(publicId);
@@ -427,6 +434,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           }
         }
         if (payload.event === "log_phase") {
+          logPhaseRoomRef.current = publicId;
           setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
         }
         if (payload.event === "player_fix") {
@@ -484,7 +492,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           const uid = Number(payload.user_id);
           if (uid) useRaidRoomLiveStore.getState().dropFixUser(uid);
           if (uid && uid === meIdRef.current) {
-            navigate(TARKOV_HOME_PATH);
+            navigate(TARKOV_RAID_PREP_PATH);
             return;
           }
         }
@@ -531,6 +539,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   useEffect(() => {
     lastLogPhaseSigRef.current = "";
+    accountPhaseSigRef.current = "";
+    accountPhaseReadyRef.current = false;
+    logPhaseRoomRef.current = "";
     setLogPhases([]);
   }, [publicId]);
 
@@ -730,7 +741,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     mutationFn: () => leaveTarkovRaidRoom(publicId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-raid-rooms"] });
-      navigate(TARKOV_HOME_PATH);
+      navigate(TARKOV_RAID_PREP_PATH);
     },
     onError: (exc) => setError(apiError(exc, "离开失败")),
   });
@@ -746,18 +757,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     },
     onError: (exc) => setError(apiError(exc, "加入失败")),
   });
-  const passwordMut = useMutation({
-    mutationFn: (password: string | null) =>
-      setTarkovRaidRoomPassword(publicId, password),
-    onSuccess: (next) => {
-      setPasswordDraft("");
-      setPrivacyPass("");
-      setPrivacyOpen(false);
-      applyRoom(next);
-    },
-    onError: (exc) => setError(apiError(exc, "设置密码失败")),
-  });
-
   const claims = room?.claims;
   const myClaimIds = useMemo(
     () => claimTaskIdsForUser(claims, me?.id),
@@ -1008,9 +1007,18 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const seatedActing = useMemo(() => {
     const fromMembers = (room?.members || []).filter((row) => row.in_room !== false);
     const rows = fromMembers.length ? fromMembers : members;
-    return rows.map((row) =>
-      row.user_id === me?.id ? { ...row, online: Boolean(row.online || wsLive) } : row,
-    );
+    return rows.map((row) => {
+      if (row.user_id !== me?.id) return row;
+      return {
+        ...row,
+        online: Boolean(row.online || wsLive),
+        clients: mergeLocalPresenceClient(
+          row.clients,
+          wsLive,
+          raidRoomSocketClient(isAssistantEmbed()),
+        ),
+      };
+    });
   }, [members, me?.id, room?.members, wsLive]);
   const displayLogPhases = useMemo(
     () => overlayRaidRoomLocalPhase(logPhases, me?.id, lastLogPhase),
@@ -1028,7 +1036,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   });
 
   const askChangeMap = () => {
-    setPreviewMapId(mapId);
     setStatsOpen(true);
   };
 
@@ -1051,10 +1058,44 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   const serverViewMap = raidRoomViewerMapSlug(room?.view_maps, me?.id);
   useEffect(() => {
-    if (!room?.is_member || !mapId) return;
-    if (serverViewMap && raidPrepMapsEquivalent(serverViewMap, mapId)) return;
-    void run(() => setTarkovRaidRoomMap(publicId, mapId));
-  }, [mapId, me?.id, publicId, room?.is_member, run, serverViewMap]);
+    if (!room?.is_member) return;
+    if (!serverViewMap) {
+      if (!mapId) return;
+      const sig = `publish:${publicId}:${mapId}`;
+      if (publishViewSigRef.current === sig) return;
+      publishViewSigRef.current = sig;
+      void run(() => setTarkovRaidRoomMap(publicId, mapId));
+      return;
+    }
+    if (!mapId || raidPrepMapsEquivalent(serverViewMap, mapId)) return;
+    const slug = normalizeRaidPrepMapId(serverViewMap) || serverViewMap;
+    writeRaidRoomViewMap(publicId, slug);
+    setViewMapId(slug);
+  }, [mapId, publicId, room?.is_member, run, serverViewMap]);
+  useEffect(() => {
+    if (!room?.is_member || !me?.id || logPhaseRoomRef.current !== publicId) return;
+    const mine = logPhases.find((row) => row.userId === me.id);
+    if (!mine) return;
+    const kind = (mine.kind || "").trim();
+    const mapSlug = normalizeRaidPrepMapId(mine.mapId || "");
+    const sig = `${publicId}:${kind}:${mapSlug}:${mine.raidId || ""}`;
+    const changed = accountPhaseReadyRef.current && accountPhaseSigRef.current !== sig;
+    const first = !accountPhaseReadyRef.current;
+    accountPhaseSigRef.current = sig;
+    accountPhaseReadyRef.current = true;
+    const entered = kind === "match_found" || kind === "raid_starting" || kind === "raid_started";
+    const leaving = kind === "raid_exited" || kind === "matching_aborted";
+    if ((changed || first) && entered && mapSlug) {
+      if (mapIdRef.current && raidPrepMapsEquivalent(mapSlug, mapIdRef.current)) return;
+      writeRaidRoomViewMap(publicId, mapSlug);
+      setViewMapId(mapSlug);
+      return;
+    }
+    if (changed && leaving && mapIdRef.current) {
+      writeRaidRoomViewMap(publicId, "");
+      setViewMapId("");
+    }
+  }, [logPhases, me?.id, publicId, room?.is_member]);
 
   useEffect(() => {
     autoMapSigRef.current = "";
@@ -1598,6 +1639,19 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }
   if (!room) return null;
 
+  const mapPickHint =
+    "点一张图，只切换你自己看的地图。方块下面是正在这张图里的人，匹配中会另外标出。";
+  const mapBoard = (
+    <TarkovRaidRoomOverlapBoard
+      members={seatedActing}
+      phaseByUser={phaseByUser}
+      mapOptions={mapOptions}
+      picking={pickingMap}
+      currentMapSlug={mapId || undefined}
+      onPickMap={room.is_member ? pickOwnMap : undefined}
+    />
+  );
+
   return (
     <TarkovRaidWorkspace
       dockOpen={dockOpen}
@@ -1652,18 +1706,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         showOverlap ? (
           room.is_member ? (
             <div className={styles.mapPickPane}>
-              <TarkovRaidRoomOverlapBoard
-                rows={room.map_overlap || []}
-                members={members}
-                progress={room.task_progress || []}
-                mapOptions={mapOptions}
-                isHost={Boolean(room.is_member)}
-                picking={pickingMap}
-                currentMapSlug={mapId || undefined}
-                previewMapSlug={dockMapId || undefined}
-                onPreviewMap={setPreviewMapId}
-                onPickMap={room.is_member ? pickOwnMap : undefined}
-              />
+              <p className={styles.mapPickHint}>{mapPickHint}</p>
+              {mapBoard}
             </div>
           ) : (
             <div className={catalogCss.status}>加入后可一起准备</div>
@@ -1704,25 +1748,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     {" · "}
                     {room.member_count}/{room.max_members}
                   </>
-                }
-                corner={
-                  <button
-                    type="button"
-                    disabled={!room.is_host || passwordMut.isPending}
-                    data-private={room.listed && !room.has_password ? undefined : "true"}
-                    title={room.is_host ? "切换公开或私有" : "只有房主可以切换"}
-                    onClick={() => {
-                      if (!room.is_host) return;
-                      if (room.listed && !room.has_password) {
-                        setPrivacyPass("");
-                        setPrivacyOpen(true);
-                        return;
-                      }
-                      passwordMut.mutate("");
-                    }}
-                  >
-                    {room.listed && !room.has_password ? "公开房间" : "私有房间"}
-                  </button>
                 }
                 actions={
                   room.is_member ? (
@@ -1979,31 +2004,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         onConfirm={logSync.confirm}
       />
       <Modal
-        title="设为私有房间"
-        open={privacyOpen}
-        onCancel={() => setPrivacyOpen(false)}
-        okText="设为私有"
-        cancelText="取消"
-        confirmLoading={passwordMut.isPending}
-        okButtonProps={{ disabled: !privacyPass.trim() }}
-        onOk={() => passwordMut.mutate(privacyPass.trim())}
-        destroyOnClose
-      >
-        <p className={styles.managePasswordHint}>
-          私有房间不出现在大厅，别人需要房间码和密码才能加入。
-        </p>
-        <Input.Password
-          value={privacyPass}
-          onChange={(event) => setPrivacyPass(event.target.value)}
-          placeholder="房间密码"
-          maxLength={32}
-          autoComplete="new-password"
-          onPressEnter={() => {
-            if (privacyPass.trim()) passwordMut.mutate(privacyPass.trim());
-          }}
-        />
-      </Modal>
-      <Modal
         title="更换地图"
         open={statsOpen}
         onCancel={() => setStatsOpen(false)}
@@ -2012,21 +2012,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         destroyOnClose
         classNames={{ body: styles.entryModalBody }}
       >
-        <p className={styles.mapPickHint}>
-          数字是各人进行中的本图任务。选图只切换你自己看的地图。
-        </p>
-        <TarkovRaidRoomOverlapBoard
-          rows={room.map_overlap || []}
-          members={members}
-          progress={room.task_progress || []}
-          mapOptions={mapOptions}
-          isHost={Boolean(room.is_member)}
-          picking={pickingMap}
-          currentMapSlug={mapId || undefined}
-          previewMapSlug={previewMapId || mapId || undefined}
-          onPreviewMap={setPreviewMapId}
-          onPickMap={room.is_member ? pickOwnMap : undefined}
-        />
+        <p className={styles.mapPickHint}>{mapPickHint}</p>
+        {mapBoard}
       </Modal>
       <Modal
         title={
@@ -2114,58 +2101,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             ))}
           </div>
         </section>
-        <form
-          className={styles.manageSection}
-          autoComplete="off"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const next = passwordDraft.trim();
-            if (!next || passwordMut.isPending) return;
-            passwordMut.mutate(next);
-          }}
-        >
-          <h2 className={styles.manageSectionTitle}>房间密码</h2>
-          <p className={styles.managePasswordHint}>
-            {room.has_password
-              ? "私密房间：不出现在大厅，未入座的人需要房间码和密码"
-              : "公开房间：出现在大厅列表，点一下即可加入"}
-          </p>
-          <div className={styles.managePasswordRow}>
-            <Input.Password
-              value={passwordDraft}
-              onChange={(event) => setPasswordDraft(event.target.value)}
-              placeholder={room.has_password ? "输入新密码" : "输入密码"}
-              maxLength={32}
-              name="tarkov-raid-room-pass"
-              autoComplete="new-password"
-              autoCorrect="off"
-              spellCheck={false}
-              readOnly={managePassLocked}
-              onFocus={() => setManagePassLocked(false)}
-              data-1p-ignore="true"
-              data-lpignore="true"
-            />
-          </div>
-          <div className={styles.managePasswordActions}>
-            <button
-              type="submit"
-              className={styles.dockChip}
-              disabled={passwordMut.isPending || !passwordDraft.trim()}
-            >
-              {room.has_password ? "修改密码" : "设为私密"}
-            </button>
-            {room.has_password ? (
-              <button
-                type="button"
-                className={styles.manageTextBtn}
-                disabled={passwordMut.isPending}
-                onClick={() => passwordMut.mutate("")}
-              >
-                改为公开
-              </button>
-            ) : null}
-          </div>
-        </form>
         <div className={styles.manageFooter}>
           <button
             type="button"

@@ -1103,6 +1103,35 @@ def serialize_room(
     }
 
 
+_LOBBY_RAID = frozenset({"match_found", "raid_starting", "raid_started"})
+_LOBBY_MATCHING = frozenset({"map_loading", "matching"})
+
+
+def _lobby_occupant(
+    row: TarkovRaidRoomMember,
+    *,
+    host_id: int | None,
+    online: bool,
+    phase: dict[str, Any] | None,
+    view_map: str,
+) -> dict[str, Any]:
+    kind = str((phase or {}).get("kind") or "")
+    phase_map = str((phase or {}).get("map_id") or "")
+    if kind in _LOBBY_RAID or kind in _LOBBY_MATCHING:
+        shown = phase_map or view_map
+    else:
+        shown = view_map
+    return {
+        "user_id": row.user_id,
+        "display_name": row.display_name,
+        "is_host": row.user_id == host_id,
+        "online": online,
+        "joined_at": _iso(row.joined_at),
+        "map_slug": shown,
+        "phase_kind": kind,
+    }
+
+
 def serialize_lobby_item(
     db: Session,
     room: TarkovRaidRoom,
@@ -1124,6 +1153,15 @@ def serialize_lobby_item(
     )
     online = online_user_ids or set()
     count = int(member_count) if member_count is not None else len(occupants)
+    from app.services.tarkov.raid_room_hub import hub
+
+    view_by_user = {
+        int(row.get("user_id") or 0): str(row.get("map_slug") or "")
+        for row in hub.view_maps(room.public_id)
+    }
+    phase_by_user = {
+        int(row.get("user_id") or 0): row for row in hub.log_phases(room.public_id)
+    }
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
@@ -1138,13 +1176,13 @@ def serialize_lobby_item(
         "is_member": bool(is_member),
         "created_at": _iso(room.created_at),
         "occupants": [
-            {
-                "user_id": row.user_id,
-                "display_name": row.display_name,
-                "is_host": row.user_id == room.host_user_id,
-                "online": row.user_id in online,
-                "joined_at": _iso(row.joined_at),
-            }
+            _lobby_occupant(
+                row,
+                host_id=room.host_user_id,
+                online=row.user_id in online,
+                phase=phase_by_user.get(row.user_id),
+                view_map=view_by_user.get(row.user_id) or "",
+            )
             for row in occupants
         ],
     }
@@ -1306,31 +1344,6 @@ def set_room_game_mode(
         return serialize_room(db, room, viewer=user)
     _wipe_board(db, room.id)
     room.game_mode = mode
-    db.flush()
-    return serialize_room(db, room, viewer=user)
-
-
-def set_room_password(
-    db: Session,
-    public_id: str,
-    user: User,
-    password: str | None,
-    *,
-    now: datetime | None = None,
-) -> dict[str, Any]:
-    room = _get_room(db, public_id)
-    _require_active_member(db, room, user, now=now)
-    if room.host_user_id != user.id:
-        raise RaidRoomError("只有房主可以设置密码", 403)
-    raw = (password or "").strip()
-    if not raw:
-        room.password_hash = None
-        room.listed = True
-    else:
-        if len(raw) > MAX_ROOM_PASSWORD_LEN:
-            raise RaidRoomError(f"密码最多 {MAX_ROOM_PASSWORD_LEN} 个字符", 400)
-        room.password_hash = hash_password(raw)
-        room.listed = False
     db.flush()
     return serialize_room(db, room, viewer=user)
 
@@ -1527,6 +1540,7 @@ def publish_occupant_key_owns(db: Session, user: User) -> None:
                 "event": "key_own_change",
                 "key_owns": snap.get("key_owns") or [],
                 "online_user_ids": list(hub.online_user_ids(public_id)),
+                "online_clients": hub.online_clients(public_id),
             },
         )
 

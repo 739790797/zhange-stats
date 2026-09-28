@@ -15,7 +15,7 @@ from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import raid_rooms as rooms_svc
-from app.services.tarkov.raid_room_hub import hub
+from app.services.tarkov.raid_room_hub import hub, presence_client
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,14 @@ def _is_member(public_id: str, user: User) -> bool:
         db.close()
 
 
+def _presence(public_id: str) -> dict[str, Any]:
+    return {
+        "event": "presence",
+        "online_user_ids": list(hub.online_user_ids(public_id)),
+        "online_clients": hub.online_clients(public_id),
+    }
+
+
 def _can_edit(public_id: str, user: User) -> bool:
     db: Session = SessionLocal()
     try:
@@ -125,16 +133,13 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         await client.close(code=CLOSE_FORBIDDEN)
         return
 
-    online = await hub.join(public_id, client, user.id)
+    online = await hub.join(public_id, client, user.id, presence_client(first.get("client")))
     _touch_ws_member(public_id, user)
     try:
         snapshot = _snapshot(public_id, user)
     except rooms_svc.RaidRoomError as exc:
-        online = await hub.leave(public_id, client)
-        hub.publish(
-            public_id,
-            {"event": "presence", "online_user_ids": list(online)},
-        )
+        await hub.leave(public_id, client)
+        hub.publish(public_id, _presence(public_id))
         code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
         await client.close(code=code)
         return
@@ -144,15 +149,13 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             "seq": 0,
             "snapshot": snapshot,
             "online_user_ids": list(online),
+            "online_clients": hub.online_clients(public_id),
             "log_phases": hub.log_phases(public_id),
             "player_fixes": hub.player_fixes(public_id),
             "view_maps": hub.view_maps(public_id),
         }
     )
-    hub.publish(
-        public_id,
-        {"event": "presence", "online_user_ids": list(online)},
-    )
+    hub.publish(public_id, _presence(public_id))
     try:
         while True:
             raw = await client.receive_json()
@@ -237,7 +240,4 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
     finally:
         online = await hub.leave(public_id, client)
         _touch_ws_member(public_id, user)
-        hub.publish(
-            public_id,
-            {"event": "presence", "online_user_ids": list(online)},
-        )
+        hub.publish(public_id, _presence(public_id))

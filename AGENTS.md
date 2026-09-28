@@ -63,7 +63,7 @@ alembic upgrade head
 - Button 内联 `#1a2332` 锁死主色；主应用引入第二套 UI 库或抄塔科夫暗色主题
 - 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
 - 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
-- 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/模式/人数/是否要密码等，无地图、无棋盘）；房间码当秘密；访客占座
+- 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/模式/人数/是否要密码等，无棋盘、无人员）；房间码当秘密；访客占座；创建后再改公开或私密。公开大厅列表可以带在座昵称和每人地图/相位
 - 战鸽助手用 iframe 嵌站，或生产用 `tauri.localhost` 跨源当登录；为读游戏目录新开收日志原文/定位原图的接口；在助手里重写截图文件名与日志解析
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
 - 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）

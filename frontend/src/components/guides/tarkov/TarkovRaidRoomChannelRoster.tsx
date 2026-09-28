@@ -3,6 +3,7 @@ import { logMapLabel } from "@/lib/tarkovGameLogs";
 import { colorForUserId } from "@/lib/tarkovRaidPrep";
 import {
   formatRaidRoomMemberActivity,
+  formatRaidRoomOnlineLabel,
   raidRoomMemberActivity,
   type RaidRoomViewMapLike,
 } from "@/lib/tarkovRaidRooms";
@@ -13,6 +14,7 @@ export type ChannelRosterMember = {
   display_name: string;
   is_host?: boolean;
   online?: boolean;
+  clients?: readonly string[] | null;
 };
 
 type Phase = {
@@ -82,6 +84,9 @@ export function TarkovRaidRoomChannelRoster({
                       />
                       {row.is_host ? "⭐" : ""}
                       {row.display_name}
+                      <span className={styles.presence}>
+                        {formatRaidRoomOnlineLabel(row.online, row.clients)}
+                      </span>
                     </span>
                   </td>
                   <td>{memberMapLabel || "—"}</td>

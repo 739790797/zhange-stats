@@ -905,8 +905,18 @@ export type TarkovRaidRoomLobby = components["schemas"]["TarkovRaidRoomLobbyOut"
 export type TarkovRaidRoomLobbyItem =
   components["schemas"]["TarkovRaidRoomLobbyItemOut"];
 export type TarkovRaidRoomMine = components["schemas"]["TarkovRaidRoomMineOut"];
-export type TarkovRaidRoomDetail =
-  components["schemas"]["TarkovRaidRoomDetailOut"];
+type RaidRoomPresenceRow = { clients?: readonly string[] | null };
+
+/** 在线端只走房间 WebSocket，HTTP 快照没有这个字段。 */
+export type TarkovRaidRoomDetail = Omit<
+  components["schemas"]["TarkovRaidRoomDetailOut"],
+  "occupants" | "members"
+> & {
+  occupants?: (components["schemas"]["TarkovRaidRoomOccupantOut"] &
+    RaidRoomPresenceRow)[];
+  members?: (components["schemas"]["TarkovRaidRoomMemberOut"] &
+    RaidRoomPresenceRow)[];
+};
 export type TarkovRaidRoomMark = components["schemas"]["TarkovRaidRoomMarkOut"];
 export type TarkovRaidRoomClaim = components["schemas"]["TarkovRaidRoomClaimOut"];
 export type TarkovRaidRoomKeyBring =
@@ -987,18 +997,6 @@ export async function joinTarkovRaidRoom(
       game_mode: opts?.gameMode || undefined,
       password: opts?.password || undefined,
     },
-    { timeout: 30_000 },
-  );
-  return data;
-}
-
-export async function setTarkovRaidRoomPassword(
-  publicId: string,
-  password: string | null,
-) {
-  const { data } = await client.post<TarkovRaidRoomDetail>(
-    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/password`,
-    { password: password ?? "" },
     { timeout: 30_000 },
   );
   return data;

@@ -1011,11 +1011,13 @@ def test_room_password_gates_join_and_clears_when_empty() -> None:
     guest = _user(db, "guest", "乙")
     other = _user(db, "other", "丙")
     now = now_naive()
-    pid = _open(db, host, now=now)
-    locked = rooms.set_room_password(db, pid, host, "secret", now=now)
-    assert locked["has_password"] is True
-    assert locked["listed"] is False
-    assert "password_hash" not in locked
+    created, _joined, _vacated = rooms.create_room(
+        db, host, now=now, listed=False, password="secret"
+    )
+    pid = created["public_id"]
+    assert created["has_password"] is True
+    assert created["listed"] is False
+    assert "password_hash" not in created
     lobby = rooms.list_live_rooms(db, viewer=guest, now=now, game_mode="pvp")
     assert all(row["public_id"] != pid for row in lobby["items"])
     mine = rooms.get_my_live_room(db, host, now=now)
@@ -1051,20 +1053,6 @@ def test_room_password_gates_join_and_clears_when_empty() -> None:
     again, added_again, _vacated = rooms.join_room(db, pid, host, now=now)
     assert added_again is False
     assert again["is_member"] is True
-    try:
-        rooms.set_room_password(db, pid, guest, "nope", now=now)
-        guest_ok = True
-    except rooms.RaidRoomError as guest_exc:
-        guest_ok = False
-        assert guest_exc.status_code == 403
-    assert not guest_ok
-    rooms.set_room_password(db, pid, host, "", now=now)
-    cleared = rooms.get_room(db, pid, host, now=now)
-    assert cleared["has_password"] is False
-    assert cleared["listed"] is True
-    public_again = rooms.list_live_rooms(db, viewer=other, now=now, game_mode="pvp")
-    assert any(row["public_id"] == pid for row in public_again["items"])
-    rooms.set_room_password(db, pid, host, "again", now=now)
     rooms.leave_room(db, pid, host, now=now)
     rooms.leave_room(db, pid, guest, now=now)
     empty = rooms.list_live_rooms(db, viewer=other, now=now, game_mode="pvp")
@@ -1077,7 +1065,6 @@ def test_reset_deletes_room() -> None:
     host = _user(db, "host", "甲")
     now = now_naive()
     pid = _open(db, host, now=now)
-    rooms.set_room_password(db, pid, host, "keep", now=now)
     rooms.reset_room(db, pid, host, now=now)
     lobby = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
     assert lobby["items"] == []
@@ -1095,6 +1082,33 @@ def test_create_room_uses_requested_mode_and_host_can_switch() -> None:
     assert snap["game_mode"] == "pve"
     switched = rooms.set_room_game_mode(db, snap["public_id"], host, "pvp", now=now)
     assert switched["game_mode"] == "pvp"
+
+
+def test_lobby_occupant_map_follows_live_phase_then_view() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    from app.services.tarkov.raid_room_hub import hub
+
+    try:
+        hub.set_view_map(pid, host.id, "woods")
+        viewing = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
+        person = viewing["items"][0]["occupants"][0]
+        assert person["map_slug"] == "woods"
+        assert person["phase_kind"] == ""
+        hub.set_log_phase(pid, host.id, {"kind": "raid_started", "map_id": "customs"})
+        in_raid = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
+        seated = in_raid["items"][0]["occupants"][0]
+        assert seated["map_slug"] == "customs"
+        assert seated["phase_kind"] == "raid_started"
+        hub.set_log_phase(pid, host.id, {"kind": "matching", "map_id": ""})
+        matching = rooms.list_live_rooms(db, viewer=host, now=now, game_mode="pvp")
+        row = matching["items"][0]["occupants"][0]
+        assert row["phase_kind"] == "matching"
+        assert row["map_slug"] == "woods"
+    finally:
+        hub.drop_member_live(pid, host.id)
 
 
 def test_lobby_lists_only_current_mode_rooms() -> None:

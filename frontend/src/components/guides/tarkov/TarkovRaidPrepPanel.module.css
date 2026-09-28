@@ -534,7 +534,7 @@
 
 .mapPickPane {
   align-self: center;
-  width: 50%;
+  width: min(960px, 100%);
   box-sizing: border-box;
   padding: 16px 18px 24px;
   overflow: visible;

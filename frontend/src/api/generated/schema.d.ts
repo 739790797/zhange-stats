@@ -2836,23 +2836,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/raid-rooms/{public_id}/password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Set Tarkov Raid Room Password */
-        post: operations["set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
         parameters: {
             query?: never;
@@ -3925,6 +3908,30 @@ export interface paths {
          * @description 保存个人资料；蓝边会把仓库抬到 4 级。
          */
         put: operations["guides_tarkov_profile_put_api_guides_tarkov_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/map-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guides Tarkov Map Filters Get
+         * @description 地图筛选喜好。没有存过时 saved 为 false，客户端继续用本机记录。
+         */
+        get: operations["guides_tarkov_map_filters_get_api_guides_tarkov_map_filters_get"];
+        /**
+         * Guides Tarkov Map Filters Put
+         * @description 保存地图筛选喜好，网页和 App 共用。
+         */
+        put: operations["guides_tarkov_map_filters_put_api_guides_tarkov_map_filters_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5057,23 +5064,6 @@ export interface paths {
          * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。
          */
         get: operations["health_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Spa Fallback */
-        get: operations["spa_fallback__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13206,6 +13196,27 @@ export interface components {
              */
             name: string;
         };
+        /** TarkovMapFiltersIn */
+        TarkovMapFiltersIn: {
+            /** Prefs */
+            prefs: {
+                [key: string]: unknown;
+            };
+        };
+        /** TarkovMapFiltersOut */
+        TarkovMapFiltersOut: {
+            /**
+             * Saved
+             * @default false
+             */
+            saved: boolean;
+            /** Prefs */
+            prefs?: {
+                [key: string]: unknown;
+            } | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
         /** TarkovMapHazardOut */
         TarkovMapHazardOut: {
             /**
@@ -14487,6 +14498,16 @@ export interface components {
              * @default false
              */
             online: boolean;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug?: string;
+            /**
+             * Phase Kind
+             * @default
+             */
+            phase_kind?: string;
         };
         /** TarkovRaidRoomOverlapCellOut */
         TarkovRaidRoomOverlapCellOut: {
@@ -14519,11 +14540,6 @@ export interface components {
             trader_slug: string;
             /** User Ids */
             user_ids?: number[];
-        };
-        /** TarkovRaidRoomPasswordIn */
-        TarkovRaidRoomPasswordIn: {
-            /** Password */
-            password?: string | null;
         };
         /** TarkovRaidRoomTaskProgressIn */
         TarkovRaidRoomTaskProgressIn: {
@@ -22343,44 +22359,6 @@ export interface operations {
             };
         };
     };
-    set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post: {
-        parameters: {
-            query?: {
-                /** @description PVP（regular）或 PVE */
-                game_mode?: string;
-            };
-            header?: never;
-            path: {
-                public_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TarkovRaidRoomPasswordIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     leave_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__leave_post: {
         parameters: {
             query?: {
@@ -24595,6 +24573,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TarkovProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_filters_get_api_guides_tarkov_map_filters_get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapFiltersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_map_filters_put_api_guides_tarkov_map_filters_put: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovMapFiltersIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovMapFiltersOut"];
                 };
             };
             /** @description Validation Error */
@@ -27249,37 +27295,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    spa_fallback__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1,5 +1,7 @@
 """Raid room hub: in-memory screenshot positions for late-joining devices."""
 
+import asyncio
+
 from app.services.tarkov.raid_room_hub import RaidRoomHub
 
 
@@ -33,3 +35,30 @@ def test_hub_remembers_player_fix_for_snapshot() -> None:
 
     hub.drop_offline_player_fixes("abc12345", set())
     assert hub.player_fixes("abc12345") == []
+
+
+def test_user_stays_online_while_either_client_is_connected() -> None:
+    hub = RaidRoomHub()
+    web = object()
+    desktop = object()
+
+    async def run() -> None:
+        await hub.join("room", web, 7, "web")  # type: ignore[arg-type]
+        await hub.join("room", desktop, 7, "desktop")  # type: ignore[arg-type]
+        assert hub.online_user_ids("room") == {7}
+        assert hub.online_clients("room") == [{"user_id": 7, "clients": ["desktop", "web"]}]
+        left = await hub.leave("room", web)  # type: ignore[arg-type]
+        assert left == {7}
+        assert hub.online_clients("room") == [{"user_id": 7, "clients": ["desktop"]}]
+        await hub.leave("room", desktop)  # type: ignore[arg-type]
+        assert hub.online_user_ids("room") == set()
+        assert hub.online_clients("room") == []
+        page_a = object()
+        page_b = object()
+        await hub.join("room", page_a, 7, "web")  # type: ignore[arg-type]
+        await hub.join("room", page_b, 7, "web")  # type: ignore[arg-type]
+        assert hub.online_clients("room") == [{"user_id": 7, "clients": ["web", "web"]}]
+        await hub.leave("room", page_a)  # type: ignore[arg-type]
+        assert hub.online_clients("room") == [{"user_id": 7, "clients": ["web"]}]
+
+    asyncio.run(run())

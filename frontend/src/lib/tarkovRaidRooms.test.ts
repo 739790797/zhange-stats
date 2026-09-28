@@ -37,6 +37,9 @@ import {
   raidRoomMemberActivity,
   playerFixVisibleOnView,
   formatRaidRoomMemberChipLine,
+  formatRaidRoomOnlineLabel,
+  mergeLocalPresenceClient,
+  raidRoomSocketClient,
   raidRoomMemberRegionLabel,
   RAID_ROOM_SLOT_IDS,
   mergeRaidLobbySeats,
@@ -66,6 +69,7 @@ import {
   raidRoomOverlapTasksForUser,
   sortRaidRoomMapOverlap,
   raidRoomPickDockMapId,
+  groupRaidRoomMapPresence,
   parsePlayerFixEvent,
   parsePlayerFixEvents,
   playerFixCameraTarget,
@@ -343,6 +347,26 @@ describe("raid room helpers", () => {
         online: false,
       }),
     ).toBe("Teammate 离线");
+    expect(formatRaidRoomOnlineLabel(true, ["web"])).toBe("在线·网页");
+    expect(formatRaidRoomOnlineLabel(true, ["desktop"])).toBe("在线·桌面");
+    expect(formatRaidRoomOnlineLabel(true, ["desktop", "web"])).toBe("在线·多端");
+    expect(formatRaidRoomOnlineLabel(true, ["web", "web"])).toBe("在线·多端");
+    expect(raidRoomSocketClient(false)).toBe("web");
+    expect(raidRoomSocketClient(true)).toBe("desktop");
+    expect(mergeLocalPresenceClient(["desktop"], true, "web")).toEqual(["desktop", "web"]);
+    expect(mergeLocalPresenceClient(["web", "web"], true, "web")).toEqual(["web", "web"]);
+    expect(mergeLocalPresenceClient(["nope"], false, "desktop")).toEqual([]);
+    expect(mergeLocalPresenceClient(undefined, true, "desktop")).toEqual(["desktop"]);
+    expect(
+      formatRaidRoomMemberChipLine({
+        name: "BaiYi",
+        isHost: true,
+        online: true,
+        clients: ["web", "desktop"],
+        kind: "raid_started",
+        mapLabel: "塔科夫街区",
+      }),
+    ).toBe("⭐BaiYi 在线·多端 塔科夫街区");
     expect(
       parseRaidRoomLogPhases([
         { user_id: 3, kind: "raid_started", map_id: "customs", raid_id: "AB12" },
@@ -600,12 +624,26 @@ describe("raid room helpers", () => {
       host_user_id: 1,
       host_display_name: "甲",
       members: [
-        { user_id: 1, display_name: "甲", online: false },
-        { user_id: 2, display_name: "乙", online: false },
+        { user_id: 1, display_name: "甲", online: false, clients: [] as string[] },
+        { user_id: 2, display_name: "乙", online: false, clients: [] as string[] },
       ],
     };
     const next = applyRoomWsEvent(room, { event: "presence", online_user_ids: [2] }, 2);
     expect(next?.members?.map((row) => row.online)).toEqual([false, true]);
+    const marked = applyRoomWsEvent(
+      room,
+      {
+        event: "presence",
+        online_user_ids: [2],
+        online_clients: [{ user_id: 2, clients: ["web", "desktop"] }],
+      },
+      2,
+    );
+    expect(marked?.members?.find((row) => row.user_id === 2)?.clients).toEqual([
+      "web",
+      "desktop",
+    ]);
+    expect(marked?.members?.find((row) => row.user_id === 1)?.online).toBe(false);
     expect(next?.is_member).toBe(true);
     expect(next?.is_host).toBe(false);
     expect(next?.can_edit).toBe(true);
@@ -1354,6 +1392,64 @@ describe("raid room helpers", () => {
         mapOptionIds: ["factory", "customs", "woods"],
       }),
     ).toBe("customs");
+  });
+});
+
+describe("raid room map presence", () => {
+  const mapIds = ["lighthouse", "customs", "factory", "night-factory"];
+
+  it("seats online members by live phase and keeps catalog order", () => {
+    const board = groupRaidRoomMapPresence({
+      members: [
+        { user_id: 1, display_name: "甲", online: true },
+        { user_id: 2, display_name: "乙", online: true, is_host: true },
+        { user_id: 3, display_name: "丙", online: true },
+        { user_id: 4, display_name: "丁", online: true },
+        { user_id: 5, display_name: "戊", online: true },
+        { user_id: 6, display_name: "己", online: false },
+        { user_id: 7, display_name: "庚", online: true },
+        { user_id: 8, display_name: "辛", online: true },
+        { user_id: 9, display_name: "壬", online: true },
+        { user_id: 10, display_name: "癸", online: true },
+      ],
+      mapIds,
+      phases: [
+        { userId: 1, kind: "raid_started", mapId: "lighthouse" },
+        { userId: 2, kind: "raid_starting", mapId: "lighthouse" },
+        { userId: 3, kind: "matching", mapId: "lighthouse" },
+        { userId: 4, kind: "raid_exited", mapId: "customs" },
+        { userId: 5, kind: "map_loading", mapId: "" },
+        { userId: 6, kind: "raid_started", mapId: "factory" },
+        { userId: 7, kind: "raid_started", mapId: "" },
+        { userId: 8, kind: "matching", mapId: "bigmap" },
+        { userId: 9, kind: "matching_aborted", mapId: "woods" },
+        { userId: 10, kind: "raid_started", mapId: "factory-night" },
+      ],
+    });
+    expect(board.lobby.map((row) => row.user_id)).toEqual([4, 9]);
+    expect(board.matching.map((row) => row.user_id)).toEqual([5]);
+    expect(board.maps.map((row) => row.mapId)).toEqual(mapIds);
+    expect(board.maps[0]?.people.map((row) => [row.user_id, row.seat])).toEqual([
+      [1, "raid"],
+      [2, "raid"],
+      [3, "matching"],
+    ]);
+    expect(board.maps[1]?.people.map((row) => [row.user_id, row.seat])).toEqual([
+      [8, "matching"],
+    ]);
+    expect(board.maps[2]?.people).toEqual([]);
+    expect(board.maps[3]?.people.map((row) => row.user_id)).toEqual([10]);
+  });
+
+  it("leaves online members without a phase off the board", () => {
+    const board = groupRaidRoomMapPresence({
+      members: [{ user_id: 1, display_name: "甲", online: true }],
+      mapIds: ["customs"],
+      phases: [],
+    });
+    expect(board.lobby).toEqual([]);
+    expect(board.matching).toEqual([]);
+    expect(board.maps[0]?.people).toEqual([]);
   });
 });
 

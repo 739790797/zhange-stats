@@ -1,5 +1,6 @@
 import {
   formatRaidRoomMemberChipLine,
+  formatRaidRoomOnlineLabel,
   raidRoomMemberRegionLabel,
 } from "@/lib/tarkovRaidRooms";
 import styles from "./TarkovRaidPrepPanel.module.css";
@@ -9,6 +10,7 @@ export type RaidMemberChip = {
   display_name: string;
   is_host?: boolean;
   online?: boolean;
+  clients?: readonly string[] | null;
 };
 
 export type RaidMemberPhase = {
@@ -37,6 +39,7 @@ export function TarkovRaidMemberStrip({ members, phaseByUser }: Props) {
           name: row.display_name,
           isHost: row.is_host,
           online: row.online,
+          clients: row.clients,
           kind: phase?.kind,
           mapLabel: phase?.mapLabel,
           mapId: phase?.mapId,
@@ -57,7 +60,7 @@ export function TarkovRaidMemberStrip({ members, phaseByUser }: Props) {
               className={styles.memberOnline}
               data-on={row.online ? "true" : "false"}
             >
-              {row.online ? "在线" : "离线"}
+              {formatRaidRoomOnlineLabel(row.online, row.clients)}
             </span>
             {region ? (
               <span className={styles.memberRegion}>{region}</span>

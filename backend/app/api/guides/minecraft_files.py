@@ -111,7 +111,10 @@ def _map_err(exc: Exception) -> NoReturn:
     if isinstance(exc, files_svc.MinecraftFilesError):
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     if isinstance(exc, pelican.PelicanError):
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(
+            status_code=pelican.pelican_browser_status(exc.status_code),
+            detail=exc.message,
+        ) from exc
     raise exc
 
 

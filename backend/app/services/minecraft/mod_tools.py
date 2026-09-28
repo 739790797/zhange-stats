@@ -1224,11 +1224,17 @@ def install_tool(
             pelican.delete_files(base, token, uuid, root=folder, files=names)
             removed += len(names)
         except pelican.PelicanError as exc:
-            raise MinecraftModToolsError(exc.message, status_code=exc.status_code or 502) from exc
+            raise MinecraftModToolsError(
+                exc.message,
+                status_code=pelican.pelican_browser_status(exc.status_code),
+            ) from exc
     try:
         pelican.pull_file(base, token, uuid, url=url, directory=directory, filename=filename)
     except pelican.PelicanError as exc:
-        raise MinecraftModToolsError(exc.message, status_code=exc.status_code or 502) from exc
+        raise MinecraftModToolsError(
+            exc.message,
+            status_code=pelican.pelican_browser_status(exc.status_code),
+        ) from exc
     notes = [f"已下载 {directory}/{filename}"]
     if removed:
         notes.append(f"已替换旧文件 {removed} 个")

@@ -13,6 +13,7 @@ from app.services.minecraft.pelican import (
     normalize_remote_file_path,
     normalize_rename_target,
     parse_file_object,
+    pelican_browser_status,
     sanitize_filename,
     split_remote_path,
 )
@@ -119,6 +120,15 @@ def test_get_file_contents_keeps_json_text(monkeypatch):
     monkeypatch.setattr("app.services.minecraft.pelican._request", fake_request)
     text = get_file_contents("https://p.example", "tok", "abcd", "server.properties")
     assert text == '{"motd":"hi"}'
+
+
+def test_pelican_browser_status_hides_panel_auth_from_the_site_session():
+    assert pelican_browser_status(401) == 502
+    assert pelican_browser_status(403) == 502
+    assert pelican_browser_status(404) == 404
+    assert pelican_browser_status(400) == 400
+    assert pelican_browser_status(500) == 500
+    assert pelican_browser_status(None) == 502
 
 
 def test_wings_generic_500_counts_as_absent_file():

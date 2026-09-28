@@ -8554,76 +8554,6 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-rooms/{public_id}/password": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Set Tarkov Raid Room Password",
-        "operationId": "set_tarkov_raid_room_password_api_guides_tarkov_raid_rooms__public_id__password_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "public_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Public Id"
-            }
-          },
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TarkovRaidRoomPasswordIn"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
       "post": {
         "tags": [
@@ -12783,6 +12713,118 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TarkovProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/map-filters": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Map Filters Get",
+        "description": "地图筛选喜好。没有存过时 saved 为 false，客户端继续用本机记录。",
+        "operationId": "guides_tarkov_map_filters_get_api_guides_tarkov_map_filters_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovMapFiltersOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Map Filters Put",
+        "description": "保存地图筛选喜好，网页和 App 共用。",
+        "operationId": "guides_tarkov_map_filters_put_api_guides_tarkov_map_filters_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovMapFiltersIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovMapFiltersOut"
                 }
               }
             }
@@ -17116,43 +17158,6 @@
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/{full_path}": {
-      "get": {
-        "summary": "Spa Fallback",
-        "operationId": "spa_fallback__full_path__get",
-        "parameters": [
-          {
-            "name": "full_path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Full Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
               }
             }
           }
@@ -34343,6 +34348,54 @@
         "type": "object",
         "title": "TarkovMapExtractSwitchOut"
       },
+      "TarkovMapFiltersIn": {
+        "properties": {
+          "prefs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Prefs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prefs"
+        ],
+        "title": "TarkovMapFiltersIn"
+      },
+      "TarkovMapFiltersOut": {
+        "properties": {
+          "saved": {
+            "type": "boolean",
+            "title": "Saved",
+            "default": false
+          },
+          "prefs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefs"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "title": "TarkovMapFiltersOut"
+      },
       "TarkovMapHazardOut": {
         "properties": {
           "id": {
@@ -37045,6 +37098,16 @@
             "type": "boolean",
             "title": "Online",
             "default": false
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          },
+          "phase_kind": {
+            "type": "string",
+            "title": "Phase Kind",
+            "default": ""
           }
         },
         "type": "object",
@@ -37106,24 +37169,6 @@
           "id"
         ],
         "title": "TarkovRaidRoomOverlapTaskOut"
-      },
-      "TarkovRaidRoomPasswordIn": {
-        "properties": {
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
-          }
-        },
-        "type": "object",
-        "title": "TarkovRaidRoomPasswordIn"
       },
       "TarkovRaidRoomTaskProgressIn": {
         "properties": {

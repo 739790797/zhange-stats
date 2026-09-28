@@ -549,7 +549,7 @@ def minecraft_power(
             state = None
         return MinecraftPowerOut(ok=True, message="已发送电源指令", power_state=state)
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
 
 
 @router.websocket("/console")
@@ -559,7 +559,10 @@ async def minecraft_console(websocket: WebSocket) -> None:
 
 
 def _raise_mod_tools(exc: mod_tools_svc.MinecraftModToolsError) -> None:
-    raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    raise HTTPException(
+        status_code=pelican.pelican_browser_status(exc.status_code),
+        detail=exc.message,
+    ) from exc
 
 
 @router.get("/mod-tools", response_model=MinecraftModToolsOut, dependencies=[_FEATURE])
@@ -574,7 +577,7 @@ def minecraft_mod_tools(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolsOut.model_validate(data)
 
 
@@ -653,7 +656,7 @@ def minecraft_mod_tool_install(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolInstallOut.model_validate(data)
 
 
@@ -673,7 +676,7 @@ def minecraft_mod_tool_versions(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolVersionsOut.model_validate(data)
 
 
@@ -694,7 +697,7 @@ def minecraft_mod_tool_preset_keys(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolPresetKeysOut.model_validate(data)
 
 
@@ -714,7 +717,7 @@ def minecraft_mod_tool_preset_get(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolPresetOut.model_validate(data)
 
 
@@ -742,7 +745,7 @@ def minecraft_mod_tool_preset_put(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolPresetOut.model_validate(data)
 
 
@@ -762,5 +765,5 @@ def minecraft_mod_tool_preset_apply(
         _raise_mod_tools(exc)
         raise
     except pelican.PelicanError as exc:
-        raise HTTPException(status_code=exc.status_code or 502, detail=exc.message) from exc
+        raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
     return MinecraftModToolPresetApplyOut.model_validate(data)

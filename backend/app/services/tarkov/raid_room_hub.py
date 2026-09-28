@@ -12,9 +12,22 @@ from fastapi import WebSocket
 logger = logging.getLogger(__name__)
 
 
+_PRESENCE_CLIENTS = frozenset({"web", "desktop"})
+_Seat = tuple[int, str]
+
+
+def presence_client(raw: object) -> str:
+    text = str(raw or "").strip().lower()
+    return text if text in _PRESENCE_CLIENTS else ""
+
+
+def _user_ids(room: dict[WebSocket, _Seat]) -> set[int]:
+    return {int(user_id) for user_id, _client in room.values()}
+
+
 class RaidRoomHub:
     def __init__(self) -> None:
-        self._rooms: dict[str, dict[WebSocket, int]] = {}
+        self._rooms: dict[str, dict[WebSocket, _Seat]] = {}
         self._seq: dict[str, int] = {}
         self._log_phases: dict[str, dict[int, dict[str, Any]]] = {}
         self._player_fixes: dict[str, dict[int, dict[str, Any]]] = {}
@@ -33,8 +46,18 @@ class RaidRoomHub:
         return set(self._rooms.keys())
 
     def online_user_ids(self, public_id: str) -> set[int]:
-        sockets = self._rooms.get(public_id) or {}
-        return set(sockets.values())
+        return _user_ids(self._rooms.get(public_id) or {})
+
+    def online_clients(self, public_id: str) -> list[dict[str, Any]]:
+        grouped: dict[int, list[str]] = {}
+        for user_id, client in (self._rooms.get(public_id) or {}).values():
+            if not client:
+                continue
+            grouped.setdefault(int(user_id), []).append(client)
+        return [
+            {"user_id": user_id, "clients": sorted(clients)}
+            for user_id, clients in sorted(grouped.items())
+        ]
 
     def log_phases(self, public_id: str) -> list[dict[str, Any]]:
         room = self._log_phases.get(public_id) or {}
@@ -117,12 +140,12 @@ class RaidRoomHub:
         if not room:
             self._player_fixes.pop(public_id, None)
 
-    async def join(self, public_id: str, ws: WebSocket, user_id: int) -> set[int]:
+    async def join(self, public_id: str, ws: WebSocket, user_id: int, client: str = "") -> set[int]:
         self.bind_loop(asyncio.get_running_loop())
         async with self._lock:
             room = self._rooms.setdefault(public_id, {})
-            room[ws] = user_id
-            return set(room.values())
+            room[ws] = (int(user_id), presence_client(client))
+            return _user_ids(room)
 
     async def leave(self, public_id: str, ws: WebSocket) -> set[int]:
         async with self._lock:
@@ -134,7 +157,7 @@ class RaidRoomHub:
                 self._rooms.pop(public_id, None)
                 self._player_fixes.pop(public_id, None)
                 return set()
-            remaining = set(room.values())
+            remaining = _user_ids(room)
             self.drop_offline_player_fixes(public_id, remaining)
             return remaining
 
@@ -160,7 +183,7 @@ class RaidRoomHub:
                     self._rooms.pop(public_id, None)
                     self._player_fixes.pop(public_id, None)
                 else:
-                    self.drop_offline_player_fixes(public_id, set(room.values()))
+                    self.drop_offline_player_fixes(public_id, _user_ids(room))
 
     def publish(self, public_id: str, payload: dict[str, Any]) -> None:
         try:
