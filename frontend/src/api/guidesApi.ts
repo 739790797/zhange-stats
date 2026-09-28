@@ -496,6 +496,29 @@ export async function updateTarkovProfile(body: TarkovProfileIn) {
   return data;
 }
 
+export type TarkovMapFilters = {
+  saved: boolean;
+  prefs: Record<string, unknown> | null;
+  updated_at?: string | null;
+};
+
+export async function fetchTarkovMapFilters() {
+  const { data } = await client.get<TarkovMapFilters>(
+    "/guides/tarkov/map-filters",
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function saveTarkovMapFilters(prefs: object) {
+  const { data } = await client.put<TarkovMapFilters>(
+    "/guides/tarkov/map-filters",
+    { prefs },
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
 export async function fetchTarkovCrafts(opts?: {
   station?: string;
   q?: string;
@@ -1110,17 +1133,31 @@ export async function markTarkovRaidRoomObjectivesDone(
 export async function addTarkovRaidRoomMark(
   publicId: string,
   body: {
-    kind: "pin" | "line" | "stroke";
+    kind: "pin" | "line" | "stroke" | "text";
     floor?: string;
     x: number;
     z: number;
     x2?: number;
     z2?: number;
     points?: number[][];
+    label?: string;
   },
 ) {
   const { data } = await client.post<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/marks`,
+    body,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
+export async function moveTarkovRaidRoomMark(
+  publicId: string,
+  markId: number,
+  body: { x: number; z: number },
+) {
+  const { data } = await client.patch<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/marks/${markId}`,
     body,
     { timeout: 30_000 },
   );

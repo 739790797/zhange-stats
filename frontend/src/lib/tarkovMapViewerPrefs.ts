@@ -302,6 +302,14 @@ export function parseTarkovMapViewerPrefs(
   }
 }
 
+export function hasStoredTarkovMapViewerPrefs(): boolean {
+  try {
+    return Boolean(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
 export function loadTarkovMapViewerPrefs(): TarkovMapViewerPrefs {
   try {
     return parseTarkovMapViewerPrefs(localStorage.getItem(STORAGE_KEY));

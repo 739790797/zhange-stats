@@ -37,6 +37,7 @@ _PUBLIC_POSTS = (
 
 _PROTECTED_GETS = (
     "/api/guides/tarkov/profile",
+    "/api/guides/tarkov/map-filters",
     "/api/guides/tarkov/hideout-levels",
     "/api/guides/tarkov/key-owns",
     "/api/guides/tarkov/collection-owns",

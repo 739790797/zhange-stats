@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -1513,6 +1515,11 @@ class TarkovRaidRoomMemberProgressOut(BaseModel):
     uploaded_at: str | None = None
 
 
+class TarkovRaidRoomMarkMoveIn(BaseModel):
+    x: float
+    z: float
+
+
 class TarkovRaidRoomMarkIn(BaseModel):
     kind: str = Field(min_length=1, max_length=8)
     floor: str = ""
@@ -1521,6 +1528,7 @@ class TarkovRaidRoomMarkIn(BaseModel):
     x2: float | None = None
     z2: float | None = None
     points: list[list[float]] | None = None
+    label: str = Field(default="", max_length=40)
 
 
 class TarkovRaidRoomMemberOut(BaseModel):
@@ -1681,6 +1689,16 @@ class TarkovProfileIn(BaseModel):
     trader_levels: dict[str, int] | None = None
 
 
+class TarkovMapFiltersOut(BaseModel):
+    saved: bool = False
+    prefs: dict[str, Any] | None = None
+    updated_at: str | None = None
+
+
+class TarkovMapFiltersIn(BaseModel):
+    prefs: dict[str, Any]
+
+
 class TarkovCollectionPlacementOut(BaseModel):
     item_id: str
     col: int
@@ -1771,15 +1789,22 @@ class TarkovRaidRoomObjectiveDoneOut(BaseModel):
     created_at: str | None = None
 
 
+class TarkovRaidRoomViewMapOut(BaseModel):
+    user_id: int
+    map_slug: str = ""
+
+
 class TarkovRaidRoomMarkOut(BaseModel):
     id: int
     kind: str
+    map_slug: str = ""
     floor: str = ""
     x: float
     z: float
     x2: float | None = None
     z2: float | None = None
     points: list[list[float]] | None = None
+    label: str = ""
     author_user_id: int
     author_display_name: str = ""
     created_at: str | None = None
@@ -1824,6 +1849,7 @@ class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
     is_host: bool = False
     is_member: bool = False
     can_edit: bool = False
+    view_maps: list[TarkovRaidRoomViewMapOut] = Field(default_factory=list)
     members: list[TarkovRaidRoomMemberOut] = Field(default_factory=list)
     claims: list[TarkovRaidRoomClaimOut] = Field(default_factory=list)
     key_brings: list[TarkovRaidRoomKeyBringOut] = Field(default_factory=list)

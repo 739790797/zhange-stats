@@ -174,6 +174,9 @@ export function buildSoloRaidRoomDetail(opts: SoloRaidRoomDetailInput) {
       started_count: number;
     }[],
     map_overlap: [] as { map_slug: string }[],
+    view_maps: mapSlug
+      ? [{ user_id: actor.userId, map_slug: mapSlug }]
+      : [],
   };
 }
 
@@ -206,17 +209,21 @@ export type RaidRoomKeyBringLike = {
 export type RaidRoomMarkLike = {
   id: number;
   kind: string;
+  map_slug?: string | null;
   floor?: string | null;
   x: number;
   z: number;
   x2?: number | null;
   z2?: number | null;
   points?: number[][] | null;
+  label?: string;
   author_user_id: number;
   author_display_name?: string;
 };
 
-export type TarkovMapDrawMode = "pan" | "pen" | "pin" | "line" | "erase";
+export type TarkovMapDrawMode = "pan" | "pen" | "pin" | "line" | "text" | "erase";
+
+export const MARK_TEXT_MAX = 40;
 
 export type StrokePoint = {
   x: number;
@@ -228,6 +235,12 @@ export type RaidRoomDraftStroke = {
   floor: string;
   points: StrokePoint[];
   color: string;
+  mapId?: string;
+};
+
+export type RaidRoomViewMapLike = {
+  user_id: number;
+  map_slug: string;
 };
 
 export const STROKE_MAX_POINTS = 160;
@@ -418,6 +431,61 @@ export function formatRaidRoomLiveStatus(status: "preparing" | "in_raid"): strin
   return status === "in_raid" ? "已在战局中" : "准备中";
 }
 
+export type RaidRoomMemberActivity =
+  | "offline"
+  | "unknown"
+  | "in_raid"
+  | "matching"
+  | "lobby";
+
+/** 在线时看日志相位；离线不再标成战局中。开战相位不按时间过期。 */
+export function raidRoomMemberActivity(opts: {
+  online?: boolean;
+  kind?: string | null;
+}): RaidRoomMemberActivity {
+  if (!opts.online) return "offline";
+  const kind = (opts.kind || "").trim();
+  if (kind === "match_found" || kind === "raid_starting" || kind === "raid_started") {
+    return "in_raid";
+  }
+  if (kind === "map_loading" || kind === "matching") return "matching";
+  if (kind === "raid_exited" || kind === "matching_aborted") return "lobby";
+  return "unknown";
+}
+
+export function formatRaidRoomMemberActivity(status: RaidRoomMemberActivity): string {
+  if (status === "offline") return "离线";
+  if (status === "in_raid") return "战局中";
+  if (status === "matching") return "匹配中";
+  if (status === "lobby") return "大厅中";
+  return "未知";
+}
+
+const RAID_ROOM_VIEW_MAP_PREFIX = "zhange.tarkov.raidRoomViewMap.";
+
+export function readRaidRoomViewMap(publicId: string): string {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    return normalizeRaidPrepMapId(
+      localStorage.getItem(`${RAID_ROOM_VIEW_MAP_PREFIX}${publicId}`) || "",
+    );
+  } catch {
+    return "";
+  }
+}
+
+export function writeRaidRoomViewMap(publicId: string, mapId: string): void {
+  if (typeof localStorage === "undefined") return;
+  const key = `${RAID_ROOM_VIEW_MAP_PREFIX}${publicId}`;
+  try {
+    const slug = normalizeRaidPrepMapId(mapId);
+    if (!slug) localStorage.removeItem(key);
+    else localStorage.setItem(key, slug);
+  } catch {
+    /* 隐私模式写不进 */
+  }
+}
+
 export const RAID_ROOM_LOBBY_REGION = "大厅";
 
 /** 结束 / 取消匹配 → 大厅；匹配成功、倒计时、开战才出地图。 */
@@ -459,6 +527,7 @@ export type RaidRoomSnapshotLike = {
   public_id: string;
   title?: string;
   map_slug: string;
+  view_maps?: RaidRoomViewMapLike[];
   game_mode?: string | null;
   listed?: boolean;
   has_password?: boolean;
@@ -517,6 +586,16 @@ export type RaidRoomObjectiveDoneLike = {
   created_at?: string | null;
 };
 
+export function raidRoomViewerMapSlug(
+  viewMaps: readonly RaidRoomViewMapLike[] | null | undefined,
+  userId: number | null | undefined,
+): string {
+  const uid = Number(userId);
+  if (!Number.isFinite(uid) || uid <= 0) return "";
+  const hit = (viewMaps || []).find((row) => row.user_id === uid);
+  return (hit?.map_slug || "").trim();
+}
+
 export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
   room: T,
   userId: number | null | undefined,
@@ -530,7 +609,7 @@ export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
     ...room,
     is_host,
     is_member: seated,
-    can_edit: seated && Boolean((room.map_slug || "").trim()),
+    can_edit: seated && Boolean(raidRoomViewerMapSlug(room.view_maps, userId)),
   };
 }
 
@@ -706,6 +785,24 @@ export function groupClaimsByTask(
     }
   }
   return order.map((id) => groups.get(id)!);
+}
+
+/** 当前图的任务封顶。目录未就绪时按全部勾选计，避免换图前把别的图的任务算进这张图。 */
+export function raidRoomTasksCountingTowardMapCap(
+  taskIds: readonly string[],
+  onMapTaskIds: readonly string[] | null,
+): string[] {
+  const onMap = onMapTaskIds ? new Set(onMapTaskIds) : null;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of taskIds) {
+    const id = String(raw || "").trim();
+    if (!id || seen.has(id)) continue;
+    if (onMap && !onMap.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }
 
 export function groupKeyBringsByItem(
@@ -902,8 +999,13 @@ export function raidRoomLiveSig(
     .map((row) => `${row.user_id}:${row.item_id}`)
     .sort()
     .join(",");
+  const views = (room.view_maps || [])
+    .map((row) => `${row.user_id}:${row.map_slug}`)
+    .sort()
+    .join(",");
   return [
     room.map_slug,
+    views,
     room.host_user_id ?? "",
     room.title || "",
     room.member_count ?? "",
@@ -927,6 +1029,8 @@ export type RaidRoomWsEvent<T extends RaidRoomSnapshotLike = RaidRoomSnapshotLik
   map_overlap?: RaidRoomMapOverlapLike[];
   task_progress?: RaidRoomMemberProgressLike[];
   key_owns?: RaidRoomKeyBringLike[];
+  view_maps?: RaidRoomViewMapLike[];
+  marks?: RaidRoomMarkLike[];
 };
 
 export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
@@ -974,6 +1078,17 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     }
     return withPresence({ ...current, marks: [...marks, event.mark] });
   }
+  if (kind === "mark_move" && event.mark) {
+    const moved = event.mark;
+    const marks = current.marks || [];
+    if (!marks.some((row) => row.id === moved.id)) {
+      return withPresence({ ...current, marks: [...marks, moved] });
+    }
+    return withPresence({
+      ...current,
+      marks: marks.map((row) => (row.id === moved.id ? { ...row, ...moved } : row)),
+    });
+  }
   if (kind === "mark_remove" && event.mark_id != null) {
     return withPresence({
       ...current,
@@ -981,7 +1096,13 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     });
   }
   if (kind === "board_clear") {
-    return withPresence({ ...current, marks: [] });
+    return withPresence({
+      ...current,
+      marks: event.marks ?? [],
+    });
+  }
+  if ((kind === "view_map" || kind === "log_phase") && event.view_maps) {
+    return withPresence({ ...current, view_maps: event.view_maps });
   }
   if ((kind === "claim_add" || kind === "claim_remove") && event.claims) {
     return withPresence({ ...current, claims: event.claims });
@@ -1061,6 +1182,17 @@ export function simplifyStroke(
   return out;
 }
 
+/** 地图文字：去掉控制符，折叠空白，超长截断。空串表示不能落字。 */
+export function normalizeMarkLabel(raw: string): string {
+  let cleaned = "";
+  for (const ch of raw) {
+    const code = ch.codePointAt(0) ?? 0;
+    cleaned += code <= 31 || code === 127 ? " " : ch;
+  }
+  const text = cleaned.replace(/\s+/g, " ").trim();
+  return Array.from(text).slice(0, MARK_TEXT_MAX).join("");
+}
+
 export function markStrokePoints(mark: RaidRoomMarkLike): StrokePoint[] {
   if (mark.kind === "stroke") {
     const parsed = parseStrokePoints(mark.points);
@@ -1087,7 +1219,13 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function isMapDrawTool(mode: TarkovMapDrawMode): boolean {
-  return mode === "pen" || mode === "pin" || mode === "line" || mode === "erase";
+  return (
+    mode === "pen" ||
+    mode === "pin" ||
+    mode === "line" ||
+    mode === "text" ||
+    mode === "erase"
+  );
 }
 
 /** 画笔/钉点等占用左键时，右键用来拖地图。 */
@@ -1096,6 +1234,10 @@ export function shouldRightButtonPanMap(mode: TarkovMapDrawMode): boolean {
 }
 
 export function strokeFingerprint(mark: RaidRoomMarkLike): string {
+  if (mark.kind === "text") {
+    const label = normalizeMarkLabel(mark.label || "");
+    return `text:${mark.floor || ""}:${roundStrokeCoord(mark.x)},${roundStrokeCoord(mark.z)}:${label}`;
+  }
   const pts = markStrokePoints(mark);
   if (!pts.length) return `${mark.kind}:${mark.floor || ""}:${mark.x}:${mark.z}`;
   const body = pts
@@ -1229,20 +1371,35 @@ export function playerFixFollowSig(
   return `${mark.key}:${mark.x}:${mark.y}:${mark.z}`;
 }
 
-/** 日志地图未知时仍可画；对不上房间地图则丢掉。 */
+/** 两边都有地图且等价才算同一频道。没有地图的坐标丢掉。 */
 export function playerFixMatchesRoomMap(
   fixMapId: string | undefined,
   roomMapId: string,
 ): boolean {
   const room = (roomMapId || "").trim();
-  if (!room) return false;
   const fix = (fixMapId || "").trim();
-  if (!fix) return true;
+  if (!room || !fix) return false;
   const roomKeys = mapSlugKeys(room);
   for (const key of mapSlugKeys(fix)) {
     if (roomKeys.has(key)) return true;
   }
   return false;
+}
+
+/** 只画同一频道、且对方正在战局中的定位。 */
+export function playerFixVisibleOnView(opts: {
+  fixMapId?: string | null;
+  viewMapId?: string | null;
+  phaseKind?: string | null;
+  online?: boolean;
+}): boolean {
+  if (
+    raidRoomMemberActivity({ online: opts.online, kind: opts.phaseKind }) !==
+    "in_raid"
+  ) {
+    return false;
+  }
+  return playerFixMatchesRoomMap(opts.fixMapId || "", opts.viewMapId || "");
 }
 
 /**
@@ -1465,12 +1622,23 @@ export function pulseDemoSelfUserId(userId?: number | null): number {
     : PULSE_DEMO_SELF_ID;
 }
 
+/** 甲乙在海关战局；丙在战局中并每 30 秒在森林和海关之间换图；丁停在海关但已回大厅。 */
 export const PULSE_DEMO_BOTS = [
-  { userId: 900001, displayName: "假人甲" },
-  { userId: 900002, displayName: "假人乙" },
-  { userId: 900003, displayName: "假人丙" },
-  { userId: 900004, displayName: "假人丁" },
+  { userId: 900001, displayName: "假人甲", mapId: "customs", kind: "raid_started" },
+  { userId: 900002, displayName: "假人乙", mapId: "customs", kind: "raid_started" },
+  { userId: 900003, displayName: "假人丙", mapId: "woods", kind: "raid_started" },
+  { userId: 900004, displayName: "假人丁", mapId: "customs", kind: "raid_exited" },
 ] as const;
+
+export const PULSE_DEMO_SWITCH_USER_ID = 900003;
+export const PULSE_DEMO_MAP_SWITCH_MS = 30_000;
+const PULSE_DEMO_SWITCH_MAPS = ["woods", "customs"] as const;
+
+/** 第 0 拍在森林，之后每拍换成另一张图。 */
+export function pulseDemoHopMapId(hop: number): string {
+  const n = Number.isFinite(hop) ? Math.max(0, Math.trunc(hop)) : 0;
+  return PULSE_DEMO_SWITCH_MAPS[n % PULSE_DEMO_SWITCH_MAPS.length]!;
+}
 
 const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }>> =
   {
@@ -1528,6 +1696,14 @@ export function isPulseDemoSession(publicId: string): boolean {
   return (publicId || "").trim().toLowerCase() === PULSE_DEMO_ROOM_PUBLIC_ID;
 }
 
+export function pulseDemoBotMapId(userId: number, hop = 0): string {
+  if (userId === PULSE_DEMO_SWITCH_USER_ID) return pulseDemoHopMapId(hop);
+  return (
+    PULSE_DEMO_BOTS.find((bot) => bot.userId === userId)?.mapId ||
+    PULSE_DEMO_MAP_ID
+  );
+}
+
 export function pulseDemoFixAt(opts: {
   userId: number;
   step: number;
@@ -1538,16 +1714,42 @@ export function pulseDemoFixAt(opts: {
   if (!path?.length) return null;
   const n = Math.max(0, Math.trunc(opts.step));
   const point = path[n % path.length]!;
+  const mapId = (opts.mapId || pulseDemoBotMapId(opts.userId)).trim();
   return {
     userId: opts.userId,
     x: point.x,
     y: point.y,
     z: point.z,
     yaw: (n * 45) % 360,
-    mapId: (opts.mapId || PULSE_DEMO_MAP_ID).trim() || PULSE_DEMO_MAP_ID,
+    mapId: mapId || PULSE_DEMO_MAP_ID,
     fileName: `pulse-demo-${opts.userId}-${n}.png`,
     at: opts.now ?? Date.now(),
   };
+}
+
+export function pulseDemoChannel(
+  self?: {
+    user_id: number;
+    display_name: string;
+  } | null,
+  hop = 0,
+): {
+  viewMaps: RaidRoomViewMapLike[];
+  phases: Map<number, { kind: string }>;
+} {
+  const selfId =
+    self && self.user_id > 0 ? self.user_id : 0;
+  const viewMaps: RaidRoomViewMapLike[] = PULSE_DEMO_BOTS.map((bot) => ({
+    user_id: bot.userId,
+    map_slug: pulseDemoBotMapId(bot.userId, hop),
+  }));
+  const phases = new Map<number, { kind: string }>(
+    PULSE_DEMO_BOTS.map((bot) => [bot.userId, { kind: bot.kind }]),
+  );
+  if (selfId) {
+    viewMaps.unshift({ user_id: selfId, map_slug: PULSE_DEMO_MAP_ID });
+  }
+  return { viewMaps, phases };
 }
 
 export function pulseDemoMembers(self?: {

@@ -17,6 +17,7 @@ from app.api.guides.schemas import (
     TarkovRaidRoomMineOut,
     TarkovRaidRoomMapIn,
     TarkovRaidRoomMarkIn,
+    TarkovRaidRoomMarkMoveIn,
     TarkovRaidRoomPasswordIn,
     TarkovRaidRoomTaskProgressIn,
 )
@@ -49,6 +50,8 @@ _PATCH_WS_FIELDS: dict[str, tuple[str, ...]] = {
     "objective_done_remove": ("objective_dones",),
     "task_progress": ("map_overlap", "task_progress"),
     "key_own_change": ("key_owns",),
+    "board_clear": ("marks",),
+    "view_map": ("view_maps",),
 }
 
 
@@ -231,7 +234,7 @@ def get_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ) -> TarkovRaidRoomDetailOut:
-    """取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。"""
+    """取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。"""
     try:
         data = rooms_svc.get_room(
             db,
@@ -748,6 +751,7 @@ def add_tarkov_raid_room_mark(
             x2=body.x2,
             z2=body.z2,
             points=body.points,
+            label=body.label,
         )
     except rooms_svc.RaidRoomError as extra_exc:
         db.rollback()
@@ -755,6 +759,32 @@ def add_tarkov_raid_room_mark(
         raise
     db.commit()
     _publish(public_id, "mark_add", data, extra={"mark": mark})
+    return TarkovRaidRoomDetailOut.model_validate(data)
+
+
+@router.patch(
+    "/raid-rooms/{public_id}/marks/{mark_id}",
+    response_model=TarkovRaidRoomDetailOut,
+    dependencies=[_FEATURE],
+)
+def move_tarkov_raid_room_mark(
+    public_id: str,
+    mark_id: int,
+    body: TarkovRaidRoomMarkMoveIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> TarkovRaidRoomDetailOut:
+    try:
+        data, mark = rooms_svc.move_text_mark(
+            db, public_id, user, mark_id, x=body.x, z=body.z
+        )
+    except rooms_svc.RaidRoomError as extra_exc:
+        db.rollback()
+        _raise(extra_exc)
+        raise
+    db.commit()
+    if mark is not None:
+        _publish(public_id, "mark_move", data, extra={"mark": mark})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -820,7 +850,12 @@ def clear_tarkov_raid_room_marks(
         _raise(extra_exc)
         raise
     db.commit()
-    _publish(public_id, "board_clear", data)
+    _publish(
+        public_id,
+        "board_clear",
+        data,
+        extra={"map_slug": hub.view_map_of(public_id, user.id)},
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 

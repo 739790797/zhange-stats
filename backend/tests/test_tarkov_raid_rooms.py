@@ -179,12 +179,19 @@ def test_host_leave_transfers_last_leave_clears() -> None:
     now = now_naive()
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
+    rooms.claim_task(db, pid, host, "t-host", now=now)
+    rooms.claim_task(db, pid, guest, "t-guest", now=now)
+    rooms.add_mark(db, pid, host, kind="pin", floor="", x=1, z=2, now=now)
+    rooms.add_mark(db, pid, guest, kind="pin", floor="", x=3, z=4, now=now)
     rooms.leave_room(db, pid, host, now=now)
     after = rooms.get_room(db, pid, guest, now=now)
     assert after["is_host"] is True
     assert after["host_user_id"] == guest.id
-    assert after["map_slug"] == "customs"
+    assert after["map_slug"] == ""
     assert after["member_count"] == 1
+    assert {row["task_id"] for row in after["claims"]} == {"t-guest"}
+    assert {row["author_user_id"] for row in after["marks"]} == {guest.id}
     rooms.leave_room(db, pid, guest, now=now)
     assert _gone(db, pid, guest, now=now)
 
@@ -212,7 +219,7 @@ def test_reset_host_only() -> None:
     assert _gone(db, pid, guest, now=now)
 
 
-def test_set_map_wipes_board_keeps_members() -> None:
+def test_member_view_map_keeps_other_channel() -> None:
     db = _session()
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")
@@ -223,22 +230,25 @@ def test_set_map_wipes_board_keeps_members() -> None:
     rooms.bring_key(db, pid, host, "key-a", now=now)
     rooms.mark_objective_done(db, pid, host, "t1", "o1", now=now)
     rooms.add_mark(db, pid, host, kind="pin", floor="", x=1, z=2, now=now)
-    try:
-        rooms.set_room_map(db, pid, guest, "woods", now=now)
-        switched = True
-    except rooms.RaidRoomError as exc:
-        switched = False
-        assert exc.status_code == 403
-    assert not switched
-    snap = rooms.set_room_map(db, pid, host, "woods", now=now)
-    assert snap["map_slug"] == "woods"
-    assert snap["claims"] == []
-    assert snap["key_brings"] == []
-    assert snap["objective_dones"] == []
-    assert snap["marks"] == []
+    snap = rooms.set_room_map(db, pid, guest, "woods", now=now)
+    assert snap["map_slug"] == ""
+    assert snap["claims"]
+    assert snap["key_brings"]
+    assert snap["objective_dones"]
+    assert snap["marks"][0]["map_slug"] == "customs"
     assert snap["member_count"] == 2
-    same = rooms.set_room_map(db, pid, host, "woods", now=now)
-    assert same["map_slug"] == "woods"
+    views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
+    assert views[host.id] == "customs"
+    assert views[guest.id] == "woods"
+    guest_pin = rooms.add_mark(db, pid, guest, kind="pin", floor="", x=9, z=9, now=now)[1]
+    cleared = rooms.clear_marks(db, pid, host, now=now)
+    slugs = [row["map_slug"] for row in cleared["marks"]]
+    assert slugs == ["woods"]
+    _snap, removed = rooms.remove_mark(db, pid, host, guest_pin["id"], now=now)
+    assert removed is False
+    assert [row["map_slug"] for row in _snap["marks"]] == ["woods"]
+    same = rooms.set_room_map(db, pid, host, "customs", now=now)
+    assert {row["user_id"]: row["map_slug"] for row in same["view_maps"]}[host.id] == "customs"
 
 
 def test_host_can_set_map_without_websocket_presence() -> None:
@@ -255,7 +265,9 @@ def test_host_can_set_map_without_websocket_presence() -> None:
         now=now,
         online_user_ids=set(),
     )
-    assert snap["map_slug"] == "woods"
+    assert snap["map_slug"] == ""
+    views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
+    assert views[host.id] == "woods"
 
 
 def test_acting_host_can_set_map_when_titled_host_offline() -> None:
@@ -275,30 +287,12 @@ def test_acting_host_can_set_map_when_titled_host_offline() -> None:
     assert rooms.acting_host_user_id(host.id, seated, {host.id, first.id, later.id}) == host.id
     assert rooms.acting_host_user_id(host.id, seated, {first.id, later.id}) == first.id
     assert rooms.acting_host_user_id(host.id, seated, None) == host.id
-    try:
-        rooms.set_room_map(
-            db,
-            pid,
-            later,
-            "woods",
-            now=now,
-            online_user_ids={first.id, later.id},
-        )
-        later_ok = True
-    except rooms.RaidRoomError as exc:
-        later_ok = False
-        assert exc.status_code == 403
-    assert later_ok is False
-    snap = rooms.set_room_map(
-        db,
-        pid,
-        first,
-        "woods",
-        now=now,
-        online_user_ids={first.id, later.id},
-    )
-    assert snap["map_slug"] == "woods"
+    snap = rooms.set_room_map(db, pid, later, "woods", now=now)
+    views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
+    assert views[later.id] == "woods"
+    assert views[host.id] == "customs"
     assert snap["host_user_id"] == host.id
+    assert room.map_slug == ""
 
 
 def test_same_raid_id_lets_member_set_map() -> None:
@@ -327,28 +321,29 @@ def test_same_raid_id_lets_member_set_map() -> None:
         db,
         pid,
         guest,
-        "woods",
+        "factory",
         now=now,
         online_user_ids={host.id, guest.id},
         log_phases=phases,
     )
-    assert snap["map_slug"] == "woods"
+    views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
+    assert views[guest.id] == "factory"
+    assert views[host.id] == "customs"
+    assert snap["map_slug"] == ""
     assert snap["host_user_id"] == host.id
-    try:
-        rooms.set_room_map(
-            db,
-            pid,
-            guest,
-            "factory",
-            now=now,
-            online_user_ids={host.id, guest.id},
-            log_phases=phases,
-        )
-        other_ok = True
-    except rooms.RaidRoomError as exc:
-        other_ok = False
-        assert exc.status_code == 403
-    assert other_ok is False
+    assert rooms.note_view_map_from_phase(
+        pid,
+        guest.id,
+        {"kind": "raid_started", "map_id": "woods"},
+    )
+    assert rooms.note_view_map_from_phase(
+        pid,
+        guest.id,
+        {"kind": "raid_exited", "map_id": "woods"},
+    ) is False
+    from app.services.tarkov.raid_room_hub import hub
+
+    assert hub.view_map_of(pid, guest.id) == "woods"
 
 
 def test_writes_require_map() -> None:
@@ -496,6 +491,7 @@ def test_claim_union_and_unclaim() -> None:
     now = now_naive()
     public_id = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, public_id, guest, now=now)
+    rooms.set_room_map(db, public_id, guest, "customs", now=now)
     rooms.claim_task(db, public_id, host, "t1", now=now)
     rooms.claim_task(db, public_id, guest, "t1", now=now)
     rooms.claim_task(db, public_id, guest, "t2", now=now)
@@ -546,6 +542,7 @@ def test_marks_undo_and_host_clear() -> None:
     now = now_naive()
     public_id = _seat(db, host, map_slug="factory", now=now)["public_id"]
     rooms.join_room(db, public_id, guest, now=now)
+    rooms.set_room_map(db, public_id, guest, "factory", now=now)
     _, pin = rooms.add_mark(
         db, public_id, guest, kind="pin", floor="", x=1, z=2, now=now
     )
@@ -576,6 +573,115 @@ def test_marks_undo_and_host_clear() -> None:
     assert not cleared
     snap = rooms.clear_marks(db, public_id, host, now=now)
     assert snap["marks"] == []
+
+
+def test_text_marks() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    public_id = _seat(db, host, map_slug="factory", now=now)["public_id"]
+    _, mark = rooms.add_mark(
+        db,
+        public_id,
+        host,
+        kind="text",
+        floor="bunker",
+        x=12,
+        z=8,
+        label="  集合\n点  ",
+        now=now,
+    )
+    assert mark["kind"] == "text"
+    assert mark["label"] == "集合 点"
+    assert mark["floor"] == "bunker"
+    assert mark["x"] == 12
+    assert mark["z"] == 8
+
+    for bad in ("", "   ", "甲" * (rooms.MAX_TEXT_LEN + 1), 12):
+        try:
+            rooms.add_mark(
+                db,
+                public_id,
+                host,
+                kind="text",
+                floor="",
+                x=1,
+                z=1,
+                label=bad,
+                now=now,
+            )
+            rejected = False
+        except rooms.RaidRoomError:
+            rejected = True
+        assert rejected
+
+    for index in range(rooms.MAX_TEXTS - 1):
+        rooms.add_mark(
+            db,
+            public_id,
+            host,
+            kind="text",
+            floor="",
+            x=float(index),
+            z=1,
+            label="点",
+            now=now,
+        )
+    try:
+        rooms.add_mark(
+            db,
+            public_id,
+            host,
+            kind="text",
+            floor="",
+            x=99,
+            z=1,
+            label="满",
+            now=now,
+        )
+        overflow = True
+    except rooms.RaidRoomError as extra_exc:
+        overflow = False
+        assert extra_exc.status_code == 409
+    assert not overflow
+
+
+def test_move_text_mark() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    public_id = _seat(db, host, map_slug="factory", now=now)["public_id"]
+    _, mark = rooms.add_mark(
+        db,
+        public_id,
+        host,
+        kind="text",
+        floor="",
+        x=1,
+        z=2,
+        label="集合",
+        now=now,
+    )
+    snap, moved = rooms.move_text_mark(
+        db, public_id, host, mark["id"], x=8, z=9, now=now
+    )
+    assert moved is not None
+    assert moved["x"] == 8
+    assert moved["z"] == 9
+    assert moved["label"] == "集合"
+    assert snap["marks"][0]["x"] == 8
+    _, missing = rooms.move_text_mark(db, public_id, host, 99999, x=1, z=1, now=now)
+    assert missing is None
+    _, pin = rooms.add_mark(
+        db, public_id, host, kind="pin", floor="", x=1, z=1, now=now
+    )
+    try:
+        rooms.move_text_mark(db, public_id, host, pin["id"], x=3, z=4, now=now)
+        moved_pin = True
+    except rooms.RaidRoomError as extra_exc:
+        moved_pin = False
+        assert "文字" in extra_exc.message
+    assert not moved_pin
 
 
 def test_stroke_marks_and_draft_parse() -> None:
@@ -652,14 +758,7 @@ def test_stroke_marks_and_draft_parse() -> None:
         "map_id": "streets",
         "file_name": "2025-03-30[21-04]_175.30.png",
     }
-    assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3}) == {
-        "x": 1.0,
-        "y": 2.0,
-        "z": 3.0,
-        "yaw": None,
-        "map_id": "",
-        "file_name": "",
-    }
+    assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3}) is None
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": "nope"}) is None
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3, "yaw": "bad"}) is None
     assert rooms.parse_log_phase({"kind": "raid_started", "map_id": "bigmap", "raid_id": "ab12cd", "at": "2026-08-31 13:00:00.000", "map_label": "海关"}) == {
@@ -695,6 +794,7 @@ def test_bring_key_shared_and_toggle() -> None:
     public_id = room["public_id"]
     assert room["key_brings"] == []
     rooms.join_room(db, public_id, guest, now=now)
+    rooms.set_room_map(db, public_id, guest, "customs", now=now)
 
     snap, added = rooms.bring_key(db, public_id, host, "key-a", now=now)
     assert added is True
@@ -737,6 +837,7 @@ def test_mark_objective_done_shared_and_toggle() -> None:
     public_id = room["public_id"]
     assert room["objective_dones"] == []
     rooms.join_room(db, public_id, guest, now=now)
+    rooms.set_room_map(db, public_id, guest, "customs", now=now)
 
     snap, added = rooms.mark_objective_done(
         db, public_id, host, "wet-2", "o-1", now=now
@@ -808,10 +909,16 @@ def test_host_can_remove_member_and_their_claims() -> None:
     now = now_naive()
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
     rooms.claim_task(db, pid, guest, "t-guest", now=now)
     rooms.bring_key(db, pid, guest, "key-b", now=now)
     rooms.mark_objective_done(db, pid, guest, "t-guest", "o-1", now=now)
+    from app.services.tarkov.raid_room_hub import hub
+
+    hub.set_log_phase(pid, guest.id, {"kind": "raid_started", "map_id": "customs"})
     snap = rooms.remove_member(db, pid, host, guest.id, now=now)
+    assert hub.view_map_of(pid, guest.id) == ""
+    assert hub.log_phases(pid) == []
     assert snap["member_count"] == 1
     assert snap["host_user_id"] == host.id
     assert [row["user_id"] for row in snap["members"]] == [host.id]
@@ -1097,6 +1204,7 @@ def test_room_claims_allow_multiple_members() -> None:
     now = now_naive()
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
     rooms.claim_task(db, pid, host, "t1", now=now)
     snap, added = rooms.claim_task(db, pid, guest, "t1", now=now)
     assert added is True
@@ -1266,7 +1374,7 @@ def test_member_task_progress_count_hides_ids_missing_from_catalog(
     assert mine["started_count"] == 1
 
 
-def test_seed_claims_from_progress_host_only() -> None:
+def test_seed_claims_from_progress_is_personal() -> None:
     db = _session()
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")
@@ -1280,12 +1388,15 @@ def test_seed_claims_from_progress_host_only() -> None:
         ok = True
     except rooms.RaidRoomError as exc:
         ok = False
-        assert exc.status_code == 403
+        assert exc.status_code == 409
+        assert "地图" in exc.message
     assert not ok
-    snap, added = rooms.seed_claims_from_progress(db, pid, host, now=now)
-    # no tasks raw → catalog empty, nothing claimed
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
+    snap, added = rooms.seed_claims_from_progress(db, pid, guest, now=now)
     assert added == 0
     assert snap["claims"] == []
+    _, host_added = rooms.seed_claims_from_progress(db, pid, host, now=now)
+    assert host_added == 0
 
 
 def test_seed_claims_from_progress_uses_catalog(monkeypatch) -> None:
@@ -1295,6 +1406,7 @@ def test_seed_claims_from_progress_uses_catalog(monkeypatch) -> None:
     now = now_naive()
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
     rooms.set_member_task_progress(db, pid, host, ["t-host", "skip"], [], now=now)
     rooms.set_member_task_progress(db, pid, guest, ["t-guest"], [], now=now)
 
@@ -1306,11 +1418,15 @@ def test_seed_claims_from_progress_uses_catalog(monkeypatch) -> None:
         _index,
     )
     snap, added = rooms.seed_claims_from_progress(db, pid, host, now=now)
-    assert added == 2
+    assert added == 1
     ids = {(row["task_id"], row["user_id"]) for row in snap["claims"]}
     assert ("t-host", host.id) in ids
-    assert ("t-guest", guest.id) in ids
-    assert ("skip", host.id) not in ids
+    assert ("t-guest", guest.id) not in ids
+    guest_snap, guest_added = rooms.seed_claims_from_progress(db, pid, guest, now=now)
+    assert guest_added == 1
+    guest_ids = {(row["task_id"], row["user_id"]) for row in guest_snap["claims"]}
+    assert ("t-guest", guest.id) in guest_ids
+    assert ("skip", host.id) not in guest_ids
 
 
 def test_join_and_lobby_rate_limit_keys() -> None:
@@ -1343,7 +1459,8 @@ def test_outsider_get_hides_board() -> None:
     assert preview["map_overlap"] == []
     assert preview["host_user_id"] is None
     assert preview["member_count"] == 1
-    assert preview["map_slug"] == "customs"
+    assert preview["map_slug"] == ""
+    assert preview["view_maps"] == []
     host_view = rooms.get_room(db, pid, host, now=now)
     assert host_view["claims"][0]["task_id"] == "t-1"
     assert host_view["marks"]

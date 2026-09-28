@@ -19,14 +19,17 @@ import type { TarkovLockKeyMode } from "@/lib/tarkovMapMarkers";
 import {
   PLAYER_FIX_PULSE_MS,
   PULSE_DEMO_BOTS,
+  PULSE_DEMO_SWITCH_USER_ID,
   buildPlayerFixPulseLines,
+  pulseDemoBotMapId,
   collectPlayerFixMarks,
   detectPlayerFixPulseUpdaters,
   isPulseDemoSession,
   nextPulseDemoBotIndex,
   nextPulseDemoWaitMs,
-  playerFixMatchesRoomMap,
   playerFixPulseLinesEqual,
+  playerFixVisibleOnView,
+  raidRoomMemberActivity,
   pulseDemoFixAt,
   replacePlayerFixPulseLines,
   retainPlayerFixPulseLines,
@@ -53,6 +56,10 @@ import type {
   TarkovMapSwitch,
 } from "@/api/guidesApi";
 import { type ReactNode, type RefObject } from "react";
+import {
+  normalizeRaidPrepMapId,
+  raidPrepMapsEquivalent,
+} from "@/lib/tarkovRaidPrep";
 
 type MemberLike = {
   user_id: number;
@@ -98,6 +105,8 @@ export type TarkovRaidRoomLiveMapProps = {
     x2: number;
     z2: number;
   }) => void;
+  onText?: (mark: { floor: string; x: number; z: number; label: string }) => void;
+  onTextMove?: (mark: { id: number; x: number; z: number }) => void;
   onEraseMark?: (markId: number) => void;
   onQuestLabelClick: (taskId: string) => void;
   onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
@@ -106,7 +115,12 @@ export type TarkovRaidRoomLiveMapProps = {
     readonly RaidPrepMapParticipant[]
   >;
   topRight?: ReactNode;
+  topLeft?: ReactNode;
   toolbar?: ReactNode;
+  showSidebars?: boolean;
+  memberPhases?: ReadonlyMap<number, { kind?: string | null; online?: boolean }>;
+  /** 测试房：假人丙换图的拍数，0 起每拍一张图。 */
+  pulseDemoHop?: number;
   lockKeyMode?: TarkovLockKeyMode;
   lockKeyOwns?: readonly RaidRoomKeyBringLike[] | null;
   lockKeyBrings?: readonly RaidRoomKeyBringLike[] | null;
@@ -137,15 +151,23 @@ function RaidRoomFixRelay({
     const ws = wsRef.current;
     if (!canEdit || !fix || !ws || ws.readyState !== WebSocket.OPEN) return;
     if (
+      raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !==
+      "in_raid"
+    ) {
+      return;
+    }
+    const logMap = normalizeRaidPrepMapId(lastLogPhase?.mapId || lastLogMapId || "");
+    if (!logMap) return;
+    if (
       shouldSuppressLocalPlayerFix({
         viewMapId: mapId,
-        logMapId: lastLogPhase?.mapId || lastLogMapId,
+        logMapId: logMap,
         phaseKind: lastLogPhase?.kind,
       })
     ) {
       return;
     }
-    const sig = `${fix.fileName}:${fix.lastModified}:${mapId}:${wsGen}`;
+    const sig = `${fix.fileName}:${fix.lastModified}:${logMap}:${wsGen}`;
     if (lastSentRef.current === sig) return;
     lastSentRef.current = sig;
     ws.send(
@@ -155,7 +177,7 @@ function RaidRoomFixRelay({
         y: fix.y,
         z: fix.z,
         yaw: fix.yaw,
-        map_id: mapId,
+        map_id: logMap,
         file_name: fix.fileName,
       }),
     );
@@ -197,12 +219,18 @@ export function TarkovRaidRoomLiveMap({
   onStroke,
   onPin,
   onLine,
+  onText,
+  onTextMove,
   onEraseMark,
   onQuestLabelClick,
   onQuestCompleteObjective,
   questParticipantsByTask,
   topRight,
+  topLeft,
   toolbar,
+  showSidebars = true,
+  memberPhases,
+  pulseDemoHop = 0,
   lockKeyMode = "party",
   lockKeyOwns,
   lockKeyBrings,
@@ -216,14 +244,12 @@ export function TarkovRaidRoomLiveMap({
   const [pulseLines, setPulseLines] = useState<RaidRoomPlayerFixPulseLine[]>([]);
   const pulseSeenRef = useRef<Map<number, string> | null>(null);
   const pulsePrimedRef = useRef(false);
+  const pulseDemoHopRef = useRef(pulseDemoHop);
+  pulseDemoHopRef.current = pulseDemoHop;
 
   useEffect(() => {
     useRaidRoomLiveStore.getState().bind(publicId);
   }, [publicId]);
-
-  useEffect(() => {
-    useRaidRoomLiveStore.getState().filterMap(mapId);
-  }, [mapId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -238,23 +264,28 @@ export function TarkovRaidRoomLiveMap({
     }
     const store = useRaidRoomLiveStore.getState();
     store.bind(publicId);
-    const steps = PULSE_DEMO_BOTS.map(() => 0);
-    for (const bot of PULSE_DEMO_BOTS) {
-      const fix = pulseDemoFixAt({ userId: bot.userId, step: 0, mapId });
+    const moving = PULSE_DEMO_BOTS.filter((bot) => bot.kind === "raid_started");
+    const steps = moving.map(() => 0);
+    for (const bot of moving) {
+      const fix = pulseDemoFixAt({
+        userId: bot.userId,
+        step: 0,
+        mapId: pulseDemoBotMapId(bot.userId, pulseDemoHopRef.current),
+      });
       if (fix) store.upsertFix(fix);
     }
     let lastIndex = -1;
     let timer = 0;
     const tick = () => {
-      const index = nextPulseDemoBotIndex(lastIndex, PULSE_DEMO_BOTS.length);
+      const index = nextPulseDemoBotIndex(lastIndex, moving.length);
       lastIndex = index;
       steps[index] = (steps[index] || 0) + 1;
-      const bot = PULSE_DEMO_BOTS[index];
+      const bot = moving[index];
       if (bot) {
         const fix = pulseDemoFixAt({
           userId: bot.userId,
           step: steps[index]!,
-          mapId,
+          mapId: pulseDemoBotMapId(bot.userId, pulseDemoHopRef.current),
         });
         if (fix) store.upsertFix(fix);
       }
@@ -262,7 +293,27 @@ export function TarkovRaidRoomLiveMap({
     };
     timer = window.setTimeout(tick, nextPulseDemoWaitMs());
     return () => window.clearTimeout(timer);
-  }, [mapId, publicId]);
+  }, [publicId]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !isPulseDemoSession(publicId)) return;
+    const store = useRaidRoomLiveStore.getState();
+    const mapId = pulseDemoBotMapId(PULSE_DEMO_SWITCH_USER_ID, pulseDemoHop);
+    const current = store.fixes.find(
+      (row) => row.userId === PULSE_DEMO_SWITCH_USER_ID,
+    );
+    if (current) {
+      if (current.mapId === mapId) return;
+      store.upsertFix({ ...current, mapId, at: Date.now() });
+      return;
+    }
+    const fix = pulseDemoFixAt({
+      userId: PULSE_DEMO_SWITCH_USER_ID,
+      step: 0,
+      mapId,
+    });
+    if (fix) store.upsertFix(fix);
+  }, [publicId, pulseDemoHop]);
 
   const selfName = useMemo(() => {
     const fromProp = (authorDisplayName || "").trim();
@@ -276,7 +327,15 @@ export function TarkovRaidRoomLiveMap({
       names.set(row.user_id, row.display_name);
     }
     return fixes
-      .filter((row) => playerFixMatchesRoomMap(row.mapId, mapId))
+      .filter((row) => {
+        const person = memberPhases?.get(row.userId);
+        return playerFixVisibleOnView({
+          fixMapId: row.mapId,
+          viewMapId: mapId,
+          phaseKind: person?.kind,
+          online: person?.online,
+        });
+      })
       .map((row) => ({
         key: `u:${row.userId}:${row.fileName || row.at}`,
         userId: row.userId,
@@ -291,10 +350,12 @@ export function TarkovRaidRoomLiveMap({
         yaw: row.yaw,
         self: row.userId === authorUserId,
       }));
-  }, [authorUserId, fixes, mapId, members, selfName]);
+  }, [authorUserId, fixes, mapId, memberPhases, members, selfName]);
 
   const hideLocalPulseFix =
     suppressLocalFix ||
+    raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !==
+      "in_raid" ||
     shouldSuppressLocalPlayerFix({
       viewMapId: mapId,
       logMapId: lastLogPhase?.mapId || lastLogMapId,
@@ -465,7 +526,13 @@ export function TarkovRaidRoomLiveMap({
         focusRequest={focusRequest}
         highlightTaskId={highlightTaskId}
         boardMarks={boardMarks}
-        remoteDrafts={drafts}
+        remoteDrafts={drafts.filter(
+          (row) =>
+            !row.mapId ||
+            !mapId ||
+            raidPrepMapsEquivalent(row.mapId, mapId),
+        )}
+        topLeft={topLeft}
         remotePlayerFixes={remotePlayerMarks}
         playerFixPulseLines={pulseLines}
         suppressLocalFix={suppressLocalFix}
@@ -476,15 +543,20 @@ export function TarkovRaidRoomLiveMap({
         onStroke={onStroke}
         onPin={onPin}
         onLine={onLine}
+        onText={onText}
+        onTextMove={onTextMove}
         onDraftStroke={onDraftStroke}
         onEraseMark={onEraseMark}
         fill
+        zoomControl={false}
         onQuestLabelClick={onQuestLabelClick}
         onQuestCompleteObjective={onQuestCompleteObjective}
         questParticipantsByTask={questParticipantsByTask}
         questPeopleStartOn={questPeopleStartOn}
         topRight={topRight}
         toolbar={toolbar}
+        showSidebars={showSidebars}
+        hideCornerFullscreen={Boolean(toolbar)}
         lockKeyMode={lockKeyMode}
         lockKeyOwns={lockKeyOwns}
         lockKeyBrings={lockKeyBrings}

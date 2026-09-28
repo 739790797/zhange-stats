@@ -442,6 +442,24 @@ class TarkovUserProfile(Base):
     )
 
 
+class TarkovUserMapFilter(Base):
+    """用户地图筛选喜好：网页和 App 共用一份，不按 PVP/PVE 拆开。"""
+
+    __tablename__ = "tarkov_user_map_filters"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    prefs: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TarkovUserHideoutLevel(Base):
     """用户藏身处模块等级：按 PVP/PVE 分开；缺行则仓库 1（蓝边 4）/ 其余 0。"""
 
@@ -577,7 +595,7 @@ class TarkovRaidRoomObjectiveDone(Base):
 
 
 class TarkovRaidRoomMark(Base):
-    """房间画板：钉点 / 直线 / 自由笔画，坐标为地图 x/z。"""
+    """房间画板：钉点 / 直线 / 自由笔画 / 文字，坐标为地图 x/z。"""
 
     __tablename__ = "tarkov_raid_room_marks"
     __table_args__ = (Index("ix_tarkov_raid_room_marks_room", "room_id", "created_at"),)
@@ -594,12 +612,14 @@ class TarkovRaidRoomMark(Base):
         nullable=False,
     )
     kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    map_slug: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     floor: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     x: Mapped[float] = mapped_column(Float, nullable=False)
     z: Mapped[float] = mapped_column(Float, nullable=False)
     x2: Mapped[float | None] = mapped_column(Float, nullable=True)
     z2: Mapped[float | None] = mapped_column(Float, nullable=True)
     points_json: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
+    label: Mapped[str] = mapped_column(String(40), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

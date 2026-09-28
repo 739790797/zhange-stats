@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { raidPrepMapsEquivalent } from "@/lib/tarkovRaidPrep";
 import {
   dropPlayerFixesNotIn,
   playerFixMatchesRoomMap,
@@ -15,6 +16,7 @@ type RaidRoomLiveState = {
   bind: (roomId: string) => void;
   setDraft: (draft: RaidRoomDraftStroke | null, userId: number) => void;
   clearDrafts: () => void;
+  dropDraftsOnMap: (mapId: string) => void;
   upsertFix: (fix: RaidRoomPlayerFix) => void;
   dropFixesNotIn: (onlineIds: ReadonlySet<number>) => void;
   dropFixUser: (userId: number) => void;
@@ -39,6 +41,13 @@ export const useRaidRoomLiveStore = create<RaidRoomLiveState>((set) => ({
       return { drafts: [...rest, draft] };
     }),
   clearDrafts: () => set({ drafts: [] }),
+  dropDraftsOnMap: (mapId) =>
+    set((current) => ({
+      drafts: current.drafts.filter(
+        (row) =>
+          Boolean(row.mapId) && !raidPrepMapsEquivalent(row.mapId || "", mapId),
+      ),
+    })),
   upsertFix: (fix) =>
     set((current) => ({ fixes: upsertPlayerFix(current.fixes, fix) })),
   dropFixesNotIn: (onlineIds) =>

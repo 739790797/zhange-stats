@@ -867,6 +867,7 @@ export function TarkovRaidPrepSummary({
   currentUser,
   onToggleObjective,
   onTitle,
+  variant = "card",
 }: {
   tasks: RaidPrepTaskLike[];
   mapId: string;
@@ -884,6 +885,7 @@ export function TarkovRaidPrepSummary({
   currentUser?: { userId: number; name: string } | null;
   onToggleObjective?: (taskId: string, objectiveId: string) => void;
   onTitle?: (taskId: string) => void;
+  variant?: "card" | "dock";
 }) {
   const [open, setOpen] = useState(false);
   const [peek, setPeek] = useState<RaidPrepNeededItem | null>(null);
@@ -969,16 +971,22 @@ export function TarkovRaidPrepSummary({
     <ConfigProvider getPopupContainer={popupContainer}>
       <button
         type="button"
-        className={styles.summary}
+        className={variant === "dock" ? styles.changeMapBtn : styles.summary}
         onClick={() => setOpen(true)}
       >
-        <span className={styles.summaryBtnText}>
-          <span className={styles.summaryTitle}>准备内容总结</span>
-          {tasks.length ? null : (
-            <span className={styles.summaryCount}>勾选任务后查看所需物品</span>
-          )}
-        </span>
-        <span className={styles.summaryAction}>查看</span>
+        {variant === "dock" ? (
+          "准备内容总结"
+        ) : (
+          <>
+            <span className={styles.summaryBtnText}>
+              <span className={styles.summaryTitle}>准备内容总结</span>
+              {tasks.length ? null : (
+                <span className={styles.summaryCount}>勾选任务后查看所需物品</span>
+              )}
+            </span>
+            <span className={styles.summaryAction}>查看</span>
+          </>
+        )}
       </button>
       <Modal
         key={overlayRoot ? "fs" : "page"}

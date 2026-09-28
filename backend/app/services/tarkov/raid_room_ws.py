@@ -67,6 +67,19 @@ def _touch_ws_member(public_id: str, user: User) -> None:
         db.close()
 
 
+def _is_member(public_id: str, user: User) -> bool:
+    db: Session = SessionLocal()
+    try:
+        ok = rooms_svc.is_room_member(db, public_id, user)
+        db.commit()
+        return ok
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
 def _can_edit(public_id: str, user: User) -> bool:
     db: Session = SessionLocal()
     try:
@@ -133,6 +146,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             "online_user_ids": list(online),
             "log_phases": hub.log_phases(public_id),
             "player_fixes": hub.player_fixes(public_id),
+            "view_maps": hub.view_maps(public_id),
         }
     )
     hub.publish(
@@ -149,9 +163,26 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 _touch_ws_member(public_id, user)
                 await client.send_json({"event": "pong"})
                 continue
+            if event == "view_map":
+                slug = rooms_svc.normalize_room_map_slug(
+                    str(raw.get("map_id") or raw.get("map") or "")
+                )
+                if not slug or not _is_member(public_id, user):
+                    continue
+                hub.set_view_map(public_id, user.id, slug)
+                hub.publish(
+                    public_id,
+                    {
+                        "event": "view_map",
+                        "user_id": user.id,
+                        "map_slug": slug,
+                        "view_maps": hub.view_maps(public_id),
+                    },
+                )
+                continue
             if event == "draw_draft":
-                # 连接时 snapshot.can_edit 可能过期；离开后不再广播草稿
-                if not _can_edit(public_id, user):
+                view_map = hub.view_map_of(public_id, user.id)
+                if not view_map or not _can_edit(public_id, user):
                     continue
                 draft = rooms_svc.parse_draw_draft(raw)
                 if draft is None:
@@ -163,6 +194,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                         "user_id": user.id,
                         "floor": draft["floor"],
                         "points": draft["points"],
+                        "map_id": view_map,
                     },
                 )
                 continue
@@ -182,19 +214,22 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 )
                 continue
             if event == "log_phase":
+                if not _is_member(public_id, user):
+                    continue
                 phase = rooms_svc.parse_log_phase(raw)
                 if phase is None:
                     continue
                 phases = hub.set_log_phase(public_id, user.id, phase)
-                hub.publish(
-                    public_id,
-                    {
-                        "event": "log_phase",
-                        "user_id": user.id,
-                        "log_phases": phases,
-                        **phase,
-                    },
-                )
+                changed = rooms_svc.note_view_map_from_phase(public_id, user.id, phase)
+                payload: dict[str, Any] = {
+                    "event": "log_phase",
+                    "user_id": user.id,
+                    "log_phases": phases,
+                    **phase,
+                }
+                if changed:
+                    payload["view_maps"] = hub.view_maps(public_id)
+                hub.publish(public_id, payload)
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001

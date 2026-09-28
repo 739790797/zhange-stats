@@ -3,12 +3,14 @@ import { createContext, useContext } from "react";
 export type TarkovMapFullscreenRoot = {
   root: HTMLElement | null;
   fullscreen: boolean;
+  toggle: () => void;
 };
 
 export const TarkovMapFullscreenRootContext =
   createContext<TarkovMapFullscreenRoot>({
     root: null,
     fullscreen: false,
+    toggle: () => {},
   });
 
 /** 全屏时把弹层挂到地图根节点，否则走页面 body。 */

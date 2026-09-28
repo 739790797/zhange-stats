@@ -366,6 +366,22 @@
   overflow: hidden;
 }
 
+/* 选图列表随内容增高，滚动交给页面主体，不再在卡片内部滚。 */
+.bodyFill:has([data-pick="true"]) {
+  overflow: auto;
+}
+
+.bodyFill:has([data-pick="true"]) > .bodyPage,
+.bodyFill:has([data-pick="true"]) > .bodyPage > :global(.app-motion-page),
+.bodyFill:has([data-pick="true"]) > .bodyPage > :global(.app-motion-page) > *,
+.bodyFill:has([data-pick="true"]) > .bodyPage > :global(.app-motion-page) > * > :last-child {
+  flex: none;
+  height: auto;
+  min-height: auto;
+  overflow: visible;
+  display: block;
+}
+
 .bodySearch {
   overflow: hidden;
 }

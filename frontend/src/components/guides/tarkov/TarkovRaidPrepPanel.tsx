@@ -90,7 +90,7 @@ import {
   resolveAccountTaskProgress,
   taskProgressQueryData,
 } from "@/lib/tarkovTaskTree";
-import { TarkovRaidPrepFilters } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
+import { TarkovRaidPrepFilters, TarkovShotDirButton } from "@/components/guides/tarkov/TarkovRaidPrepFilters";
 import { TarkovRaidPrepTaskGroups } from "@/components/guides/tarkov/TarkovRaidPrepTaskGroups";
 import { TarkovRaidPrepEntryModal } from "@/components/guides/tarkov/TarkovRaidPrepEntryModal";
 import { TarkovRaidPrepSummary } from "@/components/guides/tarkov/TarkovRaidPrepSummary";
@@ -917,47 +917,6 @@ export function TarkovRaidPrepPanel() {
           lockKeyMode="solo"
           lockKeyOwns={keyOwns}
           lockKeyBrings={keyBrings}
-          topRight={
-            <div className={styles.summaryStack}>
-              <TarkovRaidPrepSummary
-                tasks={selectedTasks}
-                mapId={mapId}
-                participantsByTask={participantsByTask}
-                keyOwns={keyOwns}
-                keyBrings={keyBrings}
-                canToggleKeyBring={Boolean(me)}
-                onToggleKeyBring={me ? toggleKeyBring : undefined}
-                canToggleKeyOwn={Boolean(me)}
-                onToggleKeyOwn={me ? toggleKeyOwn : undefined}
-                skippedByTask={objDoneView}
-                doneTaskIds={doneTaskIds}
-                objectiveDones={objectiveDones}
-                currentUserId={me?.id}
-                currentUser={
-                  me
-                    ? {
-                        userId: me.id,
-                        name: myName,
-                      }
-                    : null
-                }
-                onToggleObjective={toggleObjDone}
-                onTitle={openGuide}
-              />
-              <TarkovRaidPrepGuideOverview
-                open={guideOpen}
-                onOpenChange={setGuideOpen}
-                tasks={guideTasks}
-                mapId={mapId}
-                activeId={guideTaskId}
-                onActiveIdChange={setGuideTaskId}
-                participantsByTask={participantsByTask}
-                skippedByTask={objDoneView}
-                doneTaskIds={doneTaskIds}
-                onToggleObjective={toggleObjDone}
-              />
-            </div>
-          }
         />
       }
       dock={
@@ -967,15 +926,33 @@ export function TarkovRaidPrepPanel() {
             onKeyword={setKeyword}
             leading={
               <div className={styles.dockLeadActions}>
-                {me ? (
-                  <button
-                    type="button"
-                    className={styles.changeMapBtn}
-                    onClick={() => setOcrOpen(true)}
-                  >
-                    截图识别
-                  </button>
-                ) : null}
+                <TarkovShotDirButton />
+                <TarkovRaidPrepSummary
+                  variant="dock"
+                  tasks={selectedTasks}
+                  mapId={mapId}
+                  participantsByTask={participantsByTask}
+                  keyOwns={keyOwns}
+                  keyBrings={keyBrings}
+                  canToggleKeyBring={Boolean(me)}
+                  onToggleKeyBring={me ? toggleKeyBring : undefined}
+                  canToggleKeyOwn={Boolean(me)}
+                  onToggleKeyOwn={me ? toggleKeyOwn : undefined}
+                  skippedByTask={objDoneView}
+                  doneTaskIds={doneTaskIds}
+                  objectiveDones={objectiveDones}
+                  currentUserId={me?.id}
+                  currentUser={
+                    me
+                      ? {
+                          userId: me.id,
+                          name: myName,
+                        }
+                      : null
+                  }
+                  onToggleObjective={toggleObjDone}
+                  onTitle={openGuide}
+                />
                 <button
                   type="button"
                   className={styles.changeMapBtn}
@@ -985,6 +962,27 @@ export function TarkovRaidPrepPanel() {
                 >
                   {logSync.label}
                 </button>
+                {me ? (
+                  <button
+                    type="button"
+                    className={styles.changeMapBtn}
+                    onClick={() => setOcrOpen(true)}
+                  >
+                    截图识别
+                  </button>
+                ) : null}
+                <TarkovRaidPrepGuideOverview
+                  open={guideOpen}
+                  onOpenChange={setGuideOpen}
+                  tasks={guideTasks}
+                  mapId={mapId}
+                  activeId={guideTaskId}
+                  onActiveIdChange={setGuideTaskId}
+                  participantsByTask={participantsByTask}
+                  skippedByTask={objDoneView}
+                  doneTaskIds={doneTaskIds}
+                  onToggleObjective={toggleObjDone}
+                />
               </div>
             }
           />

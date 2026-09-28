@@ -115,9 +115,11 @@ import {
   isMapDrawTool,
   isTypingTarget,
   shouldRightButtonPanMap,
+  MARK_TEXT_MAX,
   markMatchesFloor,
   markStrokePoints,
   mergeBoardMarks,
+  normalizeMarkLabel,
   simplifyStroke,
   strokeFingerprint,
   type RaidRoomDraftStroke,
@@ -138,6 +140,10 @@ import {
   svgFallbackUrl,
   type TarkovDevMapLayer,
 } from "@/lib/tarkovMapImages";
+import {
+  pullAccountMapFilters,
+  scheduleAccountMapFilters,
+} from "@/lib/tarkovMapFilterAccount";
 import {
   defaultShownFloorName,
   loadTarkovMapViewerPrefs,
@@ -254,6 +260,8 @@ type Props = {
   lootLoose?: TarkovMapLootLoose[];
   questOverlays?: TarkovRaidPrepOverlay[];
   fill?: boolean;
+  /** 左下角放大缩小。联机地图关掉，滚轮仍可缩放。 */
+  zoomControl?: boolean;
   className?: string;
   boardMarks?: RaidRoomMarkLike[];
   remoteDrafts?: RaidRoomDraftStroke[];
@@ -273,6 +281,8 @@ type Props = {
     x2: number;
     z2: number;
   }) => void;
+  onText?: (mark: { floor: string; x: number; z: number; label: string }) => void;
+  onTextMove?: (mark: { id: number; x: number; z: number }) => void;
   onDraftStroke?: (draft: { floor: string; points: StrokePoint[] } | null) => void;
   onEraseMark?: (markId: number) => void;
   onFloorChange?: (floor: string) => void;
@@ -294,8 +304,14 @@ type Props = {
   /** 外部请求将地图平移到指定游戏坐标（seq 递增可重复定位同一点） */
   focusRequest?: TarkovMapFocusRequest | null;
   topRight?: ReactNode;
+  /** 叠在地图左上角、图层面板下方（房间成员名单等）。 */
+  topLeft?: ReactNode;
   /** 叠在地图上的工具条（涂鸦等）；挂在全屏根节点里，全屏时仍可见。 */
   toolbar?: ReactNode;
+  /** 收起时隐藏左上角房间卡和图层。 */
+  showSidebars?: boolean;
+  /** 工具条里已有全屏按钮时，不再画右下角那颗。 */
+  hideCornerFullscreen?: boolean;
   /** 库里的自定义地名；有则替换 tarkov.dev / 手写表 */
   places?: TarkovMapPlaceLike[];
   placeEdit?: TarkovMapPlaceEdit;
@@ -1842,6 +1858,81 @@ function parkLocalStroke(
   if (painted) runtime.strokeLayers.set(key, painted);
 }
 
+function boardTextSize(label: string): { w: number; h: number } {
+  let width = 0;
+  for (const ch of Array.from(label)) {
+    const code = ch.codePointAt(0) || 0;
+    width += code > 255 ? 14 : 8;
+  }
+  return { w: Math.max(24, width + 8), h: 20 };
+}
+
+function addTextLayer(
+  group: L.LayerGroup,
+  mark: RaidRoomMarkLike,
+  current: boolean,
+  interactive: boolean,
+  draggable: boolean,
+): L.Layer | null {
+  const label = normalizeMarkLabel(mark.label || "");
+  if (!label) return null;
+  const color = colorForUserId(mark.author_user_id);
+  const safeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#e8c36a";
+  const box = boardTextSize(label);
+  const layer = L.marker(pos({ x: mark.x, z: mark.z }), {
+    icon: L.divIcon({
+      className: styles.boardTextIcon,
+      html: `<span class="${styles.boardText}" style="color:${safeColor}">${escapeHtml(label)}</span>`,
+      iconSize: [box.w, box.h],
+      iconAnchor: [box.w / 2, box.h / 2],
+    }),
+      interactive,
+      draggable,
+      autoPan: false,
+      keyboard: false,
+      pane: BOARD_PANE,
+      opacity: current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY,
+    });
+  const title = mark.author_display_name || "";
+  if (title) layer.bindTooltip(title, { direction: "top" });
+  layer.addTo(group);
+  return layer;
+}
+
+function boardLayerInteractive(layer: L.Layer): boolean {
+  const options = (layer as { options?: { interactive?: boolean } }).options;
+  return Boolean(options?.interactive);
+}
+
+function boardLayerDraggable(layer: L.Layer): boolean {
+  const options = (layer as { options?: { draggable?: boolean } }).options;
+  return Boolean(options?.draggable);
+}
+
+function bindTextDrag(
+  layer: L.Marker,
+  markId: number,
+  onMove?: (mark: { id: number; x: number; z: number }) => void,
+  guard?: { current: boolean },
+) {
+  layer.off("click");
+  layer.off("dragstart");
+  layer.off("dragend");
+  layer.on("click", (event: L.LeafletMouseEvent) => {
+    L.DomEvent.stop(event);
+  });
+  layer.on("dragstart", () => {
+    if (guard) guard.current = true;
+  });
+  layer.on("dragend", () => {
+    const latlng = layer.getLatLng();
+    onMove?.({ id: markId, x: latlng.lng, z: latlng.lat });
+    window.setTimeout(() => {
+      if (guard) guard.current = false;
+    }, 0);
+  });
+}
+
 function addPinLayer(
   group: L.LayerGroup,
   mark: RaidRoomMarkLike,
@@ -1884,7 +1975,10 @@ function addBoardMarks(
   marks: RaidRoomMarkLike[],
   currentFloor: string,
   eraseMode: boolean,
+  dragText: boolean,
   onErase?: (markId: number) => void,
+  onTextMove?: (mark: { id: number; x: number; z: number }) => void,
+  textDragGuard?: { current: boolean },
 ) {
   const group = runtime.board;
   const keep = new Set(marks.map((mark) => strokeFingerprint(mark)));
@@ -1908,7 +2002,19 @@ function addBoardMarks(
     const current = markMatchesFloor(mark, currentFloor);
     const color = colorForUserId(mark.author_user_id);
     const title = mark.author_display_name || "";
+    const wantDrag = dragText && mark.kind === "text" && mark.id > 0;
+    const wantInteractive = eraseMode || wantDrag;
     let layer = runtime.strokeLayers.get(key);
+    if (
+      layer &&
+      (boardLayerInteractive(layer) !== wantInteractive ||
+        (mark.kind === "text" && boardLayerDraggable(layer) !== wantDrag))
+    ) {
+      group.removeLayer(layer);
+      runtime.mine.removeLayer(layer);
+      runtime.strokeLayers.delete(key);
+      layer = undefined;
+    }
     if (!layer) {
       if (mark.kind === "line" || mark.kind === "stroke") {
         const painted = addStrokeLayer(
@@ -1921,16 +2027,35 @@ function addBoardMarks(
         );
         if (!painted) continue;
         layer = painted;
+      } else if (mark.kind === "text") {
+        const painted = addTextLayer(group, mark, current, wantInteractive, wantDrag);
+        if (!painted) continue;
+        layer = painted;
       } else {
         layer = addPinLayer(group, mark, current, eraseMode);
       }
       runtime.strokeLayers.set(key, layer);
     } else if (layer instanceof L.Polyline) {
       layer.setStyle(strokePathOptions(color, current, eraseMode));
+    } else if (layer instanceof L.Marker) {
+      layer.setOpacity(current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY);
     }
-    bindEraseHandler(layer, mark.id, eraseMode, onErase);
+    if (wantDrag && layer instanceof L.Marker) {
+      bindTextDrag(layer, mark.id, onTextMove, textDragGuard);
+    } else {
+      bindEraseHandler(layer, mark.id, eraseMode, onErase);
+    }
   }
 }
+
+type MapTextDraft = {
+  gen: number;
+  floor: string;
+  x: number;
+  z: number;
+  left: number;
+  top: number;
+};
 
 export function TarkovMapViewer({
   slug,
@@ -1947,6 +2072,7 @@ export function TarkovMapViewer({
   lootLoose: lootLooseProp = [],
   questOverlays = [],
   fill = false,
+  zoomControl = true,
   className = "",
   boardMarks = [],
   remoteDrafts = [],
@@ -1960,6 +2086,8 @@ export function TarkovMapViewer({
   onStroke,
   onPin,
   onLine,
+  onText,
+  onTextMove,
   onDraftStroke,
   onEraseMark,
   onFloorChange,
@@ -1974,7 +2102,10 @@ export function TarkovMapViewer({
   layerChrome = "full",
   focusRequest,
   topRight,
+  topLeft,
   toolbar,
+  showSidebars = true,
+  hideCornerFullscreen = false,
   places = [],
   placeEdit,
   lockKeyMode = "neutral",
@@ -1999,7 +2130,15 @@ export function TarkovMapViewer({
   const onStrokeRef = useRef(onStroke);
   const onPinRef = useRef(onPin);
   const onLineRef = useRef(onLine);
+  const onTextRef = useRef(onText);
+  const onTextMoveRef = useRef(onTextMove);
+  const textDragGuardRef = useRef(false);
   const lineStartRef = useRef<StrokePoint | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+  const textDraftRef = useRef<MapTextDraft | null>(null);
+  const textDraftGen = useRef(0);
+  const commitTextDraftRef = useRef<() => void>(() => {});
+  const [textDraft, setTextDraft] = useState<MapTextDraft | null>(null);
   const onDraftStrokeRef = useRef(onDraftStroke);
   const onEraseMarkRef = useRef(onEraseMark);
   const onQuestLabelClickRef = useRef(onQuestLabelClick);
@@ -2034,6 +2173,12 @@ export function TarkovMapViewer({
   const wrapElRef = useRef<HTMLDivElement | null>(null);
   const [overlayRoot, setOverlayRoot] = useState<HTMLElement | null>(null);
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  const toggleMapFullscreen = useCallback(() => {
+    const wrap = wrapElRef.current;
+    if (!wrap) return;
+    if (mapFullscreenElement() === wrap) void exitMapFullscreen();
+    else void requestMapFullscreen(wrap);
+  }, []);
   const setWrapEl = useCallback((el: HTMLDivElement | null) => {
     wrapElRef.current = el;
     setOverlayRoot(el);
@@ -2042,6 +2187,7 @@ export function TarkovMapViewer({
   const playerFixSigRef = useRef("");
   const shotResumeOnceRef = useRef(false);
   const [prefs, setPrefs] = useState(loadTarkovMapViewerPrefs);
+  const accountFilterEdited = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(0);
@@ -2330,7 +2476,26 @@ export function TarkovMapViewer({
   onStrokeRef.current = onStroke;
   onPinRef.current = onPin;
   onLineRef.current = onLine;
+  onTextRef.current = onText;
+  onTextMoveRef.current = onTextMove;
   onDraftStrokeRef.current = onDraftStroke;
+  const commitTextDraft = () => {
+    const draft = textDraftRef.current;
+    if (!draft) return;
+    const label = normalizeMarkLabel(textInputRef.current?.value || "");
+    textDraftGen.current += 1;
+    textDraftRef.current = null;
+    setTextDraft(null);
+    if (!label) return;
+    onTextRef.current?.({ floor: draft.floor, x: draft.x, z: draft.z, label });
+  };
+  commitTextDraftRef.current = commitTextDraft;
+  const cancelTextDraft = () => {
+    if (!textDraftRef.current) return;
+    textDraftGen.current += 1;
+    textDraftRef.current = null;
+    setTextDraft(null);
+  };
   onEraseMarkRef.current = onEraseMark;
   onQuestLabelClickRef.current = onQuestLabelClick;
   onQuestCompleteObjectiveRef.current = onQuestCompleteObjective;
@@ -2365,13 +2530,26 @@ export function TarkovMapViewer({
       setPrefs((prev) => {
         const next =
           typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
+        accountFilterEdited.current = true;
         saveTarkovMapViewerPrefs(next);
+        scheduleAccountMapFilters(next);
         return next;
       });
     },
     [],
   );
   updatePrefsRef.current = updatePrefs;
+  useEffect(() => {
+    let stop = false;
+    void pullAccountMapFilters(() => accountFilterEdited.current).then((remote) => {
+      if (stop || !remote || accountFilterEdited.current) return;
+      setPrefs(remote);
+      saveTarkovMapViewerPrefs(remote);
+    });
+    return () => {
+      stop = true;
+    };
+  }, []);
   const toggleGroupCollapsed = useCallback(
     (key: TarkovMapFilterGroupId) => {
       updatePrefs((prev) => ({
@@ -2516,7 +2694,7 @@ export function TarkovMapViewer({
         maxZoom,
       });
       runtime.map = map;
-      attachZoomControl(map);
+      if (zoomControl) attachZoomControl(map);
       const scaled = getScaledBounds(layer.bounds || [], 1.5);
       if (scaled) map.setMaxBounds(scaled);
       map.createPane(BOARD_PANE);
@@ -2729,7 +2907,7 @@ export function TarkovMapViewer({
         maxZoom: 3,
       });
       runtime.map = map;
-      attachZoomControl(map);
+      if (zoomControl) attachZoomControl(map);
       const bounds = L.latLngBounds([0, 0], [img.height, img.width]);
       L.imageOverlay(url, bounds).addTo(map);
       runtime.fitBox = bounds;
@@ -2761,7 +2939,7 @@ export function TarkovMapViewer({
       runtimeRef.current = null;
       runtime.map?.remove();
     };
-  }, [interactive, raster]);
+  }, [interactive, raster, zoomControl]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -3136,7 +3314,10 @@ export function TarkovMapViewer({
       visibleMarks,
       floor,
       drawMode === "erase",
+      drawMode === "text",
       (markId) => onEraseMarkRef.current?.(markId),
+      (mark) => onTextMoveRef.current?.(mark),
+      textDragGuardRef,
     );
   }, [visibleMarks, floor, drawMode, ready]);
 
@@ -3368,12 +3549,31 @@ export function TarkovMapViewer({
     if (!ready || !map) return undefined;
     const onClick = (event: L.LeafletMouseEvent) => {
       if (isCanvasMarkerEvent(event.originalEvent)) return;
+      if (textDragGuardRef.current) return;
+      if (isTypingTarget(event.originalEvent?.target ?? null)) return;
+      const clickTarget = event.originalEvent?.target;
+      if (
+        clickTarget instanceof Element &&
+        clickTarget.closest(`.${styles.boardTextIcon}`)
+      ) {
+        return;
+      }
       const mode = drawModeRef.current;
-      if (mode !== "pin" && mode !== "line") return;
+      if (mode !== "pin" && mode !== "line" && mode !== "text") return;
       if (spaceHeldRef.current || rightPanHeldRef.current) return;
       const floor = floorRef.current;
       const x = event.latlng.lng;
       const z = event.latlng.lat;
+      if (mode === "text") {
+        commitTextDraftRef.current();
+        const point = map.latLngToContainerPoint(event.latlng);
+        const gen = textDraftGen.current + 1;
+        textDraftGen.current = gen;
+        const next = { gen, floor, x, z, left: point.x, top: point.y };
+        textDraftRef.current = next;
+        setTextDraft(next);
+        return;
+      }
       if (mode === "pin") {
         onPinRef.current?.({ floor, x, z });
         return;
@@ -3391,6 +3591,44 @@ export function TarkovMapViewer({
       map.off("click", onClick);
     };
   }, [drawMode, ready]);
+
+  useEffect(() => {
+    if (drawMode === "text") return;
+    textDraftGen.current += 1;
+    textDraftRef.current = null;
+    setTextDraft(null);
+  }, [drawMode]);
+
+  const textAnchor = textDraft
+    ? `${textDraft.gen}:${textDraft.x}:${textDraft.z}`
+    : "";
+  useEffect(() => {
+    const map = runtimeRef.current?.map;
+    if (!ready || !map || !textAnchor) return undefined;
+    const sync = () => {
+      const current = textDraftRef.current;
+      if (!current) return;
+      const point = map.latLngToContainerPoint(pos({ x: current.x, z: current.z }));
+      setTextDraft((prev) => {
+        if (!prev || prev.gen !== current.gen) return prev;
+        if (
+          Math.abs(prev.left - point.x) < 0.5 &&
+          Math.abs(prev.top - point.y) < 0.5
+        ) {
+          return prev;
+        }
+        const next = { ...prev, left: point.x, top: point.y };
+        textDraftRef.current = next;
+        return next;
+      });
+    };
+    map.on("move", sync);
+    map.on("zoom", sync);
+    return () => {
+      map.off("move", sync);
+      map.off("zoom", sync);
+    };
+  }, [ready, textAnchor]);
 
   useEffect(() => {
     const map = runtimeRef.current?.map;
@@ -3589,11 +3827,11 @@ export function TarkovMapViewer({
 
   return (
     <TarkovMapFullscreenRootContext.Provider
-      value={{ root: overlayRoot, fullscreen: mapFullscreen }}
+      value={{ root: overlayRoot, fullscreen: mapFullscreen, toggle: toggleMapFullscreen }}
     >
     <div
       ref={setWrapEl}
-      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld || rightPanHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${className}`.trim()}
+      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "text" ? styles.wrapText : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld || rightPanHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${showSidebars ? "" : styles.wrapSidebarsClosed} ${className}`.trim()}
       onPointerDown={() => {
         if (shotResumeOnceRef.current) return;
         if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
@@ -3604,6 +3842,39 @@ export function TarkovMapViewer({
       <div className={styles.map} ref={mapDivRef} />
       {topRight ? <div className={styles.topRight}>{topRight}</div> : null}
       {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
+      {textDraft ? (
+        <form
+          className={styles.textDraft}
+          style={{ left: textDraft.left, top: textDraft.top }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            commitTextDraft();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <input
+            ref={textInputRef}
+            key={textDraft.gen}
+            className={styles.textDraftInput}
+            autoFocus
+            maxLength={MARK_TEXT_MAX}
+            placeholder="输入文字"
+            aria-label="地图文字"
+            autoComplete="off"
+            enterKeyHint="done"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              cancelTextDraft();
+            }}
+            onBlur={() => {
+              if (textDraftRef.current?.gen !== textDraft.gen) return;
+              commitTextDraft();
+            }}
+          />
+        </form>
+      ) : null}
       {loading ? (
         <div className={`${styles.status} ${styles.overlay}`}>
           <Spin />
@@ -3612,6 +3883,9 @@ export function TarkovMapViewer({
       {error ? (
         <div className={`${styles.status} ${styles.overlay}`}>{error}</div>
       ) : null}
+      {(canSvg || canTile || floors.length || interactive) || topLeft ? (
+        <div className={styles.topLeftStack}>
+        {topLeft ? <div className={styles.topLeftExtra}>{topLeft}</div> : null}
       {canSvg || canTile || floors.length || interactive ? (
         <div
           className={styles.filterPanel}
@@ -3721,7 +3995,7 @@ export function TarkovMapViewer({
           {showPointLayers && interactive ? (
             <>
               {(canSvg || canTile || floors.length) &&
-              (hasMapLayerFilters || hasQuestFilters || shotWatch.supported) ? (
+              (hasMapLayerFilters || hasQuestFilters) ? (
                 <span className={styles.filterSplit} aria-hidden="true" />
               ) : null}
               {hasMapLayerFilters ? (
@@ -4195,48 +4469,14 @@ export function TarkovMapViewer({
                   </div>
                 </>
               ) : null}
-              {shotWatch.supported ? (
-                <>
-                  {hasMapLayerFilters || hasQuestFilters ? (
-                    <span className={styles.filterSplit} aria-hidden="true" />
-                  ) : null}
-                  <div
-                    className={styles.filterGroup}
-                    aria-label={TARKOV_MAP_FILTER_GROUP_LABELS.screenshot}
-                  >
-                    {shotWatch.perm === "granted" ? (
-                      <span className={styles.filterRow}>
-                        <span className={styles.playerStatus}>
-                          {shotWatch.fix
-                            ? "正在把你的位置同步到房间"
-                            : shotWatch.lastFileName
-                              ? "截图无坐标，请在战局里用游戏截图键"
-                              : "战局里按游戏截图键，位置会同步到房间"}
-                        </span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className={styles.playerEnable}
-                        disabled={
-                          shotWatch.busy || shotWatch.perm === "unknown"
-                        }
-                        onClick={() => void shotWatch.enable()}
-                      >
-                        {shotWatch.hasStored
-                          ? "继续读取截图目录"
-                          : "设定截图目录"}
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : null}
             </>
           ) : null}
           </div>
         </div>
       ) : null}
-      {mapFullscreenEnabled() ? (
+        </div>
+      ) : null}
+      {mapFullscreenEnabled() && !hideCornerFullscreen ? (
         <div className={styles.meta}>
           <button
             type="button"

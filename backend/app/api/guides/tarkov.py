@@ -56,6 +56,8 @@ from app.api.guides.schemas import (
     TarkovHideoutLevelSetIn,
     TarkovProfileIn,
     TarkovProfileOut,
+    TarkovMapFiltersIn,
+    TarkovMapFiltersOut,
     TarkovBarterCatalogOut,
     TarkovCraftCatalogOut,
     TarkovGuidesSyncOut,
@@ -103,6 +105,7 @@ from app.services.tarkov import collection as collection_svc
 from app.services.tarkov import collection_owns as collection_owns_svc
 from app.services.tarkov import collection_layout as collection_layout_svc
 from app.services.tarkov import hideout_levels as hideout_levels_svc
+from app.services.tarkov import map_filters as map_filters_svc
 from app.services.tarkov import profile as profile_svc
 from app.services.tarkov import task_dones as task_dones_svc
 from app.services.tarkov import raid_logs as raid_logs_svc
@@ -1494,6 +1497,42 @@ def guides_tarkov_profile_put(
         raise _profile_error(exc) from exc
     db.commit()
     return TarkovProfileOut.model_validate(row)
+
+
+def _map_filters_error(exc: map_filters_svc.TarkovMapFiltersError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+@router.get(
+    "/map-filters",
+    response_model=TarkovMapFiltersOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_filters_get(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """地图筛选喜好。没有存过时 saved 为 false，客户端继续用本机记录。"""
+    return TarkovMapFiltersOut.model_validate(map_filters_svc.get_map_filters(db, user.id))
+
+
+@router.put(
+    "/map-filters",
+    response_model=TarkovMapFiltersOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_map_filters_put(
+    body: TarkovMapFiltersIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """保存地图筛选喜好，网页和 App 共用。"""
+    try:
+        saved = map_filters_svc.save_map_filters(db, user, body.prefs)
+    except map_filters_svc.TarkovMapFiltersError as exc:
+        raise _map_filters_error(exc) from exc
+    db.commit()
+    return TarkovMapFiltersOut.model_validate(saved)
 
 
 @router.get(

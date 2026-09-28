@@ -12,6 +12,7 @@
 
 .tableWrap {
   overflow-x: auto;
+  overflow-y: clip;
 }
 
 .table {

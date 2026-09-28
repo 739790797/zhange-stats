@@ -26,6 +26,8 @@ type Props = {
   fill?: boolean;
   /** fill 时仍用普通页边距（个人中心收集，避免 Tab 跳位） */
   fillPagePad?: boolean;
+  /** fill 时地图贴边，当作背景 */
+  fillBleed?: boolean;
 };
 
 export function TarkovItemsPageShell({
@@ -39,6 +41,7 @@ export function TarkovItemsPageShell({
   hideHead = false,
   fill = false,
   fillPagePad = false,
+  fillBleed = false,
 }: Props) {
   const breadcrumbItems: TarkovCrumb[] = [
     { label: "逃离塔科夫", to: "/guides/tarkov" },
@@ -51,7 +54,7 @@ export function TarkovItemsPageShell({
     <div
       className={`${styles.inner}${fill ? ` ${styles.innerFill}` : ""}${
         fill && fillPagePad ? ` ${styles.innerFillPagePad}` : ""
-      }`}
+      }${fill && fillBleed ? ` ${styles.innerBleed}` : ""}`}
     >
       {hideHead ? null : (
         <>

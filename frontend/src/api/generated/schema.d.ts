@@ -2786,7 +2786,7 @@ export interface paths {
         };
         /**
          * Get Tarkov Raid Room
-         * @description 取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。
+         * @description 取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。
          */
         get: operations["get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get"];
         put?: never;
@@ -3063,23 +3063,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Undo Tarkov Raid Room Mark */
-        delete: operations["undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/guides/tarkov/raid-rooms/{public_id}/marks/{mark_id}": {
         parameters: {
             query?: never;
@@ -3092,6 +3075,24 @@ export interface paths {
         post?: never;
         /** Remove Tarkov Raid Room Mark */
         delete: operations["remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete"];
+        options?: never;
+        head?: never;
+        /** Move Tarkov Raid Room Mark */
+        patch: operations["move_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__patch"];
+        trace?: never;
+    };
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Undo Tarkov Raid Room Mark */
+        delete: operations["undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -14181,6 +14182,8 @@ export interface components {
              * @default false
              */
             can_edit: boolean;
+            /** View Maps */
+            view_maps?: components["schemas"]["TarkovRaidRoomViewMapOut"][];
             /** Members */
             members?: components["schemas"]["TarkovRaidRoomMemberOut"][];
             /** Claims */
@@ -14351,6 +14354,18 @@ export interface components {
             z2?: number | null;
             /** Points */
             points?: number[][] | null;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /** TarkovRaidRoomMarkMoveIn */
+        TarkovRaidRoomMarkMoveIn: {
+            /** X */
+            x: number;
+            /** Z */
+            z: number;
         };
         /** TarkovRaidRoomMarkOut */
         TarkovRaidRoomMarkOut: {
@@ -14358,6 +14373,11 @@ export interface components {
             id: number;
             /** Kind */
             kind: string;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
             /**
              * Floor
              * @default
@@ -14373,6 +14393,11 @@ export interface components {
             z2?: number | null;
             /** Points */
             points?: number[][] | null;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
             /** Author User Id */
             author_user_id: number;
             /**
@@ -14506,6 +14531,16 @@ export interface components {
             started_ids?: string[];
             /** Done Ids */
             done_ids?: string[];
+        };
+        /** TarkovRaidRoomViewMapOut */
+        TarkovRaidRoomViewMapOut: {
+            /** User Id */
+            user_id: number;
+            /**
+             * Map Slug
+             * @default
+             */
+            map_slug: string;
         };
         /** TarkovSearchHitOut */
         TarkovSearchHitOut: {
@@ -22885,7 +22920,7 @@ export interface operations {
             };
         };
     };
-    undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete: {
+    remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -22894,6 +22929,7 @@ export interface operations {
             header?: never;
             path: {
                 public_id: string;
+                mark_id: number;
             };
             cookie?: never;
         };
@@ -22919,7 +22955,7 @@ export interface operations {
             };
         };
     };
-    remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete: {
+    move_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__patch: {
         parameters: {
             query?: {
                 /** @description PVP（regular）或 PVE */
@@ -22929,6 +22965,44 @@ export interface operations {
             path: {
                 public_id: string;
                 mark_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TarkovRaidRoomMarkMoveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovRaidRoomDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
             };
             cookie?: never;
         };

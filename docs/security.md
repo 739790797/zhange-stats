@@ -29,7 +29,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 - CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce
 - 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员，接口按侧栏业务分类。样本 14 天后由 `job_runs_prune` 删除
 - 生产在管理端「运行环境」或 `config/app.json` 设置 `APP_ENV=production`（安装脚本**不会**代写）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖
-- 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`
+- 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。`RateLimiter.hit` 当前直接返回，不计数、不返回 429；下面各接口的次数是重新打开时沿用的额度。短时 KV 仍走 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关
 - 勿提交 `config/`、`data/`、`var/`、`uploads/`。站点设置权威源是安装根 `config/*.json`（目录 700 / 文件 600）。模板在 `scripts/config.example/`；`install` / `run` / `restart` / `update` 与启动按文件 `_version` 补缺失键，不覆盖已有值（含密钥），也不会用模板新建 `database.json`。存量根 `.env` 只作一次性迁入，迁完可删。绑定凭证继续 Fernet 加密入库。`SECRET_KEY` 仍自动写 `data/runtime/.secret_key`
 
@@ -52,7 +52,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、OCR、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
 
 - **读权限**：图鉴 GET、搜索、工作台 `allowed-items` / `calculate` / `community-builds` / `gunsmith-solve`、三狗 GET、大厅列表与房间预览不要求登录 Cookie / Bearer。仍 `require_feature("guides.tarkov")`。非成员（含未登录）`GET` 房间只回预览，不含棋盘/人员
-- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state、OCR、`build-image`、创建加入房间须登录
+- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state / 地图筛选喜好、OCR、`build-image`、创建加入房间须登录
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-solve 20/IP/分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）
 - 功能开关 `guides.tarkov`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
 
@@ -60,7 +60,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/lib/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
 
-- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、地图、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠。公开大厅列表仍展示公开房的在座昵称。房间 WebSocket 须已入座。访客不能占座
+- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。`map_slug` 恒为空。不含各人查看图、人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠。公开大厅列表仍展示公开房的在座昵称，不展示地图。房间 WebSocket 须已入座。访客不能占座
 - **写权限**：认领 / 标点 / 设密等须在座；密码只在 **join** 时校验
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存

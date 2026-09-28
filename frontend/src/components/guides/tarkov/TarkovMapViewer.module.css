@@ -12,6 +12,7 @@
   height: 100%;
   min-height: 0;
   flex: 1;
+  border: 0;
 }
 
 .wrapFullscreen,
@@ -65,7 +66,8 @@
 .wrap.isPanning :global(.leaflet-marker-pane) .labelIcon,
 .wrap.isPanning :global(.leaflet-marker-pane) .extractName,
 .wrap.isPanning :global(.leaflet-marker-pane) .bossName,
-.wrap.isPanning :global(.leaflet-marker-pane) .labelText {
+.wrap.isPanning :global(.leaflet-marker-pane) .labelText,
+.wrap.isPanning :global(.leaflet-board-pane) .boardText {
   visibility: hidden !important;
 }
 
@@ -90,47 +92,74 @@
 .wrap :global(.leaflet-tooltip),
 .wrap :global(.leaflet-popup-content),
 .topRight,
+.topLeftStack,
 .filterPanel {
   font-family: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei",
     "PingFang SC", sans-serif;
 }
 
-.filterPanel,
+.topLeftStack,
 .meta {
   position: absolute;
   z-index: 500;
 }
 
+.topLeftStack {
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  /* 跟拖动线同一百分比。和 max-content 取较大值时，子项 min-width:100% 会形成循环，百分比被丢掉，栏宽拖不动。 */
+  width: var(--raid-overlay-left, 20%);
+  min-width: 0;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  padding: 10px 0 10px 10px;
+  pointer-events: none;
+}
+
+.topLeftStack > * {
+  pointer-events: auto;
+}
+
+.topLeftExtra {
+  flex: none;
+  width: 100%;
+}
+
 /* 对齐 tarkov.dev map leaflet-control 勾选/单选样式 */
 .filterPanel {
-  top: 10px;
-  left: 10px;
-  max-width: min(240px, calc(100% - 24px));
-  max-height: calc(100% - 96px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 8px 10px 8px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  background: rgba(0, 0, 0, 0.75);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+  /* 圆角留在卡片上。滚动条放内容层并内收，避免轨道贴边把圆角切直。 */
+  overflow: clip;
+  padding: 8px 6px 12px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(18, 20, 16, 0.55);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   color: #c7c5b3;
   font-size: 13px;
   line-height: 1.35;
   pointer-events: auto;
 }
 
-.wrapTopRight .filterPanel {
-  max-width: min(240px, calc(100% - 360px));
-}
-
 .filterPanel[data-open="false"] {
-  max-width: none;
+  flex: none;
+  width: auto;
   max-height: none;
   overflow: visible;
   padding: 4px 6px;
-}
-
-.wrapTopRight .filterPanel[data-open="false"] {
-  max-width: none;
 }
 
 .filterPanelHead {
@@ -141,7 +170,18 @@
 }
 
 .filterPanel[data-open="true"] .filterPanelHead {
+  flex: none;
   margin-bottom: 6px;
+  /* 与内容层滚动条（8px）及列表右间距对齐，避免「收起」压在轨道上 */
+  padding-right: 12px;
+}
+
+.filterPanelBody:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .filterPanelToggle {
@@ -379,13 +419,80 @@
   position: absolute;
   z-index: 520;
   top: 10px;
-  right: 10px;
+  right: var(--raid-overlay-right, 10px);
   max-width: min(380px, calc(100% - 128px));
   pointer-events: auto;
 }
 
 .toolbar {
   display: contents;
+}
+
+.textDraft {
+  position: absolute;
+  z-index: 640;
+  margin: 0;
+  transform: translate(8px, -50%);
+  pointer-events: auto;
+}
+
+.textDraftInput {
+  width: 168px;
+  max-width: 46vw;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(200, 147, 42, 0.75);
+  border-radius: 4px;
+  background: rgba(16, 16, 12, 0.94);
+  color: #e8c36a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.textDraftInput::placeholder {
+  color: #8a8878;
+  font-weight: 500;
+}
+
+.boardTextIcon {
+  background: transparent !important;
+  border: 0 !important;
+  overflow: visible !important;
+}
+
+.wrapSidebarsClosed .topLeftStack {
+  display: none;
+}
+
+.wrapText .boardTextIcon {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.wrapText .boardTextIcon:active,
+.wrapText .boardTextIcon:global(.leaflet-drag-target) {
+  cursor: grabbing;
+}
+
+.boardText {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 0 #000,
+    0 0 1px #000;
+  pointer-events: none;
 }
 
 .meta {

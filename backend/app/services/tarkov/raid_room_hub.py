@@ -18,6 +18,7 @@ class RaidRoomHub:
         self._seq: dict[str, int] = {}
         self._log_phases: dict[str, dict[int, dict[str, Any]]] = {}
         self._player_fixes: dict[str, dict[int, dict[str, Any]]] = {}
+        self._view_maps: dict[str, dict[int, str]] = {}
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -58,6 +59,53 @@ class RaidRoomHub:
         body["at"] = int(time.time() * 1000)
         self._player_fixes.setdefault(public_id, {})[int(user_id)] = body
         return {"user_id": int(user_id), **body}
+
+    def view_maps(self, public_id: str) -> list[dict[str, Any]]:
+        room = self._view_maps.get(public_id) or {}
+        return [
+            {"user_id": uid, "map_slug": slug}
+            for uid, slug in sorted(room.items(), key=lambda item: item[0])
+        ]
+
+    def view_map_of(self, public_id: str, user_id: int) -> str:
+        return str((self._view_maps.get(public_id) or {}).get(int(user_id)) or "")
+
+    def set_view_map(self, public_id: str, user_id: int, map_slug: str) -> list[dict[str, Any]]:
+        slug = str(map_slug or "").strip()
+        room = self._view_maps.setdefault(public_id, {})
+        if slug:
+            room[int(user_id)] = slug
+        else:
+            room.pop(int(user_id), None)
+        if not room:
+            self._view_maps.pop(public_id, None)
+        return self.view_maps(public_id)
+
+    def drop_view_map(self, public_id: str, user_id: int) -> None:
+        room = self._view_maps.get(public_id)
+        if not room:
+            return
+        room.pop(int(user_id), None)
+        if not room:
+            self._view_maps.pop(public_id, None)
+
+    def drop_view_maps(self, public_id: str) -> None:
+        self._view_maps.pop(public_id, None)
+
+    def drop_member_live(self, public_id: str, user_id: int) -> None:
+        """离开房间时丢掉这个人的查看图、日志相位和定位。"""
+        uid = int(user_id)
+        self.drop_view_map(public_id, uid)
+        phases = self._log_phases.get(public_id)
+        if phases is not None:
+            phases.pop(uid, None)
+            if not phases:
+                self._log_phases.pop(public_id, None)
+        fixes = self._player_fixes.get(public_id)
+        if fixes is not None:
+            fixes.pop(uid, None)
+            if not fixes:
+                self._player_fixes.pop(public_id, None)
 
     def drop_offline_player_fixes(self, public_id: str, online_ids: set[int]) -> None:
         room = self._player_fixes.get(public_id)

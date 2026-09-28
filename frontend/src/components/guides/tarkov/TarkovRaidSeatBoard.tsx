@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,34 +9,13 @@ import {
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
-import { tarkovMapThumbUrl } from "@/lib/tarkovMapThumbs";
-import { colorForUserId, raidPrepMapOptions } from "@/lib/tarkovRaidPrep";
+import { colorForUserId } from "@/lib/tarkovRaidPrep";
 import { raidRoomIsFull } from "@/lib/tarkovRaidRooms";
 import { useDocumentHidden, visibleRefetchInterval } from "@/lib/visibleRefetchInterval";
 import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovRaidSeatBoard.module.css";
 
-const THUMB_W = 36;
-const THUMB_H = 24;
 const PAGE_SIZE = 10;
-
-function SeatThumb({ slug }: { slug: string }) {
-  const [broken, setBroken] = useState(false);
-  const src = tarkovMapThumbUrl(slug);
-  if (!src || broken) {
-    return <span className={styles.thumb} aria-hidden />;
-  }
-  return (
-    <img
-      className={styles.thumb}
-      src={src}
-      alt=""
-      width={THUMB_W}
-      height={THUMB_H}
-      onError={() => setBroken(true)}
-    />
-  );
-}
 
 type Props = {
   onEntered?: () => void;
@@ -49,12 +28,6 @@ export function TarkovRaidSeatBoard({
   const queryClient = useQueryClient();
   const gameMode = useTarkovGameMode();
   const loggedIn = Boolean(useAuthStore((s) => s.user));
-  const mapOptions = useMemo(() => raidPrepMapOptions(), []);
-  const labelById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const option of mapOptions) map.set(option.id, option.label);
-    return map;
-  }, [mapOptions]);
   const [page, setPage] = useState(1);
   const hidden = useDocumentHidden();
 
@@ -130,7 +103,6 @@ export function TarkovRaidSeatBoard({
           const full = raidRoomIsFull(room) && !room.is_member;
           const joining =
             joinMut.isPending && joinMut.variables?.publicId === room.public_id;
-          const mapLabel = labelById.get(room.map_slug) || "";
           const mine = Boolean(room.is_member);
           const occupants = room.occupants || [];
           const max = Number(room.max_members) || 8;
@@ -146,15 +118,13 @@ export function TarkovRaidSeatBoard({
                 clickRoom(room);
               }}
             >
-              <SeatThumb slug={room.map_slug} />
               <span className={styles.identity}>
                 <span className={styles.name}>
                   {room.title || room.host_display_name || "房间"}
                 </span>
                 <span className={styles.map}>
-                  {mapLabel || "未选地图"}
                   {room.game_mode
-                    ? ` · ${String(room.game_mode).toUpperCase()}`
+                    ? String(room.game_mode).toUpperCase()
                     : ""}
                   {joining ? " · 加入中…" : full ? " · 已满" : ""}
                 </span>

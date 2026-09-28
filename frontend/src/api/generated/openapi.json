@@ -8364,7 +8364,7 @@
           "guides"
         ],
         "summary": "Get Tarkov Raid Room",
-        "description": "取房间详情。未入座只返回标题、地图、人数、是否要密码，不含棋盘与人员名单。",
+        "description": "取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。",
         "operationId": "get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get",
         "parameters": [
           {
@@ -9650,13 +9650,13 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
-      "delete": {
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/{mark_id}": {
+      "patch": {
         "tags": [
           "guides"
         ],
-        "summary": "Undo Tarkov Raid Room Mark",
-        "operationId": "undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete",
+        "summary": "Move Tarkov Raid Room Mark",
+        "operationId": "move_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -9670,6 +9670,92 @@
             "schema": {
               "type": "string",
               "title": "Public Id"
+            }
+          },
+          {
+            "name": "mark_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Mark Id"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovRaidRoomMarkMoveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Remove Tarkov Raid Room Mark",
+        "operationId": "remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          },
+          {
+            "name": "mark_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Mark Id"
             }
           },
           {
@@ -9710,13 +9796,13 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-rooms/{public_id}/marks/{mark_id}": {
+    "/api/guides/tarkov/raid-rooms/{public_id}/marks/undo": {
       "delete": {
         "tags": [
           "guides"
         ],
-        "summary": "Remove Tarkov Raid Room Mark",
-        "operationId": "remove_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks__mark_id__delete",
+        "summary": "Undo Tarkov Raid Room Mark",
+        "operationId": "undo_tarkov_raid_room_mark_api_guides_tarkov_raid_rooms__public_id__marks_undo_delete",
         "security": [
           {
             "HTTPBearer": []
@@ -9730,15 +9816,6 @@
             "schema": {
               "type": "string",
               "title": "Public Id"
-            }
-          },
-          {
-            "name": "mark_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Mark Id"
             }
           },
           {
@@ -36262,6 +36339,13 @@
             "title": "Can Edit",
             "default": false
           },
+          "view_maps": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovRaidRoomViewMapOut"
+            },
+            "type": "array",
+            "title": "View Maps"
+          },
           "members": {
             "items": {
               "$ref": "#/components/schemas/TarkovRaidRoomMemberOut"
@@ -36658,6 +36742,12 @@
               }
             ],
             "title": "Points"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Label",
+            "default": ""
           }
         },
         "type": "object",
@@ -36668,6 +36758,24 @@
         ],
         "title": "TarkovRaidRoomMarkIn"
       },
+      "TarkovRaidRoomMarkMoveIn": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "z": {
+            "type": "number",
+            "title": "Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "z"
+        ],
+        "title": "TarkovRaidRoomMarkMoveIn"
+      },
       "TarkovRaidRoomMarkOut": {
         "properties": {
           "id": {
@@ -36677,6 +36785,11 @@
           "kind": {
             "type": "string",
             "title": "Kind"
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
           },
           "floor": {
             "type": "string",
@@ -36729,6 +36842,11 @@
               }
             ],
             "title": "Points"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
           },
           "author_user_id": {
             "type": "integer",
@@ -37028,6 +37146,24 @@
         },
         "type": "object",
         "title": "TarkovRaidRoomTaskProgressIn"
+      },
+      "TarkovRaidRoomViewMapOut": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "map_slug": {
+            "type": "string",
+            "title": "Map Slug",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "TarkovRaidRoomViewMapOut"
       },
       "TarkovSearchHitOut": {
         "properties": {

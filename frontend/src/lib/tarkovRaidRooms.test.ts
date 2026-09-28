@@ -16,10 +16,12 @@ import {
   userOwnsKey,
   formatRoomRemain,
   groupClaimsByTask,
+  raidRoomTasksCountingTowardMapCap,
   groupKeyBringsByItem,
   markMatchesFloor,
   markStrokePoints,
   isMapDrawTool,
+  normalizeMarkLabel,
   shouldRightButtonPanMap,
   mergeBoardMarks,
   parseRaidRoomPublicId,
@@ -31,6 +33,9 @@ import {
   raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
   formatRaidRoomLiveStatus,
+  formatRaidRoomMemberActivity,
+  raidRoomMemberActivity,
+  playerFixVisibleOnView,
   formatRaidRoomMemberChipLine,
   raidRoomMemberRegionLabel,
   RAID_ROOM_SLOT_IDS,
@@ -80,7 +85,10 @@ import {
   isPulseDemoSession,
   nextPulseDemoBotIndex,
   nextPulseDemoWaitMs,
+  pulseDemoBotMapId,
+  pulseDemoChannel,
   pulseDemoFixAt,
+  pulseDemoHopMapId,
   pulseDemoMembers,
   pulseDemoQuestPreview,
   PLAYER_FIX_PULSE_MS,
@@ -264,6 +272,48 @@ describe("raid room helpers", () => {
       }),
     ).toBe("customs");
     expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
+    expect(raidRoomMemberActivity({ online: false, kind: "raid_started" })).toBe("offline");
+    expect(raidRoomMemberActivity({ online: true })).toBe("unknown");
+    expect(raidRoomMemberActivity({ online: true, kind: "matching" })).toBe("matching");
+    expect(raidRoomMemberActivity({ online: true, kind: "raid_started" })).toBe("in_raid");
+    expect(raidRoomMemberActivity({ online: true, kind: "raid_exited" })).toBe("lobby");
+    expect(formatRaidRoomMemberActivity("in_raid")).toBe("战局中");
+    expect(formatRaidRoomMemberActivity("matching")).toBe("匹配中");
+    expect(formatRaidRoomMemberActivity("lobby")).toBe("大厅中");
+    expect(formatRaidRoomMemberActivity("unknown")).toBe("未知");
+    expect(formatRaidRoomMemberActivity("offline")).toBe("离线");
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "bigmap",
+        viewMapId: "customs",
+        phaseKind: "raid_started",
+        online: true,
+      }),
+    ).toBe(true);
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "woods",
+        viewMapId: "customs",
+        phaseKind: "raid_started",
+        online: true,
+      }),
+    ).toBe(false);
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "customs",
+        viewMapId: "customs",
+        phaseKind: "raid_exited",
+        online: true,
+      }),
+    ).toBe(false);
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "",
+        viewMapId: "customs",
+        phaseKind: "raid_started",
+        online: true,
+      }),
+    ).toBe(false);
     expect(
       formatRaidRoomMemberChipLine({
         name: "BaiYi",
@@ -460,6 +510,18 @@ describe("raid room helpers", () => {
     );
   });
 
+  it("counts only the current map toward the room task cap", () => {
+    expect(
+      raidRoomTasksCountingTowardMapCap(
+        ["customs-1", "woods-1", "customs-1", ""],
+        ["customs-1", "customs-2"],
+      ),
+    ).toEqual(["customs-1"]);
+    expect(
+      raidRoomTasksCountingTowardMapCap(["customs-1", "woods-1"], null),
+    ).toEqual(["customs-1", "woods-1"]);
+  });
+
   it("groups claims as a union with names", () => {
     const claims = [
       { task_id: "t1", user_id: 1, display_name: "甲" },
@@ -533,7 +595,8 @@ describe("raid room helpers", () => {
     expect(markMatchesFloor({ floor: "bunker" }, "")).toBe(false);
     const room = {
       public_id: "1",
-      map_slug: "customs",
+      map_slug: "",
+      view_maps: [{ user_id: 2, map_slug: "customs" }],
       host_user_id: 1,
       host_display_name: "甲",
       members: [
@@ -550,7 +613,7 @@ describe("raid room helpers", () => {
       room,
       {
         event: "snapshot",
-        snapshot: { ...room, host_user_id: 2, map_slug: "" },
+        snapshot: { ...room, host_user_id: 2, map_slug: "", view_maps: [] },
       },
       2,
     );
@@ -635,6 +698,17 @@ describe("raid room helpers", () => {
     );
     expect(added?.marks).toEqual([
       { id: 9, kind: "pin", x: 1, z: 2, author_user_id: 1 },
+    ]);
+    const moved = applyRoomWsEvent(
+      added,
+      {
+        event: "mark_move",
+        mark: { id: 9, kind: "text", x: 4, z: 5, label: "集合", author_user_id: 1 },
+      },
+      1,
+    );
+    expect(moved?.marks).toEqual([
+      { id: 9, kind: "text", x: 4, z: 5, label: "集合", author_user_id: 1 },
     ]);
     const removed = applyRoomWsEvent(
       added,
@@ -759,10 +833,36 @@ describe("raid room helpers", () => {
     expect(isMapDrawTool("pen")).toBe(true);
     expect(isMapDrawTool("pin")).toBe(true);
     expect(isMapDrawTool("line")).toBe(true);
+    expect(isMapDrawTool("text")).toBe(true);
     expect(isMapDrawTool("erase")).toBe(true);
     expect(shouldRightButtonPanMap("pan")).toBe(false);
     expect(shouldRightButtonPanMap("pen")).toBe(true);
+    expect(shouldRightButtonPanMap("text")).toBe(true);
     expect(shouldRightButtonPanMap("erase")).toBe(true);
+  });
+
+  it("normalizes map text and keeps two labels distinct", () => {
+    expect(normalizeMarkLabel("  集合\n点  ")).toBe("集合 点");
+    expect(normalizeMarkLabel("   ")).toBe("");
+    expect(normalizeMarkLabel(`${"甲".repeat(41)}`)).toHaveLength(40);
+    const base = {
+      id: 1,
+      kind: "text" as const,
+      floor: "",
+      x: 1,
+      z: 2,
+      author_user_id: 1,
+    };
+    expect(strokeFingerprint({ ...base, label: " 集合 " })).toBe(
+      strokeFingerprint({ ...base, id: 9, label: "集合" }),
+    );
+    expect(strokeFingerprint({ ...base, label: "集合" })).not.toBe(
+      strokeFingerprint({ ...base, label: "撤离" }),
+    );
+    const pending = { ...base, id: -1, label: " 集合 " };
+    expect(mergeBoardMarks([{ ...base, id: 4, label: "集合" }], [pending])).toEqual([
+      { ...base, id: 4, label: "集合" },
+    ]);
   });
 
   it("fingerprints two freehand strokes separately even with the same endpoints", () => {
@@ -849,7 +949,7 @@ describe("raid room helpers", () => {
       ]).map((row) => row.userId),
     ).toEqual([12]);
     expect(parsePlayerFixEvents({ user_id: 12, x: 1, y: 2, z: 3 })).toEqual([]);
-    expect(playerFixMatchesRoomMap("", "customs")).toBe(true);
+    expect(playerFixMatchesRoomMap("", "customs")).toBe(false);
     expect(playerFixMatchesRoomMap("streets-of-tarkov", "streets")).toBe(true);
     expect(playerFixMatchesRoomMap("woods", "customs")).toBe(false);
     expect(playerFixMatchesRoomMap("customs", "")).toBe(false);
@@ -1100,6 +1200,48 @@ describe("raid room helpers", () => {
       at: 10,
     });
     expect(next?.x).not.toBe(first?.x);
+    expect(pulseDemoFixAt({ userId: 900003, step: 0, now: 1 })?.mapId).toBe(
+      "woods",
+    );
+    expect(pulseDemoBotMapId(900004)).toBe("customs");
+    expect(pulseDemoHopMapId(0)).toBe("woods");
+    expect(pulseDemoHopMapId(1)).toBe("customs");
+    expect(pulseDemoHopMapId(2)).toBe("woods");
+    expect(pulseDemoBotMapId(900003, 1)).toBe("customs");
+    const channel = pulseDemoChannel({ user_id: 12, display_name: "我" });
+    expect(channel.viewMaps.find((row) => row.user_id === 900003)?.map_slug).toBe(
+      "woods",
+    );
+    expect(
+      pulseDemoChannel({ user_id: 12, display_name: "我" }, 1).viewMaps.find(
+        (row) => row.user_id === 900003,
+      )?.map_slug,
+    ).toBe("customs");
+    expect(channel.phases.get(900004)?.kind).toBe("raid_exited");
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "woods",
+        viewMapId: "customs",
+        phaseKind: channel.phases.get(900003)?.kind,
+        online: true,
+      }),
+    ).toBe(false);
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "customs",
+        viewMapId: "customs",
+        phaseKind: channel.phases.get(900001)?.kind,
+        online: true,
+      }),
+    ).toBe(true);
+    expect(
+      playerFixVisibleOnView({
+        fixMapId: "customs",
+        viewMapId: "customs",
+        phaseKind: channel.phases.get(900004)?.kind,
+        online: true,
+      }),
+    ).toBe(false);
     expect(pulseDemoFixAt({ userId: 7, step: 0 })).toBeNull();
     expect(pulseDemoMembers(null).map((row) => row.user_id)).toEqual([
       900001, 900002, 900003, 900004,

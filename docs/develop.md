@@ -52,7 +52,7 @@ cd frontend && npm install && npm run dev
 ```
 
 - API：http://127.0.0.1:6130/docs · 前端：http://127.0.0.1:6131
-- 塔科夫找人线本地演示（仅 `npm run dev`）：http://127.0.0.1:6131/guides/tarkov/raid-prep/pulse-demo ；海关图上四个假人错开、随机间隔改定位，不写库、不进大厅。单人准备顶栏也有「找人线演示」入口。生产构建不挂这条路由。
+- 塔科夫找人线本地演示（仅 `npm run dev`）：http://127.0.0.1:6131/guides/tarkov/raid-prep/pulse-demo ；你看海关，甲乙在海关战局里错开换定位，丙每 30 秒在森林和海关之间换图，丁已回大厅。左上角名单带地图和状态。不写库、不进大厅。单人准备顶栏也有「找人线演示」入口。生产构建不挂这条路由。
 - 塔科夫枪械工作台中间用 dump 枪图做底板，在图上点槽位换配件。第三方出图默认关闭。枪匠求解读本站 tasks dump 的 `buildWeapon`，在本站做约束满足，不打 EFTForge。
 - 塔科夫 `/guides/tarkov` 不包 `PrivateRoute`：图鉴、枪匠求解、大厅预览未登录可读；个人中心与开房在壳内登录。用户等待在 **管理 → 运行维护 → 用户等待**。
 - 启动时：已选库则自动 `alembic upgrade`（SQLite 首次为 `create_all` + stamp）；改表：`alembic revision --autogenerate -m "..."`（见 [`backend/alembic/README.md`](../backend/alembic/README.md)），并同步 [`database.md`](database.md)

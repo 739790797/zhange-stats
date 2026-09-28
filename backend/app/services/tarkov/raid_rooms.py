@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 MARK_PIN = "pin"
 MARK_LINE = "line"
 MARK_STROKE = "stroke"
+MARK_TEXT = "text"
 
 SLOT_COUNT = 5
 SLOT_MODES = ("pvp", "pve")
@@ -64,6 +65,8 @@ MAX_UNIQUE_OBJECTIVES = 200
 MAX_PINS = 80
 MAX_LINES = 80
 MAX_STROKES = 240
+MAX_TEXTS = 80
+MAX_TEXT_LEN = 40
 MAX_STROKE_POINTS = 160
 TASK_ID_MAX = 64
 FLOOR_MAX = 64
@@ -448,6 +451,23 @@ def _round_coord(value: float) -> float:
     return round(value, STROKE_ROUND)
 
 
+_MARK_LABEL_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def normalize_mark_label(raw: Any) -> str:
+    if raw is None:
+        raw = ""
+    if not isinstance(raw, str):
+        raise RaidRoomError("文字无效")
+    text = _MARK_LABEL_CTRL_RE.sub(" ", raw)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        raise RaidRoomError("文字不能为空")
+    if len(text) > MAX_TEXT_LEN:
+        raise RaidRoomError("文字过长")
+    return text
+
+
 def normalize_stroke_points(raw: Any) -> list[list[float]]:
     if not isinstance(raw, list) or not raw:
         raise RaidRoomError("笔画无效")
@@ -500,6 +520,8 @@ def parse_player_fix(payload: dict[str, Any]) -> dict[str, Any] | None:
             return None
         yaw = round(yaw_num, STROKE_ROUND)
     map_id = normalize_room_map_slug(str(payload.get("map_id") or ""))
+    if not map_id:
+        return None
     file_name = str(payload.get("file_name") or "").strip().replace("\n", " ")
     if len(file_name) > PLAYER_FIX_NAME_MAX:
         file_name = file_name[:PLAYER_FIX_NAME_MAX]
@@ -531,6 +553,15 @@ LOG_PHASE_MAP_LABEL_MAX = 32
 
 
 LIVE_RAID_PHASE_KINDS = frozenset({"match_found", "raid_starting", "raid_started"})
+VIEW_MAP_PHASE_KINDS = frozenset(
+    {
+        "map_loading",
+        "matching",
+        "match_found",
+        "raid_starting",
+        "raid_started",
+    }
+)
 
 
 def normalize_raid_id(raw: Any) -> str:
@@ -628,9 +659,54 @@ def _get_room(db: Session, public_id: str) -> TarkovRaidRoom:
     return room
 
 
-def _require_map(room: TarkovRaidRoom) -> None:
-    if not (room.map_slug or "").strip():
+def _require_view_map(public_id: str, user_id: int) -> str:
+    from app.services.tarkov.raid_room_hub import hub
+
+    slug = hub.view_map_of(public_id, int(user_id))
+    if not slug:
         raise RaidRoomError("请先选择地图", 409)
+    return slug
+
+
+def note_view_map_from_phase(public_id: str, user_id: int, phase: dict[str, Any]) -> bool:
+    """带地图的进图相位只改这个人的查看图。退出和取消匹配不清除。"""
+    kind = str(phase.get("kind") or "")
+    slug = normalize_room_map_slug(str(phase.get("map_id") or ""))
+    if kind not in VIEW_MAP_PHASE_KINDS or not slug:
+        return False
+    from app.services.tarkov.raid_room_hub import hub
+
+    if hub.view_map_of(public_id, int(user_id)) == slug:
+        return False
+    hub.set_view_map(public_id, int(user_id), slug)
+    return True
+
+
+def _tasks_on_view_map(db: Session, map_slug: str) -> set[str] | None:
+    """当前图在 PVP/PVE 目录里的任务 id。没有可用目录时返回 None。"""
+    from app.services.tarkov.game_mode import GAME_MODES
+    from app.services.tarkov.tasks import raid_prep_task_ids_for_map
+
+    current = current_game_mode()
+    modes = (current, *(mode for mode in GAME_MODES if mode != current))
+    saw = False
+    found: set[str] = set()
+    for mode in modes:
+        with game_mode_scope(mode):
+            ids = raid_prep_task_ids_for_map(db, map_slug)
+        if ids is None:
+            continue
+        saw = True
+        found |= set(ids)
+    if not saw:
+        return None
+    return found
+
+
+def _member_view_maps(public_id: str) -> list[dict[str, Any]]:
+    from app.services.tarkov.raid_room_hub import hub
+
+    return hub.view_maps(public_id)
 
 
 def _wipe_board(db: Session, room_id: int) -> None:
@@ -658,6 +734,9 @@ def _wipe_board(db: Session, room_id: int) -> None:
 
 def _dissolve_room(db: Session, room: TarkovRaidRoom) -> dict[str, Any]:
     """最后一人离开或房主清空：擦掉画板/声明后删行，不留空桌。"""
+    from app.services.tarkov.raid_room_hub import hub
+
+    hub.drop_view_maps(room.public_id)
     _wipe_board(db, room.id)
     (
         db.query(TarkovRaidRoomMember)
@@ -808,12 +887,14 @@ def serialize_mark(row: TarkovRaidRoomMark, author_name: str) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": row.id,
         "kind": row.kind,
+        "map_slug": row.map_slug or "",
         "floor": row.floor or "",
         "x": row.x,
         "z": row.z,
         "author_user_id": row.author_user_id,
         "author_display_name": author_name,
         "created_at": _iso(row.created_at),
+        "label": row.label or "",
     }
     if row.kind == MARK_LINE:
         payload["x2"] = row.x2
@@ -831,11 +912,12 @@ def _serialize_room_preview(
     member_count: int,
     is_host: bool,
 ) -> dict[str, Any]:
-    """非成员可读字段：标题 / 地图 / 人数 / 是否要密码。不含棋盘与人员名单。"""
+    """非成员可读字段：标题 / 模式 / 人数 / 是否要密码。不含地图、查看图、棋盘与人员名单。"""
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
-        "map_slug": room.map_slug or "",
+        "map_slug": "",
+        "view_maps": [],
         "game_mode": parse_game_mode(room.game_mode or "pvp"),
         "listed": bool(room.listed),
         "has_password": _room_password_set(room),
@@ -925,14 +1007,20 @@ def serialize_room(
         ids.add(row.author_user_id)
     names = _user_names(db, ids, fallback)
     online = online_user_ids or set()
-    can_edit = is_member and bool((room.map_slug or "").strip())
+    viewer_map = ""
+    if is_member and viewer_id is not None:
+        from app.services.tarkov.raid_room_hub import hub
+
+        viewer_map = hub.view_map_of(room.public_id, int(viewer_id))
+    can_edit = is_member and bool(viewer_map)
     occupant_ids = [row.user_id for row in occupants]
     key_owns = list_owns_for_users(db, occupant_ids)
     progress, map_overlap = _overlap_payload(db, room, occupants)
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
-        "map_slug": room.map_slug or "",
+        "map_slug": "",
+        "view_maps": _member_view_maps(room.public_id),
         "game_mode": parse_game_mode(room.game_mode or "pvp"),
         "listed": bool(room.listed),
         "has_password": _room_password_set(room),
@@ -1039,7 +1127,7 @@ def serialize_lobby_item(
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
-        "map_slug": room.map_slug or "",
+        "map_slug": "",
         "game_mode": parse_game_mode(room.game_mode or "pvp"),
         "listed": bool(room.listed),
         "has_password": _room_password_set(room),
@@ -1177,6 +1265,8 @@ def prune_stale_members(
         )
         .all()
     )
+    from app.services.tarkov.raid_room_hub import hub
+
     dropped: list[int] = []
     for row in rows:
         if row.user_id in online:
@@ -1187,6 +1277,7 @@ def prune_stale_members(
         dropped.append(row.user_id)
         db.delete(row)
         _drop_member_contrib(db, room.id, row.user_id)
+        hub.drop_member_live(room.public_id, row.user_id)
     if not dropped:
         return
     db.flush()
@@ -1545,6 +1636,14 @@ def join_room(
     return serialize_room(db, room, viewer=user), joined_now, vacated_rooms
 
 
+def is_room_member(db: Session, public_id: str, user: User) -> bool:
+    try:
+        room = _get_room(db, public_id)
+    except RaidRoomError:
+        return False
+    return _member(db, room.id, user.id) is not None
+
+
 def can_user_edit_room(
     db: Session,
     public_id: str,
@@ -1557,10 +1656,12 @@ def can_user_edit_room(
         room = _get_room(db, public_id)
     except RaidRoomError:
         return False
-    if not (room.map_slug or "").strip():
-        return False
     row = _member(db, room.id, user.id)
-    return row is not None
+    if row is None:
+        return False
+    from app.services.tarkov.raid_room_hub import hub
+
+    return bool(hub.view_map_of(room.public_id, user.id))
 
 
 def leave_room(
@@ -1574,6 +1675,18 @@ def leave_room(
     room = _get_room(db, public_id)
     row = _member(db, room.id, user.id)
     if row is not None:
+        from app.services.tarkov.raid_room_hub import hub
+
+        _drop_member_contrib(db, room.id, user.id)
+        (
+            db.query(TarkovRaidRoomMark)
+            .filter(
+                TarkovRaidRoomMark.room_id == room.id,
+                TarkovRaidRoomMark.author_user_id == user.id,
+            )
+            .delete(synchronize_session=False)
+        )
+        hub.drop_member_live(room.public_id, user.id)
         db.delete(row)
         db.flush()
     if room.host_user_id == user.id:
@@ -1619,6 +1732,9 @@ def remove_member(
         raise RaidRoomError("该成员不在房间内", 404)
     db.delete(row)
     _drop_member_contrib(db, room.id, uid)
+    from app.services.tarkov.raid_room_hub import hub
+
+    hub.drop_member_live(room.public_id, uid)
     db.flush()
     return serialize_room(db, room, viewer=host)
 
@@ -1657,28 +1773,16 @@ def set_room_map(
     online_user_ids: set[int] | None = None,
     log_phases: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """写入这个人自己的查看图。不改房间、不清画板。"""
+    del online_user_ids, log_phases
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
     slug = normalize_room_map_slug(map_slug)
     if not slug:
         raise RaidRoomError("地图无效")
-    if slug == (room.map_slug or ""):
-        return serialize_room(db, room, viewer=user)
-    seated = _seated_members(db, room.id)
-    host_id = int(room.host_user_id or 0)
-    caller_is_host = bool(host_id and int(user.id) == host_id)
-    actor = acting_host_user_id(room.host_user_id, seated, online_user_ids)
-    seated_ids = {int(row.user_id) for row in seated}
-    shared = shared_raid_map_slug(user.id, seated_ids, log_phases)
-    # 房主这次请求本身就在场，不依赖 WebSocket 在线名单。代切只约束其他成员。
-    if not caller_is_host and actor != user.id and shared != slug:
-        raise RaidRoomError(
-            "只有房主可以换图；房主离线时由最早入座的在线成员代切；同一战局成员可切到该局地图",
-            403,
-        )
-    _wipe_board(db, room.id)
-    room.map_slug = slug
-    db.flush()
+    from app.services.tarkov.raid_room_hub import hub
+
+    hub.set_view_map(room.public_id, user.id, slug)
     return serialize_room(db, room, viewer=user)
 
 
@@ -1693,18 +1797,18 @@ def claim_task(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    slug = _require_view_map(room.public_id, user.id)
     tid = _task_id(task_id)
     belongs = None
     try:
         from app.services.tarkov.tasks import raid_prep_task_belongs_to_map
 
-        belongs = raid_prep_task_belongs_to_map(db, room.map_slug, tid)
+        belongs = raid_prep_task_belongs_to_map(db, slug, tid)
     except Exception:  # noqa: BLE001
         belongs = None
     if belongs is False:
         raise RaidRoomError("任务不属于本地图")
-    added = _insert_claim(db, room, user.id, tid, stamp)
+    added = _insert_claim(db, room, user.id, tid, stamp, map_slug=slug)
     return serialize_room(db, room, viewer=user), added
 
 
@@ -1758,12 +1862,27 @@ def set_member_task_progress(
     return serialize_room(db, room, viewer=user)
 
 
+def _unique_claims_for_map(db: Session, room_id: int, map_slug: str) -> int:
+    rows = (
+        db.query(TarkovRaidRoomTaskClaim.task_id)
+        .filter(TarkovRaidRoomTaskClaim.room_id == room_id)
+        .distinct()
+        .all()
+    )
+    ids = [str(row[0]) for row in rows]
+    catalog = _tasks_on_view_map(db, map_slug) if map_slug else None
+    if catalog is None:
+        return len(ids)
+    return sum(1 for tid in ids if tid in catalog)
+
+
 def _insert_claim(
     db: Session,
     room: TarkovRaidRoom,
     user_id: int,
     tid: str,
     stamp: datetime,
+    map_slug: str = "",
 ) -> bool:
     existing = (
         db.query(TarkovRaidRoomTaskClaim)
@@ -1776,12 +1895,7 @@ def _insert_claim(
     )
     if existing is not None:
         return False
-    unique = int(
-        db.query(func.count(func.distinct(TarkovRaidRoomTaskClaim.task_id)))
-        .filter(TarkovRaidRoomTaskClaim.room_id == room.id)
-        .scalar()
-        or 0
-    )
+    unique = _unique_claims_for_map(db, room.id, map_slug)
     task_taken = (
         db.query(TarkovRaidRoomTaskClaim)
         .filter(
@@ -1815,14 +1929,11 @@ def seed_claims_from_progress(
     *,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], int]:
-    """房主按在座已上传的进行中任务，把本图目录内的项勾进房间。"""
+    """按自己已上传的进行中任务，把当前查看图目录内的项勾进房间。"""
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
-    if room.host_user_id != user.id:
-        raise RaidRoomError("只有房主可以把进行中任务勾到房间", 403)
-    slug = normalize_room_map_slug(room.map_slug) or (room.map_slug or "")
+    slug = _require_view_map(room.public_id, user.id)
     try:
         from app.services.tarkov.tasks import raid_prep_map_task_index
 
@@ -1831,23 +1942,15 @@ def seed_claims_from_progress(
     except Exception:  # noqa: BLE001
         catalogs = {}
     catalog = set((catalogs.get(slug) or {}).keys())
+    row = _member(db, room.id, user.id)
+    uploaded, started = _load_started_ids(row) if row is not None else (False, [])
     added = 0
-    occupants = (
-        db.query(TarkovRaidRoomMember)
-        .filter(
-            TarkovRaidRoomMember.room_id == room.id,
-        )
-        .all()
-    )
-    for row in occupants:
-        uploaded, started = _load_started_ids(row)
-        if not uploaded:
-            continue
+    if uploaded:
         for tid in started:
             if tid not in catalog:
                 continue
             try:
-                if _insert_claim(db, room, row.user_id, tid, stamp):
+                if _insert_claim(db, room, user.id, tid, stamp, map_slug=slug):
                     added += 1
             except RaidRoomError as exc:
                 if exc.status_code == 409 and "已满" in exc.message:
@@ -1867,7 +1970,7 @@ def unclaim_task(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    _require_view_map(room.public_id, user.id)
     tid = _task_id(task_id)
     row = (
         db.query(TarkovRaidRoomTaskClaim)
@@ -1897,7 +2000,7 @@ def bring_key(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    _require_view_map(room.public_id, user.id)
     iid = _item_id(item_id)
     existing = (
         db.query(TarkovRaidRoomKeyBring)
@@ -1950,7 +2053,7 @@ def unbring_key(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    _require_view_map(room.public_id, user.id)
     iid = _item_id(item_id)
     row = (
         db.query(TarkovRaidRoomKeyBring)
@@ -1980,7 +2083,7 @@ def mark_objectives_done(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    _require_view_map(room.public_id, user.id)
     cleaned: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for task_id, objective_id in pairs:
@@ -2072,7 +2175,7 @@ def unmark_objective_done(
 ) -> tuple[dict[str, Any], bool]:
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    _require_view_map(room.public_id, user.id)
     tid = _task_id(task_id)
     oid = _objective_id(objective_id)
     row = (
@@ -2093,13 +2196,14 @@ def unmark_objective_done(
     return serialize_room(db, room, viewer=user), removed
 
 
-def _mark_count(db: Session, room_id: int, kind: str) -> int:
+def _mark_count(db: Session, room_id: int, kind: str, map_slug: str) -> int:
     return int(
         db.query(func.count())
         .select_from(TarkovRaidRoomMark)
         .filter(
             TarkovRaidRoomMark.room_id == room_id,
             TarkovRaidRoomMark.kind == kind,
+            TarkovRaidRoomMark.map_slug == map_slug,
         )
         .scalar()
         or 0
@@ -2118,21 +2222,25 @@ def add_mark(
     x2: Any = None,
     z2: Any = None,
     points: Any = None,
+    label: str | None = None,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    slug = _require_view_map(room.public_id, user.id)
     mark_kind = (kind or "").strip().lower()
-    if mark_kind not in {MARK_PIN, MARK_LINE, MARK_STROKE}:
+    if mark_kind not in {MARK_PIN, MARK_LINE, MARK_STROKE, MARK_TEXT}:
         raise RaidRoomError("记号类型无效")
-    if mark_kind == MARK_PIN and _mark_count(db, room.id, MARK_PIN) >= MAX_PINS:
+    if mark_kind == MARK_PIN and _mark_count(db, room.id, MARK_PIN, slug) >= MAX_PINS:
         raise RaidRoomError("钉点已满", 409)
-    if mark_kind == MARK_LINE and _mark_count(db, room.id, MARK_LINE) >= MAX_LINES:
+    if mark_kind == MARK_LINE and _mark_count(db, room.id, MARK_LINE, slug) >= MAX_LINES:
         raise RaidRoomError("直线已满", 409)
-    if mark_kind == MARK_STROKE and _mark_count(db, room.id, MARK_STROKE) >= MAX_STROKES:
+    if mark_kind == MARK_STROKE and _mark_count(db, room.id, MARK_STROKE, slug) >= MAX_STROKES:
         raise RaidRoomError("笔画已满", 409)
+    if mark_kind == MARK_TEXT and _mark_count(db, room.id, MARK_TEXT, slug) >= MAX_TEXTS:
+        raise RaidRoomError("文字已满", 409)
+    text = normalize_mark_label(label) if mark_kind == MARK_TEXT else ""
     start_x = _coord(x, "x")
     start_z = _coord(z, "z")
     end_x = end_z = None
@@ -2152,15 +2260,49 @@ def add_mark(
         room_id=room.id,
         author_user_id=user.id,
         kind=mark_kind,
+        map_slug=slug,
         floor=_floor(floor),
         x=start_x,
         z=start_z,
         x2=end_x,
         z2=end_z,
         points_json=points_json,
+        label=text,
         created_at=stamp,
     )
     db.add(row)
+    db.flush()
+    snapshot = serialize_room(db, room, viewer=user)
+    mark = next((item for item in snapshot["marks"] if item["id"] == row.id), None)
+    if mark is None:
+        mark = serialize_mark(row, _display_name(user))
+    return snapshot, mark
+
+
+def move_text_mark(
+    db: Session,
+    public_id: str,
+    user: User,
+    mark_id: int,
+    *,
+    x: Any,
+    z: Any,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    room = _get_room(db, public_id)
+    _require_active_member(db, room, user, now=now)
+    slug = _require_view_map(room.public_id, user.id)
+    row = (
+        db.query(TarkovRaidRoomMark)
+        .filter(TarkovRaidRoomMark.id == mark_id, TarkovRaidRoomMark.room_id == room.id)
+        .first()
+    )
+    if row is None or (row.map_slug or "") != slug:
+        return serialize_room(db, room, viewer=user), None
+    if row.kind != MARK_TEXT:
+        raise RaidRoomError("只能移动文字")
+    row.x = _coord(x, "x")
+    row.z = _coord(z, "z")
     db.flush()
     snapshot = serialize_room(db, room, viewer=user)
     mark = next((item for item in snapshot["marks"] if item["id"] == row.id), None)
@@ -2177,16 +2319,15 @@ def remove_mark(
     *,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    slug = _require_view_map(room.public_id, user.id)
     row = (
         db.query(TarkovRaidRoomMark)
         .filter(TarkovRaidRoomMark.id == mark_id, TarkovRaidRoomMark.room_id == room.id)
         .first()
     )
-    if row is None:
+    if row is None or (row.map_slug or "") != slug:
         return serialize_room(db, room, viewer=user), False
     if row.author_user_id != user.id and room.host_user_id != user.id:
         raise RaidRoomError("只能删除自己的记号", 403)
@@ -2205,12 +2346,13 @@ def undo_own_mark(
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
     _require_active_member(db, room, user, now=now)
-    _require_map(room)
+    slug = _require_view_map(room.public_id, user.id)
     row = (
         db.query(TarkovRaidRoomMark)
         .filter(
             TarkovRaidRoomMark.room_id == room.id,
             TarkovRaidRoomMark.author_user_id == user.id,
+            TarkovRaidRoomMark.map_slug == slug,
         )
         .order_by(TarkovRaidRoomMark.created_at.desc(), TarkovRaidRoomMark.id.desc())
         .first()
@@ -2230,14 +2372,17 @@ def clear_marks(
     *,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    _require_map(room)
+    _require_active_member(db, room, user, now=now)
+    slug = _require_view_map(room.public_id, user.id)
     if room.host_user_id != user.id:
         raise RaidRoomError("只有房主可以清板", 403)
     (
         db.query(TarkovRaidRoomMark)
-        .filter(TarkovRaidRoomMark.room_id == room.id)
+        .filter(
+            TarkovRaidRoomMark.room_id == room.id,
+            TarkovRaidRoomMark.map_slug == slug,
+        )
         .delete(synchronize_session=False)
     )
     db.flush()
