@@ -89,13 +89,42 @@ def suggest_image(images: list[str], major: int) -> str:
     for image in images:
         if image_java_major(image) == major:
             return image
-    return images[0] if images else ""
+    return ""
 
 
-def java_warning(image: str, expected: int) -> str:
+def resolve_java_image(
+    requested: str,
+    current: str,
+    images: list[str],
+    mc_version: str,
+) -> str:
+    """编辑侧镜像。显式选择优先，否则用面板当前镜像，最后才按版本建议。
+
+    不拿 Egg 目录的第一项充当前镜像（常见第一项是 Java 8）。
+    """
+    allowed = [item for item in images if item]
+
+    def pick(image: str) -> str:
+        image = (image or "").strip()
+        if image and (not allowed or image in allowed):
+            return image
+        return ""
+
+    chosen = pick(requested) or pick(current)
+    if chosen:
+        return chosen
+    if mc_version:
+        suggested = suggest_image(allowed, java_major_for_mc(mc_version))
+        if suggested:
+            return suggested
+    return (current or requested or "").strip()
+
+
+def java_warning(image: str, expected: int, *, edited: bool = False) -> str:
     found = image_java_major(image)
     if found and expected and found != expected:
-        return f"这个核心通常用 Java {expected}，当前镜像是 Java {found}"
+        which = "修改选的镜像" if edited else "当前镜像"
+        return f"这个核心通常用 Java {expected}，{which}是 Java {found}"
     return ""
 
 

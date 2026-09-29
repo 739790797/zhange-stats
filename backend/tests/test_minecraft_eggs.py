@@ -36,6 +36,27 @@ def test_startup_details_reads_variables_and_images():
     assert "java_21" in details["docker_images"][0]
 
 
+def test_application_server_ref_matches_uuid() -> None:
+    from app.services.minecraft.pelican import application_server_ref
+
+    payload = {
+        "data": [
+            {"attributes": {"id": 1, "uuid": "other", "egg": 3}},
+            {
+                "attributes": {
+                    "id": 48,
+                    "uuid": "dec0e70d-8e07-48a9-b294-79c33b91587a",
+                    "egg": 22,
+                    "skip_scripts": False,
+                }
+            },
+        ]
+    }
+    found = application_server_ref(payload, "DEC0E70D-8E07-48A9-B294-79C33B91587A")
+    assert found == {"id": 48, "egg": 22, "skip_scripts": False}
+    assert application_server_ref(payload, "missing") is None
+
+
 def test_parse_application_server_reads_container():
     parsed = parse_application_server(
         {

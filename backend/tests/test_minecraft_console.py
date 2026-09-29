@@ -130,9 +130,11 @@ def test_parse_server_meta_reads_panel_resource_limits():
             "attributes": {
                 "name": "我的世界",
                 "limits": {"memory": 8192, "cpu": 400, "disk": 20480},
+                "docker_image": "ghcr.io/pelican-eggs/yolks:java_21",
             }
         }
     )
     assert meta["memory_limit_mb"] == 8192
     assert meta["cpu_limit"] == 400
     assert meta["disk_limit_mb"] == 20480
+    assert meta["docker_image"] == "ghcr.io/pelican-eggs/yolks:java_21"

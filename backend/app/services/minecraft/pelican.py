@@ -650,6 +650,7 @@ def parse_server_meta(data: Any) -> dict[str, Any]:
             "memory_limit_mb": 0,
             "cpu_limit": 0,
             "disk_limit_mb": 0,
+            "docker_image": "",
         }
     attrs = data.get("attributes") if isinstance(data.get("attributes"), dict) else {}
     name = str(attrs.get("name") or "")
@@ -685,6 +686,7 @@ def parse_server_meta(data: Any) -> dict[str, Any]:
         "memory_limit_mb": _as_int(limits.get("memory")),
         "cpu_limit": _as_int(limits.get("cpu")),
         "disk_limit_mb": _as_int(limits.get("disk")),
+        "docker_image": str(attrs.get("docker_image") or "").strip(),
     }
 
 
@@ -786,6 +788,99 @@ def update_startup_variable(
         token,
         json_body={"key": env_key, "value": str(value or "")},
     )
+
+
+def application_server_ref(payload: Any, server_uuid: str) -> dict[str, Any] | None:
+    """从 Application API 的服务器列表里找出 uuid，取出数字 id 和 Egg。"""
+    rows: list[Any] = []
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            rows = data
+        elif isinstance(payload.get("attributes"), dict) or isinstance(data, dict):
+            rows = [payload]
+    target = (server_uuid or "").strip().lower()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else row
+        if not isinstance(attrs, dict):
+            continue
+        if str(attrs.get("uuid") or "").strip().lower() != target:
+            continue
+        try:
+            server_id = int(attrs.get("id") or 0)
+            egg_id = int(attrs.get("egg") or 0)
+        except (TypeError, ValueError):
+            return None
+        if server_id <= 0 or egg_id <= 0:
+            return None
+        return {
+            "id": server_id,
+            "egg": egg_id,
+            "skip_scripts": bool(attrs.get("skip_scripts")),
+        }
+    return None
+
+
+def find_application_server(base_url: str, token: str, server_uuid: str) -> dict[str, Any]:
+    root = normalize_pelican_base_url(base_url)
+    if not root or not (token or "").strip():
+        raise PelicanError("未配置管理端 API Token")
+    page = 1
+    while page <= 20:
+        url = f"{root}/api/application/servers?per_page=100&page={page}"
+        data = _request("GET", url, token)
+        found = application_server_ref(data, server_uuid)
+        if found:
+            return found
+        meta = data.get("meta") if isinstance(data, dict) else None
+        pagination = meta.get("pagination") if isinstance(meta, dict) else None
+        try:
+            total_pages = int((pagination or {}).get("total_pages") or 1)
+        except (TypeError, ValueError):
+            total_pages = 1
+        if page >= max(total_pages, 1):
+            break
+        page += 1
+    raise PelicanError("管理端 API 找不到这台服")
+
+
+def update_application_startup(
+    base_url: str,
+    token: str,
+    server_id: int,
+    egg_id: int,
+    startup: str,
+    *,
+    skip_scripts: bool = False,
+) -> None:
+    """改服务器启动命令。Egg 保持原值，避免换成别的 Egg。"""
+    root = normalize_pelican_base_url(base_url)
+    command = (startup or "").strip()
+    if not root or not (token or "").strip():
+        raise PelicanError("未配置管理端 API Token")
+    if server_id <= 0 or egg_id <= 0:
+        raise PelicanError("管理端 API 找不到这台服")
+    if not command:
+        raise PelicanError("启动指令为空")
+    url = f"{root}/api/application/servers/{int(server_id)}/startup"
+    try:
+        _request(
+            "PATCH",
+            url,
+            token,
+            json_body={
+                "startup": command,
+                "environment": {},
+                "egg": int(egg_id),
+                "skip_scripts": bool(skip_scripts),
+            },
+        )
+    except PelicanError as exc:
+        if exc.status_code == 401:
+            raise PelicanError("管理端 API Token 无效或已撤销", status_code=401) from exc
+        raise
 
 
 def parse_application_server(data: Any) -> dict[str, Any]:

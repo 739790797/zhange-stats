@@ -82,6 +82,25 @@ export async function saveMinecraftStartup(body: MinecraftStartupIn) {
   return data;
 }
 
+export async function applyMinecraftStartup(body: MinecraftStartupIn) {
+  const { data } = await client.post<MinecraftStartup>(
+    "/guides/minecraft/startup/apply",
+    body,
+    { timeout: 180_000 },
+  );
+  return data;
+}
+
+export type MinecraftStartupBuilds = components["schemas"]["MinecraftStartupBuildsOut"];
+
+export async function fetchMinecraftStartupBuilds(core: string) {
+  const { data } = await client.get<MinecraftStartupBuilds>(
+    "/guides/minecraft/startup/builds",
+    { params: { core }, timeout: 30_000 },
+  );
+  return data;
+}
+
 export async function fetchMinecraftPresence(date: string, end?: string) {
   const { data } = await client.get<MinecraftPresence>(
     "/guides/minecraft/presence",

@@ -1,0 +1,62 @@
+.grid {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 16px;
+  align-items: start;
+}
+
+.corner {
+  display: block;
+}
+
+.head,
+.label {
+  line-height: 32px;
+}
+
+.current,
+.edit {
+  min-width: 0;
+}
+
+.currentLine {
+  line-height: 32px;
+  word-break: break-all;
+}
+
+.block {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Segoe UI Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.caption {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .corner,
+  .head {
+    display: none;
+  }
+
+  .label {
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+
+  .caption {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+}

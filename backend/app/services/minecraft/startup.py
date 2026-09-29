@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.ephemeral_kv import ephemeral_get, ephemeral_set
-from app.services.integrations_config import get_pelican_credentials
+from app.services.integrations_config import get_pelican_application_token
 from app.services.minecraft import pelican
 from app.services.minecraft import startup_cmd as cmd
 from app.services.minecraft.files import require_pelican
@@ -105,20 +105,30 @@ def _empty(configured: bool, message: str = "") -> dict[str, Any]:
         "loader_choices": list(cmd.LOADER_CHOICES),
         "cores": [],
         "selected_id": "",
+        "current_selected_id": "",
         "java_images": [],
         "java_image": "",
         "java_warning": "",
+        "current_java_image": "",
+        "current_java_warning": "",
         "launch": "jar",
+        "current_launch": "",
         "jvm_args": "",
         "user_jvm_args": "",
+        "current_jvm_args": "",
+        "current_user_jvm_args": "",
         "suggested_heap": cmd.suggest_heap_flags(0),
         "command": "",
+        "current_command": "",
         "complete": False,
         "synced": False,
         "message": message,
         "kind": "",
         "plugins_visible": False,
         "plugins_ready": False,
+        "application_token_set": False,
+        "build_channel": "",
+        "build_name": "",
     }
 
 
@@ -134,6 +144,12 @@ def _view(
     jvm_args: str,
     user_jvm_args: str,
     java_image: str,
+    current_java_image: str,
+    current_command: str,
+    current_jvm_args: str,
+    current_user_jvm_args: str,
+    current_selected_id: str,
+    current_launch: str,
     wrote: bool,
     write_message: str,
 ) -> dict[str, Any]:
@@ -165,20 +181,24 @@ def _view(
     live = cmd.live_startup_command(details)
     images = [str(item) for item in (details.get("docker_images") or []) if item]
     major = cmd.java_major_for_mc(str(detected.get("mc_version") or ""))
-    warning = cmd.java_warning(java_image, major) if java_image and detected.get("mc_version") else ""
+    mc_version = str(detected.get("mc_version") or "")
+    current_warning = (
+        cmd.java_warning(current_java_image, major)
+        if current_java_image and mc_version
+        else ""
+    )
+    edit_warning = ""
+    if java_image and mc_version and java_image != current_java_image:
+        edit_warning = cmd.java_warning(java_image, major, edited=True)
     kind = str((selected or {}).get("kind") or "")
     plugins_visible = kind in {"plugin", "hybrid"}
-    has_slot = bool(cmd.startup_variable_key(details.get("variables") or []))
-    synced = bool(complete and command and live == command and has_slot)
+    synced = bool(complete and command and live == command)
     ready = (
         _observe_boot(power, command, live, wrote=wrote) if complete and synced else False
     )
     if not plugins_visible:
         ready = False
     message = write_message or ("" if complete else why)
-    if complete and not has_slot and "指令先不写入" not in message:
-        message = "Egg 的启动模板还不是 {{STARTUP_CMD}}，指令先不写入"
-        synced = False
     return {
         "pelican_configured": True,
         "loader": use_loader,
@@ -205,21 +225,45 @@ def _view(
             for row in choices
         ],
         "selected_id": str((selected or {}).get("id") or ""),
+        "current_selected_id": current_selected_id,
         "java_images": [{"image": image, "label": _image_label(image)} for image in images],
         "java_image": java_image,
-        "java_warning": warning,
+        "java_warning": edit_warning,
+        "current_java_image": current_java_image,
+        "current_java_warning": current_warning,
         "launch": launch if launch in {"jar", "args"} else "jar",
+        "current_launch": current_launch if current_launch in {"jar", "args"} else "",
         "jvm_args": jvm_args,
         "user_jvm_args": user_jvm_args,
+        "current_jvm_args": current_jvm_args,
+        "current_user_jvm_args": current_user_jvm_args,
         "suggested_heap": cmd.suggest_heap_flags(memory_mb),
         "command": command,
+        "current_command": current_command,
         "complete": complete,
         "synced": synced,
         "message": message,
         "kind": kind if kind in {"mod", "plugin", "hybrid"} else "",
         "plugins_visible": plugins_visible,
         "plugins_ready": bool(plugins_visible and ready and synced),
+        "application_token_set": False,
+        "build_channel": "",
+        "build_name": "",
     }
+
+
+def _match_live(choices: list[dict[str, Any]], live: str) -> dict[str, Any] | None:
+    """只在启动指令对得上某个核心时返回，不用列表第一项冒充当前核心。"""
+    parsed = cmd.parse_command(live)
+    if parsed["launch"] == "jar" and parsed["jar"]:
+        for row in choices:
+            if row.get("jar") == parsed["jar"]:
+                return row
+    if parsed["launch"] == "args" and parsed["unix_args"]:
+        for row in choices:
+            if row.get("unix_args") == parsed["unix_args"]:
+                return row
+    return None
 
 
 def _pick_selected(
@@ -243,6 +287,11 @@ def _pick_selected(
     return choices[0] if choices else None
 
 
+def _finish(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    payload["application_token_set"] = bool(get_pelican_application_token(db))
+    return payload
+
+
 def read_startup(
     db: Session,
     *,
@@ -251,6 +300,8 @@ def read_startup(
     java_image: str = "",
     jvm_args: str | None = None,
     user_jvm_args: str | None = None,
+    build_channel: str = "",
+    build_name: str = "",
     wrote: bool = False,
     write_message: str = "",
 ) -> dict[str, Any]:
@@ -258,7 +309,7 @@ def read_startup(
         base, token, uuid = require_pelican(db)
     except Exception as exc:
         message = getattr(exc, "message", None) or "未配置 Pelican"
-        return _empty(False, message)
+        return _finish(db, _empty(False, message))
 
     root = _list_names(base, token, uuid, "/")
     detected = cmd.detect_install(_names(root), _unix_paths(base, token, uuid))
@@ -267,21 +318,25 @@ def read_startup(
     try:
         details = pelican.startup_details(pelican.get_startup(base, token, uuid))
     except pelican.PelicanError as exc:
-        return _empty(True, exc.message)
+        return _finish(db, _empty(True, exc.message))
     try:
         meta = pelican.parse_server_meta(pelican.get_server(base, token, uuid))
         memory_mb = int(meta.get("memory_limit_mb") or 0)
+        server_image = str(meta.get("docker_image") or "")
     except pelican.PelicanError:
         memory_mb = 0
+        server_image = ""
     try:
         power = pelican.power_state_from_resources(
             pelican.get_resources(base, token, uuid)
         )
     except pelican.PelicanError:
         power = "unknown"
-    file_args = user_jvm_args if user_jvm_args is not None else _read_args_file(base, token, uuid)
+    disk_args = _read_args_file(base, token, uuid)
+    file_args = disk_args if user_jvm_args is None else user_jvm_args
     live = cmd.live_startup_command(details)
     parsed = cmd.parse_command(live)
+    current_row = _match_live(choices, live)
     selected = _pick_selected(choices, core_id, live)
     heap = cmd.suggest_heap_flags(memory_mb)
     if jvm_args is None:
@@ -295,13 +350,37 @@ def read_startup(
     if user_jvm_args is None and not str(file_args or "").strip():
         file_args = heap
     images = [str(item) for item in (details.get("docker_images") or []) if item]
-    current_image = str(details.get("docker_image") or "") or (images[0] if images else "")
-    chosen_image = java_image or current_image
-    if chosen_image and chosen_image not in images and images:
-        chosen_image = cmd.suggest_image(
-            images, cmd.java_major_for_mc(str(detected.get("mc_version") or ""))
-        ) or current_image
-    return _view(
+    if server_image and server_image not in images:
+        images.insert(0, server_image)
+    details = dict(details)
+    details["docker_images"] = images
+    chosen_image = cmd.resolve_java_image(
+        java_image,
+        server_image,
+        images,
+        str(detected.get("mc_version") or ""),
+    )
+    current_launch = ""
+    if current_row and current_row.get("launch") in {"jar", "args"}:
+        current_launch = str(current_row["launch"])
+    elif parsed["launch"] in {"jar", "args"}:
+        current_launch = parsed["launch"]
+    if (
+        selected
+        and not selected.get("jar")
+        and selected.get("id") == "arclight"
+        and build_name
+    ):
+        from app.services.minecraft.core_builds import arclight_jar_name, is_build_name
+
+        if is_build_name(build_name.strip()):
+            selected = dict(selected)
+            selected["jar"] = arclight_jar_name(
+                use_loader,
+                str(detected.get("mc_version") or ""),
+                build_name.strip(),
+            )
+    view = _view(
         detected=detected,
         loader=use_loader,
         choices=choices,
@@ -312,9 +391,52 @@ def read_startup(
         jvm_args=jvm,
         user_jvm_args=str(file_args or ""),
         java_image=chosen_image,
+        current_java_image=server_image,
+        current_command=live,
+        current_jvm_args=parsed["jvm"] if parsed["launch"] == "jar" else "",
+        current_user_jvm_args=str(disk_args or ""),
+        current_selected_id=str((current_row or {}).get("id") or ""),
+        current_launch=current_launch,
         wrote=wrote,
         write_message=write_message,
     )
+    view["build_channel"] = (build_channel or "").strip()
+    view["build_name"] = (build_name or "").strip()
+    return _finish(db, view)
+
+
+def list_core_builds(db: Session, core_id: str) -> dict[str, Any]:
+    from app.services.minecraft.core_builds import (
+        CoreBuildError,
+        list_arclight_builds,
+        supports_remote_builds,
+    )
+
+    if not supports_remote_builds(core_id):
+        raise StartupError("这个核心没有可下载的版本", status_code=400)
+    try:
+        base, token, uuid = require_pelican(db)
+    except Exception as exc:
+        message = getattr(exc, "message", None) or "未配置 Pelican"
+        raise StartupError(message) from exc
+    detected = cmd.detect_install(
+        _names(_list_names(base, token, uuid, "/")),
+        _unix_paths(base, token, uuid),
+    )
+    loader = str(detected.get("loader") or "")
+    mc_version = str(detected.get("mc_version") or "")
+    if not mc_version:
+        raise StartupError("还没认出 Minecraft 版本")
+    try:
+        options = list_arclight_builds(loader, mc_version)
+    except CoreBuildError as exc:
+        raise StartupError(exc.message, status_code=exc.status_code) from exc
+    return {
+        "core_id": core_id,
+        "loader": loader,
+        "mc_version": mc_version,
+        "options": options,
+    }
 
 
 def apply_startup(
@@ -325,6 +447,8 @@ def apply_startup(
     java_image: str = "",
     jvm_args: str = "",
     user_jvm_args: str = "",
+    build_channel: str = "",
+    build_name: str = "",
 ) -> dict[str, Any]:
     if not (core_id or "").strip():
         return read_startup(
@@ -333,6 +457,8 @@ def apply_startup(
             java_image=java_image,
             jvm_args=jvm_args,
             user_jvm_args=user_jvm_args,
+            build_channel=build_channel,
+            build_name=build_name,
         )
     base, token, uuid = require_pelican(db)
     preview = read_startup(
@@ -342,11 +468,12 @@ def apply_startup(
         java_image=java_image,
         jvm_args=jvm_args,
         user_jvm_args=user_jvm_args,
+        build_channel=build_channel,
+        build_name=build_name,
     )
     if not preview["pelican_configured"]:
         raise StartupError(preview["message"] or "未配置 Pelican")
     messages: list[str] = []
-    wrote_command = False
     image = str(preview.get("java_image") or "")
     allowed = {row["image"] for row in preview.get("java_images") or []}
     if image and image in allowed:
@@ -359,23 +486,6 @@ def apply_startup(
             pelican.write_file(base, token, uuid, _ARGS_FILE, str(user_jvm_args or ""))
         except pelican.PelicanError as exc:
             messages.append(exc.message)
-    if preview["complete"] and preview["command"]:
-        try:
-            details = pelican.startup_details(pelican.get_startup(base, token, uuid))
-        except pelican.PelicanError as exc:
-            messages.append(exc.message)
-            details = {"variables": []}
-        key = cmd.startup_variable_key(details.get("variables") or [])
-        if not key:
-            messages.append("Egg 的启动模板还不是 {{STARTUP_CMD}}，指令先不写入")
-        else:
-            try:
-                pelican.update_startup_variable(
-                    base, token, uuid, key, preview["command"]
-                )
-                wrote_command = True
-            except pelican.PelicanError as exc:
-                messages.append(exc.message)
     return read_startup(
         db,
         loader=loader,
@@ -383,6 +493,97 @@ def apply_startup(
         java_image=java_image,
         jvm_args=jvm_args,
         user_jvm_args=user_jvm_args,
-        wrote=wrote_command,
+        build_channel=build_channel,
+        build_name=build_name,
         write_message="；".join(messages),
+    )
+
+
+def sync_startup_command(
+    db: Session,
+    *,
+    loader: str = "",
+    core_id: str,
+    java_image: str = "",
+    jvm_args: str = "",
+    user_jvm_args: str = "",
+    build_channel: str = "",
+    build_name: str = "",
+) -> dict[str, Any]:
+    """下载所选服务端核心，并把启动指令写到 Pelican。"""
+    if not get_pelican_application_token(db):
+        raise StartupError("未配置管理端 API Token")
+    if not (core_id or "").strip():
+        raise StartupError("还没有选择服务端")
+    base, token, uuid = require_pelican(db)
+    preview = read_startup(
+        db,
+        loader=loader,
+        core_id=core_id,
+        java_image=java_image,
+        jvm_args=jvm_args,
+        user_jvm_args=user_jvm_args,
+        build_channel=build_channel,
+        build_name=build_name,
+    )
+    command = str(preview.get("command") or "").strip()
+    if not command:
+        raise StartupError(preview.get("message") or "指令还不完整")
+    image = str(preview.get("java_image") or "")
+    allowed = {row["image"] for row in preview.get("java_images") or []}
+    if image and image in allowed:
+        pelican.update_docker_image(base, token, uuid, image)
+    if preview.get("launch") == "args":
+        pelican.write_file(base, token, uuid, _ARGS_FILE, str(user_jvm_args or ""))
+    elif core_id == "arclight" and build_name:
+        from app.services.minecraft.core_builds import (
+            CoreBuildError,
+            arclight_download_url,
+            arclight_jar_name,
+        )
+
+        try:
+            filename = arclight_jar_name(
+                str(preview.get("loader") or ""),
+                str(preview.get("mc_version") or ""),
+                build_name.strip(),
+            )
+            download = arclight_download_url(
+                str(preview.get("mc_version") or ""),
+                str(preview.get("loader") or ""),
+                build_channel.strip(),
+                build_name.strip(),
+            )
+        except CoreBuildError as exc:
+            raise StartupError(exc.message, status_code=exc.status_code) from exc
+        pelican.pull_file(
+            base,
+            token,
+            uuid,
+            url=download,
+            directory="/",
+            filename=filename,
+        )
+    elif not preview.get("complete"):
+        raise StartupError(preview.get("message") or "指令还不完整")
+    app_token = get_pelican_application_token(db)
+    server = pelican.find_application_server(base, app_token, uuid)
+    pelican.update_application_startup(
+        base,
+        app_token,
+        int(server["id"]),
+        int(server["egg"]),
+        command,
+        skip_scripts=bool(server.get("skip_scripts")),
+    )
+    return read_startup(
+        db,
+        loader=loader,
+        core_id=core_id,
+        java_image=java_image,
+        jvm_args=jvm_args,
+        user_jvm_args=user_jvm_args,
+        build_channel=build_channel,
+        build_name=build_name,
+        wrote=True,
     )

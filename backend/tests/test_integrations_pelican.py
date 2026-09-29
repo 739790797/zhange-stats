@@ -9,6 +9,7 @@ def test_pelican_fields_default_empty() -> None:
     pub = ic.public_integrations(cfg)
     assert pub["pelican_configured"] is False
     assert pub["pelican_client_token_set"] is False
+    assert pub["pelican_application_token_set"] is False
 
 
 def test_pelican_token_from_file() -> None:
@@ -25,3 +26,20 @@ def test_pelican_token_from_file() -> None:
     assert cfg["pelican_base_url"] == "https://panel.example.com"
     pub = ic.public_integrations(cfg)
     assert pub["pelican_configured"] is True
+    assert pub["pelican_application_token_set"] is False
+
+
+def test_pelican_application_token_roundtrip() -> None:
+    ic.save_integrations(
+        None,
+        {
+            "pelican_application_token": "papp_secret",
+        },
+    )
+    pub = ic.public_integrations(ic.load_integrations())
+    assert pub["pelican_application_token"] == "papp_secret"
+    assert pub["pelican_application_token_set"] is True
+    ic.save_integrations(None, {"clear_pelican_application_token": True})
+    cleared = ic.public_integrations(ic.load_integrations())
+    assert cleared["pelican_application_token"] == ""
+    assert cleared["pelican_application_token_set"] is False

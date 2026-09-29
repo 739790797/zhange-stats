@@ -4527,6 +4527,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/minecraft/startup/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Startup Builds */
+        get: operations["minecraft_startup_builds_api_guides_minecraft_startup_builds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/minecraft/startup/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minecraft Startup Apply */
+        post: operations["minecraft_startup_apply_api_guides_minecraft_startup_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/minecraft/mod-tools": {
         parameters: {
             query?: never;
@@ -5082,23 +5116,6 @@ export interface paths {
          * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。
          */
         get: operations["health_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/{full_path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Spa Fallback */
-        get: operations["spa_fallback__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7367,6 +7384,16 @@ export interface components {
              */
             pelican_client_token_set: boolean;
             /**
+             * Pelican Application Token
+             * @default
+             */
+            pelican_application_token: string;
+            /**
+             * Pelican Application Token Set
+             * @default false
+             */
+            pelican_application_token_set: boolean;
+            /**
              * Pelican Server Uuid
              * @default
              */
@@ -7461,6 +7488,8 @@ export interface components {
             pelican_base_url?: string | null;
             /** Pelican Client Token */
             pelican_client_token?: string | null;
+            /** Pelican Application Token */
+            pelican_application_token?: string | null;
             /** Pelican Server Uuid */
             pelican_server_uuid?: string | null;
             /**
@@ -7468,6 +7497,11 @@ export interface components {
              * @default false
              */
             clear_pelican_client_token: boolean;
+            /**
+             * Clear Pelican Application Token
+             * @default false
+             */
+            clear_pelican_application_token: boolean;
             /** Minecraft Rcon Host */
             minecraft_rcon_host?: string | null;
             /** Minecraft Rcon Port */
@@ -9805,6 +9839,44 @@ export interface components {
              */
             online: boolean;
         };
+        /** MinecraftStartupBuildChannelOut */
+        MinecraftStartupBuildChannelOut: {
+            /** Value */
+            value: string;
+            /** Label */
+            label: string;
+            /** Children */
+            children?: components["schemas"]["MinecraftStartupBuildOut"][];
+        };
+        /** MinecraftStartupBuildOut */
+        MinecraftStartupBuildOut: {
+            /** Value */
+            value: string;
+            /** Label */
+            label: string;
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+        };
+        /** MinecraftStartupBuildsOut */
+        MinecraftStartupBuildsOut: {
+            /** Core Id */
+            core_id: string;
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Mc Version
+             * @default
+             */
+            mc_version: string;
+            /** Options */
+            options?: components["schemas"]["MinecraftStartupBuildChannelOut"][];
+        };
         /** MinecraftStartupCoreOut */
         MinecraftStartupCoreOut: {
             /** Id */
@@ -9876,6 +9948,16 @@ export interface components {
              * @default
              */
             user_jvm_args: string;
+            /**
+             * Build Channel
+             * @default
+             */
+            build_channel: string;
+            /**
+             * Build Name
+             * @default
+             */
+            build_name: string;
         };
         /** MinecraftStartupOut */
         MinecraftStartupOut: {
@@ -9915,6 +9997,11 @@ export interface components {
              * @default
              */
             selected_id: string;
+            /**
+             * Current Selected Id
+             * @default
+             */
+            current_selected_id: string;
             /** Java Images */
             java_images?: components["schemas"]["MinecraftStartupImageOut"][];
             /**
@@ -9928,11 +10015,27 @@ export interface components {
              */
             java_warning: string;
             /**
+             * Current Java Image
+             * @default
+             */
+            current_java_image: string;
+            /**
+             * Current Java Warning
+             * @default
+             */
+            current_java_warning: string;
+            /**
              * Launch
              * @default jar
              * @enum {string}
              */
             launch: "jar" | "args";
+            /**
+             * Current Launch
+             * @default
+             * @enum {string}
+             */
+            current_launch: "jar" | "args" | "";
             /**
              * Jvm Args
              * @default
@@ -9944,6 +10047,16 @@ export interface components {
              */
             user_jvm_args: string;
             /**
+             * Current Jvm Args
+             * @default
+             */
+            current_jvm_args: string;
+            /**
+             * Current User Jvm Args
+             * @default
+             */
+            current_user_jvm_args: string;
+            /**
              * Suggested Heap
              * @default
              */
@@ -9953,6 +10066,21 @@ export interface components {
              * @default
              */
             command: string;
+            /**
+             * Current Command
+             * @default
+             */
+            current_command: string;
+            /**
+             * Build Channel
+             * @default
+             */
+            build_channel: string;
+            /**
+             * Build Name
+             * @default
+             */
+            build_name: string;
             /**
              * Complete
              * @default false
@@ -9984,6 +10112,11 @@ export interface components {
              * @default false
              */
             plugins_ready: boolean;
+            /**
+             * Application Token Set
+             * @default false
+             */
+            application_token_set: boolean;
         };
         /** MinecraftStatusOut */
         MinecraftStatusOut: {
@@ -26285,6 +26418,71 @@ export interface operations {
             };
         };
     };
+    minecraft_startup_builds_api_guides_minecraft_startup_builds_get: {
+        parameters: {
+            query?: {
+                /** @description 核心 id，例如 arclight */
+                core?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftStartupBuildsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minecraft_startup_apply_api_guides_minecraft_startup_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftStartupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftStartupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     minecraft_mod_tools_api_guides_minecraft_mod_tools_get: {
         parameters: {
             query?: {
@@ -27563,37 +27761,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    spa_fallback__full_path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                full_path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

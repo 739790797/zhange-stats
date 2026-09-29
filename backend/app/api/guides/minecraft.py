@@ -156,20 +156,30 @@ class MinecraftStartupOut(BaseModel):
     loader_choices: list[str] = Field(default_factory=list)
     cores: list[MinecraftStartupCoreOut] = Field(default_factory=list)
     selected_id: str = ""
+    current_selected_id: str = ""
     java_images: list[MinecraftStartupImageOut] = Field(default_factory=list)
     java_image: str = ""
     java_warning: str = ""
+    current_java_image: str = ""
+    current_java_warning: str = ""
     launch: Literal["jar", "args"] = "jar"
+    current_launch: Literal["jar", "args", ""] = ""
     jvm_args: str = ""
     user_jvm_args: str = ""
+    current_jvm_args: str = ""
+    current_user_jvm_args: str = ""
     suggested_heap: str = ""
     command: str = ""
+    current_command: str = ""
+    build_channel: str = ""
+    build_name: str = ""
     complete: bool = False
     synced: bool = False
     message: str = ""
     kind: Literal["mod", "plugin", "hybrid", ""] = ""
     plugins_visible: bool = False
     plugins_ready: bool = False
+    application_token_set: bool = False
 
 
 class MinecraftStartupIn(BaseModel):
@@ -178,6 +188,27 @@ class MinecraftStartupIn(BaseModel):
     java_image: str = ""
     jvm_args: str = ""
     user_jvm_args: str = ""
+    build_channel: str = ""
+    build_name: str = ""
+
+
+class MinecraftStartupBuildOut(BaseModel):
+    value: str
+    label: str
+    filename: str = ""
+
+
+class MinecraftStartupBuildChannelOut(BaseModel):
+    value: str
+    label: str
+    children: list[MinecraftStartupBuildOut] = Field(default_factory=list)
+
+
+class MinecraftStartupBuildsOut(BaseModel):
+    core_id: str
+    loader: str = ""
+    mc_version: str = ""
+    options: list[MinecraftStartupBuildChannelOut] = Field(default_factory=list)
 
 
 class MinecraftModPinOut(BaseModel):
@@ -633,9 +664,59 @@ def minecraft_startup_put(
             java_image=body.java_image,
             jvm_args=body.jvm_args,
             user_jvm_args=body.user_jvm_args,
+            build_channel=body.build_channel,
+            build_name=body.build_name,
         )
     except startup_svc.StartupError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except MinecraftFilesError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return MinecraftStartupOut.model_validate(data)
+
+
+@router.get(
+    "/startup/builds",
+    response_model=MinecraftStartupBuildsOut,
+    dependencies=[_FEATURE],
+)
+def minecraft_startup_builds(
+    core: str = Query("", description="核心 id，例如 arclight"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftStartupBuildsOut:
+    try:
+        data = startup_svc.list_core_builds(db, core.strip())
+    except startup_svc.StartupError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return MinecraftStartupBuildsOut.model_validate(data)
+
+
+@router.post("/startup/apply", response_model=MinecraftStartupOut, dependencies=[_FEATURE])
+def minecraft_startup_apply(
+    body: MinecraftStartupIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftStartupOut:
+    from app.services.minecraft.files import MinecraftFilesError
+
+    try:
+        data = startup_svc.sync_startup_command(
+            db,
+            loader=body.loader,
+            core_id=body.core_id,
+            java_image=body.java_image,
+            jvm_args=body.jvm_args,
+            user_jvm_args=body.user_jvm_args,
+            build_channel=body.build_channel,
+            build_name=body.build_name,
+        )
+    except startup_svc.StartupError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except pelican.PelicanError as exc:
+        raise HTTPException(
+            status_code=pelican.pelican_browser_status(exc.status_code),
+            detail=exc.message,
+        ) from exc
     except MinecraftFilesError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return MinecraftStartupOut.model_validate(data)

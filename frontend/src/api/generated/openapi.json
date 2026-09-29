@@ -15228,6 +15228,104 @@
         ]
       }
     },
+    "/api/guides/minecraft/startup/builds": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Startup Builds",
+        "operationId": "minecraft_startup_builds_api_guides_minecraft_startup_builds_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "core",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "核心 id，例如 arclight",
+              "default": "",
+              "title": "Core"
+            },
+            "description": "核心 id，例如 arclight"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftStartupBuildsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/minecraft/startup/apply": {
+      "post": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Startup Apply",
+        "operationId": "minecraft_startup_apply_api_guides_minecraft_startup_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftStartupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftStartupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/guides/minecraft/mod-tools": {
       "get": {
         "tags": [
@@ -17230,43 +17328,6 @@
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/{full_path}": {
-      "get": {
-        "summary": "Spa Fallback",
-        "operationId": "spa_fallback__full_path__get",
-        "parameters": [
-          {
-            "name": "full_path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Full Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
               }
             }
           }
@@ -22164,6 +22225,16 @@
             "title": "Pelican Client Token Set",
             "default": false
           },
+          "pelican_application_token": {
+            "type": "string",
+            "title": "Pelican Application Token",
+            "default": ""
+          },
+          "pelican_application_token_set": {
+            "type": "boolean",
+            "title": "Pelican Application Token Set",
+            "default": false
+          },
           "pelican_server_uuid": {
             "type": "string",
             "title": "Pelican Server Uuid",
@@ -22332,6 +22403,17 @@
             ],
             "title": "Pelican Client Token"
           },
+          "pelican_application_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pelican Application Token"
+          },
           "pelican_server_uuid": {
             "anyOf": [
               {
@@ -22346,6 +22428,11 @@
           "clear_pelican_client_token": {
             "type": "boolean",
             "title": "Clear Pelican Client Token",
+            "default": false
+          },
+          "clear_pelican_application_token": {
+            "type": "boolean",
+            "title": "Clear Pelican Application Token",
             "default": false
           },
           "minecraft_rcon_host": {
@@ -27025,6 +27112,84 @@
         ],
         "title": "MinecraftRosterPlayerOut"
       },
+      "MinecraftStartupBuildChannelOut": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftStartupBuildOut"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "MinecraftStartupBuildChannelOut"
+      },
+      "MinecraftStartupBuildOut": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "MinecraftStartupBuildOut"
+      },
+      "MinecraftStartupBuildsOut": {
+        "properties": {
+          "core_id": {
+            "type": "string",
+            "title": "Core Id"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version",
+            "default": ""
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftStartupBuildChannelOut"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "core_id"
+        ],
+        "title": "MinecraftStartupBuildsOut"
+      },
       "MinecraftStartupCoreOut": {
         "properties": {
           "id": {
@@ -27126,6 +27291,16 @@
             "type": "string",
             "title": "User Jvm Args",
             "default": ""
+          },
+          "build_channel": {
+            "type": "string",
+            "title": "Build Channel",
+            "default": ""
+          },
+          "build_name": {
+            "type": "string",
+            "title": "Build Name",
+            "default": ""
           }
         },
         "type": "object",
@@ -27181,6 +27356,11 @@
             "title": "Selected Id",
             "default": ""
           },
+          "current_selected_id": {
+            "type": "string",
+            "title": "Current Selected Id",
+            "default": ""
+          },
           "java_images": {
             "items": {
               "$ref": "#/components/schemas/MinecraftStartupImageOut"
@@ -27198,6 +27378,16 @@
             "title": "Java Warning",
             "default": ""
           },
+          "current_java_image": {
+            "type": "string",
+            "title": "Current Java Image",
+            "default": ""
+          },
+          "current_java_warning": {
+            "type": "string",
+            "title": "Current Java Warning",
+            "default": ""
+          },
           "launch": {
             "type": "string",
             "enum": [
@@ -27206,6 +27396,16 @@
             ],
             "title": "Launch",
             "default": "jar"
+          },
+          "current_launch": {
+            "type": "string",
+            "enum": [
+              "jar",
+              "args",
+              ""
+            ],
+            "title": "Current Launch",
+            "default": ""
           },
           "jvm_args": {
             "type": "string",
@@ -27217,6 +27417,16 @@
             "title": "User Jvm Args",
             "default": ""
           },
+          "current_jvm_args": {
+            "type": "string",
+            "title": "Current Jvm Args",
+            "default": ""
+          },
+          "current_user_jvm_args": {
+            "type": "string",
+            "title": "Current User Jvm Args",
+            "default": ""
+          },
           "suggested_heap": {
             "type": "string",
             "title": "Suggested Heap",
@@ -27225,6 +27435,21 @@
           "command": {
             "type": "string",
             "title": "Command",
+            "default": ""
+          },
+          "current_command": {
+            "type": "string",
+            "title": "Current Command",
+            "default": ""
+          },
+          "build_channel": {
+            "type": "string",
+            "title": "Build Channel",
+            "default": ""
+          },
+          "build_name": {
+            "type": "string",
+            "title": "Build Name",
             "default": ""
           },
           "complete": {
@@ -27261,6 +27486,11 @@
           "plugins_ready": {
             "type": "boolean",
             "title": "Plugins Ready",
+            "default": false
+          },
+          "application_token_set": {
+            "type": "boolean",
+            "title": "Application Token Set",
             "default": false
           }
         },

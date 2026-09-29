@@ -9,6 +9,7 @@ from app.services.minecraft.startup_cmd import (
     java_warning,
     mc_from_neoforge,
     parse_command,
+    resolve_java_image,
     suggest_heap_flags,
     suggest_image,
 )
@@ -91,9 +92,22 @@ def test_parse_both_command_shapes():
 
 def test_java_image_suggestion_and_warning():
     images = [
+        "ghcr.io/pelican-eggs/yolks:java_8",
         "ghcr.io/pelican-eggs/yolks:java_17",
         "ghcr.io/pelican-eggs/yolks:java_21",
     ]
     assert suggest_image(images, 21).endswith("java_21")
-    assert "Java 17" in java_warning(images[0], 21)
-    assert java_warning(images[1], 21) == ""
+    assert suggest_image(images, 99) == ""
+    assert "当前镜像" in java_warning(images[0], 21)
+    assert "修改选的镜像" in java_warning(images[0], 21, edited=True)
+    assert java_warning(images[2], 21) == ""
+
+
+def test_resolve_java_image_keeps_panel_image_ahead_of_catalog_order():
+    images = [
+        "ghcr.io/pelican-eggs/yolks:java_8",
+        "ghcr.io/pelican-eggs/yolks:java_21",
+    ]
+    assert resolve_java_image("", images[1], images, "1.21.1") == images[1]
+    assert resolve_java_image("", "", images, "1.21.1") == images[1]
+    assert resolve_java_image(images[0], images[1], images, "1.21.1") == images[0]
