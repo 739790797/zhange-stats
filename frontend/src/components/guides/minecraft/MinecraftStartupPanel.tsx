@@ -225,7 +225,7 @@ export function MinecraftStartupPanel() {
                 value={draft.core_id || undefined}
                 options={(data.cores ?? []).map((row) => ({ value: row.id, label: row.label }))}
                 onChange={changeCore}
-                disabled={!data.cores.length}
+                disabled={!(data.cores ?? []).length}
               />
               {needsBuilds ? (
                 <Cascader
@@ -282,7 +282,7 @@ export function MinecraftStartupPanel() {
                 label: row.image,
               }))}
               onChange={(value) => edit({ java_image: value })}
-              disabled={!data.java_images.length}
+              disabled={!(data.java_images ?? []).length}
             />
             {data.java_warning ? (
               <Typography.Paragraph type="warning" style={{ margin: "8px 0 0" }}>

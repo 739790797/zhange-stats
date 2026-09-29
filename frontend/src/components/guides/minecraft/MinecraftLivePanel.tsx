@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Typography } from "antd";
+import { Alert, Card } from "antd";
 import { useEffect, useState } from "react";
 import { fetchMinecraftStatus } from "@/api/minecraftApi";
 import { apiError } from "@/lib/apiError";
