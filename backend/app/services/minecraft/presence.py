@@ -16,11 +16,7 @@ from app.models.job_run import JobRun
 from app.models.minecraft import MinecraftPresenceSegment
 from app.services.minecraft import profile as profile_svc
 from app.services.minecraft import status as status_svc
-from app.services.integrations_config import (
-    get_minecraft_public_address,
-    get_minecraft_rcon_credentials,
-)
-from app.services.minecraft.rcon import MinecraftRconError, query_list
+from app.services.integrations_config import get_minecraft_public_address
 from app.services.platform_features import is_feature_enabled
 from app.services.scheduler_config import load_scheduler_config
 
@@ -340,14 +336,6 @@ def collect_online_snapshot(db: Session) -> dict[str, Any]:
 
     rcon_names: list[str] | None = None
     rcon_message = ""
-    rcon_host, rcon_port, rcon_password = get_minecraft_rcon_credentials(db)
-    if rcon_host and rcon_password:
-        try:
-            rcon_names = query_list(rcon_host, rcon_port, rcon_password)
-        except (MinecraftRconError, OSError) as exc:
-            rcon_message = getattr(exc, "message", None) or str(exc)
-    elif rcon_host or rcon_password:
-        rcon_message = "RCON 未填地址或密码"
 
     facts = profile_svc.read_cached_live_facts()
     known = _players_from_facts(facts) + _players_from_history(db)

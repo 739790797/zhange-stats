@@ -750,9 +750,23 @@ def startup_details(data: dict[str, Any]) -> dict[str, Any]:
         docker_images.insert(0, image)
     return {
         "command": command,
+        "docker_image": image,
         "docker_images": docker_images,
         "variables": variables,
     }
+
+
+def update_docker_image(
+    base_url: str,
+    token: str,
+    server_uuid: str,
+    image: str,
+) -> None:
+    chosen = (image or "").strip()
+    if not chosen:
+        raise PelicanError("未选择 Java 镜像")
+    url = f"{_server_root(base_url, server_uuid)}/settings/docker-image"
+    _request("PUT", url, token, json_body={"docker_image": chosen})
 
 
 def update_startup_variable(

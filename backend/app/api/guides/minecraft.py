@@ -19,6 +19,7 @@ from app.services.minecraft import mod_tools as mod_tools_svc
 from app.services.minecraft import perf as perf_svc
 from app.services.minecraft import presence as presence_svc
 from app.services.minecraft import profile as profile_svc
+from app.services.minecraft import startup as startup_svc
 from app.services.minecraft import pelican as pelican
 from app.services.integrations_config import get_pelican_credentials
 
@@ -127,6 +128,56 @@ class MinecraftPowerOut(BaseModel):
     ok: bool
     message: str
     power_state: str | None = None
+
+
+class MinecraftStartupCoreOut(BaseModel):
+    id: str
+    label: str
+    kind: Literal["mod", "plugin", "hybrid"]
+    launch: Literal["jar", "args"]
+    bundled: bool = False
+    jar: str = ""
+    unix_args: str = ""
+    server_args: str = ""
+
+
+class MinecraftStartupImageOut(BaseModel):
+    image: str
+    label: str
+
+
+class MinecraftStartupOut(BaseModel):
+    pelican_configured: bool
+    loader: str = ""
+    loader_label: str = ""
+    loader_version: str = ""
+    mc_version: str = ""
+    loader_locked: bool = False
+    loader_choices: list[str] = Field(default_factory=list)
+    cores: list[MinecraftStartupCoreOut] = Field(default_factory=list)
+    selected_id: str = ""
+    java_images: list[MinecraftStartupImageOut] = Field(default_factory=list)
+    java_image: str = ""
+    java_warning: str = ""
+    launch: Literal["jar", "args"] = "jar"
+    jvm_args: str = ""
+    user_jvm_args: str = ""
+    suggested_heap: str = ""
+    command: str = ""
+    complete: bool = False
+    synced: bool = False
+    message: str = ""
+    kind: Literal["mod", "plugin", "hybrid", ""] = ""
+    plugins_visible: bool = False
+    plugins_ready: bool = False
+
+
+class MinecraftStartupIn(BaseModel):
+    loader: str = ""
+    core_id: str = ""
+    java_image: str = ""
+    jvm_args: str = ""
+    user_jvm_args: str = ""
 
 
 class MinecraftModPinOut(BaseModel):
@@ -550,6 +601,44 @@ def minecraft_power(
         return MinecraftPowerOut(ok=True, message="已发送电源指令", power_state=state)
     except pelican.PelicanError as exc:
         raise HTTPException(status_code=pelican.pelican_browser_status(exc.status_code), detail=exc.message) from exc
+
+
+@router.get("/startup", response_model=MinecraftStartupOut, dependencies=[_FEATURE])
+def minecraft_startup_get(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftStartupOut:
+    from app.services.minecraft.files import MinecraftFilesError
+
+    try:
+        data = startup_svc.read_startup(db)
+    except (startup_svc.StartupError, MinecraftFilesError) as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return MinecraftStartupOut.model_validate(data)
+
+
+@router.put("/startup", response_model=MinecraftStartupOut, dependencies=[_FEATURE])
+def minecraft_startup_put(
+    body: MinecraftStartupIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> MinecraftStartupOut:
+    from app.services.minecraft.files import MinecraftFilesError
+
+    try:
+        data = startup_svc.apply_startup(
+            db,
+            loader=body.loader,
+            core_id=body.core_id,
+            java_image=body.java_image,
+            jvm_args=body.jvm_args,
+            user_jvm_args=body.user_jvm_args,
+        )
+    except startup_svc.StartupError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except MinecraftFilesError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return MinecraftStartupOut.model_validate(data)
 
 
 @router.websocket("/console")

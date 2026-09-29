@@ -4509,6 +4509,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/minecraft/startup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft Startup Get */
+        get: operations["minecraft_startup_get_api_guides_minecraft_startup_get"];
+        /** Minecraft Startup Put */
+        put: operations["minecraft_startup_put_api_guides_minecraft_startup_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/minecraft/mod-tools": {
         parameters: {
             query?: never;
@@ -5064,6 +5082,23 @@ export interface paths {
          * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。
          */
         get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/{full_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spa Fallback */
+        get: operations["spa_fallback__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9769,6 +9804,186 @@ export interface components {
              * @default false
              */
             online: boolean;
+        };
+        /** MinecraftStartupCoreOut */
+        MinecraftStartupCoreOut: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "mod" | "plugin" | "hybrid";
+            /**
+             * Launch
+             * @enum {string}
+             */
+            launch: "jar" | "args";
+            /**
+             * Bundled
+             * @default false
+             */
+            bundled: boolean;
+            /**
+             * Jar
+             * @default
+             */
+            jar: string;
+            /**
+             * Unix Args
+             * @default
+             */
+            unix_args: string;
+            /**
+             * Server Args
+             * @default
+             */
+            server_args: string;
+        };
+        /** MinecraftStartupImageOut */
+        MinecraftStartupImageOut: {
+            /** Image */
+            image: string;
+            /** Label */
+            label: string;
+        };
+        /** MinecraftStartupIn */
+        MinecraftStartupIn: {
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Core Id
+             * @default
+             */
+            core_id: string;
+            /**
+             * Java Image
+             * @default
+             */
+            java_image: string;
+            /**
+             * Jvm Args
+             * @default
+             */
+            jvm_args: string;
+            /**
+             * User Jvm Args
+             * @default
+             */
+            user_jvm_args: string;
+        };
+        /** MinecraftStartupOut */
+        MinecraftStartupOut: {
+            /** Pelican Configured */
+            pelican_configured: boolean;
+            /**
+             * Loader
+             * @default
+             */
+            loader: string;
+            /**
+             * Loader Label
+             * @default
+             */
+            loader_label: string;
+            /**
+             * Loader Version
+             * @default
+             */
+            loader_version: string;
+            /**
+             * Mc Version
+             * @default
+             */
+            mc_version: string;
+            /**
+             * Loader Locked
+             * @default false
+             */
+            loader_locked: boolean;
+            /** Loader Choices */
+            loader_choices?: string[];
+            /** Cores */
+            cores?: components["schemas"]["MinecraftStartupCoreOut"][];
+            /**
+             * Selected Id
+             * @default
+             */
+            selected_id: string;
+            /** Java Images */
+            java_images?: components["schemas"]["MinecraftStartupImageOut"][];
+            /**
+             * Java Image
+             * @default
+             */
+            java_image: string;
+            /**
+             * Java Warning
+             * @default
+             */
+            java_warning: string;
+            /**
+             * Launch
+             * @default jar
+             * @enum {string}
+             */
+            launch: "jar" | "args";
+            /**
+             * Jvm Args
+             * @default
+             */
+            jvm_args: string;
+            /**
+             * User Jvm Args
+             * @default
+             */
+            user_jvm_args: string;
+            /**
+             * Suggested Heap
+             * @default
+             */
+            suggested_heap: string;
+            /**
+             * Command
+             * @default
+             */
+            command: string;
+            /**
+             * Complete
+             * @default false
+             */
+            complete: boolean;
+            /**
+             * Synced
+             * @default false
+             */
+            synced: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /**
+             * Kind
+             * @default
+             * @enum {string}
+             */
+            kind: "mod" | "plugin" | "hybrid" | "";
+            /**
+             * Plugins Visible
+             * @default false
+             */
+            plugins_visible: boolean;
+            /**
+             * Plugins Ready
+             * @default false
+             */
+            plugins_ready: boolean;
         };
         /** MinecraftStatusOut */
         MinecraftStatusOut: {
@@ -14502,12 +14717,12 @@ export interface components {
              * Map Slug
              * @default
              */
-            map_slug?: string;
+            map_slug: string;
             /**
              * Phase Kind
              * @default
              */
-            phase_kind?: string;
+            phase_kind: string;
         };
         /** TarkovRaidRoomOverlapCellOut */
         TarkovRaidRoomOverlapCellOut: {
@@ -26017,6 +26232,59 @@ export interface operations {
             };
         };
     };
+    minecraft_startup_get_api_guides_minecraft_startup_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftStartupOut"];
+                };
+            };
+        };
+    };
+    minecraft_startup_put_api_guides_minecraft_startup_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MinecraftStartupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MinecraftStartupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     minecraft_mod_tools_api_guides_minecraft_mod_tools_get: {
         parameters: {
             query?: {
@@ -27295,6 +27563,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    spa_fallback__full_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                full_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -15156,6 +15156,78 @@
         ]
       }
     },
+    "/api/guides/minecraft/startup": {
+      "get": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Startup Get",
+        "operationId": "minecraft_startup_get_api_guides_minecraft_startup_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftStartupOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "guides",
+          "minecraft"
+        ],
+        "summary": "Minecraft Startup Put",
+        "operationId": "minecraft_startup_put_api_guides_minecraft_startup_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinecraftStartupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinecraftStartupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/guides/minecraft/mod-tools": {
       "get": {
         "tags": [
@@ -17158,6 +17230,43 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{full_path}": {
+      "get": {
+        "summary": "Spa Fallback",
+        "operationId": "spa_fallback__full_path__get",
+        "parameters": [
+          {
+            "name": "full_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Full Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -26915,6 +27024,251 @@
           "name"
         ],
         "title": "MinecraftRosterPlayerOut"
+      },
+      "MinecraftStartupCoreOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mod",
+              "plugin",
+              "hybrid"
+            ],
+            "title": "Kind"
+          },
+          "launch": {
+            "type": "string",
+            "enum": [
+              "jar",
+              "args"
+            ],
+            "title": "Launch"
+          },
+          "bundled": {
+            "type": "boolean",
+            "title": "Bundled",
+            "default": false
+          },
+          "jar": {
+            "type": "string",
+            "title": "Jar",
+            "default": ""
+          },
+          "unix_args": {
+            "type": "string",
+            "title": "Unix Args",
+            "default": ""
+          },
+          "server_args": {
+            "type": "string",
+            "title": "Server Args",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "launch"
+        ],
+        "title": "MinecraftStartupCoreOut"
+      },
+      "MinecraftStartupImageOut": {
+        "properties": {
+          "image": {
+            "type": "string",
+            "title": "Image"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image",
+          "label"
+        ],
+        "title": "MinecraftStartupImageOut"
+      },
+      "MinecraftStartupIn": {
+        "properties": {
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "core_id": {
+            "type": "string",
+            "title": "Core Id",
+            "default": ""
+          },
+          "java_image": {
+            "type": "string",
+            "title": "Java Image",
+            "default": ""
+          },
+          "jvm_args": {
+            "type": "string",
+            "title": "Jvm Args",
+            "default": ""
+          },
+          "user_jvm_args": {
+            "type": "string",
+            "title": "User Jvm Args",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MinecraftStartupIn"
+      },
+      "MinecraftStartupOut": {
+        "properties": {
+          "pelican_configured": {
+            "type": "boolean",
+            "title": "Pelican Configured"
+          },
+          "loader": {
+            "type": "string",
+            "title": "Loader",
+            "default": ""
+          },
+          "loader_label": {
+            "type": "string",
+            "title": "Loader Label",
+            "default": ""
+          },
+          "loader_version": {
+            "type": "string",
+            "title": "Loader Version",
+            "default": ""
+          },
+          "mc_version": {
+            "type": "string",
+            "title": "Mc Version",
+            "default": ""
+          },
+          "loader_locked": {
+            "type": "boolean",
+            "title": "Loader Locked",
+            "default": false
+          },
+          "loader_choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Loader Choices"
+          },
+          "cores": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftStartupCoreOut"
+            },
+            "type": "array",
+            "title": "Cores"
+          },
+          "selected_id": {
+            "type": "string",
+            "title": "Selected Id",
+            "default": ""
+          },
+          "java_images": {
+            "items": {
+              "$ref": "#/components/schemas/MinecraftStartupImageOut"
+            },
+            "type": "array",
+            "title": "Java Images"
+          },
+          "java_image": {
+            "type": "string",
+            "title": "Java Image",
+            "default": ""
+          },
+          "java_warning": {
+            "type": "string",
+            "title": "Java Warning",
+            "default": ""
+          },
+          "launch": {
+            "type": "string",
+            "enum": [
+              "jar",
+              "args"
+            ],
+            "title": "Launch",
+            "default": "jar"
+          },
+          "jvm_args": {
+            "type": "string",
+            "title": "Jvm Args",
+            "default": ""
+          },
+          "user_jvm_args": {
+            "type": "string",
+            "title": "User Jvm Args",
+            "default": ""
+          },
+          "suggested_heap": {
+            "type": "string",
+            "title": "Suggested Heap",
+            "default": ""
+          },
+          "command": {
+            "type": "string",
+            "title": "Command",
+            "default": ""
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "default": false
+          },
+          "synced": {
+            "type": "boolean",
+            "title": "Synced",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mod",
+              "plugin",
+              "hybrid",
+              ""
+            ],
+            "title": "Kind",
+            "default": ""
+          },
+          "plugins_visible": {
+            "type": "boolean",
+            "title": "Plugins Visible",
+            "default": false
+          },
+          "plugins_ready": {
+            "type": "boolean",
+            "title": "Plugins Ready",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "pelican_configured"
+        ],
+        "title": "MinecraftStartupOut"
       },
       "MinecraftStatusOut": {
         "properties": {

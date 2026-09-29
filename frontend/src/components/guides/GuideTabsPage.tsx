@@ -7,6 +7,7 @@ export type GuideTabItem = {
   key: string;
   label: ReactNode;
   children: ReactNode;
+  disabled?: boolean;
 };
 
 export type GuideTabsPageProps = {

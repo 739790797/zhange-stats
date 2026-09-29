@@ -20,6 +20,7 @@ import {
   isMinecraftPinnableFile,
   modPresetStatusMessage,
   pingBadge,
+  heapFlagsFromText,
   minecraftUploadJobLabel,
   minecraftUploadProgressPercent,
 } from "@/components/guides/minecraft/minecraftUi";
@@ -210,5 +211,15 @@ describe("minecraft upload progress copy", () => {
     expect(minecraftUploadProgressPercent("uploading", null)).toBe(0);
     expect(minecraftUploadProgressPercent("writing", null)).toBe(100);
     expect(minecraftUploadProgressPercent("uploading", 18)).toBe(18);
+  });
+});
+
+describe("heap flags carried onto a jar command", () => {
+  it("keeps only -Xms and -Xmx", () => {
+    expect(
+      heapFlagsFromText(
+        "-Xms4G --add-opens java.base/java.lang=ALL-UNNAMED -Xmx4G",
+      ),
+    ).toBe("-Xms4G -Xmx4G");
   });
 });

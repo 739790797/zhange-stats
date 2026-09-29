@@ -1,8 +1,11 @@
 import { lazy } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { PageHeader } from "@/components/PageHeader";
 import { GuideTabsPage } from "@/components/guides/GuideTabsPage";
 import { MinecraftLivePanel } from "@/components/guides/minecraft/MinecraftLivePanel";
+import { MinecraftStartupPanel } from "@/components/guides/minecraft/MinecraftStartupPanel";
+import { fetchMinecraftStartup } from "@/api/minecraftApi";
 import { isAdminUser } from "@/lib/isAdminUser";
 
 const MinecraftManagePanel = lazy(() =>
@@ -17,23 +20,38 @@ const MinecraftModToolsPanel = lazy(() =>
   })),
 );
 
+const MinecraftPluginsPanel = lazy(() =>
+  import("@/components/guides/minecraft/MinecraftPluginsPanel").then((m) => ({
+    default: m.MinecraftPluginsPanel,
+  })),
+);
+
 export default function MinecraftPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = isAdminUser(user);
+  const startup = useQuery({
+    queryKey: ["minecraft-startup"],
+    queryFn: fetchMinecraftStartup,
+    enabled: isAdmin,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
 
   const overview = <MinecraftLivePanel />;
 
   if (!isAdmin) {
     return (
       <div>
-        <PageHeader
-          title="Minecraft"
-          subtitle="服况与在线玩家。启停、文件与模组由管理员操作。"
-        />
+        <PageHeader title="Minecraft" subtitle="服况。" />
         {overview}
       </div>
     );
   }
+
+  const kind = startup.data?.kind;
+  const showPlugins = Boolean(startup.data?.plugins_visible);
+  const pluginsReady = Boolean(startup.data?.plugins_ready);
+  const showMods = kind !== "plugin";
 
   return (
     <GuideTabsPage
@@ -42,8 +60,25 @@ export default function MinecraftPage() {
       destroyInactiveTabPane
       tabItems={[
         { key: "overview", label: "总览", children: overview },
+        { key: "startup", label: "启动", children: <MinecraftStartupPanel /> },
         { key: "manage", label: "管理", children: <MinecraftManagePanel /> },
-        { key: "mods", label: "模组", children: <MinecraftModToolsPanel /> },
+        ...(showPlugins
+          ? [
+              {
+                key: "plugins",
+                label: (
+                  <span title={pluginsReady ? undefined : "当前核心还没有成功启动过"}>
+                    插件
+                  </span>
+                ),
+                disabled: !pluginsReady,
+                children: <MinecraftPluginsPanel />,
+              },
+            ]
+          : []),
+        ...(showMods
+          ? [{ key: "mods", label: "模组", children: <MinecraftModToolsPanel /> }]
+          : []),
       ]}
     />
   );

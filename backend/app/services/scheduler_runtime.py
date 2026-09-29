@@ -29,10 +29,6 @@ from app.services.job_runs_prune import prune_job_wrapper
 from app.services.kujiequ.checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
 from app.services.mihoyo.checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
 from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
-from app.services.minecraft.perf import (
-    SAMPLE_INTERVAL_SEC as MINECRAFT_PERF_INTERVAL_SEC,
-)
-from app.services.minecraft.perf import poll_job_wrapper as minecraft_rcon_perf_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland.checkin import checkin_job_wrapper as skland_checkin_job_wrapper
@@ -240,16 +236,6 @@ def register_scheduler_jobs(
             started = True
 
         _remove_job(scheduler, "minecraft_rcon_perf")
-        if is_feature_enabled(db, "guides.minecraft"):
-            scheduler.add_job(
-                wrap_scheduled_job("minecraft_rcon_perf", minecraft_rcon_perf_job),
-                "interval",
-                seconds=MINECRAFT_PERF_INTERVAL_SEC,
-                id="minecraft_rcon_perf",
-                replace_existing=True,
-                max_instances=1,
-            )
-            started = True
 
         if started and not scheduler.running:
 

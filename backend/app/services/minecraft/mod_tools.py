@@ -38,7 +38,6 @@ from app.services.minecraft.mod_registry import (
 )
 from app.services.minecraft import mod_inventory as inventory
 from app.services.minecraft import config_pins as pins_svc
-from app.services.minecraft.rcon import MinecraftRconError, rcon_exec
 from app.services.minecraft.status import strip_section_codes
 
 logger = logging.getLogger(__name__)
@@ -523,13 +522,8 @@ def _rcon_configured(host: str, password: str) -> bool:
 
 
 def rcon_run(db: Session, command: str, *, timeout: float = RCON_TIMEOUT) -> str:
-    host, port, password = _rcon_creds(db)
-    if not _rcon_configured(host, password):
-        raise MinecraftModToolsError("未配置 RCON", status_code=400)
-    try:
-        return rcon_exec(host, port, password, command, timeout=timeout)
-    except MinecraftRconError as exc:
-        raise MinecraftModToolsError(exc.message, status_code=502) from exc
+    del db, command, timeout
+    raise MinecraftModToolsError("已不再通过 RCON 发送指令", status_code=400)
 
 
 def _probe_chunky(db: Session) -> dict[str, Any]:

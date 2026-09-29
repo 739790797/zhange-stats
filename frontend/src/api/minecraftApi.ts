@@ -54,10 +54,29 @@ export type MinecraftPerf = components["schemas"]["MinecraftPerfOut"];
 export type MinecraftPresence = components["schemas"]["MinecraftPresenceOut"];
 export type MinecraftPresenceRow =
   components["schemas"]["MinecraftPresenceRowOut"];
+export type MinecraftStartup = components["schemas"]["MinecraftStartupOut"];
+export type MinecraftStartupIn = components["schemas"]["MinecraftStartupIn"];
 
 export async function fetchMinecraftStatus() {
   const { data } = await client.get<MinecraftStatus>(
     "/guides/minecraft/status",
+    { timeout: 45_000 },
+  );
+  return data;
+}
+
+export async function fetchMinecraftStartup() {
+  const { data } = await client.get<MinecraftStartup>(
+    "/guides/minecraft/startup",
+    { timeout: 45_000 },
+  );
+  return data;
+}
+
+export async function saveMinecraftStartup(body: MinecraftStartupIn) {
+  const { data } = await client.put<MinecraftStartup>(
+    "/guides/minecraft/startup",
+    body,
     { timeout: 45_000 },
   );
   return data;

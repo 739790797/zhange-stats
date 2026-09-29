@@ -366,3 +366,17 @@ export function isMinecraftTextFile(row: {
   if (!ext && row.size > 0 && row.size <= 64 * 1024) return true;
   return false;
 }
+
+/** 从 user_jvm_args 或旧指令里只抽出堆参数，模块参数留在文件里。 */
+export function heapFlagsFromText(text: string) {
+  const found = text.match(/-Xm[sx]\S+/gi) || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of found) {
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(token);
+  }
+  return out.join(" ");
+}
