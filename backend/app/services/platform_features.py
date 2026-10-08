@@ -253,27 +253,28 @@ FEATURE_TREE: list[dict[str, Any]] = [
                     },
                 ],
             },
-            {
-                "id": "guides.minecraft",
-                "name": "Minecraft",
-                "kind": "game",
-                "children": [
-                    {
-                        "id": "guides.minecraft.presence",
-                        "name": "玩家在线时长轮询",
-                        "kind": "job",
-                        "job_id": "minecraft_presence",
-                        "schedule": "interval",
-                    },
-                ],
-            },
+            # Minecraft 页面已停用（总览 / 启动 / 管理 / 插件 / 模组，以及在线时长轮询）。
+            # {
+            #     "id": "guides.minecraft",
+            #     "name": "Minecraft",
+            #     "kind": "game",
+            #     "children": [
+            #         {
+            #             "id": "guides.minecraft.presence",
+            #             "name": "玩家在线时长轮询",
+            #             "kind": "job",
+            #             "job_id": "minecraft_presence",
+            #             "schedule": "interval",
+            #         },
+            #     ],
+            # },
         ],
     },
 ]
 
 JOB_FEATURE_IDS: dict[str, str] = {
     "steam_presence": "steam.presence",
-    "minecraft_presence": "guides.minecraft.presence",
+    # "minecraft_presence": "guides.minecraft.presence",
     "skland_checkin": "skland.checkin",
     "arknights_box_sync": "skland.arknights.box_sync",
     "arknights_catalog_sync": "skland.arknights.catalog_sync",
@@ -309,7 +310,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "zhange": "战鸽数据",
     "tavern": "战鸽酒馆",
     "guides": "游戏",
-    "minecraft": "Minecraft",
+    # "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
 }
 

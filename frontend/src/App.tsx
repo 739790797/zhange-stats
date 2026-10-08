@@ -105,7 +105,7 @@ const TarkovCollectionPage = lazy(
 const TarkovProgressionPage = lazy(
   () => import("@/pages/guides/TarkovProgressionPage"),
 );
-const MinecraftPage = lazy(() => import("@/pages/guides/MinecraftPage"));
+// const MinecraftPage = lazy(() => import("@/pages/guides/MinecraftPage"));
 const TavernListPage = lazy(() => import("@/pages/articles/TavernListPage"));
 const TavernArticlePage = lazy(() => import("@/pages/articles/TavernArticlePage"));
 const TavernAdminPage = lazy(() => import("@/pages/articles/TavernAdminPage"));
@@ -385,6 +385,7 @@ export default function App() {
                 />
                 <Route path="/members" element={<HomeRedirect />} />
                 <Route path="/daily" element={<MyDailyPage />} />
+                {/* Minecraft 页面已停用。
                 <Route
                   path="/guides/minecraft"
                   element={
@@ -393,6 +394,7 @@ export default function App() {
                     </PlatformRoute>
                   }
                 />
+                */}
                 <Route path="/profile" element={<ProfileSettingsPage />} />
                 <Route
                   path="/members/:id/profile"

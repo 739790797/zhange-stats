@@ -1,3 +1,9 @@
+/** Minecraft 页面已停用。总览、启动、管理、插件、模组留在下方注释里。 */
+export default function MinecraftPage() {
+  return null;
+}
+
+/*
 import { lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
@@ -83,3 +89,4 @@ export default function MinecraftPage() {
     />
   );
 }
+*/

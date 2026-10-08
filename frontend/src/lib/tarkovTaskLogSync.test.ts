@@ -16,12 +16,14 @@ import {
   formatSignedDelta,
   mergeQuestProgressFromFolded,
   questProgressDelta,
+  planLatestProfileReplay,
+  questProfileResetPlan,
   mergeQuestProgressFromLogs,
   questsMatchingReplay,
   replayQuestEvents,
   sessionModeMatchesGameMode,
 } from "./tarkovTaskLogSync";
-import type { TarkovLogQuestEvent } from "./tarkovGameLogs";
+import type { TarkovLogIdentity, TarkovLogQuestEvent } from "./tarkovGameLogs";
 
 function ev(
   kind: TarkovLogQuestEvent["kind"],
@@ -30,6 +32,161 @@ function ev(
 ): TarkovLogQuestEvent {
   return { kind, taskId, at };
 }
+
+function ident(
+  profileId: string,
+  at: string,
+  sessionMode = "regular",
+): TarkovLogIdentity {
+  return { profileId, at, sessionMode, accountId: "1", version: "1.0.0" };
+}
+
+describe("questProfileResetPlan", () => {
+  it("keeps the ledger when the stored profile is still current", () => {
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        storedProfileId: "aaa",
+        identities: [ident("aaa", "2026-03-01 10:00:00")],
+      }),
+    ).toEqual({ profileId: "aaa", at: "2026-03-01 10:00:00", reset: false });
+  });
+
+  it("resets when prestige replaced the stored profile", () => {
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        storedProfileId: "old",
+        identities: [
+          ident("old", "2026-01-01 10:00:00"),
+          ident("new", "2026-06-02 08:00:00"),
+          ident("new", "2026-06-01 09:00:00"),
+        ],
+        replayProfileId: "new",
+      }),
+    ).toEqual({ profileId: "new", at: "2026-06-01 09:00:00", reset: true });
+  });
+
+  it("resets a first sync once logs show an earlier profile of this mode", () => {
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        identities: [
+          ident("old", "2026-01-01 10:00:00"),
+          ident("new", "2026-06-01 09:00:00"),
+        ],
+      })?.reset,
+    ).toBe(true);
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        identities: [ident("only", "2026-06-01 09:00:00")],
+      }),
+    ).toMatchObject({ profileId: "only", reset: false });
+  });
+
+  it("does not reset when the replay profile is absent from these logs", () => {
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        storedProfileId: "old",
+        identities: [ident("old", "2026-01-01 10:00:00")],
+        replayProfileId: "missing",
+      }),
+    ).toBeNull();
+  });
+
+  it("does not treat another mode or an older replay as prestige", () => {
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        identities: [
+          ident("pvp-a", "2026-06-01 09:00:00", "regular"),
+          ident("pve-b", "2026-06-02 09:00:00", "pve"),
+        ],
+      }),
+    ).toMatchObject({ profileId: "pvp-a", reset: false });
+    expect(
+      questProfileResetPlan({
+        gameMode: "pvp",
+        storedProfileId: "new",
+        identities: [
+          ident("old", "2026-01-01 10:00:00"),
+          ident("new", "2026-06-01 09:00:00"),
+        ],
+        replayProfileId: "old",
+      }),
+    ).toMatchObject({ profileId: "old", reset: false });
+  });
+});
+
+describe("planLatestProfileReplay", () => {
+  it("uses the only profile when the player has not prestiged", () => {
+    expect(
+      planLatestProfileReplay(
+        [ident("only", "2026-03-01 10:00:00"), ident("only", "2026-04-01 10:00:00")],
+        "pvp",
+      ),
+    ).toEqual({ profileId: "only", at: "2026-03-01 10:00:00" });
+  });
+
+  it("uses the newest profile and ignores an older breakpoint", () => {
+    expect(
+      planLatestProfileReplay(
+        [
+          ident("old", "2026-01-01 10:00:00"),
+          ident("new", "2026-06-02 08:00:00"),
+          ident("new", "2026-06-01 09:00:00"),
+          ident("pve", "2026-07-01 09:00:00", "pve"),
+        ],
+        "pvp",
+      ),
+    ).toEqual({ profileId: "new", at: "2026-06-01 09:00:00" });
+  });
+});
+
+describe("applyQuestLogState prestige clear", () => {
+  it("drops wiped tasks and keeps a start that happens after the new profile", () => {
+    const cleared = new Map([
+      ["old-done", "2026-06-01 09:00:00"],
+      ["old-start", "2026-06-01 09:00:00"],
+      ["old-fail", "2026-06-01 09:00:00"],
+    ]);
+    expect(
+      applyQuestLogState(
+        ["old-done"],
+        ["old-start"],
+        new Map([
+          [
+            "old-start",
+            {
+              kind: "started",
+              at: "2026-06-02 10:00:00",
+              everCompleted: false,
+            },
+          ],
+        ]),
+        undefined,
+        [],
+        cleared,
+      ),
+    ).toEqual({
+      done: [],
+      started: ["old-start"],
+      failed: [],
+    });
+    expect(
+      applyQuestLogState(
+        ["old-done"],
+        ["old-start"],
+        new Map(),
+        undefined,
+        ["old-fail"],
+        cleared,
+      ),
+    ).toEqual({ done: [], started: [], failed: [] });
+  });
+});
 
 describe("sessionModeMatchesGameMode", () => {
   it("maps regular / pvp / pve and drops blank or unknown modes", () => {

@@ -7,7 +7,6 @@ import {
   Divider,
   Form,
   Input,
-  InputNumber,
   Row,
   Space,
   Tag,
@@ -18,8 +17,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 import {
   fetchIntegrationsSettings,
-  testPelicanConnection,
-  testMinecraftRconConnection,
   updateIntegrationsSettings,
 } from "@/api/client";
 import type { IntegrationsUpdate } from "@/api/settingsApi";
@@ -32,15 +29,7 @@ type FormValues = {
   qq_app_id?: string;
   qq_app_key?: string;
   github_token?: string;
-  pelican_base_url?: string;
-  pelican_client_token?: string;
-  pelican_application_token?: string;
-  pelican_server_uuid?: string;
-  minecraft_rcon_host?: string;
-  minecraft_rcon_port?: number;
-  minecraft_rcon_password?: string;
-  minecraft_public_host?: string;
-  minecraft_public_port?: number;
+  // Minecraft 页面已停用，面板 / RCON / 公开地址不再出现在表单里。
 };
 
 function IntegrationMark({ children }: { children: ReactNode }) {
@@ -127,15 +116,6 @@ export default function IntegrationsSettingsPage() {
       qq_app_id: data.qq_app_id || "",
       qq_app_key: data.qq_app_key || "",
       github_token: data.github_token || "",
-      pelican_base_url: data.pelican_base_url || "",
-      pelican_client_token: data.pelican_client_token || "",
-      pelican_application_token: data.pelican_application_token || "",
-      pelican_server_uuid: data.pelican_server_uuid || "",
-      minecraft_rcon_host: data.minecraft_rcon_host || "",
-      minecraft_rcon_port: data.minecraft_rcon_port || 25575,
-      minecraft_rcon_password: data.minecraft_rcon_password || "",
-      minecraft_public_host: data.minecraft_public_host || "",
-      minecraft_public_port: data.minecraft_public_port || 25565,
     });
   }, [data, form]);
 
@@ -148,46 +128,8 @@ export default function IntegrationsSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
-      queryClient.invalidateQueries({ queryKey: ["minecraft-perf"] });
-      queryClient.invalidateQueries({ queryKey: ["minecraft-status"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
-  });
-
-  const testPelican = useMutation({
-    mutationFn: async () => {
-      const values = form.getFieldsValue();
-      return testPelicanConnection({
-        base_url: (values.pelican_base_url || "").trim(),
-        token: (values.pelican_client_token || "").trim() || null,
-        server_uuid: (values.pelican_server_uuid || "").trim(),
-      });
-    },
-    onSuccess: (res) => {
-      if (res.ok) {
-        const extra = [res.server_name, res.power_state]
-          .filter(Boolean)
-          .join(" · ");
-        message.success(extra ? `${res.message}（${extra}）` : res.message);
-      } else message.warning(res.message);
-    },
-    onError: (e: unknown) => message.error(apiError(e, "测试失败")),
-  });
-
-  const testRcon = useMutation({
-    mutationFn: async () => {
-      const values = form.getFieldsValue();
-      return testMinecraftRconConnection({
-        host: (values.minecraft_rcon_host || "").trim(),
-        port: values.minecraft_rcon_port || 0,
-        password: (values.minecraft_rcon_password || "").trim() || null,
-      });
-    },
-    onSuccess: (res) => {
-      if (res.ok) message.success(res.message);
-      else message.warning(res.message);
-    },
-    onError: (e: unknown) => message.error(apiError(e, "测试失败")),
   });
 
   const saveButton = (
@@ -206,9 +148,6 @@ export default function IntegrationsSettingsPage() {
         const steam = values.steam_api_key?.trim() || "";
         const qqKey = values.qq_app_key?.trim() || "";
         const githubToken = values.github_token?.trim() || "";
-        const pelicanToken = values.pelican_client_token?.trim() || "";
-        const pelicanAppToken = values.pelican_application_token?.trim() || "";
-        const rconPassword = values.minecraft_rcon_password?.trim() || "";
         const payload: IntegrationsUpdate = {
           steam_api_key: steam || null,
           qq_app_id: values.qq_app_id ?? "",
@@ -217,18 +156,10 @@ export default function IntegrationsSettingsPage() {
           clear_qq_app_key: !qqKey,
           github_token: githubToken || null,
           clear_github_token: !githubToken,
-          pelican_base_url: values.pelican_base_url ?? "",
-          pelican_client_token: pelicanToken || null,
-          pelican_application_token: pelicanAppToken || null,
-          pelican_server_uuid: values.pelican_server_uuid ?? "",
-          clear_pelican_client_token: !pelicanToken,
-          clear_pelican_application_token: !pelicanAppToken,
-          minecraft_rcon_host: values.minecraft_rcon_host ?? "",
-          minecraft_rcon_port: values.minecraft_rcon_port || 25575,
-          minecraft_rcon_password: rconPassword || null,
-          clear_minecraft_rcon_password: !rconPassword,
-          minecraft_public_host: values.minecraft_public_host ?? "",
-          minecraft_public_port: values.minecraft_public_port || 25565,
+          // 不回写 Minecraft 面板 / RCON / 公开地址，避免保存其它密钥时清空已有值。
+          clear_pelican_client_token: false,
+          clear_pelican_application_token: false,
+          clear_minecraft_rcon_password: false,
         };
         save.mutate(payload);
       }}
@@ -302,6 +233,7 @@ export default function IntegrationsSettingsPage() {
         </Row>
       </IntegrationBlock>
 
+      {/* Minecraft 页面已停用：面板、公开地址、RCON。
       <IntegrationBlock
         icon={
           <IntegrationMark>
@@ -417,6 +349,7 @@ export default function IntegrationsSettingsPage() {
           </Col>
         </Row>
       </IntegrationBlock>
+      */}
 
       <IntegrationBlock
         icon={

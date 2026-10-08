@@ -28,7 +28,7 @@ from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
 from app.services.kujiequ.checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
 from app.services.mihoyo.checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
-from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
+# from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.skland.checkin import checkin_job_wrapper as skland_checkin_job_wrapper
@@ -111,8 +111,8 @@ def resolve_job_callable(
         raise RuntimeError("该任务所属功能未启用")
     if job_id == "steam_presence":
         return wrap_scheduled_job(job_id, poll_job_wrapper)
-    if job_id == "minecraft_presence":
-        return wrap_scheduled_job(job_id, minecraft_presence_job)
+    # if job_id == "minecraft_presence":
+    #     return wrap_scheduled_job(job_id, minecraft_presence_job)
     if job_id in CHECKIN_MANUAL_HANDLERS:
         handler = CHECKIN_MANUAL_HANDLERS[job_id]
 
@@ -185,18 +185,8 @@ def register_scheduler_jobs(
             )
             started = True
 
-        mc_cfg = cfg.get("minecraft_presence") or {}
-        mc_interval = max(1, int(mc_cfg.get("interval_minutes") or 1))
-        if _job_feature_allowed(db, "minecraft_presence"):
-            scheduler.add_job(
-                wrap_scheduled_job("minecraft_presence", minecraft_presence_job),
-                "interval",
-                minutes=mc_interval,
-                id="minecraft_presence",
-                replace_existing=True,
-                max_instances=1,
-            )
-            started = True
+        # Minecraft 页面已停用：卸掉在线时长轮询，不再注册。
+        _remove_job(scheduler, "minecraft_presence")
 
         # 平台签到：功能开启时每分钟巡检（用户 auto_checkin + HH:MM）
         for job_id, func in CHECKIN_DUE_HANDLERS.items():

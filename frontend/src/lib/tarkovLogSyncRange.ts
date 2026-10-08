@@ -34,6 +34,10 @@ export type TarkovLogSyncRangeInput = {
 
 export type TarkovLogSyncOpts = TarkovLogSyncRange & {
   signal?: AbortSignal;
+  /** 实时轮询里发现转生时接着回放，不要和轮询抢同一把锁。 */
+  duringTick?: boolean;
+  /** 自动重置不弹出同步结果表。 */
+  quiet?: boolean;
 };
 
 function beijingDayStart(input: Date | string): string {

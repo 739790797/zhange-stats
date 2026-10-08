@@ -796,7 +796,16 @@ export async function writeTaskProgressLedger(
     started?: readonly string[];
     failed?: readonly string[];
   },
+  opts?: { replace?: boolean },
 ) {
+  if (opts?.replace) {
+    return writeTarkovTaskDones([...next.done], {
+      replace: true,
+      startedIds: [...next.started],
+      failedIds: [...next.failed],
+      objectiveDones: next.objectives ?? [],
+    });
+  }
   for (const id of ledgerIdsToClear(prev || {}, next)) {
     await removeTarkovTaskDone(id);
   }

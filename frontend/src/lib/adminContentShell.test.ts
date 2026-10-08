@@ -23,9 +23,9 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/settings/files")).toBe("wide");
   });
 
-  it("uses wide width for Minecraft guide", () => {
-    expect(adminContentShell("/guides/minecraft")).toBe("wide");
-    expect(adminContentShell("/guides/minecraft/extra")).toBe("wide");
+  it("uses the default shell for /guides/minecraft", () => {
+    expect(adminContentShell("/guides/minecraft")).toBeNull();
+    expect(adminContentShell("/guides/minecraft/extra")).toBeNull();
   });
 
   it("uses flush shell for tavern feed, posts, and editor", () => {

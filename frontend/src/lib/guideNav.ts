@@ -32,13 +32,14 @@ export const GUIDE_NAV: GuideNavNode[] = [
     icon: "tarkov",
     allowGuest: true,
   },
-  {
-    kind: "leaf",
-    path: "/guides/minecraft",
-    label: "Minecraft",
-    featureId: "guides.minecraft",
-    icon: "minecraft",
-  },
+  // Minecraft 页面已停用（总览 / 启动 / 管理 / 插件 / 模组）。
+  // {
+  //   kind: "leaf",
+  //   path: "/guides/minecraft",
+  //   label: "Minecraft",
+  //   featureId: "guides.minecraft",
+  //   icon: "minecraft",
+  // },
 ];
 
 export function flattenGuideLeaves(nodes: GuideNavNode[] = GUIDE_NAV): GuideNavLeaf[] {

@@ -3,7 +3,7 @@
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
 import { notifyTarkovTaskProgress, sameIdLists } from "@/lib/tarkovLiveWatch";
 import { TARKOV_MAPS } from "@/lib/tarkovHomeNav";
-import { laterBeijingClock, nowBeijingStamp } from "@/lib/time";
+import { compareBeijingClock, laterBeijingClock, nowBeijingStamp } from "@/lib/time";
 import { applyMutexLedger, mutexIndexFromTasks } from "@/lib/tarkovTaskMutex";
 import {
   setTaskLineStatus,
@@ -96,7 +96,25 @@ export type TarkovTaskDonesState = {
   objectives?: { pvp?: TaskObjectivePair[]; pve?: TaskObjectivePair[] };
   /** 用户从已完成改走的任务 id → 北京墙钟；日志回放不得用更早的完成事件粘回去。 */
   clearedDone?: { pvp?: Record<string, string>; pve?: Record<string, string> };
+  /** 当前模式日志里的游戏 ProfileId。换 id（转生）后清空任务账再重放。 */
+  questProfileId?: { pvp?: string; pve?: string };
+  /** 转生清空已写本机、账号整表替换还没成功。这段时间以本机账为准。 */
+  questProfileResetPending?: { pvp?: boolean; pve?: boolean };
+  /** 玩家清空进度后，下一次任务同步从当前模式最新 ProfileId 整段重放。 */
+  questSyncFromLatest?: { pvp?: boolean; pve?: boolean };
 };
+
+let questLedgerEpoch = 0;
+
+/** 转生清空后递增，丢掉还在飞的旧合并请求。 */
+export function bumpQuestLedgerEpoch(): number {
+  questLedgerEpoch += 1;
+  return questLedgerEpoch;
+}
+
+export function questLedgerEpochNow(): number {
+  return questLedgerEpoch;
+}
 
 export type AccountTaskProgress = {
   task_ids?: string[];
@@ -112,6 +130,10 @@ export type AccountTaskHydratePlan = {
   objectives: TaskObjectivePair[];
   upload: boolean;
 };
+
+function asProfileId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 function asStampMap(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -861,6 +883,18 @@ function readState(): TarkovTaskDonesState {
           pvp: asStampMap(parsed.clearedDone?.pvp),
           pve: asStampMap(parsed.clearedDone?.pve),
         },
+        questProfileId: {
+          pvp: asProfileId(parsed.questProfileId?.pvp),
+          pve: asProfileId(parsed.questProfileId?.pve),
+        },
+        questProfileResetPending: {
+          pvp: Boolean(parsed.questProfileResetPending?.pvp),
+          pve: Boolean(parsed.questProfileResetPending?.pve),
+        },
+        questSyncFromLatest: {
+          pvp: Boolean(parsed.questSyncFromLatest?.pvp),
+          pve: Boolean(parsed.questSyncFromLatest?.pve),
+        },
       };
     }
   } catch {
@@ -1013,6 +1047,131 @@ export function loadTaskClearedDone(mode: TarkovGameMode): Map<string, string> {
   return new Map(Object.entries(readState().clearedDone?.[mode] || {}));
 }
 
+export function loadQuestProfileId(mode: TarkovGameMode): string {
+  return asProfileId(readState().questProfileId?.[mode]);
+}
+
+export function saveQuestProfileId(mode: TarkovGameMode, profileId: string): void {
+  const id = asProfileId(profileId);
+  if (!id) return;
+  const state = readState();
+  state.questProfileId = { ...state.questProfileId, [mode]: id };
+  writeState(state);
+}
+
+export function loadQuestProfileResetPending(mode: TarkovGameMode): boolean {
+  return Boolean(readState().questProfileResetPending?.[mode]);
+}
+
+export function loadQuestSyncFromLatest(mode: TarkovGameMode): boolean {
+  return Boolean(readState().questSyncFromLatest?.[mode]);
+}
+
+export function clearQuestSyncFromLatest(mode: TarkovGameMode): void {
+  const state = readState();
+  if (!state.questSyncFromLatest?.[mode]) return;
+  state.questSyncFromLatest = {
+    ...state.questSyncFromLatest,
+    [mode]: false,
+  };
+  writeState(state);
+}
+
+/** 去掉这些任务的「已清空」标记，让随后的日志重放能重新记上。 */
+export function releaseClearedTasks(
+  mode: TarkovGameMode,
+  ids: readonly string[],
+): void {
+  const state = readState();
+  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
+  let changed = false;
+  for (const raw of ids) {
+    const id = raw.trim().toLowerCase();
+    if (!id || !(id in modeCleared)) continue;
+    delete modeCleared[id];
+    changed = true;
+  }
+  if (!changed) return;
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  writeState(state);
+}
+
+/** 清空当前模式的任务账，并让下一次同步从最新 ProfileId 重放。没转生时也只有这一个角色。 */
+export function clearTaskProgressForResync(mode: TarkovGameMode): void {
+  const state = readState();
+  const stamp = nowBeijingStamp();
+  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
+  const wiped = new Set<string>([
+    ...asIdList(state[mode]),
+    ...asIdList(state.started?.[mode]),
+    ...asIdList(state.failed?.[mode]),
+  ]);
+  for (const taskId of wiped) {
+    const existing = modeCleared[taskId] || "";
+    modeCleared[taskId] =
+      existing && compareBeijingClock(existing, stamp) > 0 ? existing : stamp;
+  }
+  state[mode] = [];
+  state.started = { ...state.started, [mode]: [] };
+  state.failed = { ...state.failed, [mode]: [] };
+  state.objectives = { ...state.objectives, [mode]: [] };
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: true };
+  state.questProfileResetPending = {
+    ...state.questProfileResetPending,
+    [mode]: true,
+  };
+  writeState(state);
+  bumpQuestLedgerEpoch();
+}
+
+export function clearQuestProfileResetPending(mode: TarkovGameMode): void {
+  const state = readState();
+  if (!state.questProfileResetPending?.[mode]) return;
+  state.questProfileResetPending = {
+    ...state.questProfileResetPending,
+    [mode]: false,
+  };
+  writeState(state);
+}
+
+/** 转生换了 ProfileId：清掉本模式任务账，并用新角色出现的时刻挡住更早的完成日志。 */
+export function resetTaskProgressForProfile(
+  mode: TarkovGameMode,
+  profileId: string,
+  clearedAt: string,
+): void {
+  const id = asProfileId(profileId);
+  if (!id) return;
+  const state = readState();
+  const stamp = asClock(clearedAt) || nowBeijingStamp();
+  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
+  const wiped = new Set<string>([
+    ...asIdList(state[mode]),
+    ...asIdList(state.started?.[mode]),
+    ...asIdList(state.failed?.[mode]),
+  ]);
+  for (const taskId of wiped) {
+    const existing = modeCleared[taskId] || "";
+    modeCleared[taskId] =
+      existing && compareBeijingClock(existing, stamp) > 0 ? existing : stamp;
+  }
+  state[mode] = [];
+  state.started = { ...state.started, [mode]: [] };
+  state.failed = { ...state.failed, [mode]: [] };
+  state.objectives = { ...state.objectives, [mode]: [] };
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  state.questProfileId = { ...state.questProfileId, [mode]: id };
+  state.questProfileResetPending = {
+    ...state.questProfileResetPending,
+    [mode]: true,
+  };
+  state.migrated = { ...state.migrated, [mode]: true };
+  state.startedMigrated = { ...state.startedMigrated, [mode]: true };
+  writeState(state);
+  bumpQuestLedgerEpoch();
+}
+
 /** merge PUT 只加不删；这些 id 要从账号账上 DELETE 掉，手改未完成才能站住。 */
 export function ledgerIdsToClear(
   prev: {
@@ -1082,20 +1241,28 @@ export function planAccountTaskHydrate(input: {
   localObjectives?: readonly TaskObjectivePair[] | null;
   clearedDone?: ReadonlyMap<string, string> | null;
   mutexById?: ReadonlyMap<string, readonly string[]> | null;
+  /** 转生已清本机账：不要把账号上的旧完成 / 进行中 / 步骤并回来。 */
+  authoritativeLocal?: boolean;
 }): AccountTaskHydratePlan {
-  const merged = unionTaskProgress(
-    {
-      done: input.serverDone,
-      started: input.serverStarted,
-      failed: input.serverFailed || [],
-    },
-    {
-      done: input.localDone || [],
-      started: input.localStarted || [],
-      failed: input.localFailed || [],
-    },
-  );
+  const local = {
+    done: input.localDone || [],
+    started: input.localStarted || [],
+    failed: input.localFailed || [],
+  };
+  const merged = input.authoritativeLocal
+    ? cleanTaskProgress(local.done, local.started, local.failed)
+    : unionTaskProgress(
+        {
+          done: input.serverDone,
+          started: input.serverStarted,
+          failed: input.serverFailed || [],
+        },
+        local,
+      );
   const cleared = input.clearedDone;
+  const localDone = new Set(asIdList(input.localDone));
+  const localStarted = new Set(asIdList(input.localStarted));
+  const localFailed = new Set(asIdList(input.localFailed));
   const done = cleared
     ? merged.done.filter((id) => !cleared.has(id))
     : merged.done;
@@ -1107,10 +1274,25 @@ export function planAccountTaskHydrate(input: {
         input.mutexById,
       )
     : cleanTaskProgress(done, merged.started, merged.failed);
-  const objectives = unionObjectivePairs(
-    asObjectivePairs(input.serverObjectives),
-    asObjectivePairs(input.localObjectives),
-  );
+  const started = cleared
+    ? cleaned.started.filter((id) => !cleared.has(id) || localStarted.has(id))
+    : cleaned.started;
+  const failed = cleared
+    ? cleaned.failed.filter((id) => !cleared.has(id) || localFailed.has(id))
+    : cleaned.failed;
+  const objectiveRows = input.authoritativeLocal
+    ? asObjectivePairs(input.localObjectives)
+    : unionObjectivePairs(
+        asObjectivePairs(input.serverObjectives),
+        asObjectivePairs(input.localObjectives),
+      );
+  const objectives = cleared
+    ? objectiveRows.filter((pair) => {
+        const id = pair.task_id.trim().toLowerCase();
+        if (!cleared.has(id)) return true;
+        return localDone.has(id) || localStarted.has(id);
+      })
+    : objectiveRows;
   const server = taskProgressQueryData(
     input.serverDone,
     input.serverStarted,
@@ -1118,7 +1300,9 @@ export function planAccountTaskHydrate(input: {
     input.serverFailed || [],
   );
   return {
-    ...cleaned,
+    done: cleaned.done,
+    started,
+    failed,
     objectives,
     upload:
       !sameIdLists(cleaned.done, server.task_ids) ||
@@ -1163,6 +1347,7 @@ export function resolveAccountTaskProgress(
     localObjectives: loadTaskObjectivePairs(mode),
     clearedDone: loadTaskClearedDone(mode),
     mutexById,
+    authoritativeLocal: loadQuestProfileResetPending(mode),
   });
   return {
     done: plan.done,

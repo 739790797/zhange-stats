@@ -1,4 +1,4 @@
-import { Alert, Spin, message } from "antd";
+import { Alert, Modal, Spin, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,8 @@ import {
 } from "@/lib/tarkovLiveWatch";
 import { applyTaskLineLedger, taskLineIndexFromTasks } from "@/lib/tarkovTaskLineLedger";
 import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
+import { defaultLogSyncRange } from "@/lib/tarkovLogSyncRange";
+import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
 import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
 import {
@@ -54,6 +56,8 @@ import {
   saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
+  clearQuestProfileResetPending,
+  clearTaskProgressForResync,
   cleanTaskProgress,
   taskIsAvailable,
   taskMatchesQuery,
@@ -290,6 +294,7 @@ export function TarkovTaskManagerPanel() {
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const { faction } = useTarkovPmcFaction();
   const logSync = useTarkovLogSyncDialog();
+  const live = useTarkovLiveWatch();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
@@ -1002,6 +1007,85 @@ export function TarkovTaskManagerPanel() {
                       onClick={() => changeProgressView("tree")}
                     >
                       流程图
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2}>
+                    <button
+                      type="button"
+                      className={styles.clearBtn}
+                      disabled={logSync.busy || logSync.listing}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: "清空任务进度",
+                          content:
+                            "会清掉当前模式下的已完成、进行中、失败和小步骤。",
+                          okText: "清空",
+                          okButtonProps: { danger: true },
+                          cancelText: "取消",
+                          onOk: async () => {
+                            const prev = {
+                              done: loadTaskDoneIds(gameMode),
+                              started: loadTaskStartedIds(gameMode),
+                              failed: loadTaskFailedIds(gameMode),
+                            };
+                            clearTaskProgressForResync(gameMode);
+                            notifyTarkovTaskProgress({
+                              mode: gameMode,
+                              done: [],
+                              started: [],
+                              failed: [],
+                              objectives: [],
+                              changed: true,
+                              source: "user",
+                            });
+                            if (loggedIn) {
+                              try {
+                                await writeTaskProgressLedger(
+                                  {
+                                    done: [],
+                                    started: [],
+                                    failed: [],
+                                    objectives: [],
+                                  },
+                                  prev,
+                                  { replace: true },
+                                );
+                                clearQuestProfileResetPending(gameMode);
+                              } catch (error) {
+                                message.error(apiError(error, "清空任务进度失败"));
+                              }
+                            }
+                            setTimeout(() => {
+                              Modal.confirm({
+                                title: "同步任务",
+                                content:
+                                  "进度已清空。要现在从当前角色的日志同步任务吗？稍后在这里或其他页面同步，也会从当前角色开始。",
+                                okText: "同步",
+                                cancelText: "稍后",
+                                onOk: () => {
+                                  void live
+                                    .syncLogs(defaultLogSyncRange())
+                                    .then((result) => {
+                                      if (
+                                        result.review?.rows.length ||
+                                        result.review?.dropHint
+                                      ) {
+                                        return;
+                                      }
+                                      if (!result.hint) return;
+                                      if (result.ok) message.success(result.hint);
+                                      else message.error(result.hint);
+                                    });
+                                },
+                              });
+                            }, 0);
+                          },
+                        });
+                      }}
+                    >
+                      清空进度
                     </button>
                   </td>
                 </tr>

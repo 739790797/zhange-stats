@@ -2,12 +2,17 @@
 
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
 import type {
+  TarkovLogIdentity,
   TarkovLogParseResult,
   TarkovLogQuestDrop,
   TarkovLogQuestEvent,
   TarkovLogQuestKind,
 } from "@/lib/tarkovGameLogs";
 import { classifyLogSessionMode } from "@/lib/tarkovGameLogs";
+import {
+  breakpointMatchesGameMode,
+  latestIdentityForMode,
+} from "@/lib/tarkovLogBreakpoints";
 import { compareBeijingClock, formatBeijing, laterBeijingClock } from "@/lib/time";
 import { applyMutexLedger } from "@/lib/tarkovTaskMutex";
 import {
@@ -71,6 +76,78 @@ export function buildQuestLogCatalog(
     mutexById: line.mutexById,
     prereqById: line.prereqById,
     blockedById: line.blockedById,
+  };
+}
+
+export type QuestProfileResetPlan = {
+  profileId: string;
+  /** 该角色第一次出现的北京墙钟。更早的完成日志不再写回。 */
+  at: string;
+  reset: boolean;
+};
+
+function earliestProfileAt(
+  identities: readonly TarkovLogIdentity[],
+  gameMode: TarkovGameMode,
+  profileId: string,
+): string {
+  let at = "";
+  for (const row of identities) {
+    if ((row.profileId || "").trim() !== profileId) continue;
+    if (!breakpointMatchesGameMode(row, gameMode)) continue;
+    const clock = (row.at || "").trim();
+    if (!at || compareBeijingClock(clock, at) < 0) at = clock;
+  }
+  return at;
+}
+
+/**
+ * 转生会换 ProfileId。正在回放的如果是该模式最新角色，且和账上记的不是同一个，
+ * 先清空再重放。回放更早的角色、或日志里只有这一个角色时保持合并。
+ */
+export function questProfileResetPlan(input: {
+  gameMode: TarkovGameMode;
+  storedProfileId?: string;
+  identities: readonly TarkovLogIdentity[];
+  replayProfileId?: string;
+}): QuestProfileResetPlan | null {
+  const latestId = (
+    latestIdentityForMode(input.identities, input.gameMode)?.profileId || ""
+  ).trim();
+  const replayId = (input.replayProfileId || latestId).trim();
+  if (!replayId) return null;
+  const seenReplay = input.identities.some((row) => {
+    if ((row.profileId || "").trim() !== replayId) return false;
+    return breakpointMatchesGameMode(row, input.gameMode);
+  });
+  if (!seenReplay) return null;
+  const at = earliestProfileAt(input.identities, input.gameMode, replayId);
+  if (latestId && replayId !== latestId) {
+    return { profileId: replayId, at, reset: false };
+  }
+  const stored = (input.storedProfileId || "").trim();
+  if (stored === replayId) return { profileId: replayId, at, reset: false };
+  if (stored) return { profileId: replayId, at, reset: true };
+  const older = input.identities.some((row) => {
+    if (!breakpointMatchesGameMode(row, input.gameMode)) return false;
+    const id = (row.profileId || "").trim();
+    return Boolean(id) && id !== replayId;
+  });
+  return { profileId: replayId, at, reset: older };
+}
+
+/** 清空进度后的同步：忽略所选旧断点，从该模式最新 ProfileId 的第一次出现重放。 */
+export function planLatestProfileReplay(
+  identities: readonly TarkovLogIdentity[],
+  gameMode: TarkovGameMode,
+): { profileId: string; at: string } | null {
+  const profileId = (
+    latestIdentityForMode(identities, gameMode)?.profileId || ""
+  ).trim();
+  if (!profileId) return null;
+  return {
+    profileId,
+    at: earliestProfileAt(identities, gameMode, profileId),
   };
 }
 
@@ -371,22 +448,27 @@ export function applyQuestLogState(
   }
   if (clearedDone) {
     for (const [id, at] of clearedDone) {
-      if (!id || !nextDone.has(id)) continue;
+      if (!id) continue;
       const folded = logState.get(id);
-      const logAt =
+      const eventAt =
+        folded == null || typeof folded === "string" ? "" : folded.at || "";
+      const completionAt =
         folded == null
           ? ""
-          : logCompletedAt(
-              typeof folded === "string"
-                ? folded
-                : folded,
-            );
+          : logCompletedAt(typeof folded === "string" ? folded : folded);
       const ever =
         typeof folded === "object"
           ? Boolean(folded.everCompleted) || folded.kind === "completed"
           : folded === "completed";
-      if (!ever || shouldHonorClearedDone(id, logAt, new Map([[id, at]]))) {
-        nextDone.delete(id);
+      const clearWins = shouldHonorClearedDone(
+        id,
+        completionAt || eventAt,
+        new Map([[id, at]]),
+      );
+      if (nextDone.has(id) && (!ever || clearWins)) nextDone.delete(id);
+      if (clearWins && shouldHonorClearedDone(id, eventAt, new Map([[id, at]]))) {
+        nextStarted.delete(id);
+        nextFailed.delete(id);
       }
     }
   }

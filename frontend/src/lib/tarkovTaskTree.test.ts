@@ -8,6 +8,7 @@ import {
   groupTasksByTrader,
   loadTaskCursorAt,
   loadTaskDoneIds,
+  loadTaskFailedIds,
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
@@ -26,6 +27,12 @@ import {
   setTaskObjective,
   ledgerIdsToClear,
   loadTaskClearedDone,
+  loadQuestProfileId,
+  loadQuestProfileResetPending,
+  loadQuestSyncFromLatest,
+  releaseClearedTasks,
+  clearTaskProgressForResync,
+  resetTaskProgressForProfile,
   summarizeTaskProgress,
   taskHitsMap,
   taskIsAvailable,
@@ -423,6 +430,91 @@ describe("task dones storage", () => {
     expect(loadTaskSyncAt("pvp")).toBe("2026-08-31 00:42:00");
     expect(loadTaskCursorAt("pvp")).toBe("2026-08-30 20:11:02");
     expect(loadTaskStartedIds("pvp")).toEqual(["s"]);
+  });
+
+  it("clears quest progress for a later sync from the latest profile", () => {
+    saveTaskProgress(
+      "pvp",
+      ["old-done"],
+      ["old-start"],
+      false,
+      false,
+      [{ task_id: "old-done", objective_id: "step" }],
+      ["old-fail"],
+    );
+    saveTaskProgress("pve", ["keep"], []);
+    clearTaskProgressForResync("pvp");
+    expect(loadTaskDoneIds("pvp")).toEqual([]);
+    expect(loadTaskStartedIds("pvp")).toEqual([]);
+    expect(loadTaskFailedIds("pvp")).toEqual([]);
+    expect(loadTaskObjectivePairs("pvp")).toEqual([]);
+    expect(loadTaskDoneIds("pve")).toEqual(["keep"]);
+    expect(loadQuestSyncFromLatest("pvp")).toBe(true);
+    expect(loadQuestSyncFromLatest("pve")).toBe(false);
+    releaseClearedTasks("pvp", ["old-start"]);
+    expect(loadTaskClearedDone("pvp").has("old-start")).toBe(false);
+    expect(loadTaskClearedDone("pvp").has("old-done")).toBe(true);
+  });
+
+  it("clears quest progress when the game profile changes", () => {
+    saveTaskProgress(
+      "pvp",
+      ["old-done"],
+      ["old-start"],
+      false,
+      false,
+      [{ task_id: "old-done", objective_id: "step" }],
+      ["old-fail"],
+    );
+    saveTaskProgress("pve", ["keep"], []);
+    resetTaskProgressForProfile("pvp", "profile-b", "2026-06-01 09:00:00");
+    expect(loadTaskDoneIds("pvp")).toEqual([]);
+    expect(loadTaskStartedIds("pvp")).toEqual([]);
+    expect(loadTaskFailedIds("pvp")).toEqual([]);
+    expect(loadTaskObjectivePairs("pvp")).toEqual([]);
+    expect(loadTaskDoneIds("pve")).toEqual(["keep"]);
+    expect(loadQuestProfileId("pvp")).toBe("profile-b");
+    expect(loadQuestProfileResetPending("pvp")).toBe(true);
+    expect(loadTaskClearedDone("pvp").get("old-done")).toBe("2026-06-01 09:00:00");
+    expect(loadTaskClearedDone("pvp").get("old-start")).toBe("2026-06-01 09:00:00");
+    expect(loadTaskClearedDone("pvp").get("old-fail")).toBe("2026-06-01 09:00:00");
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["old-done"],
+        serverStarted: ["old-start"],
+        serverFailed: ["old-fail"],
+        serverObjectives: [{ task_id: "old-done", objective_id: "step" }],
+        localDone: [],
+        localStarted: ["fresh"],
+        localFailed: [],
+        localObjectives: [],
+        clearedDone: loadTaskClearedDone("pvp"),
+      }),
+    ).toMatchObject({
+      done: [],
+      started: ["fresh"],
+      failed: [],
+      objectives: [],
+    });
+    expect(
+      planAccountTaskHydrate({
+        serverDone: ["old-done"],
+        serverStarted: ["old-start"],
+        serverFailed: ["old-fail"],
+        serverObjectives: [{ task_id: "old-done", objective_id: "step" }],
+        localDone: [],
+        localStarted: [],
+        localFailed: [],
+        localObjectives: [],
+        authoritativeLocal: true,
+      }),
+    ).toMatchObject({
+      done: [],
+      started: [],
+      failed: [],
+      objectives: [],
+      upload: true,
+    });
   });
 
   it("stamps cleared done ids so hydrate and logs cannot bounce them back", () => {

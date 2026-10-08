@@ -169,6 +169,7 @@
 
 .saveBtn,
 .syncBtn,
+.clearBtn,
 .viewBtn {
   display: flex;
   align-items: center;
@@ -190,6 +191,7 @@
 
 .saveBtn:hover:not(:disabled),
 .syncBtn:hover:not(:disabled),
+.clearBtn:hover:not(:disabled),
 .viewBtn:hover {
   background: #101010;
 }
@@ -205,7 +207,8 @@
 }
 
 .saveBtn:disabled,
-.syncBtn:disabled {
+.syncBtn:disabled,
+.clearBtn:disabled {
   opacity: 0.6;
   cursor: wait;
 }

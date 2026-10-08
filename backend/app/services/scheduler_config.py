@@ -12,7 +12,7 @@ SCHEDULER_CONFIG_KEY = "scheduler_jobs"
 
 JOB_IDS = (
     "steam_presence",
-    "minecraft_presence",
+    # "minecraft_presence",
     "skland_checkin",
     "arknights_box_sync",
     "arknights_catalog_sync",
@@ -28,7 +28,7 @@ JOB_IDS = (
     "job_runs_prune",
 )
 
-INTERVAL_JOB_IDS = frozenset({"steam_presence", "minecraft_presence"})
+INTERVAL_JOB_IDS = frozenset({"steam_presence"})
 
 
 def _clamp_hour(value: Any) -> int:
@@ -55,7 +55,7 @@ def _clamp_interval(value: Any, default: int = 3) -> int:
 def _code_defaults() -> dict[str, dict[str, Any]]:
     return {
         "steam_presence": {"enabled": True, "interval_minutes": 3},
-        "minecraft_presence": {"enabled": True, "interval_minutes": 1},
+        # "minecraft_presence": {"enabled": True, "interval_minutes": 1},
         "skland_checkin": {"enabled": True, "hour": 0, "minute": 1},
         "arknights_box_sync": {"enabled": True, "hour": 0, "minute": 20},
         "arknights_catalog_sync": {"enabled": True, "hour": 4, "minute": 0},

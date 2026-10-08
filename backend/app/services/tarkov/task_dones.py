@@ -767,6 +767,15 @@ def write_progress(
             replace_objective_dones(
                 db, user, objective_dones, game_mode=game_mode, now=now
             )
+            # 转生重置会交空列表清掉旧步骤；已完成任务仍按目录补齐，和标完成一致。
+            if not _incoming_objective_pairs(objective_dones):
+                fill_objectives_for_done_tasks(
+                    db,
+                    user,
+                    list_task_ids(db, user.id, game_mode=_mode(game_mode)),
+                    game_mode=game_mode,
+                    now=now,
+                )
     else:
         merge_dones(db, user, task_ids, game_mode=game_mode, now=now)
         if started_ids is not None:

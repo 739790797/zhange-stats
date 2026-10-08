@@ -20,6 +20,9 @@ import {
   saveTaskProgress,
   taskProgressQueryData,
   loadTaskClearedDone,
+  loadQuestProfileResetPending,
+  clearQuestProfileResetPending,
+  questLedgerEpochNow,
   ledgerIdsToClear,
 } from "@/lib/tarkovTaskTree";
 import { mutexIndexFromTasks } from "@/lib/tarkovTaskMutex";
@@ -68,6 +71,8 @@ export function useTarkovTaskAccountSync() {
     const catalog = queryClient.getQueryData<{
       items?: Array<{ id?: string | null; mutex_ids?: string[] | null }>;
     }>(["guides-tarkov-task-list", gameMode]);
+    const pendingReset = loadQuestProfileResetPending(gameMode);
+    const epoch = questLedgerEpochNow();
     const plan = planAccountTaskHydrate({
       serverDone: query.data.task_ids || [],
       serverStarted: query.data.started_ids || [],
@@ -81,6 +86,7 @@ export function useTarkovTaskAccountSync() {
       mutexById: catalog?.items?.length
         ? mutexIndexFromTasks(catalog.items)
         : undefined,
+      authoritativeLocal: pendingReset,
     });
     const prevDone = loadTaskDoneIds(gameMode);
     const prevStarted = loadTaskStartedIds(gameMode);
@@ -134,8 +140,31 @@ export function useTarkovTaskAccountSync() {
         started: query.data.started_ids || [],
         failed: query.data.failed_ids || [],
       },
+      pendingReset ? { replace: true } : undefined,
     )
       .then((data) => {
+        if (questLedgerEpochNow() !== epoch) {
+          if (!loadQuestProfileResetPending(gameMode)) return;
+          const healEpoch = questLedgerEpochNow();
+          const done = loadTaskDoneIds(gameMode);
+          const started = loadTaskStartedIds(gameMode);
+          const failed = loadTaskFailedIds(gameMode);
+          const objectives = loadTaskObjectivePairs(gameMode);
+          void writeTaskProgressLedger(
+            { done, started, failed, objectives },
+            {
+              done: data.task_ids,
+              started: data.started_ids,
+              failed: data.failed_ids,
+            },
+            { replace: true },
+          ).then(() => {
+            if (questLedgerEpochNow() !== healEpoch) return;
+            clearQuestProfileResetPending(gameMode);
+          });
+          return;
+        }
+        if (pendingReset) clearQuestProfileResetPending(gameMode);
         const objectives = data.objective_dones || plan.objectives;
         saveTaskProgress(
           gameMode,

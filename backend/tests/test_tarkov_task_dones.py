@@ -381,6 +381,40 @@ def test_write_progress_omitting_objectives_keeps_rows() -> None:
     assert dones.list_objective_dones(db, user.id, game_mode="pvp") == []
 
 
+def test_replace_empty_objectives_refills_done_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+
+    def fake_catalog(_db, task_ids):
+        return {ident: [f"{ident}-step"] for ident in task_ids if ident}
+
+    monkeypatch.setattr(
+        "app.services.tarkov.tasks.catalog_objective_ids",
+        fake_catalog,
+    )
+    dones.merge_objective_dones(
+        db,
+        user,
+        [{"task_id": "old", "objective_id": "kept"}],
+        game_mode="pvp",
+    )
+    dones.write_progress(
+        db,
+        user,
+        ["fresh"],
+        [],
+        replace=True,
+        game_mode="pvp",
+        failed_ids=[],
+        objective_dones=[],
+    )
+    assert dones.list_objective_dones(db, user.id, game_mode="pvp") == [
+        {"task_id": "fresh", "objective_id": "fresh-step"},
+    ]
+
+
 def test_failed_merge_replace_and_done_wins() -> None:
     db = _session()
     user = _user(db, "a", "甲")

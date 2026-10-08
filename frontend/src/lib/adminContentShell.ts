@@ -7,9 +7,10 @@ export type AdminContentShell = "form" | "wide" | "reading" | "flush";
 export function adminContentShell(
   pathname: string,
 ): AdminContentShell | null {
-  if (pathname === "/guides/minecraft" || pathname.startsWith("/guides/minecraft/")) {
-    return "wide";
-  }
+  // Minecraft 页面已停用。
+  // if (pathname === "/guides/minecraft" || pathname.startsWith("/guides/minecraft/")) {
+  //   return "wide";
+  // }
   if (pathname === TAVERN_ADMIN_PATH || pathname.startsWith(`${TAVERN_ADMIN_PATH}/`)) {
     return "wide";
   }
