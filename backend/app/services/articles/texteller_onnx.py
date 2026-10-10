@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -67,7 +69,7 @@ def onnxruntime_available() -> bool:
     return True
 
 
-def decode_token_ids(root: Path, ids: list[int]) -> str:
+def load_tokenizer(root: Path) -> Any:
     try:
         from tokenizers import Tokenizer
     except ImportError as exc:
@@ -75,7 +77,10 @@ def decode_token_ids(root: Path, ids: list[int]) -> str:
     path = root / "tokenizer.json"
     if not path.is_file():
         raise ArticleError(503, "公式识别 tokenizer 缺失")
-    tokenizer = Tokenizer.from_file(str(path))
+    return Tokenizer.from_file(str(path))
+
+
+def decode_token_ids(tokenizer: Any, ids: list[int]) -> str:
     return tokenizer.decode(ids, skip_special_tokens=True).strip()
 
 
@@ -83,6 +88,8 @@ class _OnnxRuntime:
     def __init__(self, root: Path) -> None:
         import onnxruntime as ort
 
+        self.root = root
+        self.tokenizer = load_tokenizer(root)
         opts = ort.SessionOptions()
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         providers = ["CPUExecutionProvider"]
@@ -96,7 +103,6 @@ class _OnnxRuntime:
             opts,
             providers=providers,
         )
-        self.tokenizer_dir = root
 
     def generate(self, pixels: np.ndarray) -> list[int]:
         hidden = self.encoder.run(None, {"pixel_values": pixels})[0]
@@ -117,11 +123,22 @@ class _OnnxRuntime:
 
 
 _RUNTIME: _OnnxRuntime | None = None
+# 两个请求同时冷启动会各建一份 encoder/decoder 会话（各几百 MB）。
+_RUNTIME_LOCK = threading.Lock()
 
 
 def reset_onnx_runtime() -> None:
     global _RUNTIME
-    _RUNTIME = None
+    with _RUNTIME_LOCK:
+        _RUNTIME = None
+
+
+def _runtime(root: Path) -> _OnnxRuntime:
+    global _RUNTIME
+    with _RUNTIME_LOCK:
+        if _RUNTIME is None or _RUNTIME.root != root:
+            _RUNTIME = _OnnxRuntime(root)
+        return _RUNTIME
 
 
 def recognize_pil(image: Image.Image, root: Path) -> str:
@@ -129,9 +146,6 @@ def recognize_pil(image: Image.Image, root: Path) -> str:
         raise ArticleError(503, "服务器未安装公式识别（onnxruntime）")
     if not (root / "encoder_model.onnx").is_file() or not (root / "decoder_model.onnx").is_file():
         raise ArticleError(503, "公式识别 ONNX 权重不完整")
-    global _RUNTIME
-    if _RUNTIME is None:
-        _RUNTIME = _OnnxRuntime(root)
+    runtime = _runtime(root)
     pixels = preprocess_image(image)
-    ids = _RUNTIME.generate(pixels)
-    return decode_token_ids(root, ids)
+    return decode_token_ids(runtime.tokenizer, runtime.generate(pixels))

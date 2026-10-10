@@ -250,7 +250,7 @@ def remove_tag(
 
 
 @router.post("/math/recognize", response_model=ArticleMathRecognizeOut)
-async def recognize_math(
+def recognize_math(
     request: Request,
     file: UploadFile = File(...),
     user: User = Depends(require_tavern_writer),
@@ -258,7 +258,7 @@ async def recognize_math(
     ip = client_ip(request)
     platform_limiter.hit(f"articles-math:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"articles-math:uid:{user.id}", limit=6, window_sec=600)
-    raw = await file.read(MAX_RECOGNIZE_BYTES + 1)
+    raw = file.file.read(MAX_RECOGNIZE_BYTES + 1)
     try:
         return ArticleMathRecognizeOut(latex=recognize_image_bytes(raw))
     except ArticleError as exc:
@@ -266,14 +266,14 @@ async def recognize_math(
 
 
 @router.post("/assets", response_model=ArticleAssetOut)
-async def upload_asset(
+def upload_asset(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_tavern_writer),
 ) -> ArticleAssetOut:
     _hit_article_write_limit(request, user)
-    stored = await save_article_asset(file, db=db, owner_user_id=user.id)
+    stored = save_article_asset(file, db=db, owner_user_id=user.id)
     return ArticleAssetOut(url=stored.url, serial=stored.serial)
 
 
@@ -301,7 +301,7 @@ def create_article(
         )
     except ArticleError as exc:
         _raise(exc)
-    return articles_svc.article_to_detail(row)
+    return articles_svc.article_to_detail(db, row)
 
 
 @router.get("/id/{article_id}", response_model=ArticleDetailOut)
@@ -314,7 +314,7 @@ def get_article_editor(
         row = articles_svc.get_for_editor(db, article_id, user)
     except ArticleError as exc:
         _raise(exc)
-    return articles_svc.article_to_detail(row)
+    return articles_svc.article_to_detail(db, row)
 
 
 @router.patch("/id/{article_id}", response_model=ArticleDetailOut)
@@ -335,7 +335,7 @@ def patch_article(
         )
     except ArticleError as exc:
         _raise(exc)
-    return articles_svc.article_to_detail(row)
+    return articles_svc.article_to_detail(db, row)
 
 
 @router.delete("/id/{article_id}", status_code=204)
@@ -392,7 +392,7 @@ def restore_article_version(
         row = articles_svc.restore_version(db, article_id, version_id, user)
     except ArticleError as exc:
         _raise(exc)
-    return articles_svc.article_to_detail(row)
+    return articles_svc.article_to_detail(db, row)
 
 
 @router.get("/{slug}", response_model=ArticleDetailOut)
@@ -401,7 +401,7 @@ def get_article(slug: str, db: Session = Depends(get_db)) -> dict:
         row = articles_svc.get_published_by_slug(db, slug)
     except ArticleError as exc:
         _raise(exc)
-    return articles_svc.article_to_detail(row)
+    return articles_svc.article_to_detail(db, row)
 
 
 @router.get("/{slug}/comments", response_model=list[ArticleCommentOut])
