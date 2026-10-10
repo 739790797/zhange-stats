@@ -119,17 +119,19 @@ articles ── * article_versions
 
 迁移 `20260806_0026` 会一次性清空四平台 `*_checkin_logs` 并曾重置各 bind 的 `last_checkin_*`。`20260826_0066` 已删除 bind 上的 `last_checkin_*` 列（上次执行只信 `*_checkin_logs`）；`checkin_hour` / `checkin_minute` 仍作 prefs 种子保留。不可 `downgrade` 恢复 0026 清掉的数据。
 
-已废弃表 `games` / `match_records` / `cs2_*` 由基线迁移 `20260731_0001` 与旧库对齐路径（`schema_ensure`）删除，启动不再 DROP。旧版每次 MySQL 启动都跑的两项修补已搬进迁移 `20261010_0119`：`register_challenges` 改成 `(email, purpose)` 主键时复制行、不删表；`minecraft_server_profiles.public_*` 先写进 `system_configs` 的 `integrations` 再删列。该迁移还给 `create_all` 时代的 SQLite 库补 `arknights_operators` 的 `profession` / `rarity` 索引，并在 SQLite 上按各外键的 ON DELETE 清掉孤儿行（CASCADE 删行、SET NULL 置空）。每步先看现状再动，可重跑；`downgrade` 为空操作。
+已废弃表 `games` / `match_records` / `cs2_*` 由基线迁移 `20260731_0001` 删除，启动不再 DROP。基线只删列名与旧表完全一致、且没有别的表外键引用的；同一个库里别的应用的同名表（如另一个 `games`）原样保留，只打一条 WARNING。有 `users` 却没有 `alembic_version` 的 MySQL/MariaDB 库（Alembic 之前的旧库，或别的应用的表）启动时拒绝、不做任何改动，手工步骤见 [`backend/alembic/README.md`](../backend/alembic/README.md)「Alembic 之前的旧库」。旧版每次 MySQL 启动都跑的两项修补已搬进迁移 `20261010_0119`：`register_challenges` 改成 `(email, purpose)` 主键时复制行、不删表；`minecraft_server_profiles.public_*` 先写进 `system_configs` 的 `integrations` 再删列。该迁移还给 `create_all` 时代的 SQLite 库补 `arknights_operators` 的 `profession` / `rarity` 索引，并在 SQLite 上按各外键的 ON DELETE 清掉孤儿行（CASCADE 删行、SET NULL 置空）。每步先看现状再动，可重跑；`downgrade` 为空操作。
 
 ## SQLite 连接
 
 应用引擎的每条连接都设 `foreign_keys=ON`（上表各外键的 ON DELETE CASCADE / SET NULL 在 SQLite 上同样生效）和 `busy_timeout=10000`；文件库另设 `journal_mode=WAL` 与 `synchronous=NORMAL`。文件系统不支持 WAL 时保持回滚日志与 `synchronous=FULL`，只打一条 WARNING。WAL 会在库旁生成 `zhange.sqlite-wal` / `zhange.sqlite-shm`，最近的提交可能只在 `-wal` 里：运行中不要单独拷贝、删除或替换这几个文件，备份走 `backup` 脚本（SQLite 在线备份 API）。Alembic 的迁移连接保持 `foreign_keys=OFF`：batch 模式重建表要 `DROP TABLE`，开着外键会把子表级联删掉。
 
+`users` / `members` / `articles` 的 id 会出现在令牌、Cookie、URL 和缓存键里。SQLite 新建库（`create_all`）这三张表用 `AUTOINCREMENT`：删掉当前最大 id 后，这个 id 也不会再发给新行。已有的 SQLite 库不重建、照常可用，仍是 rowid 规则：删掉当前最大 id 后，下一行可能拿到同一个 id（外键已开，子行随父行删掉，新行不会继承旧数据）。MariaDB 的 `AUTO_INCREMENT` 计数器（10.2.4 起持久化）本来就不回退。迁移里 batch 重建这三张表时要带 `table_kwargs={"sqlite_autoincrement": True}`，否则重建出的表会丢掉 `AUTOINCREMENT`。
+
 ## 时间与默认值
 
-业务时间一律存北京墙钟（naive `DATETIME`，见 `app.core.timeutil`）。时间列默认值由 Python 写入：`default=now_naive`，更新时间另有 `onupdate=now_naive`。SQLite 的 `CURRENT_TIMESTAMP` 是 UTC，不能依赖库端默认；库端 `CURRENT_TIMESTAMP` 默认只保留在迁移里本来就有的列上（MySQL 会话时区固定 `+08:00`）。手写 SQL 插入须自己给时间。SQLite 旧库在此之前靠库端默认写入的 `created_at` / `joined_at` / `synced_at` 等是 UTC，未回填。迁移给 NOT NULL 列加的常量默认（`'0'`、`''` 等）只为回填旧行；模型已有 Python 默认时，`alembic check` 不把这类库端默认算作漂移（`app.core.migrate.compare_server_default`）。
+业务时间一律存北京墙钟（naive `DATETIME`，见 `app.core.timeutil`）。时间列默认值由 Python 写入：`default=now_naive`，更新时间另有 `onupdate=now_naive`。SQLite 的 `CURRENT_TIMESTAMP` 是 UTC，不能依赖库端默认；库端 `CURRENT_TIMESTAMP` 默认只保留在迁移里本来就有的列上（MySQL 会话时区固定 `+08:00`）。手写 SQL 插入须自己给时间。SQLite 旧库在此之前靠库端默认写入的 `created_at` / `joined_at` / `synced_at` 等是 UTC，未回填。迁移给 NOT NULL 列加的常量默认（`'0'`、`''` 等）只为回填旧行；模型已有 Python 默认时，`alembic check` 不把这类库端默认算作漂移，除非它和模型的常量默认矛盾（`app.core.migrate.compare_server_default`）。`checkin_role_prefs.included` 和 `skland_binds` / `taygedo_binds` / `exilium_binds` / `kujiequ_binds` 的 `auto_checkin` 都是要用户主动打开的开关，模型默认 false；当初加列时为保留存量行行为给的库端 `DEFAULT 1` 由迁移 `20261010_0121` 改成 `0`（只改默认，存量值不动），手写 SQL 漏写这些列时不会被默认打开。SQLite 库这几列没有库端默认，漏写直接因 NOT NULL 报错。
 
-`system_configs` 的 `time_storage` 记本库时间口径：`beijing_v1` 为北京墙钟；`utc_pending` 为 UTC 时代的旧数据，等下次启动平移。`run_migrations` 写入，已有值不动：空库建出来的写 `beijing_v1`；没有 `alembic_version` 的旧库，或修订停在 `20260801_0006` 及以前（北京墙钟改造前）的库写 `utc_pending`。启动时（仅 MySQL/MariaDB）遇到 `utc_pending`，或没有标记且修订仍在上述范围，把 `presence_segments` / `play_sessions` / `job_runs` / `steam_apps` / `register_challenges` 的时间列 +8 小时，并在同一事务里改成 `beijing_v1`。SQLite 支持晚于这次改造，从不平移。
+`system_configs` 的 `time_storage` 记本库时间口径：`beijing_v1` 为北京墙钟；`utc_pending` 为 UTC 时代的旧数据，等下次启动平移。迁移时写入，已有值不动：从 `20260801_0006` 及以前（北京墙钟改造前）的修订出发的升级，由 `alembic/env.py` 挂的 `on_version_apply` 钩子（`UtcEraUpgradeMarker`）在升级途中、与修订号同一事务写 `utc_pending`，命令行直接 `alembic upgrade` 也一样；其余库由 `run_migrations` 在升级后写 `beijing_v1`（空库从 base 建起会途经 0001–0006，仍算新库）。启动时（仅 MySQL/MariaDB）遇到 `utc_pending`，或没有标记且修订仍在上述范围，把 `presence_segments` / `play_sessions` / `job_runs` / `steam_apps` / `register_challenges` 的时间列 +8 小时，并在同一事务里改成 `beijing_v1`。SQLite 支持晚于这次改造，从不平移。
 
 ## 连接池
 
