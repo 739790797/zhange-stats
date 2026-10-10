@@ -7,19 +7,18 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
+from sqlalchemy.engine import Engine
 
+from app.core.beijing_time_migrate import (
+    UTC_ERA_REVISIONS,
+    current_revision,
+    record_time_storage_origin,
+)
 from app.core.database import Base, get_engine
 from app.core.schema_ensure import ensure_schema
 
 logger = logging.getLogger("zhange.migrate")
-
-_OBSOLETE_TABLES = (
-    "cs2_match_players",
-    "cs2_matches",
-    "match_records",
-    "games",
-)
 
 _REQUIRED_TABLES = (
     "users",
@@ -75,17 +74,28 @@ def _alembic_config() -> Config:
     cfg.config_file_name = str(ini)
     cfg.__dict__["file_config"] = parser
     cfg.set_main_option("script_location", str(_BACKEND_ROOT / "alembic"))
+    # env.py would otherwise fileConfig() alembic.ini and drop the app's log handlers.
+    cfg.attributes["configure_logger"] = False
     return cfg
 
 
-def _drop_obsolete_tables() -> None:
-    dialect = get_engine().dialect.name
-    with get_engine().begin() as conn:
-        for name in _OBSOLETE_TABLES:
-            if dialect == "sqlite":
-                conn.execute(text(f'DROP TABLE IF EXISTS "{name}"'))
-            else:
-                conn.execute(text(f"DROP TABLE IF EXISTS `{name}`"))
+def compare_server_default(
+    context,
+    inspected_column,
+    metadata_column,
+    inspected_default,
+    metadata_default,
+    rendered_metadata_default,
+):
+    """Alembic autogenerate hook (alembic/env.py).
+
+    Migrations give NOT NULL columns a DB default only to backfill existing rows. When the
+    model has a Python-side default the ORM always writes the value, so a DB-only default is
+    not drift. A model server_default the DB lacks is still reported.
+    """
+    if metadata_default is None and metadata_column.default is not None:
+        return False
+    return None
 
 
 def _verify_aligned_schema() -> None:
@@ -116,127 +126,24 @@ def _align_legacy_schema() -> None:
     _verify_aligned_schema()
 
 
-def _repair_known_schema_drift() -> None:
-    """Fix drift from the v0.2.37 dual-0056 collision (wrong revision applied)."""
-    inspector = inspect(get_engine())
-    tables = set(inspector.get_table_names())
-
-    if "minecraft_server_profiles" in tables:
-        cols = {c["name"] for c in inspector.get_columns("minecraft_server_profiles")}
-        if "public_host" in cols or "public_port" in cols:
-            logger.warning(
-                "Repairing minecraft_server_profiles public_* still present after 0056"
-            )
-            with get_engine().begin() as conn:
-                if "public_host" in cols and "public_port" in cols:
-                    row = conn.execute(
-                        text(
-                            "SELECT public_host, public_port "
-                            "FROM minecraft_server_profiles WHERE id = 1"
-                        )
-                    ).mappings().first()
-                    if row:
-                        host = (row["public_host"] or "").strip()
-                        try:
-                            port = int(row["public_port"] or 25565)
-                        except (TypeError, ValueError):
-                            port = 25565
-                        if port < 1 or port > 65535:
-                            port = 25565
-                        if host or port != 25565:
-                            cfg_row = conn.execute(
-                                text(
-                                    "SELECT value FROM system_configs "
-                                    "WHERE `key` = 'integrations'"
-                                )
-                            ).mappings().first()
-                            import json
-
-                            stored: dict = {}
-                            if cfg_row:
-                                try:
-                                    parsed = json.loads(cfg_row["value"] or "{}")
-                                except json.JSONDecodeError:
-                                    parsed = {}
-                                if isinstance(parsed, dict):
-                                    stored = parsed
-                            if host:
-                                stored.setdefault("minecraft_public_host", host)
-                            stored.setdefault("minecraft_public_port", port)
-                            payload = json.dumps(stored, ensure_ascii=False)
-                            if cfg_row:
-                                conn.execute(
-                                    text(
-                                        "UPDATE system_configs SET value = :v "
-                                        "WHERE `key` = 'integrations'"
-                                    ),
-                                    {"v": payload},
-                                )
-                            else:
-                                conn.execute(
-                                    text(
-                                        "INSERT INTO system_configs (`key`, value) "
-                                        "VALUES ('integrations', :v)"
-                                    ),
-                                    {"v": payload},
-                                )
-                if "public_port" in cols:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE minecraft_server_profiles DROP COLUMN public_port"
-                        )
-                    )
-                if "public_host" in cols:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE minecraft_server_profiles DROP COLUMN public_host"
-                        )
-                    )
-
-    if "register_challenges" in tables:
-        cols = {c["name"] for c in inspector.get_columns("register_challenges")}
-        pk = inspector.get_pk_constraint("register_challenges") or {}
-        pk_cols = list(pk.get("constrained_columns") or [])
-        if "purpose" not in cols or pk_cols != ["email", "purpose"]:
-            logger.warning("Repairing register_challenges to (email, purpose) PK")
-            with get_engine().begin() as conn:
-                conn.execute(text("DROP TABLE IF EXISTS register_challenges"))
-                conn.execute(
-                    text(
-                        "CREATE TABLE register_challenges ("
-                        "email VARCHAR(128) NOT NULL, "
-                        "purpose VARCHAR(16) NOT NULL, "
-                        "code VARCHAR(16) NOT NULL, "
-                        "expires_at DATETIME NOT NULL, "
-                        "PRIMARY KEY (email, purpose)"
-                        ")"
-                    )
-                )
-
-
-def _run_sqlite_schema() -> None:
+def _run_sqlite_schema(engine: Engine) -> None:
     import app.models  # noqa: F401
 
-    eng = get_engine()
-    inspector = inspect(eng)
+    inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     cfg = _alembic_config()
     if "alembic_version" in tables:
         command.upgrade(cfg, "head")
     else:
-        Base.metadata.create_all(bind=eng)
+        Base.metadata.create_all(bind=engine)
         command.stamp(cfg, "head")
+    record_time_storage_origin(engine, utc_era=False)
     logger.info("SQLite schema is up to date")
 
 
-def run_migrations() -> None:
-    """Apply pending migrations; stamp existing create_all databases once."""
-    if get_engine().dialect.name == "sqlite":
-        _run_sqlite_schema()
-        return
-
+def _run_server_schema(engine: Engine) -> None:
     cfg = _alembic_config()
-    inspector = inspect(get_engine())
+    inspector = inspect(engine)
     tables = set(inspector.get_table_names())
 
     try:
@@ -250,6 +157,8 @@ def run_migrations() -> None:
                 "aligning schema then stamping baseline as applied"
             )
             _align_legacy_schema()
+            # Pre-Alembic data predates the Beijing wall-clock switch.
+            record_time_storage_origin(engine, utc_era=True)
             command.stamp(cfg, "head")
         elif "alembic_version" not in tables:
             leftover = sorted(set(_REQUIRED_TABLES) & tables)
@@ -261,6 +170,10 @@ def run_migrations() -> None:
                 )
             command.upgrade(cfg, "head")
         else:
+            # Classify before upgrading: afterwards the revision no longer tells UTC-era data apart.
+            record_time_storage_origin(
+                engine, utc_era=current_revision(engine) in UTC_ERA_REVISIONS
+            )
             command.upgrade(cfg, "head")
     except Exception as exc:
         msg = str(exc)
@@ -282,6 +195,19 @@ def run_migrations() -> None:
             ) from exc
         raise
 
-    _repair_known_schema_drift()
-    _drop_obsolete_tables()
+    # Schema built from an empty database: everything it holds is Beijing wall clock.
+    record_time_storage_origin(engine, utc_era=False)
     logger.info("Database migrations are up to date")
+
+
+def run_migrations() -> None:
+    """Apply pending migrations; stamp existing create_all databases once."""
+    engine = get_engine()
+    before = current_revision(engine)
+    if engine.dialect.name == "sqlite":
+        _run_sqlite_schema(engine)
+    else:
+        _run_server_schema(engine)
+    after = current_revision(engine)
+    if after != before:
+        logger.info("database schema revision %s -> %s", before or "(none)", after)

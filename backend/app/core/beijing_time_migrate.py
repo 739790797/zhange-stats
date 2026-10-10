@@ -1,10 +1,15 @@
-"""一次性：把原先按 UTC 写入的业务时间改为北京墙钟（+8 小时）。"""
+"""一次性：把原先按 UTC 写入的业务时间改为北京墙钟（+8 小时）。
+
+只有 UTC 时代的旧库需要平移。迁移时（`run_migrations`）就记下这份库的口径：空库建出来的直接标
+`beijing_v1`；旧库标 `utc_pending`，启动时 `ensure_beijing_time_storage` 平移后再改成 `beijing_v1`。
+"""
 
 from __future__ import annotations
 
 import logging
 
-from sqlalchemy import inspect, text
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -14,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 _MARKER_KEY = "time_storage"
 _MARKER_VALUE = "beijing_v1"
+_PENDING_VALUE = "utc_pending"
+
+# v0.1.8 改写北京墙钟时 head 是 0006；停在这些修订（或没有 alembic_version）的库才可能存着 UTC 数据
+UTC_ERA_REVISIONS = frozenset(
+    {
+        "20260731_0001",
+        "20260801_0002",
+        "20260801_0003",
+        "20260801_0004",
+        "20260801_0005",
+        "20260801_0006",
+    }
+)
 
 # 仅迁移应用曾用 datetime.now(UTC) 写入的列；不动 created_at/joined_at（server_default）
 _SHIFTS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -25,39 +43,73 @@ _SHIFTS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def ensure_beijing_time_storage(db: Session, engine: Engine) -> None:
-    if engine.dialect.name == "sqlite":
-        row = db.get(SystemConfig, _MARKER_KEY)
-        if row is None:
-            db.add(SystemConfig(key=_MARKER_KEY, value=_MARKER_VALUE))
-            db.commit()
-        return
+def current_revision(engine: Engine) -> str | None:
+    """没有 alembic_version 表或表为空时返回 None。"""
+    with engine.connect() as conn:
+        return MigrationContext.configure(conn).get_current_revision()
 
-    row = db.get(SystemConfig, _MARKER_KEY)
-    if row and row.value.strip() == _MARKER_VALUE:
-        return
 
-    logger.info("migrating business timestamps UTC -> Beijing (+8h)")
+def record_time_storage_origin(engine: Engine, *, utc_era: bool) -> None:
+    """迁移时记下口径；已有标记不动，没有 system_configs 时跳过。"""
+    if "system_configs" not in set(inspect(engine).get_table_names()):
+        return
+    table = SystemConfig.__table__
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(table.c.value).where(table.c.key == _MARKER_KEY)
+        ).first()
+        if existing is not None:
+            return
+        conn.execute(
+            table.insert().values(
+                key=_MARKER_KEY, value=_PENDING_VALUE if utc_era else _MARKER_VALUE
+            )
+        )
+
+
+def _needs_shift(marker: str, engine: Engine) -> bool:
+    if marker == _PENDING_VALUE:
+        return True
+    # 没走 run_migrations 记口径的库：按当前修订判断
+    revision = current_revision(engine)
+    return revision is None or revision in UTC_ERA_REVISIONS
+
+
+def _shift_to_beijing(db: Session, engine: Engine) -> None:
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
-    with engine.begin() as conn:
-        for table, cols in _SHIFTS:
-            if table not in table_names:
+    for table, cols in _SHIFTS:
+        if table not in table_names:
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        for col in cols:
+            if col not in existing:
                 continue
-            existing = {c["name"] for c in inspector.get_columns(table)}
-            for col in cols:
-                if col not in existing:
-                    continue
-                conn.execute(
-                    text(
-                        f"UPDATE `{table}` SET `{col}` = DATE_ADD(`{col}`, INTERVAL 8 HOUR) "
-                        f"WHERE `{col}` IS NOT NULL"
-                    )
+            db.execute(
+                text(
+                    f"UPDATE `{table}` SET `{col}` = DATE_ADD(`{col}`, INTERVAL 8 HOUR) "
+                    f"WHERE `{col}` IS NOT NULL"
                 )
+            )
 
+
+def ensure_beijing_time_storage(db: Session, engine: Engine) -> None:
+    row = db.get(SystemConfig, _MARKER_KEY)
+    marker = (row.value or "").strip() if row is not None else ""
+    if marker == _MARKER_VALUE:
+        return
+
+    # SQLite 支持晚于北京墙钟改造，库里没有 UTC 时代的数据
+    shift = engine.dialect.name != "sqlite" and _needs_shift(marker, engine)
+    if shift:
+        logger.info("migrating business timestamps UTC -> Beijing (+8h)")
+        _shift_to_beijing(db, engine)
+
+    # 平移与标记同一事务提交，中途失败不会重复平移
     if row is None:
         db.add(SystemConfig(key=_MARKER_KEY, value=_MARKER_VALUE))
     else:
         row.value = _MARKER_VALUE
     db.commit()
-    logger.info("business timestamps now stored as Beijing wall clock")
+    if shift:
+        logger.info("business timestamps now stored as Beijing wall clock")
