@@ -41,6 +41,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
       componentStack: info.componentStack || "",
       pathname: this.props.resetKey,
       requestId,
+      appVersion: __APP_VERSION__,
     });
   }
 
