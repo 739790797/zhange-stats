@@ -62,7 +62,11 @@ def get_runtime_logs(
     logger: str | None = Query(default=None, description="logger 名前缀，如 zhange"),
     biz: str | None = Query(default=None, description="业务标记前缀，如 skland / checkin"),
     q: str | None = Query(default=None, description="消息或 logger 子串"),
-    after_id: int = Query(default=0, ge=0, description="仅返回 id 大于该值的新行"),
+    after_id: int = Query(
+        default=0,
+        ge=0,
+        description="仅返回 id 大于该值的新行（ring / file 生效；all 合并后会重排 id）",
+    ),
     source: str = Query(
         default="all",
         description="ring=内存环缓冲；file=持久化 JSONL；all=合并（推荐）",
@@ -92,6 +96,7 @@ def get_runtime_logs(
             logger_prefix=logger,
             biz_prefix=biz,
             q=q,
+            after_id=after_id if mode == "file" else 0,
         )
 
     if mode == "ring":
