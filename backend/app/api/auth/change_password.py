@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.security import hash_password, verify_password
+from app.core.rate_limit import auth_limiter
+from app.core.security import bump_token_version, hash_password, verify_login_password
 from app.core.session_cookies import issue_session
 from app.models.user import User
 from app.services.auth_config import get_min_password_length
@@ -63,7 +64,8 @@ def change_password(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> dict:
-    if not verify_password(body.current_password, current.password_hash):
+    auth_limiter.hit(f"change-password:uid:{current.id}", limit=10, window_sec=600)
+    if not verify_login_password(body.current_password, current.password_hash):
         raise HTTPException(status_code=400, detail="当前密码不正确")
     try:
         new_password = validate_password(
@@ -77,6 +79,8 @@ def change_password(
         raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
     invalidate_weak_password_cache(current.password_hash)
     current.password_hash = hash_password(new_password)
+    # 其他设备上的旧会话一并作废；本次响应换发新 ver 的令牌，当前设备不掉线
+    bump_token_version(current)
     db.commit()
     issue_session(response, request, current)
     return {"ok": True, "message": "密码已更新"}
@@ -90,7 +94,8 @@ def change_username(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> dict:
-    if not verify_password(body.current_password, current.password_hash):
+    auth_limiter.hit(f"change-username:uid:{current.id}", limit=10, window_sec=600)
+    if not verify_login_password(body.current_password, current.password_hash):
         raise HTTPException(status_code=400, detail="当前密码不正确")
     new_username = _normalize_username(body.new_username)
     if new_username.lower() == current.username.lower():

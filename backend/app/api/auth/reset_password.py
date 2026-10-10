@@ -14,8 +14,8 @@ from app.api.auth.schemas import (
     SendResetPasswordCodeRequest,
 )
 from app.core.database import get_db
-from app.core.rate_limit import auth_limiter, client_ip
-from app.core.security import hash_password, verify_password
+from app.core.rate_limit import auth_limiter, clear_login_failures, client_ip
+from app.core.security import bump_token_version, hash_password, verify_login_password
 from app.models.user import User
 from app.services.auth_config import get_min_password_length
 from app.services.password_policy import (
@@ -79,8 +79,6 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="重置失败，请检查邮箱与验证码")
 
-    _consume_register_challenge(db, email, code, purpose=PURPOSE_RESET)
-
     try:
         new_password = validate_password(
             body.new_password,
@@ -90,10 +88,15 @@ def reset_password(
     except PasswordPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if verify_password(new_password, user.password_hash):
+    _consume_register_challenge(db, email, code, purpose=PURPOSE_RESET)
+
+    if verify_login_password(new_password, user.password_hash):
         raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
 
     invalidate_weak_password_cache(user.password_hash)
     user.password_hash = hash_password(new_password)
+    bump_token_version(user)
     db.commit()
+    clear_login_failures(email)
+    clear_login_failures(user.username)
     return ResetPasswordResponse(message="密码已重置，请使用新密码登录", email=email)

@@ -33,12 +33,9 @@ def is_weak_password(
     username: str | None = None,
     min_length: int = _DEFAULT_MIN_LENGTH,
 ) -> bool:
-    pwd = (password or "").strip()
-    if not pwd or len(pwd) < max(1, int(min_length)):
-        return True
-    if pwd.lower() in WEAK_PASSWORDS:
-        return True
-    if username and pwd == username:
+    try:
+        validate_password(password, username=username, min_length=min_length)
+    except PasswordPolicyError:
         return True
     return False
 
@@ -49,16 +46,19 @@ def validate_password(
     username: str | None = None,
     min_length: int = _DEFAULT_MIN_LENGTH,
 ) -> str:
-    """返回规范化后的口令；不合规则抛 PasswordPolicyError。"""
-    pwd = (password or "").strip()
+    """原样返回口令（不去首尾空白，存的就是用户输入的）；不合规则抛 PasswordPolicyError。"""
+    pwd = password or ""
+    core = pwd.strip()
     min_len = max(1, int(min_length))
-    if not pwd:
+    if not core:
         raise PasswordPolicyError("请设置密码")
+    if "\x00" in pwd:
+        raise PasswordPolicyError("密码不能包含空字符")
     if len(pwd) < min_len:
         raise PasswordPolicyError(f"密码至少 {min_len} 位")
-    if pwd.lower() in WEAK_PASSWORDS:
+    if core.lower() in WEAK_PASSWORDS:
         raise PasswordPolicyError("密码过于简单，请更换")
-    if username and pwd == username:
+    if username and core == username.strip():
         raise PasswordPolicyError("密码不能与用户名相同")
     return pwd
 

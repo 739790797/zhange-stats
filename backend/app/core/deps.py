@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, token_version_matches
 from app.core.session_cookies import (
     ACCESS_COOKIE,
     CSRF_COOKIE,
@@ -34,6 +34,8 @@ def load_user_by_access_token(
     user = q.filter(User.id == principal.user_id).first()
     if not user or user_is_anonymized(user):
         return None
+    if not token_version_matches(principal, user):
+        return None
     return user
 
 
@@ -56,14 +58,28 @@ def access_token_from_request(
     return token, False
 
 
+def require_csrf_for_cookie_session(request: Request, *, via_bearer: bool) -> None:
+    """Cookie 会话的可变方法须带与 zhange_csrf 一致的 X-CSRF-Token；Bearer 免检。"""
+    if via_bearer or request.method.upper() in SAFE_METHODS:
+        return
+    cookie = request.cookies.get(CSRF_COOKIE)
+    header = request.headers.get(CSRF_HEADER)
+    if not csrf_tokens_match(cookie, header):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF 校验失败",
+        )
+
+
 def get_optional_user(
     request: Request,
     db: Session = Depends(get_db),
 ) -> User | None:
     """公开接口：有有效会话则带上用户，否则当访客。不挂 HTTPBearer，避免 OpenAPI 标成需登录。"""
-    token, _via_bearer = access_token_from_request(request)
+    token, via_bearer = access_token_from_request(request)
     if not token:
         return None
+    require_csrf_for_cookie_session(request, via_bearer=via_bearer)
     return load_user_by_access_token(db, token, with_member=True)
 
 
@@ -79,14 +95,7 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="未登录或令牌无效",
         )
-    if not via_bearer and request.method.upper() not in SAFE_METHODS:
-        cookie = request.cookies.get(CSRF_COOKIE)
-        header = request.headers.get(CSRF_HEADER)
-        if not csrf_tokens_match(cookie, header):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF 校验失败",
-            )
+    require_csrf_for_cookie_session(request, via_bearer=via_bearer)
     user = load_user_by_access_token(db, token, with_member=True)
     if user is None:
         raise HTTPException(

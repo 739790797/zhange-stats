@@ -21,12 +21,18 @@ from app.api.auth.schemas import (
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter, client_ip
-from app.core.security import hash_password, verify_password
+from app.core.security import (
+    hash_password,
+    strip_markup_chars,
+    verify_login_password,
+)
 from app.core.session_cookies import issue_session
 from app.models.member import Member
 from app.models.user import User
 from app.services.account_anonymize import user_is_anonymized
+from app.services.auth_config import get_min_password_length
 from app.services.member_sync import delete_user_with_member, ensure_user_member
+from app.services.password_policy import PasswordPolicyError, validate_password
 
 router = APIRouter()
 
@@ -79,6 +85,7 @@ def bind_email(
     code = body.code.strip()
     auth_limiter.hit(f"bind-email:ip:{ip}", limit=20, window_sec=600)
     auth_limiter.hit(f"bind-email:uid:{user.id}", limit=10, window_sec=600)
+    auth_limiter.hit(f"bind-email:email:{email}", limit=10, window_sec=600)
 
     taken = (
         db.query(User)
@@ -88,11 +95,22 @@ def bind_email(
     if taken:
         raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
 
+    password: str | None = None
+    if body.password:
+        try:
+            password = validate_password(
+                body.password,
+                username=user.username,
+                min_length=get_min_password_length(db),
+            )
+        except PasswordPolicyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     _consume_register_challenge(db, email, code, purpose=PURPOSE_BIND)
     user.email = email
     user.email_verified = True
-    if body.password:
-        user.password_hash = hash_password(body.password)
+    if password:
+        user.password_hash = hash_password(password)
     member = ensure_user_member(db, user)
     db.commit()
     db.refresh(user)
@@ -153,7 +171,7 @@ def link_existing_account(
     if (
         not target
         or user_is_anonymized(target)
-        or not verify_password(body.password, target.password_hash)
+        or not verify_login_password(body.password, target.password_hash)
     ):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
     if target.id == user.id:
@@ -173,7 +191,7 @@ def link_existing_account(
     qq_nickname = temp_member.qq_nickname
     qq_avatar_url = temp_member.qq_avatar_url
     temp_avatar = temp_member.avatar_url
-    temp_display = user.display_name
+    temp_display = strip_markup_chars(user.display_name or "")
 
     # 先清临时号 QQ，避免 openid 唯一约束冲突
     temp_member.qq_openid = None
