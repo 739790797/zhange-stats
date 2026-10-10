@@ -111,3 +111,68 @@ def test_resolve_java_image_keeps_panel_image_ahead_of_catalog_order():
     assert resolve_java_image("", images[1], images, "1.21.1") == images[1]
     assert resolve_java_image("", "", images, "1.21.1") == images[1]
     assert resolve_java_image(images[0], images[1], images, "1.21.1") == images[0]
+
+
+def _jar_bytes(**files: str) -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, body in files.items():
+            zf.writestr(name, body)
+    return buf.getvalue()
+
+
+def test_core_jar_check_rejects_mirror_error_pages():
+    import pytest
+
+    from app.services.minecraft import pelican
+    from app.services.minecraft.startup import _verify_core_jar
+
+    _verify_core_jar(_jar_bytes(**{"META-INF/MANIFEST.MF": "Main-Class: a.B\n"}))
+    with pytest.raises(pelican.PelicanError, match="核心下载校验失败"):
+        _verify_core_jar(b"<html>404</html>")
+
+
+def test_arclight_core_is_verified_before_startup_switches(monkeypatch):
+    from app.services.minecraft import startup as svc
+
+    monkeypatch.setattr(svc, "get_pelican_application_token", lambda _db: "papp")
+    monkeypatch.setattr(svc, "require_pelican", lambda _db: ("https://p", "tok", "uuid"))
+    monkeypatch.setattr(
+        svc,
+        "read_startup",
+        lambda _db, **_k: {
+            "command": "java -jar arclight-neoforge-1.21.1-1.0.2.jar nogui",
+            "java_image": "",
+            "java_images": [],
+            "launch": "jar",
+            "loader": "neoforge",
+            "mc_version": "1.21.1",
+            "complete": True,
+        },
+    )
+    order: list[str] = []
+    pulled: list[dict] = []
+
+    def pull_verified(*_a, **kwargs):
+        order.append("pull")
+        pulled.append(kwargs)
+
+    monkeypatch.setattr(svc.pelican, "pull_file_verified", pull_verified)
+    monkeypatch.setattr(svc.pelican, "find_application_server", lambda *_a: {"id": 1, "egg": 2})
+    monkeypatch.setattr(
+        svc.pelican, "update_application_startup", lambda *_a, **_k: order.append("startup")
+    )
+    svc.sync_startup_command(
+        object(),
+        core_id="arclight",
+        build_channel="stable",
+        build_name="1.0.2",
+    )
+    assert order == ["pull", "startup"]
+    assert pulled[0]["directory"] == "/"
+    assert pulled[0]["filename"] == "arclight-neoforge-1.21.1-1.0.2.jar"
+    assert pulled[0]["verify"] is svc._verify_core_jar
+    assert pulled[0]["max_bytes"] == svc.MAX_CORE_JAR_BYTES

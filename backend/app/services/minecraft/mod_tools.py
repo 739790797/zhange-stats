@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.ephemeral_kv import ephemeral_delete, ephemeral_get, ephemeral_set
 from app.services.minecraft import modrinth as modrinth
 from app.services.minecraft import pelican as pelican
+from app.services.minecraft.jar_manifest import JarManifestError, verify_jar_archive, verify_sha512
 from app.services.integrations_config import (
     get_minecraft_rcon_credentials,
     get_pelican_credentials,
@@ -1169,6 +1171,21 @@ def list_tool_versions(db: Session, tool_id: str) -> dict[str, Any]:
     }
 
 
+def _install_verifier(pin: dict[str, Any]) -> Callable[[bytes], None]:
+    expected = str(pin.get("sha512") or "").strip()
+
+    def verify(data: bytes) -> None:
+        try:
+            if expected:
+                verify_sha512(data, expected)
+            else:
+                verify_jar_archive(data, require_manifest=False)
+        except JarManifestError as exc:
+            raise pelican.PelicanError(f"{exc.message}，已放弃安装（旧文件未动）") from exc
+
+    return verify
+
+
 def install_tool(
     db: Session,
     tool_id: str,
@@ -1204,6 +1221,22 @@ def install_tool(
     present_dir = hits[0]["directory"] if hits else ""
     directory = install_directory(loader, spec, present_directory=present_dir)
     base, token, uuid = _pelican(db)
+    try:
+        pelican.pull_file_verified(
+            base,
+            token,
+            uuid,
+            url=url,
+            directory=directory,
+            filename=filename,
+            verify=_install_verifier(pin),
+            max_bytes=inventory.MAX_JAR_BYTES,
+        )
+    except pelican.PelicanError as exc:
+        raise MinecraftModToolsError(
+            exc.message,
+            status_code=pelican.pelican_browser_status(exc.status_code),
+        ) from exc
     removed = 0
     by_dir: dict[str, list[str]] = {}
     for row in hits:
@@ -1218,17 +1251,11 @@ def install_tool(
             pelican.delete_files(base, token, uuid, root=folder, files=names)
             removed += len(names)
         except pelican.PelicanError as exc:
+            _invalidate_scans()
             raise MinecraftModToolsError(
-                exc.message,
+                f"已下载 {directory}/{filename}，但删除旧文件失败：{exc.message}。请手动删掉旧版本再重启",
                 status_code=pelican.pelican_browser_status(exc.status_code),
             ) from exc
-    try:
-        pelican.pull_file(base, token, uuid, url=url, directory=directory, filename=filename)
-    except pelican.PelicanError as exc:
-        raise MinecraftModToolsError(
-            exc.message,
-            status_code=pelican.pelican_browser_status(exc.status_code),
-        ) from exc
     notes = [f"已下载 {directory}/{filename}"]
     if removed:
         notes.append(f"已替换旧文件 {removed} 个")

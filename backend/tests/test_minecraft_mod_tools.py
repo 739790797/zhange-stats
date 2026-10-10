@@ -676,7 +676,7 @@ def test_install_never_applies_preset(monkeypatch):
     pulled: list[dict] = []
     monkeypatch.setattr(
         svc.pelican,
-        "pull_file",
+        "pull_file_verified",
         lambda *_a, **kwargs: pulled.append(kwargs),
     )
     applied: list[str] = []
@@ -734,3 +734,102 @@ def test_get_tool_preset_treats_pelican_500_as_missing_file(monkeypatch):
     assert out["status"] == "missing_files"
     assert out["has_preset"] is True
     assert out["missing_files"] == ["/config/chunky/config.json"]
+
+
+def _install_env(monkeypatch, svc, *, hits, served: bytes, files: dict[str, bytes]):
+    import hashlib
+
+    from app.services.minecraft.pelican import join_remote_path, split_remote_path
+
+    monkeypatch.setattr(
+        svc,
+        "_server_context",
+        lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"},
+    )
+    monkeypatch.setattr(
+        svc.modrinth,
+        "list_versions",
+        lambda project_id, loader="", mc_version="": [
+            {
+                "version_id": "v2",
+                "version_number": "5.24",
+                "filename": "bluemap-5.24-neoforge.jar",
+                "download_url": "https://cdn.example/bluemap.jar",
+                "sha512": hashlib.sha512(b"good-jar").hexdigest(),
+            }
+        ],
+    )
+    monkeypatch.setattr(svc, "_scan_files", lambda *_a, **_k: {"jars": hits})
+    monkeypatch.setattr(svc, "_replace_hits", lambda _db, _spec, _jars: hits)
+    monkeypatch.setattr(svc, "_pelican", lambda _db: ("https://p", "tok", "uuid"))
+    monkeypatch.setattr(svc, "_invalidate_scans", lambda: None)
+    monkeypatch.setattr(svc.inventory, "record_install", lambda *_a, **_k: None)
+    disk = dict(files)
+    calls: list[tuple[str, str]] = []
+
+    def pull_file(_b, _t, _u, *, url, directory, filename, timeout=0):
+        calls.append(("pull", join_remote_path(directory, filename)))
+        disk[join_remote_path(directory, filename)] = served
+
+    def download_file(_b, _t, _u, path, *, max_bytes, timeout=0):
+        return disk[path]
+
+    def list_files(_b, _t, _u, directory):
+        return [{"name": split_remote_path(p)[1]} for p in disk if split_remote_path(p)[0] == directory]
+
+    def delete_files(_b, _t, _u, *, root, files):
+        for name in files:
+            calls.append(("delete", join_remote_path(root, name)))
+            disk.pop(join_remote_path(root, name), None)
+
+    def rename_files(_b, _t, _u, *, root, files):
+        for src, dest in files:
+            calls.append(("rename", join_remote_path(root, dest)))
+            disk[join_remote_path(root, dest)] = disk.pop(join_remote_path(root, src))
+
+    for name, fn in (
+        ("pull_file", pull_file),
+        ("download_file", download_file),
+        ("list_files", list_files),
+        ("delete_files", delete_files),
+        ("rename_files", rename_files),
+    ):
+        monkeypatch.setattr(svc.pelican, name, fn)
+    return disk, calls
+
+
+def test_install_deletes_old_jar_only_after_new_one_verifies(monkeypatch):
+    from app.services.minecraft import mod_tools as svc
+
+    hits = [{"directory": "/mods", "filename": "bluemap-5.23-neoforge.jar"}]
+    disk, calls = _install_env(
+        monkeypatch,
+        svc,
+        hits=hits,
+        served=b"good-jar",
+        files={"/mods/bluemap-5.23-neoforge.jar": b"old-jar"},
+    )
+    out = svc.install_tool(object(), "bluemap", version_id="v2")
+    assert out["ok"] is True
+    assert disk == {"/mods/bluemap-5.24-neoforge.jar": b"good-jar"}
+    assert calls.index(("rename", "/mods/bluemap-5.24-neoforge.jar")) < calls.index(
+        ("delete", "/mods/bluemap-5.23-neoforge.jar")
+    )
+    assert "已替换旧文件 1 个" in out["message"]
+
+
+def test_install_checksum_mismatch_keeps_old_jar(monkeypatch):
+    from app.services.minecraft import mod_tools as svc
+
+    hits = [{"directory": "/mods", "filename": "bluemap-5.23-neoforge.jar"}]
+    disk, calls = _install_env(
+        monkeypatch,
+        svc,
+        hits=hits,
+        served=b"<html>mirror error</html>",
+        files={"/mods/bluemap-5.23-neoforge.jar": b"old-jar"},
+    )
+    with pytest.raises(svc.MinecraftModToolsError, match="校验值不一致"):
+        svc.install_tool(object(), "bluemap", version_id="v2")
+    assert disk == {"/mods/bluemap-5.23-neoforge.jar": b"old-jar"}
+    assert all(kind != "rename" for kind, _path in calls)

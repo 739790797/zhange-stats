@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import tomllib
@@ -11,6 +12,7 @@ from typing import Any
 
 _PLACEHOLDER_VER = re.compile(r"^\$\{.+\}$")
 _MANIFEST_KEYS = ("Implementation-Version", "Specification-Version")
+MAX_VERIFY_UNCOMPRESSED = 1024 * 1024 * 1024
 
 
 class JarManifestError(Exception):
@@ -196,3 +198,34 @@ def parse_jar_bytes(data: bytes) -> dict[str, Any]:
     if not parsed.get("mod_version") and manifest_ver:
         parsed["mod_version"] = manifest_ver
     return parsed
+
+
+def verify_sha512(data: bytes, expected: str) -> None:
+    if hashlib.sha512(data).hexdigest() != (expected or "").strip().lower():
+        raise JarManifestError("下载的文件与校验值不一致")
+
+
+def verify_jar_archive(
+    data: bytes,
+    *,
+    require_manifest: bool = True,
+    max_uncompressed: int = MAX_VERIFY_UNCOMPRESSED,
+) -> None:
+    """上游不给校验值时的底线：完整 zip（逐条目 CRC），不是半截文件或错误页。"""
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            infos = zf.infolist()
+            if not infos:
+                raise JarManifestError("下载的文件是空的 jar")
+            if sum(info.file_size for info in infos) > max_uncompressed:
+                raise JarManifestError("jar 解压后过大")
+            names = {info.filename.replace("\\", "/").lower() for info in infos}
+            if require_manifest and "meta-inf/manifest.mf" not in names:
+                raise JarManifestError("下载的文件不是可启动的 jar（缺少 MANIFEST）")
+            bad = zf.testzip()
+    except JarManifestError:
+        raise
+    except Exception as exc:
+        raise JarManifestError("下载的文件不是完整的 jar") from exc
+    if bad is not None:
+        raise JarManifestError(f"jar 内 {bad} 校验失败")

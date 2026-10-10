@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 
+from app.services.minecraft import pelican
 from app.services.minecraft.files import normalize_mode
 from app.services.minecraft.pelican import (
     PelicanError,
@@ -136,3 +139,128 @@ def test_wings_generic_500_counts_as_absent_file():
     assert is_absent_file_error(PelicanError("missing", status_code=404))
     assert is_absent_file_error(PelicanError("bad path", status_code=400))
     assert not is_absent_file_error(PelicanError("unauthorized", status_code=401))
+
+
+class _StreamResp:
+    def __init__(self, chunks: list[bytes], *, status_code: int = 200, headers: dict | None = None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._chunks = chunks
+        self.pulled = 0
+
+    def iter_bytes(self):
+        for chunk in self._chunks:
+            self.pulled += 1
+            yield chunk
+
+
+def _serve(monkeypatch, resp: _StreamResp) -> None:
+    @contextmanager
+    def fake_stream(method, url, **_kwargs):
+        assert (method, url) == ("GET", "https://signed")
+        yield resp
+
+    monkeypatch.setattr(pelican, "get_download_url", lambda *_a: "https://signed")
+    monkeypatch.setattr(pelican, "http_stream", fake_stream)
+
+
+def test_download_file_stops_reading_past_the_cap(monkeypatch):
+    resp = _StreamResp([b"x" * 4] * 50)
+    _serve(monkeypatch, resp)
+    with pytest.raises(PelicanError, match="过大"):
+        pelican.download_file("https://p", "tok", "uuid", "/mods/a.jar", max_bytes=10)
+    assert resp.pulled == 3
+
+
+def test_download_file_rejects_declared_size_before_reading(monkeypatch):
+    resp = _StreamResp([b"x"], headers={"content-length": "11"})
+    _serve(monkeypatch, resp)
+    with pytest.raises(PelicanError, match="过大"):
+        pelican.download_file("https://p", "tok", "uuid", "/mods/a.jar", max_bytes=10)
+    assert resp.pulled == 0
+
+
+def test_download_file_returns_body_and_maps_errors(monkeypatch):
+    _serve(monkeypatch, _StreamResp([b"ab", b"cd"], headers={"content-length": "4"}))
+    assert pelican.download_file("https://p", "tok", "uuid", "/mods/a.jar", max_bytes=4) == b"abcd"
+    _serve(monkeypatch, _StreamResp([b"nope" * 200], status_code=404))
+    with pytest.raises(PelicanError) as missing:
+        pelican.download_file("https://p", "tok", "uuid", "/mods/a.jar", max_bytes=4)
+    assert missing.value.status_code == 404
+
+
+class _FakePanel:
+    """内存里的服文件：记录 pull / 下载 / 删 / 改名的顺序。"""
+
+    def __init__(self, monkeypatch, files: dict[str, bytes], served: bytes):
+        self.files = dict(files)
+        self.served = served
+        self.calls: list[tuple[str, ...]] = []
+        for name in ("pull_file", "download_file", "list_files", "delete_files", "rename_files"):
+            monkeypatch.setattr(pelican, name, getattr(self, name))
+
+    def pull_file(self, _base, _token, _uuid, *, url, directory, filename, timeout=0):
+        path = join_remote_path(directory, filename)
+        self.calls.append(("pull", path))
+        self.files[path] = self.served
+
+    def download_file(self, _base, _token, _uuid, path, *, max_bytes, timeout=0):
+        self.calls.append(("download", path))
+        return self.files[path]
+
+    def list_files(self, _base, _token, _uuid, directory):
+        return [
+            {"name": split_remote_path(path)[1]}
+            for path in self.files
+            if split_remote_path(path)[0] == normalize_remote_directory(directory)
+        ]
+
+    def delete_files(self, _base, _token, _uuid, *, root, files):
+        for name in files:
+            path = join_remote_path(root, name)
+            self.calls.append(("delete", path))
+            self.files.pop(path, None)
+
+    def rename_files(self, _base, _token, _uuid, *, root, files):
+        for src, dest in files:
+            self.calls.append(("rename", join_remote_path(root, src), join_remote_path(root, dest)))
+            self.files[join_remote_path(root, dest)] = self.files.pop(join_remote_path(root, src))
+
+
+def _reject_unless(expected: bytes):
+    def verify(data: bytes) -> None:
+        if data != expected:
+            raise PelicanError("校验不通过")
+
+    return verify
+
+
+def test_pull_file_verified_replaces_same_name_only_after_check(monkeypatch):
+    panel = _FakePanel(monkeypatch, {"/mods/a.jar": b"old"}, served=b"new")
+    path = pelican.pull_file_verified(
+        "https://p", "tok", "uuid",
+        url="https://cdn/a.jar", directory="mods", filename="a.jar",
+        verify=_reject_unless(b"new"), max_bytes=100,
+    )
+    temp = f"/mods/a.jar{pelican.PULL_TEMP_SUFFIX}"
+    assert path == "/mods/a.jar"
+    assert panel.files == {"/mods/a.jar": b"new"}
+    assert panel.calls == [
+        ("pull", temp),
+        ("download", temp),
+        ("delete", "/mods/a.jar"),
+        ("rename", temp, "/mods/a.jar"),
+    ]
+
+
+def test_pull_file_verified_failure_discards_temp_and_keeps_original(monkeypatch):
+    panel = _FakePanel(monkeypatch, {"/mods/a.jar": b"old"}, served=b"tampered")
+    with pytest.raises(PelicanError, match="校验"):
+        pelican.pull_file_verified(
+            "https://p", "tok", "uuid",
+            url="https://cdn/a.jar", directory="/mods", filename="a.jar",
+            verify=_reject_unless(b"new"), max_bytes=100,
+        )
+    assert panel.files == {"/mods/a.jar": b"old"}
+    assert [call[0] for call in panel.calls] == ["pull", "download", "delete"]
+    assert panel.calls[-1] == ("delete", f"/mods/a.jar{pelican.PULL_TEMP_SUFFIX}")
