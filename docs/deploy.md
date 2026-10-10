@@ -137,7 +137,7 @@ Release 发出后不再改动：tag `v{VERSION}` 已存在时（包括上次发�
 | 管理端核对 | 「运行维护 → 运行环境」：数据库 / Redis；生产未配 Redis 会标降级。SMTP 在邮箱设置 |
 | 规范对齐 | 安全头、备份、Cookie/CSRF、CSP 等见 [`hardening-roadmap.md`](hardening-roadmap.md)（已落地） |
 
-联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。请求次数限流当前不计数，额度见 [`security.md`](security.md)。
+联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。请求次数限流默认开启（`config/app.json` 的 `RATE_LIMIT_ENABLED`，紧急时可在「运行环境」关闭），额度见 [`security.md`](security.md)；开了 `TRUST_X_FORWARDED_FOR` 时取 `X-Forwarded-For` 最右一跳。
 
 ## 反代与静态资源
 
