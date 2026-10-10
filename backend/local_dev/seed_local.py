@@ -20,6 +20,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from local_dev.steam_fake import (
     FAKE_PASSWORD,
@@ -30,7 +31,7 @@ from local_dev.steam_fake import (
 )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="本地假数据种子")
     parser.add_argument(
         "--purge-fake",
@@ -40,14 +41,20 @@ def main() -> int:
     parser.add_argument(
         "--wipe",
         action="store_true",
-        help="先删除除 admin 外的全部用户及其关联数据",
+        help="先删除除 admin 外的全部用户及其关联数据（生产环境拒绝）",
     )
     parser.add_argument(
         "--reseed-history",
         action="store_true",
         help="清空演示账号游玩/在线记录并按作息重生成（上月1日～今天）",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.wipe and get_settings().is_production:
+        print(
+            "APP_ENV=production：--wipe 会删除除 admin 外的全部用户，只能用于本地开发库",
+            file=sys.stderr,
+        )
+        return 2
 
     db = SessionLocal()
     try:
