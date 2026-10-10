@@ -100,8 +100,13 @@ export type TarkovTaskDonesState = {
   questProfileId?: { pvp?: string; pve?: string };
   /** 转生清空已写本机、账号整表替换还没成功。这段时间以本机账为准。 */
   questProfileResetPending?: { pvp?: boolean; pve?: boolean };
-  /** 玩家清空进度后，下一次任务同步从当前模式最新 ProfileId 整段重放。 */
+  /** 玩家清空进度后，下一次任务同步从当前模式最新 ProfileId 重放。 */
   questSyncFromLatest?: { pvp?: boolean; pve?: boolean };
+  /**
+   * 清空进度或转生之后的回放下限（北京墙钟）。
+   * 同一 ProfileId 的转生不会换 id，更早的完成日志不能再写回。
+   */
+  questProgressFloor?: { pvp?: string; pve?: string };
 };
 
 let questLedgerEpoch = 0;
@@ -895,6 +900,7 @@ function readState(): TarkovTaskDonesState {
           pvp: Boolean(parsed.questSyncFromLatest?.pvp),
           pve: Boolean(parsed.questSyncFromLatest?.pve),
         },
+        questProgressFloor: asClockMap(parsed.questProgressFloor),
       };
     }
   } catch {
@@ -1067,6 +1073,18 @@ export function loadQuestSyncFromLatest(mode: TarkovGameMode): boolean {
   return Boolean(readState().questSyncFromLatest?.[mode]);
 }
 
+export function loadQuestProgressFloor(mode: TarkovGameMode): string {
+  return asClock(readState().questProgressFloor?.[mode]);
+}
+
+export function saveQuestProgressFloor(mode: TarkovGameMode, at: string): void {
+  const stamp = asClock(at);
+  if (!stamp) return;
+  const state = readState();
+  state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
+  writeState(state);
+}
+
 export function clearQuestSyncFromLatest(mode: TarkovGameMode): void {
   const state = readState();
   if (!state.questSyncFromLatest?.[mode]) return;
@@ -1096,7 +1114,11 @@ export function releaseClearedTasks(
   writeState(state);
 }
 
-/** 清空当前模式的任务账，并让下一次同步从最新 ProfileId 重放。没转生时也只有这一个角色。 */
+/**
+ * 清空当前模式的任务账。
+ * 同一 ProfileId 时，下一次同步不再写回这次清空之前的任务日志。
+ * 日志里已经换成新角色时，从该角色第一次出现重放。
+ */
 export function clearTaskProgressForResync(mode: TarkovGameMode): void {
   const state = readState();
   const stamp = nowBeijingStamp();
@@ -1117,6 +1139,7 @@ export function clearTaskProgressForResync(mode: TarkovGameMode): void {
   state.objectives = { ...state.objectives, [mode]: [] };
   state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
   state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: true };
+  state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
   state.questProfileResetPending = {
     ...state.questProfileResetPending,
     [mode]: true,
@@ -1162,6 +1185,7 @@ export function resetTaskProgressForProfile(
   state.objectives = { ...state.objectives, [mode]: [] };
   state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
   state.questProfileId = { ...state.questProfileId, [mode]: id };
+  state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
   state.questProfileResetPending = {
     ...state.questProfileResetPending,
     [mode]: true,

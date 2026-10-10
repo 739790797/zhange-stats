@@ -1020,7 +1020,7 @@ export function TarkovTaskManagerPanel() {
                         Modal.confirm({
                           title: "清空任务进度",
                           content:
-                            "会清掉当前模式下的已完成、进行中、失败和小步骤。",
+                            "会清掉当前模式下的已完成、进行中、失败和小步骤。之后同步不会把这次清空之前的任务再记回来。若日志里已经换成新角色，则从新角色第一次出现开始。",
                           okText: "清空",
                           okButtonProps: { danger: true },
                           cancelText: "取消",
@@ -1061,7 +1061,7 @@ export function TarkovTaskManagerPanel() {
                               Modal.confirm({
                                 title: "同步任务",
                                 content:
-                                  "进度已清空。要现在从当前角色的日志同步任务吗？稍后在这里或其他页面同步，也会从当前角色开始。",
+                                  "进度已清空。要现在同步吗？同一个角色只会计清空之后新打的任务；已经换了角色的话，会从新角色的日志开始。",
                                 okText: "同步",
                                 cancelText: "稍后",
                                 onOk: () => {

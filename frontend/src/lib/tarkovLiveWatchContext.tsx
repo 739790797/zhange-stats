@@ -106,8 +106,11 @@ import {
   loadTaskClearedDone,
   loadQuestProfileId,
   loadQuestProfileResetPending,
+  loadQuestProgressFloor,
   loadQuestSyncFromLatest,
   saveQuestProfileId,
+  saveQuestProgressFloor,
+  questLedgerEpochNow,
   clearQuestProfileResetPending,
   clearQuestSyncFromLatest,
   releaseClearedTasks,
@@ -123,10 +126,11 @@ import {
   buildQuestLogSyncReview,
   emptyQuestLogCatalog,
   collectQuestReplayDrops,
+  clampQuestReplayFromAt,
   foldSessionQuests,
   formatQuestLogDropHint,
   mergeQuestProgressFromFolded,
-  planLatestProfileReplay,
+  planClearedQuestReplay,
   questProfileResetPlan,
   questProgressDelta,
   questsMatchingReplay,
@@ -294,6 +298,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       opts?: { put?: boolean; replace?: boolean; force?: boolean },
     ) => {
       const mode = gameModeRef.current;
+      const epoch = questLedgerEpochNow();
       const syncedAt = nowBeijingStamp();
       const write = next.changed || Boolean(opts?.force);
       saveTaskSyncMark(mode, syncedAt);
@@ -344,6 +349,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         opts?.replace ? { replace: true } : undefined,
       )
         .then((data) => {
+          if (questLedgerEpochNow() !== epoch) return;
           if (opts?.replace) clearQuestProfileResetPending(mode);
           const objectives = data.objective_dones || loadTaskObjectivePairs(mode);
           const catalog = catalogRef.current;
@@ -437,7 +443,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         catalogRef.current,
         base.failed,
         loadTaskClearedDone(mode),
-        { profileId },
+        { profileId, fromAt: loadQuestProgressFloor(mode) },
       );
       commitQuestProgress(base, next);
     },
@@ -974,6 +980,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         return { ok: false, hint: "正在读取日志，请稍后再试。" };
       }
       const forceLatest = loadQuestSyncFromLatest(gameModeRef.current);
+      const syncEpoch = questLedgerEpochNow();
       const range = forceLatest
         ? defaultLogSyncRange()
         : opts?.from && opts?.to
@@ -1052,16 +1059,22 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         const latestSeen = (
           latestIdentityForMode(seenIdentities, mode)?.profileId || ""
         ).trim();
-        const latestReplay = forceLatest
-          ? planLatestProfileReplay(seenIdentities, mode)
+        const progressFloor = loadQuestProgressFloor(mode);
+        const clearedPlan = forceLatest
+          ? planClearedQuestReplay({
+              gameMode: mode,
+              identities: seenIdentities,
+              storedProfileId: loadQuestProfileId(mode),
+              clearedAt: progressFloor,
+            })
           : null;
-        if (forceLatest && !latestReplay) {
+        if (forceLatest && !clearedPlan) {
           return {
             ok: false,
             hint: "日志里还没有读到当前角色，任务进度保持清空。",
           };
         }
-        const replayId = (latestReplay?.profileId || breakpoint?.profileId || "").trim();
+        const replayId = (clearedPlan?.profileId || breakpoint?.profileId || "").trim();
         if (!forceLatest && replayId && latestSeen && replayId !== latestSeen) {
           return {
             ok: true,
@@ -1079,20 +1092,23 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
               replayProfileId: replayId,
             })
           : null;
-        const replayLatest = Boolean(latestReplay);
+        const replayLatest = Boolean(clearedPlan);
+        const freshProfile = Boolean(clearedPlan?.freshProfile);
         const resetLedger = replayLatest || Boolean(decision?.reset);
-        if (replayLatest && latestReplay) {
+        if (replayLatest && clearedPlan) {
+          if (freshProfile) saveQuestProgressFloor(mode, clearedPlan.fromAt);
           filter = {
             gameMode: mode,
-            profileId: latestReplay.profileId,
-            fromAt: latestReplay.at,
+            profileId: clearedPlan.profileId,
+            fromAt: clearedPlan.fromAt,
           };
           targets = considered
             .filter((row) =>
-              sessionHasProfile(row.identities, latestReplay.profileId, mode),
+              sessionHasProfile(row.identities, clearedPlan.profileId, mode),
             )
             .map((row) => ({ ...row.stub, identities: row.identities }));
         } else if (resetLedger && decision) {
+          if (decision.at) saveQuestProgressFloor(mode, decision.at);
           filter = { ...filter, fromAt: decision.at || filter.fromAt };
           targets = considered
             .filter((row) =>
@@ -1108,6 +1124,13 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           loadQuestProfileId(mode) !== decision.profileId
         ) {
           saveQuestProfileId(mode, decision.profileId);
+        }
+        const floorNow = loadQuestProgressFloor(mode);
+        if (floorNow) {
+          filter = {
+            ...filter,
+            fromAt: clampQuestReplayFromAt(filter.fromAt, floorNow),
+          };
         }
         if (!targets.length && !resetLedger) {
           return {
@@ -1151,7 +1174,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           }
           processed += 1;
           setLogSyncScan({ done: processed, total: oldestFirst.length });
-          if (!resetLedger && processed % 8 === 0) {
+          if (!resetLedger && processed % 8 === 0 && questLedgerEpochNow() === syncEpoch) {
             const base = loadQuestBase();
             const mid = mergeQuestProgressFromFolded(
               base.done,
@@ -1160,6 +1183,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
               questEvents,
               catalogRef.current,
               base.failed,
+              loadTaskClearedDone(mode),
             );
             commitQuestProgress(
               base,
@@ -1190,6 +1214,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         if (abort.signal.aborted && resetLedger) {
           return { ok: false, hint: "已取消同步。" };
         }
+        if (questLedgerEpochNow() !== syncEpoch) {
+          return { ok: false, hint: "任务进度已清空，这次同步没有写回。" };
+        }
         if (resetLedger && decision && !replayLatest) {
           resetTaskProgressForProfile(mode, decision.profileId, decision.at);
         }
@@ -1204,7 +1231,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             questEvents,
             catalogRef.current,
             base.failed,
-            replayLatest ? new Map() : resetLedger ? loadTaskClearedDone(mode) : undefined,
+            freshProfile ? new Map() : loadTaskClearedDone(mode),
           );
           const changed =
             !sameIdLists(base.done, merged.done) ||
@@ -1220,14 +1247,14 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             },
             resetLedger ? { replace: true, force: true } : undefined,
           );
-          if (replayLatest && latestReplay) {
+          if (replayLatest && clearedPlan) {
             releaseClearedTasks(mode, [
               ...merged.done,
               ...merged.started,
               ...merged.failed,
             ]);
             clearQuestSyncFromLatest(mode);
-            saveQuestProfileId(mode, latestReplay.profileId);
+            saveQuestProfileId(mode, clearedPlan.profileId);
           }
           const importPlan = planRaidLogImportRows(
             endedRaidKeysRef.current,
@@ -1261,7 +1288,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           ),
           { questEvents },
         );
-        if (replayLatest) hint = `已从当前角色同步。${hint}`;
+        if (replayLatest && freshProfile) hint = `已从当前角色同步。${hint}`;
+        else if (replayLatest) hint = `已跳过清空前的旧任务。${hint}`;
         else if (resetLedger) hint = `转生后已重置任务进度。${hint}`;
         if (abort.signal.aborted) {
           hint = processed

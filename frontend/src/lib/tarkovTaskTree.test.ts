@@ -29,6 +29,7 @@ import {
   loadTaskClearedDone,
   loadQuestProfileId,
   loadQuestProfileResetPending,
+  loadQuestProgressFloor,
   loadQuestSyncFromLatest,
   releaseClearedTasks,
   clearTaskProgressForResync,
@@ -451,6 +452,10 @@ describe("task dones storage", () => {
     expect(loadTaskDoneIds("pve")).toEqual(["keep"]);
     expect(loadQuestSyncFromLatest("pvp")).toBe(true);
     expect(loadQuestSyncFromLatest("pve")).toBe(false);
+    expect(loadQuestProgressFloor("pvp")).toBe(
+      loadTaskClearedDone("pvp").get("old-done"),
+    );
+    expect(loadQuestProgressFloor("pve")).toBe("");
     releaseClearedTasks("pvp", ["old-start"]);
     expect(loadTaskClearedDone("pvp").has("old-start")).toBe(false);
     expect(loadTaskClearedDone("pvp").has("old-done")).toBe(true);
@@ -474,6 +479,7 @@ describe("task dones storage", () => {
     expect(loadTaskObjectivePairs("pvp")).toEqual([]);
     expect(loadTaskDoneIds("pve")).toEqual(["keep"]);
     expect(loadQuestProfileId("pvp")).toBe("profile-b");
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-06-01 09:00:00");
     expect(loadQuestProfileResetPending("pvp")).toBe(true);
     expect(loadTaskClearedDone("pvp").get("old-done")).toBe("2026-06-01 09:00:00");
     expect(loadTaskClearedDone("pvp").get("old-start")).toBe("2026-06-01 09:00:00");

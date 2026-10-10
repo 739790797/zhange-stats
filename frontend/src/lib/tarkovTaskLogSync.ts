@@ -136,7 +136,7 @@ export function questProfileResetPlan(input: {
   return { profileId: replayId, at, reset: older };
 }
 
-/** 清空进度后的同步：忽略所选旧断点，从该模式最新 ProfileId 的第一次出现重放。 */
+/** 清空进度后的同步：忽略所选旧断点，定位当前模式最新 ProfileId。 */
 export function planLatestProfileReplay(
   identities: readonly TarkovLogIdentity[],
   gameMode: TarkovGameMode,
@@ -149,6 +149,63 @@ export function planLatestProfileReplay(
     profileId,
     at: earliestProfileAt(identities, gameMode, profileId),
   };
+}
+
+export type ClearedQuestReplayPlan = {
+  profileId: string;
+  fromAt: string;
+  /** 日志里已经换成另一个 ProfileId，从该角色第一次出现整段重放。 */
+  freshProfile: boolean;
+};
+
+/**
+ * 清空后再同步。
+ * ProfileId 变了：从新角色第一次出现重放，转生前的日志不写回。
+ * ProfileId 没变（转生常常不换 id）：从清空时刻起，更早的完成日志不写回。
+ */
+export function planClearedQuestReplay(input: {
+  gameMode: TarkovGameMode;
+  identities: readonly TarkovLogIdentity[];
+  storedProfileId?: string;
+  clearedAt?: string;
+}): ClearedQuestReplayPlan | null {
+  const latest = planLatestProfileReplay(input.identities, input.gameMode);
+  if (!latest?.profileId) return null;
+  const decision = questProfileResetPlan({
+    gameMode: input.gameMode,
+    storedProfileId: input.storedProfileId,
+    identities: input.identities,
+    replayProfileId: latest.profileId,
+  });
+  const freshProfile = Boolean(decision?.reset);
+  const clearedAt = (input.clearedAt || "").trim();
+  if (freshProfile || !clearedAt) {
+    return {
+      profileId: latest.profileId,
+      fromAt: decision?.at || latest.at,
+      freshProfile,
+    };
+  }
+  return {
+    profileId: latest.profileId,
+    fromAt: laterBeijingClock(latest.at, clearedAt),
+    freshProfile: false,
+  };
+}
+
+export function clampQuestReplayFromAt(
+  fromAt: string | undefined,
+  floor: string | undefined,
+): string {
+  return laterBeijingClock((fromAt || "").trim(), (floor || "").trim());
+}
+
+function isBeforeReplayFloor(at: string, fromAt: string): boolean {
+  const floor = fromAt.trim();
+  if (!floor) return false;
+  const clock = (at || "").trim();
+  if (!clock) return true;
+  return compareBeijingClock(clock, floor) < 0;
 }
 
 export function sessionModeMatchesGameMode(
@@ -192,7 +249,7 @@ export function questsMatchingReplay(
   const fromAt = (filter.fromAt || "").trim();
   const out: TarkovLogQuestEvent[] = [];
   for (const quest of parsed.quests || []) {
-    if (fromAt && (quest.at || "") < fromAt) continue;
+    if (isBeforeReplayFloor(quest.at || "", fromAt)) continue;
     if (questReplayDropReason(quest, parsed, filter)) continue;
     const mode = quest.sessionMode || parsed.sessionMode;
     if (!sessionModeMatchesGameMode(mode, filter.gameMode)) continue;
@@ -208,11 +265,11 @@ export function collectQuestReplayDrops(
   const fromAt = (filter.fromAt || "").trim();
   const out: TarkovLogQuestDrop[] = [];
   for (const drop of parsed.drops || []) {
-    if (fromAt && (drop.at || "") < fromAt) continue;
+    if (isBeforeReplayFloor(drop.at || "", fromAt)) continue;
     out.push(drop);
   }
   for (const quest of parsed.quests || []) {
-    if (fromAt && (quest.at || "") < fromAt) continue;
+    if (isBeforeReplayFloor(quest.at || "", fromAt)) continue;
     const reason = questReplayDropReason(quest, parsed, filter);
     if (!reason) continue;
     out.push({

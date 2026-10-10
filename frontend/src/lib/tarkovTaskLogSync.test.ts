@@ -16,6 +16,8 @@ import {
   formatSignedDelta,
   mergeQuestProgressFromFolded,
   questProgressDelta,
+  clampQuestReplayFromAt,
+  planClearedQuestReplay,
   planLatestProfileReplay,
   questProfileResetPlan,
   mergeQuestProgressFromLogs,
@@ -117,6 +119,94 @@ describe("questProfileResetPlan", () => {
         replayProfileId: "old",
       }),
     ).toMatchObject({ profileId: "old", reset: false });
+  });
+});
+
+describe("planClearedQuestReplay", () => {
+  it("keeps a same-profile clear from replaying quests before the clear", () => {
+    expect(
+      planClearedQuestReplay({
+        gameMode: "pvp",
+        storedProfileId: "aaa",
+        clearedAt: "2026-10-09 09:00:00",
+        identities: [
+          ident("aaa", "2026-01-01 10:00:00"),
+          ident("aaa", "2026-10-08 10:00:00"),
+        ],
+      }),
+    ).toEqual({
+      profileId: "aaa",
+      fromAt: "2026-10-09 09:00:00",
+      freshProfile: false,
+    });
+  });
+
+  it("replays a new profile from its first appearance even if the clear is later", () => {
+    expect(
+      planClearedQuestReplay({
+        gameMode: "pvp",
+        storedProfileId: "old",
+        clearedAt: "2026-10-09 09:00:00",
+        identities: [
+          ident("old", "2026-01-01 10:00:00"),
+          ident("new", "2026-10-08 08:00:00"),
+          ident("new", "2026-10-01 09:00:00"),
+        ],
+      }),
+    ).toEqual({
+      profileId: "new",
+      fromAt: "2026-10-01 09:00:00",
+      freshProfile: true,
+    });
+    expect(clampQuestReplayFromAt("2026-10-01 09:00:00", "2026-10-01 09:00:00")).toBe(
+      "2026-10-01 09:00:00",
+    );
+  });
+
+  it("drops completions from before the clear when the profile id did not change", () => {
+    const plan = planClearedQuestReplay({
+      gameMode: "pvp",
+      storedProfileId: "aaa",
+      clearedAt: "2026-10-09 09:00:00",
+      identities: [
+        ident("aaa", "2026-01-01 10:00:00"),
+        ident("aaa", "2026-10-09 12:00:00"),
+      ],
+    });
+    const events = questsMatchingReplay(
+      {
+        sessionMode: "regular",
+        quests: [
+          {
+            kind: "completed",
+            taskId: "old-task",
+            at: "2026-06-01 10:00:00",
+            sessionMode: "regular",
+            profileId: "aaa",
+          },
+          {
+            kind: "started",
+            taskId: "new-task",
+            at: "2026-10-09 12:30:00",
+            sessionMode: "regular",
+            profileId: "aaa",
+          },
+        ],
+      },
+      {
+        gameMode: "pvp",
+        profileId: plan?.profileId,
+        fromAt: plan?.fromAt,
+      },
+    );
+    expect(events.map((row) => row.taskId)).toEqual(["new-task"]);
+    expect(
+      applyQuestLogState([], [], foldQuestEvents(new Map(), events)),
+    ).toEqual({
+      done: [],
+      started: ["new-task"],
+      failed: [],
+    });
   });
 });
 

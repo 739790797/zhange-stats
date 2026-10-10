@@ -126,13 +126,13 @@ export function nextLiveQuestProgress(
   catalog?: QuestLogCatalog | ReadonlySet<string>,
   failedIds: readonly string[] = [],
   clearedDone?: ReadonlyMap<string, string>,
-  replay?: { profileId?: string },
+  replay?: { profileId?: string; fromAt?: string },
 ): LiveQuestProgressPlan {
   const merged = mergeQuestProgressFromLogs(
     doneIds,
     startedIds,
     sessions,
-    { gameMode, profileId: replay?.profileId },
+    { gameMode, profileId: replay?.profileId, fromAt: replay?.fromAt },
     catalog,
     failedIds,
     clearedDone,
