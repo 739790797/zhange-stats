@@ -5,3 +5,4 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\_lib.ps1"
 Ensure-ZhangeDeps
 Invoke-Restart
+Show-SetupToken
