@@ -164,8 +164,11 @@ export function findRasterMap(
   return undefined;
 }
 
+/** 钉在不可变提交上；跟分支走会让仓库后续提交直接改到站内地图。 */
+const TARKOV_SVG_MAPS_COMMIT = "5a8b6115d1c0cf56f2ebaac1a96fa5ae3074d178";
+
 export function svgFallbackUrl(svgPath: string): string {
   const file = svgPath.split("/").pop() || "";
   if (!file) return svgPath;
-  return `https://raw.githubusercontent.com/the-hideout/tarkov-dev-svg-maps/refs/heads/main/${file}`;
+  return `https://raw.githubusercontent.com/the-hideout/tarkov-dev-svg-maps/${TARKOV_SVG_MAPS_COMMIT}/${file}`;
 }
