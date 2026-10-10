@@ -99,12 +99,6 @@
   border: 1px dashed #3a3d30;
 }
 
-.slotName {
-  display: block;
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 11px;
-}
-
 .slotPart {
   display: block;
   color: #eee9d6;
@@ -435,9 +429,13 @@
   justify-content: center;
   width: 14px;
   height: 14px;
+  margin: 0;
+  padding: 0;
   border: 1px solid #555;
   border-radius: 50%;
+  background: none;
   color: #888;
+  font-family: inherit;
   font-size: 10px;
   font-weight: 700;
   font-style: italic;

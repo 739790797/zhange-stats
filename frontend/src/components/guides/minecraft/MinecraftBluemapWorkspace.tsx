@@ -13,7 +13,7 @@ import {
   Tag,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   runMinecraftModToolCommand,
   type MinecraftModFeature,
@@ -47,6 +47,7 @@ export function MinecraftBluemapWorkspace({
   feature?: MinecraftModFeature;
 }) {
   const queryClient = useQueryClient();
+  const fieldId = useId();
   const status = data.bluemap;
   const maps = useMemo(() => {
     return [
@@ -125,8 +126,9 @@ export function MinecraftBluemapWorkspace({
           </p>
           <div className={styles.grid}>
             <div className={styles.field}>
-              <label>地图</label>
+              <label htmlFor={`${fieldId}-map`}>地图</label>
               <Select
+                id={`${fieldId}-map`}
                 showSearch
                 value={mapId}
                 onChange={setMapId}
@@ -135,24 +137,27 @@ export function MinecraftBluemapWorkspace({
               />
             </div>
             <div className={styles.field}>
-              <label>中心 X</label>
+              <label htmlFor={`${fieldId}-x`}>中心 X</label>
               <InputNumber
+                id={`${fieldId}-x`}
                 value={centerX}
                 onChange={setCenterX}
                 style={{ width: "100%" }}
               />
             </div>
             <div className={styles.field}>
-              <label>中心 Z</label>
+              <label htmlFor={`${fieldId}-z`}>中心 Z</label>
               <InputNumber
+                id={`${fieldId}-z`}
                 value={centerZ}
                 onChange={setCenterZ}
                 style={{ width: "100%" }}
               />
             </div>
             <div className={styles.field}>
-              <label>半径（方块，可空）</label>
+              <label htmlFor={`${fieldId}-radius`}>半径（方块，可空）</label>
               <InputNumber
+                id={`${fieldId}-radius`}
                 min={1}
                 max={1_000_000}
                 value={radius}

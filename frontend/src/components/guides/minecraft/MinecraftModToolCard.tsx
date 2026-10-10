@@ -185,14 +185,7 @@ function CommandBar({
       <div className={styles.sectionHead}>
         <div className={styles.sectionTitle}>执行指令</div>
         <div className={styles.commandRow} ref={boxRef}>
-          <div
-            className={styles.commandInputWrap}
-            onKeyDown={(event) => {
-              if (event.key !== "Tab") return;
-              event.preventDefault();
-              fillLine(completeLine(line, tree, worlds, maps));
-            }}
-          >
+          <div className={styles.commandInputWrap}>
             <Input
               value={line}
               placeholder={tree[0]?.id || "指令"}
@@ -203,6 +196,15 @@ function CommandBar({
                 setLine(event.target.value);
               }}
               onKeyDown={(event) => {
+                if (event.key === "Tab") {
+                  /* 空行、Shift+Tab、补不出新内容时放行，键盘才能离开输入框 */
+                  if (event.shiftKey || !line.trim()) return;
+                  const next = completeLine(line, tree, worlds, maps);
+                  if (next === line) return;
+                  event.preventDefault();
+                  fillLine(next);
+                  return;
+                }
                 if (event.key === "Enter") {
                   event.preventDefault();
                   const parsed = parseCommandLine(line, tree);
@@ -215,16 +217,14 @@ function CommandBar({
               }}
             />
             {options.length ? (
-              <ul className={styles.commandSuggest} role="listbox">
+              <ul className={styles.commandSuggest}>
                 {options.map((row) => (
                   <li key={row.value}>
                     <button
                       type="button"
                       className={styles.commandSuggestItem}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        fillLine(applySuggestionLine(row.value, tree));
-                      }}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => fillLine(applySuggestionLine(row.value, tree))}
                     >
                       {row.label}
                     </button>
@@ -333,7 +333,7 @@ export function MinecraftModToolCard({
       >
         <div
           className={styles.toggle}
-          role={present ? "button" : undefined}
+          role="button"
           tabIndex={present ? 0 : -1}
           aria-expanded={present ? open : undefined}
           aria-disabled={!present}

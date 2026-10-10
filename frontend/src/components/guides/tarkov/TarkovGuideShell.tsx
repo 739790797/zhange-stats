@@ -158,11 +158,7 @@ function TarkovLiveWatchStatus() {
       </button>
     );
   }
-  return (
-    <div className={styles.pollClock} aria-live="polite">
-      {body}
-    </div>
-  );
+  return <div className={styles.pollClock}>{body}</div>;
 }
 
 function TarkovGameModeSwitch() {

@@ -272,16 +272,16 @@ export function MinecraftFileManager() {
           directory === "/" ? (
             "根目录"
           ) : (
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
                 setDirectory("/");
                 setSelected([]);
               }}
             >
               根目录
-            </a>
+            </Button>
           ),
       },
     ];
@@ -292,16 +292,16 @@ export function MinecraftFileManager() {
         title: last ? (
           part
         ) : (
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
               setDirectory(path);
               setSelected([]);
             }}
           >
             {part}
-          </a>
+          </Button>
         ),
       });
     });
@@ -541,6 +541,7 @@ export function MinecraftFileManager() {
                     type="text"
                     size="small"
                     icon={<CloseOutlined />}
+                    aria-label={`清除上传记录：${job.name}`}
                     onClick={() => dismissUpload(job.uid)}
                   />
                 ) : null}
@@ -655,7 +656,12 @@ export function MinecraftFileManager() {
             render: (_, row) =>
               row.name === ".." ? null : (
                 <Dropdown menu={{ items: rowMenu(row) }} trigger={["click"]}>
-                  <Button type="text" size="small" icon={<MoreOutlined />} />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<MoreOutlined />}
+                    aria-label={`更多操作：${row.name}`}
+                  />
                 </Dropdown>
               ),
           },

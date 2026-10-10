@@ -473,7 +473,12 @@ export default function FileManagerPage() {
             ) : null}
             {isFileBrowseLocked(row) ? null : (
               <Dropdown menu={{ items: rowMenu(row) }} trigger={["click"]}>
-                <Button type="text" size="small" icon={<MoreOutlined />} />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<MoreOutlined />}
+                  aria-label={`更多操作：${row.name}`}
+                />
               </Dropdown>
             )}
           </Space>
@@ -754,6 +759,7 @@ export default function FileManagerPage() {
                         type="text"
                         size="small"
                         icon={<CloseOutlined />}
+                        aria-label={`清除上传记录：${job.name}`}
                         onClick={() => dismissUpload(job.uid)}
                       />
                     ) : null}

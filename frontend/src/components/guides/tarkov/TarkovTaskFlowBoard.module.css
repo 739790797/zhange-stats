@@ -290,6 +290,22 @@
   cursor: pointer;
 }
 
+/* 只给键盘 / 读屏一个可聚焦的入口；鼠标点击仍落到卡片内容上，再冒泡给 article。 */
+.cardHit {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.cardHit:focus-visible {
+  outline: 2px solid var(--hb-orange, #c8932a);
+  outline-offset: 2px;
+}
+
 .cardTitle {
   display: block;
   flex: 1;

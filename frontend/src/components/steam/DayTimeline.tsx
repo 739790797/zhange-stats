@@ -96,6 +96,7 @@ export function DayTimeline({
           color="#d9d9d9"
           role="button"
           tabIndex={0}
+          aria-pressed={showOffline}
           onClick={() => setShowOffline((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -119,6 +120,7 @@ export function DayTimeline({
           color="#5b8ff9"
           role="button"
           tabIndex={0}
+          aria-pressed={showOnline}
           onClick={() => setShowOnline((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -143,6 +145,7 @@ export function DayTimeline({
           return (
             <Tooltip
               key={g.steam_app_id}
+              trigger={["hover", "focus"]}
               placement="top"
               autoAdjustOverflow={false}
               color="#ffffff"
@@ -163,32 +166,44 @@ export function DayTimeline({
                 />
               }
             >
-              <Tag
-                color={hashColor(g.steam_app_id)}
+              <a
+                href={steamStoreUrl(g.steam_app_id)}
+                target="_blank"
+                rel="noopener noreferrer"
                 onMouseEnter={() => setHoveredAppId(g.steam_app_id)}
                 onMouseLeave={() => setHoveredAppId(null)}
-                onClick={() =>
-                  window.open(steamStoreUrl(g.steam_app_id), "_blank", "noopener,noreferrer")
-                }
+                onFocus={() => setHoveredAppId(g.steam_app_id)}
+                onBlur={() => setHoveredAppId(null)}
                 style={{
-                  cursor: "pointer",
-                  opacity: dimmed ? 0.35 : 1,
-                  outline: active ? "2px solid rgba(0,0,0,0.45)" : undefined,
-                  outlineOffset: 1,
-                  transition: "opacity 0.15s ease, outline-color 0.15s ease",
-                  userSelect: "none",
                   display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
+                  marginInlineEnd: 8,
+                  color: "inherit",
+                  textDecoration: "none",
                 }}
               >
-                <TimelineSegmentLogo
-                  appId={g.steam_app_id}
-                  iconUrl={g.icon_url}
-                  size={14}
-                />
-                {g.game_name}
-              </Tag>
+                <Tag
+                  color={hashColor(g.steam_app_id)}
+                  style={{
+                    marginInlineEnd: 0,
+                    cursor: "pointer",
+                    opacity: dimmed ? 0.35 : 1,
+                    outline: active ? "2px solid rgba(0,0,0,0.45)" : undefined,
+                    outlineOffset: 1,
+                    transition: "opacity 0.15s ease, outline-color 0.15s ease",
+                    userSelect: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <TimelineSegmentLogo
+                    appId={g.steam_app_id}
+                    iconUrl={g.icon_url}
+                    size={14}
+                  />
+                  {g.game_name}
+                </Tag>
+              </a>
             </Tooltip>
           );
         })}
