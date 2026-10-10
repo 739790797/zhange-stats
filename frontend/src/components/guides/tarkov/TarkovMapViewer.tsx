@@ -1,4 +1,5 @@
 import { apiError } from "@/lib/apiError";
+import { escapeHtml } from "@/lib/escapeHtml";
 import {
   useCallback,
   useEffect,
@@ -97,6 +98,10 @@ import { inventoryThumbUrl } from "@/lib/tarkovItemImages";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { traderIconUrl, traderPortraitUrl } from "@/lib/tarkovHomeNav";
 import {
+  attachFallbackImgErrors,
+  fallbackImgHtml,
+} from "@/lib/tarkovMapImgFallback";
+import {
   addMarkerOutline,
   bindMarkerOutlineHover,
   setMarkerOutlineVisible,
@@ -116,6 +121,7 @@ import {
   isTypingTarget,
   shouldRightButtonPanMap,
   MARK_TEXT_MAX,
+  markAuthorTooltipHtml,
   markMatchesFloor,
   markStrokePoints,
   mergeBoardMarks,
@@ -140,6 +146,7 @@ import {
   svgFallbackUrl,
   type TarkovDevMapLayer,
 } from "@/lib/tarkovMapImages";
+import { sanitizeTarkovMapSvg } from "@/lib/tarkovMapSvg";
 import {
   pullAccountMapFilters,
   scheduleAccountMapFilters,
@@ -357,6 +364,8 @@ const PLAYER_PULSE_PANE = "playerPulsePane";
 const SVG_BASE_PANE = "svgBasePane";
 const DRAFT_THROTTLE_MS = 48;
 const QUEST_LABEL_ZOOM_MS = 80;
+/** 列表 props 的缺省值要引用稳定：写成 `= []` 每次渲染都是新数组，依赖它的图层 effect 会每次重建。 */
+const EMPTY_LIST = Object.freeze([]) as never[];
 const CANVAS_ICON_SIZE: [number, number] = [24, 24];
 const CANVAS_ANCHOR_CENTER: [number, number] = [12, 12];
 const CANVAS_Z = {
@@ -472,14 +481,6 @@ function FilterCollapsibleGroup({
   );
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function setSvgFloor(
   root: SVGSVGElement | undefined,
   baseId: string,
@@ -562,7 +563,7 @@ async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {
       const text = await res.text();
       const holder = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       holder.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-      holder.innerHTML = text;
+      holder.innerHTML = sanitizeTarkovMapSvg(text);
       const inner = holder.children[0];
       if (inner?.getAttribute("viewBox")) {
         holder.setAttribute("viewBox", inner.getAttribute("viewBox") || "");
@@ -580,7 +581,7 @@ function extractPopupExtraHtml(row: TarkovMapExtract): string {
   const switches = (row.switches || [])
     .map((item) => (item.name || item.id || "").trim())
     .filter(Boolean);
-  if (switches.length) lines.push(`由 ${switches.join("、")} 激活`);
+  if (switches.length) lines.push(escapeHtml(`由 ${switches.join("、")} 激活`));
   const item = row.transfer_item;
   if (item?.id) {
     const label = (item.name || item.short_name || item.id).trim();
@@ -1173,9 +1174,12 @@ function traderSlugForIcon(slug: string): string {
 function questTraderImgHtml(slug: string): string {
   const safe = traderSlugForIcon(slug);
   if (!safe) return "";
-  const icon = escapeHtml(traderIconUrl(safe));
-  const portrait = escapeHtml(traderPortraitUrl(safe));
-  return `<img class="${styles.questTrader}" src="${icon}" alt="" width="20" height="20" onerror="this.onerror=function(){this.remove()};this.src='${portrait}'">`;
+  return fallbackImgHtml({
+    className: styles.questTrader,
+    src: traderIconUrl(safe),
+    fallbackSrc: traderPortraitUrl(safe),
+    size: 20,
+  });
 }
 
 function questLabelLineHtml(
@@ -1238,7 +1242,7 @@ function bindQuestActionPopup(
   onAction: (action: RaidPrepQuestPointAction) => void,
 ) {
   const popup = L.popup({
-    className: `${styles.questPopup} ${TARKOV_MAP_TIP_QUEST}`,
+    className: TARKOV_MAP_TIP_QUEST,
     closeButton: true,
     autoPan: true,
     maxWidth: 360,
@@ -1783,14 +1787,14 @@ function addStrokeLayer(
   color: string,
   current: boolean,
   interactive: boolean,
-  title?: string,
+  tooltipHtml?: string,
 ): L.Layer | null {
   if (!points.length) return null;
   const layer = L.polyline(
     strokeLatLngs(points),
     strokePathOptions(color, current, interactive),
   );
-  if (title) layer.bindTooltip(title, { direction: "top" });
+  if (tooltipHtml) layer.bindTooltip(tooltipHtml, { direction: "top" });
   layer.addTo(group);
   return layer;
 }
@@ -1893,8 +1897,8 @@ function addTextLayer(
       pane: BOARD_PANE,
       opacity: current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY,
     });
-  const title = mark.author_display_name || "";
-  if (title) layer.bindTooltip(title, { direction: "top" });
+  const tooltipHtml = markAuthorTooltipHtml(mark);
+  if (tooltipHtml) layer.bindTooltip(tooltipHtml, { direction: "top" });
   layer.addTo(group);
   return layer;
 }
@@ -1950,8 +1954,8 @@ function addPinLayer(
     interactive,
     pane: BOARD_PANE,
   });
-  const title = mark.author_display_name || "";
-  if (title) layer.bindTooltip(title, { direction: "top" });
+  const tooltipHtml = markAuthorTooltipHtml(mark);
+  if (tooltipHtml) layer.bindTooltip(tooltipHtml, { direction: "top" });
   layer.addTo(group);
   return layer;
 }
@@ -2001,7 +2005,7 @@ function addBoardMarks(
     }
     const current = markMatchesFloor(mark, currentFloor);
     const color = colorForUserId(mark.author_user_id);
-    const title = mark.author_display_name || "";
+    const tooltipHtml = markAuthorTooltipHtml(mark);
     const wantDrag = dragText && mark.kind === "text" && mark.id > 0;
     const wantInteractive = eraseMode || wantDrag;
     let layer = runtime.strokeLayers.get(key);
@@ -2023,7 +2027,7 @@ function addBoardMarks(
           color,
           current,
           eraseMode,
-          title,
+          tooltipHtml,
         );
         if (!painted) continue;
         layer = painted;
@@ -2060,24 +2064,24 @@ type MapTextDraft = {
 export function TarkovMapViewer({
   slug,
   parentSlug,
-  extracts = [],
-  bosses = [],
-  spawns = [],
-  locks = [],
-  hazards = [],
-  switches = [],
-  stationaryWeapons = [],
-  btrStops = [],
-  lootContainers: lootContainersProp = [],
-  lootLoose: lootLooseProp = [],
-  questOverlays = [],
+  extracts = EMPTY_LIST,
+  bosses = EMPTY_LIST,
+  spawns = EMPTY_LIST,
+  locks = EMPTY_LIST,
+  hazards = EMPTY_LIST,
+  switches = EMPTY_LIST,
+  stationaryWeapons = EMPTY_LIST,
+  btrStops = EMPTY_LIST,
+  lootContainers: lootContainersProp = EMPTY_LIST,
+  lootLoose: lootLooseProp = EMPTY_LIST,
+  questOverlays = EMPTY_LIST,
   fill = false,
   zoomControl = true,
   className = "",
-  boardMarks = [],
-  remoteDrafts = [],
-  remotePlayerFixes = [],
-  playerFixPulseLines = [],
+  boardMarks = EMPTY_LIST,
+  remoteDrafts = EMPTY_LIST,
+  remotePlayerFixes = EMPTY_LIST,
+  playerFixPulseLines = EMPTY_LIST,
   suppressLocalFix = false,
   drawColor = "#c8932a",
   authorUserId = 0,
@@ -2106,7 +2110,7 @@ export function TarkovMapViewer({
   toolbar,
   showSidebars = true,
   hideCornerFullscreen = false,
-  places = [],
+  places = EMPTY_LIST,
   placeEdit,
   lockKeyMode = "neutral",
   lockKeyOwns,
@@ -2148,6 +2152,7 @@ export function TarkovMapViewer({
   const drawColorRef = useRef(drawColor);
   const authorUserIdRef = useRef(authorUserId);
   const overlaySigRef = useRef("");
+  const hideBakedTextRef = useRef(false);
   const floorBandsRef = useRef<ReturnType<typeof mapLayerFloorBands>>([]);
   const interactiveKeyRef = useRef("");
   const updatePrefsRef = useRef<
@@ -2655,6 +2660,7 @@ export function TarkovMapViewer({
     if (!el) return;
     let cancelled = false;
     let detachDraw = () => {};
+    const detachImgFallback = attachFallbackImgErrors(el);
     const runtime: MapRuntime = {
       map: null as unknown as L.Map,
       floorTiles: new Map(),
@@ -2936,6 +2942,7 @@ export function TarkovMapViewer({
     return () => {
       cancelled = true;
       detachDraw();
+      detachImgFallback();
       runtimeRef.current = null;
       runtime.map?.remove();
     };
@@ -2960,6 +2967,7 @@ export function TarkovMapViewer({
             /* 切到抽象图失败则继续用瓦片 */
           }
           if (cancelled) return;
+          setSvgBakedTextHidden(runtime.svgRoot, hideBakedTextRef.current);
         }
         if (runtime.svgOverlay) {
           runtime.svgOverlay.addTo(map);
@@ -3063,85 +3071,173 @@ export function TarkovMapViewer({
         runtime.outlines,
       );
     } else runtime.extracts.clearLayers();
-    const canvasMarkers: TarkovCanvasMarker[] = [];
-    if (spawnKinds.pmc || spawnKinds.scav || spawnKinds.sniper) {
-      canvasMarkers.push(
-        ...collectPlayerSpawnMarkers(spawns, spawnKinds, floor, markerFloorBands),
-      );
-    }
-    if (spawnKinds.boss) {
-      canvasMarkers.push(
-        ...collectBossMarkers(
-          bosses,
-          floor,
-          markerFloorBands,
-          interactive.normalizedName || interactive.key,
-        ),
-      );
-    }
-    if (showLocks) {
-      canvasMarkers.push(
-        ...collectLockMarkers(
-          locks,
-          floor,
-          markerFloorBands,
-          (keyId) => onLockClickRef.current(keyId),
-          {
-            mode: lockKeyMode,
-            viewerId: authorUserId || null,
-            owns: lockKeyOwns,
-            brings: lockKeyBrings,
-          },
-          overlayMode === "locks",
-        ),
-      );
-    }
     if (showHazards) {
-      const kindOn = (kind: string) => isHazardKindOn(hazardKinds, kind);
-      canvasMarkers.push(
-        ...collectHazardMarkers(hazards, kindOn, floor, markerFloorBands),
-      );
       addHazardOutlines(
         runtime.outlines,
         runtime.outlineById,
         hazards,
-        kindOn,
+        (kind) => isHazardKindOn(hazardKinds, kind),
       );
     }
-    if (showSwitches) {
-      canvasMarkers.push(...collectSwitchMarkers(switches, floor, markerFloorBands));
-    }
-    if (showStationary) {
-      canvasMarkers.push(
-        ...collectStationaryMarkers(stationaryWeapons, floor, markerFloorBands),
-      );
-    }
-    if (showLootContainers) {
-      canvasMarkers.push(
-        ...collectLootContainerMarkers(
-          lootContainers,
-          (kind) => isLootContainerKindOn(lootContainerKinds, kind),
-          floor,
-          markerFloorBands,
-        ),
-      );
-    }
-    if (showLootLoose) {
-      canvasMarkers.push(
-        ...collectLootLooseMarkers(
-          lootLoose,
-          floor,
-          markerFloorBands,
-          (row) => lootLooseRowVisible(row, lootLooseKinds),
-          (itemId, types) => onLooseClickRef.current(itemId, types),
-        ),
-      );
-    }
-    runtime.iconCanvas?.setMarkers(canvasMarkers);
+  }, [
+    extracts,
+    extractKinds,
+    extractKindOptions,
+    hazards,
+    hazardKinds,
+    showHazards,
+    floor,
+    markerFloorBands,
+    interactive,
+    ready,
+  ]);
+
+  const spawnCanvasMarkers = useMemo(
+    () =>
+      spawnKinds.pmc || spawnKinds.scav || spawnKinds.sniper
+        ? collectPlayerSpawnMarkers(spawns, spawnKinds, floor, markerFloorBands)
+        : EMPTY_LIST,
+    [spawns, spawnKinds, floor, markerFloorBands],
+  );
+  const bossCanvasMarkers = useMemo(
+    () =>
+      spawnKinds.boss && interactive
+        ? collectBossMarkers(
+            bosses,
+            floor,
+            markerFloorBands,
+            interactive.normalizedName || interactive.key,
+          )
+        : EMPTY_LIST,
+    [bosses, spawnKinds.boss, floor, markerFloorBands, interactive],
+  );
+  const lockCanvasMarkers = useMemo(
+    () =>
+      showLocks
+        ? collectLockMarkers(
+            locks,
+            floor,
+            markerFloorBands,
+            (keyId) => onLockClickRef.current(keyId),
+            {
+              mode: lockKeyMode,
+              viewerId: authorUserId || null,
+              owns: lockKeyOwns,
+              brings: lockKeyBrings,
+            },
+            overlayMode === "locks",
+          )
+        : EMPTY_LIST,
+    [
+      locks,
+      showLocks,
+      floor,
+      markerFloorBands,
+      lockKeyMode,
+      authorUserId,
+      lockKeyOwns,
+      lockKeyBrings,
+      overlayMode,
+    ],
+  );
+  const hazardCanvasMarkers = useMemo(
+    () =>
+      showHazards
+        ? collectHazardMarkers(
+            hazards,
+            (kind) => isHazardKindOn(hazardKinds, kind),
+            floor,
+            markerFloorBands,
+          )
+        : EMPTY_LIST,
+    [hazards, hazardKinds, showHazards, floor, markerFloorBands],
+  );
+  const switchCanvasMarkers = useMemo(
+    () =>
+      showSwitches
+        ? collectSwitchMarkers(switches, floor, markerFloorBands)
+        : EMPTY_LIST,
+    [switches, showSwitches, floor, markerFloorBands],
+  );
+  const stationaryCanvasMarkers = useMemo(
+    () =>
+      showStationary
+        ? collectStationaryMarkers(stationaryWeapons, floor, markerFloorBands)
+        : EMPTY_LIST,
+    [stationaryWeapons, showStationary, floor, markerFloorBands],
+  );
+  const lootContainerCanvasMarkers = useMemo(
+    () =>
+      showLootContainers
+        ? collectLootContainerMarkers(
+            lootContainers,
+            (kind) => isLootContainerKindOn(lootContainerKinds, kind),
+            floor,
+            markerFloorBands,
+          )
+        : EMPTY_LIST,
+    [
+      lootContainers,
+      lootContainerKinds,
+      showLootContainers,
+      floor,
+      markerFloorBands,
+    ],
+  );
+  const lootLooseCanvasMarkers = useMemo(
+    () =>
+      showLootLoose
+        ? collectLootLooseMarkers(
+            lootLoose,
+            floor,
+            markerFloorBands,
+            (row) => lootLooseRowVisible(row, lootLooseKinds),
+            (itemId, types) => onLooseClickRef.current(itemId, types),
+          )
+        : EMPTY_LIST,
+    [lootLoose, lootLooseKinds, showLootLoose, floor, markerFloorBands],
+  );
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime?.map || !interactive) return;
+    runtime.iconCanvas?.setMarkers([
+      ...spawnCanvasMarkers,
+      ...bossCanvasMarkers,
+      ...lockCanvasMarkers,
+      ...hazardCanvasMarkers,
+      ...switchCanvasMarkers,
+      ...stationaryCanvasMarkers,
+      ...lootContainerCanvasMarkers,
+      ...lootLooseCanvasMarkers,
+    ]);
+  }, [
+    spawnCanvasMarkers,
+    bossCanvasMarkers,
+    lockCanvasMarkers,
+    hazardCanvasMarkers,
+    switchCanvasMarkers,
+    stationaryCanvasMarkers,
+    lootContainerCanvasMarkers,
+    lootLooseCanvasMarkers,
+    interactive,
+    ready,
+  ]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime?.map || !interactive) return;
     if (showBtrStops) {
       addBtrMarkers(runtime.btrStops, btrStops, floor, markerFloorBands);
     } else runtime.btrStops.clearLayers();
-    const showPlaceLayer = showLabels || placeEditActive;
+  }, [btrStops, showBtrStops, floor, markerFloorBands, interactive, ready]);
+
+  const showPlaceLayer = showLabels || placeEditActive;
+  const hideBakedText = showPlaceLayer && visiblePlaces.length > 0;
+  hideBakedTextRef.current = hideBakedText;
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!ready || !runtime?.map || !interactive) return;
     if (showPlaceLayer) {
       const edit = {
         mode: placeEditMode ?? "off",
@@ -3173,48 +3269,16 @@ export function TarkovMapViewer({
       runtime.labels.clearLayers();
       runtime.placeBoxes.clearLayers();
     }
-    setSvgBakedTextHidden(
-      runtime.svgRoot,
-      showPlaceLayer && visiblePlaces.length > 0,
-    );
+    setSvgBakedTextHidden(runtime.svgRoot, hideBakedText);
   }, [
-    extracts,
-    bosses,
-    spawns,
-    locks,
-    hazards,
-    switches,
-    stationaryWeapons,
-    btrStops,
-    lootContainers,
-    lootLoose,
-    extractKinds,
-    spawnKinds,
-    showLocks,
-    showHazards,
-    showSwitches,
-    showStationary,
-    showBtrStops,
-    showLootContainers,
-    showLootLoose,
-    hazardKinds,
-    lootContainerKinds,
-    lootLooseKinds,
-    showLabels,
-    interactive,
+    showPlaceLayer,
+    hideBakedText,
     visiblePlaces,
     placeEditActive,
     placeEditMode,
     placeEditSelectedId,
+    interactive,
     ready,
-    extractKindOptions,
-    floor,
-    markerFloorBands,
-    lockKeyMode,
-    lockKeyOwns,
-    lockKeyBrings,
-    authorUserId,
-    overlayMode,
   ]);
 
   useEffect(() => {
@@ -3831,7 +3895,7 @@ export function TarkovMapViewer({
     >
     <div
       ref={setWrapEl}
-      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${topRight ? styles.wrapTopRight : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "text" ? styles.wrapText : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld || rightPanHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${showSidebars ? "" : styles.wrapSidebarsClosed} ${className}`.trim()}
+      className={`${styles.wrap} ${fill ? styles.wrapFill : ""} ${isMapDrawTool(drawMode) ? styles.wrapDraw : ""} ${drawMode === "text" ? styles.wrapText : ""} ${drawMode === "erase" ? styles.wrapErase : ""} ${isPlaceEditTool(placeEdit?.mode) ? styles.wrapPlaceEdit : ""} ${placeEdit?.mode === "select" ? styles.wrapPlaceSelect : ""} ${spaceHeld || rightPanHeld ? styles.wrapSpace : ""} ${mapFullscreen ? styles.wrapFullscreen : ""} ${showSidebars ? "" : styles.wrapSidebarsClosed} ${className}`.trim()}
       onPointerDown={() => {
         if (shotResumeOnceRef.current) return;
         if (shotWatch.perm !== "prompt" || !shotWatch.hasStored) return;
@@ -3856,6 +3920,7 @@ export function TarkovMapViewer({
             ref={textInputRef}
             key={textDraft.gen}
             className={styles.textDraftInput}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- 输入框就是用户刚在地图上点出来的文字位置
             autoFocus
             maxLength={MARK_TEXT_MAX}
             placeholder="输入文字"
