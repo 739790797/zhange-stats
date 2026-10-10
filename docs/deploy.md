@@ -110,7 +110,7 @@ Release 发出后不再改动：tag `v{VERSION}` 已存在时（包括上次发�
 
 联机大厅房间 WebSocket（`raid_room_hub`）与三狗位置推送（`goon_tracker_hub`）均为**进程内广播**：多 `app` 副本时 REST 写与 WS 可能落在不同进程，房间事件或出没更新会丢。扩容前须改为 Redis pub/sub（或同类跨进程总线）；在此之前勿水平扩展联机大厅所在服务。
 
-持久化目录：`config/`（站点设置，gitignore）。模板在 `scripts/config.example/`，每个 JSON 有 `_version`；`install` / `run` / `restart` / `update` 与启动会把模板里的新键补进已有文件，不覆盖用户值，也不会用模板新建 `database.json`。`data/runtime/`（含 `.secret_key` 与日志、SQLite 时的 `zhange.sqlite`）、`data/uploads/`、`data/models/`（TexTeller / RapidOCR / EasyOCR 权重）。更新白名单不会覆盖 `config/` 与 `data/`。存量安装第一次启动会把旧 `var/` 迁进这套布局，并把根 `.env` 与库内 `system_configs` 迁入 `config/`（不覆盖已有 JSON；迁完可删 `.env`）。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
+持久化目录：`config/`（站点设置，gitignore）。模板在 `scripts/config.example/`，每个 JSON 有 `_version`；`install` / `run` / `restart` / `update` 与启动会把模板里的新键补进已有文件，不覆盖用户值，也不会用模板新建 `database.json`。`data/runtime/`（含 `.secret_key` 与日志、SQLite 时的 `zhange.sqlite`）、`data/uploads/`、`data/models/`（TexTeller / RapidOCR / EasyOCR 权重）。更新白名单不会覆盖 `config/` 与 `data/`。存量安装第一次启动会把旧 `var/` 迁进这套布局，并把根 `.env` 与库内 `system_configs` 迁入 `config/`：只填仍是模板默认值的设置组，管理员改过的组原样保留，每个库只迁一次（标记 `system_configs.legacy_config_imported`）；迁完可删 `.env`。早年把扁平 `data/` 当 `DATA_DIR` 的安装也会在启动时迁进 `data/runtime/`。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
 
 公式识别用 [TexTeller](https://github.com/OleehyO/TexTeller) 的 ONNX 权重，推理走 `onnxruntime`（主依赖），不必再装官方 `texteller`（torch）。权重可更新：启动时若本地没有会后台补齐；之后由任务配置「公式识别模型」对照镜像上的 `OleehyO/TexTeller` 定时同步。默认走 `https://hf-mirror.com`。
 
