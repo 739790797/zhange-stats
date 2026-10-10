@@ -11,6 +11,7 @@ import {
   RUM_BIZ_ALL,
   rumBarHeight,
   rumBarPoints,
+  rumBarTooltipTitle,
   rumBizBarPoints,
   rumBizFilterOptions,
   rumRowsForBiz,
@@ -83,6 +84,7 @@ function RumP50P95Bar({
         },
       }}
       tooltip={{
+        title: rumBarTooltipTitle,
         items: [
           {
             field: "ms",
