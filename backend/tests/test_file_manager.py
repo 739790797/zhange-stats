@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import os
+import stat
+import threading
 from pathlib import Path
 
 import pytest
@@ -483,3 +486,255 @@ def test_create_conflict_and_binary_text(tmp_path: Path) -> None:
     with pytest.raises(fm.FileManagerError) as missing:
         fm.delete_entries("install", "data/runtime", ["nope.txt"], ctx=ctx)
     assert missing.value.status_code == 404
+
+
+def _site_config(ctx: fm.FileManagerContext) -> Path:
+    cfg = ctx.install_dir / "config"
+    cfg.mkdir()
+    (cfg / "app.json").write_text("{}\n", encoding="utf-8")
+    (cfg / "database.json").write_text('{"url": "mysql+pymysql://u:pw@db/z"}\n', encoding="utf-8")
+    (cfg / "integrations.json").write_text('{"steam_api_key": "k"}\n', encoding="utf-8")
+    (cfg / "email.json").write_text('{"smtp_password": "p"}\n', encoding="utf-8")
+    return cfg
+
+
+def test_secret_config_files_are_sensitive() -> None:
+    for rel in (
+        "config/database.json",
+        "config/integrations.json",
+        "config/email.json",
+        "CONFIG/Database.JSON",
+        "config/.database.k3j2_x.tmp",
+        "config/.email.abc.tmp",
+        "data/tmp/restore/config/integrations.json",
+    ):
+        assert fm.rel_is_sensitive(rel), rel
+    for rel in (
+        "config",
+        "config/app.json",
+        "config/auth.json",
+        "config/ocr.json",
+        "config/.app.x.tmp",
+        "config.example/database.json",
+        "scripts/config.example/email.json",
+        "config/database.json.bak/readme.txt",
+        "database.json",
+    ):
+        assert not fm.rel_is_sensitive(rel), rel
+    assert fm.is_sensitive_name(".secret_key.0f3a9c.tmp")
+
+
+def test_secret_config_files_locked(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    cfg = _site_config(ctx)
+    locked = ("database.json", "integrations.json", "email.json")
+
+    listing = fm.list_directory("install", "config", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    for name in locked:
+        assert names[name].sensitive is True
+        assert names[name].downloadable is False
+        assert names[name].editable is False
+    assert names["app.json"].sensitive is False
+    assert names["app.json"].editable is True
+
+    for name in locked:
+        rel = f"config/{name}"
+        attempts: list[tuple[object, tuple[object, ...]]] = [
+            (fm.resolve_download, ("install", rel)),
+            (fm.read_text, ("install", rel)),
+            (fm.write_text, ("install", rel, "{}")),
+            (fm.upload_file, ("install", "config", name, b"{}")),
+            (fm.rename_entry, ("install", "config", name, "x.json")),
+            (fm.rename_entry, ("install", "config", "app.json", name)),
+            (fm.delete_entries, ("install", "config", [name])),
+        ]
+        for func, args in attempts:
+            with pytest.raises(fm.FileManagerError) as blocked:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert blocked.value.status_code == 403, (func, args)
+    (cfg / "email.json").unlink()
+    with pytest.raises(fm.FileManagerError) as recreate:
+        fm.create_file("install", "config", "email.json", "{}", ctx=ctx)
+    assert recreate.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as rename_dir:
+        fm.rename_entry("install", "", "config", "config-old", ctx=ctx)
+    assert rename_dir.value.status_code == 403
+
+    deleted = fm.delete_entries("install", "", ["config"], ctx=ctx)
+    assert deleted.kept_sensitive is True
+    assert not (cfg / "app.json").exists()
+    assert sorted(p.name for p in cfg.iterdir()) == ["database.json", "integrations.json"]
+    assert "pw@db" in (cfg / "database.json").read_text(encoding="utf-8")
+
+
+def test_symlink_inside_root_cannot_alias_sensitive(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    cfg = _site_config(ctx)
+    (cfg / "email.json").unlink()
+    mdb_data = ctx.data_root / "mariadb" / "data"
+    mdb_data.mkdir(parents=True)
+    (mdb_data / "ibdata1").write_bytes(b"x" * 8)
+    try:
+        (ctx.install_dir / "cfglink").symlink_to(cfg, target_is_directory=True)
+        (ctx.data_root / "dblink").symlink_to(mdb_data, target_is_directory=True)
+        (ctx.install_dir / "dbjson").symlink_to(cfg / "database.json")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    listing = fm.list_directory("install", "cfglink", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    assert names["database.json"].sensitive is True
+    assert names["database.json"].downloadable is False
+    assert names["app.json"].downloadable is True
+    for action in (
+        lambda: fm.resolve_download("install", "cfglink/database.json", ctx=ctx),
+        lambda: fm.resolve_download("install", "dbjson", ctx=ctx),
+        lambda: fm.write_text("install", "cfglink/integrations.json", "{}", ctx=ctx),
+        lambda: fm.upload_file("install", "cfglink", "database.json", b"{}", ctx=ctx),
+        lambda: fm.create_file("install", "cfglink", "email.json", "{}", ctx=ctx),
+        lambda: fm.delete_entries("install", "cfglink", ["database.json"], ctx=ctx),
+        lambda: fm.rename_entry("install", "cfglink", "database.json", "db.json", ctx=ctx),
+        lambda: fm.list_directory("install", "data/dblink", ctx=ctx),
+        lambda: fm.resolve_download("install", "data/dblink/ibdata1", ctx=ctx),
+    ):
+        with pytest.raises(fm.FileManagerError) as blocked:
+            action()
+        assert blocked.value.status_code == 403
+    for link in ("cfglink", "dbjson"):
+        with pytest.raises(fm.FileManagerError) as link_delete:
+            fm.delete_entries("install", "", [link], ctx=ctx)
+        assert link_delete.value.status_code == 400
+    with pytest.raises(fm.FileManagerError):
+        fm.delete_entries("install", "data", ["dblink"], ctx=ctx)
+    assert (cfg / "database.json").is_file()
+    assert (cfg / "integrations.json").read_text(encoding="utf-8") == '{"steam_api_key": "k"}\n'
+    assert not (cfg / "email.json").exists()
+    assert (mdb_data / "ibdata1").is_file()
+
+
+def _leftovers(path: Path) -> list[str]:
+    return sorted(p.name for p in path.iterdir() if p.name.endswith(".part"))
+
+
+def test_upload_stream_caps_without_partial_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(fm, "MAX_UPLOAD_BYTES", 10)
+    monkeypatch.setattr(fm, "_WRITE_CHUNK", 4)
+    runtime = ctx.data_dir
+
+    exact = fm.upload_stream("install", "data/runtime", "pack.bin", io.BytesIO(b"0123456789"), ctx=ctx)
+    assert exact.name == "pack.bin"
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+
+    with pytest.raises(fm.FileManagerError) as too_big:
+        fm.upload_stream("install", "data/runtime", "big.bin", io.BytesIO(b"x" * 11), ctx=ctx)
+    assert too_big.value.status_code == 413
+    assert not (runtime / "big.bin").exists()
+    with pytest.raises(fm.FileManagerError) as overwrite_big:
+        fm.upload_stream("install", "data/runtime", "pack.bin", io.BytesIO(b"y" * 64), ctx=ctx)
+    assert overwrite_big.value.status_code == 413
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+    with pytest.raises(fm.FileManagerError) as bytes_big:
+        fm.upload_file("install", "data/runtime", "pack.bin", b"z" * 11, ctx=ctx)
+    assert bytes_big.value.status_code == 413
+
+    class _Broken(io.RawIOBase):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def readable(self) -> bool:
+            return True
+
+        def read(self, size: int = -1) -> bytes:
+            self.calls += 1
+            if self.calls > 1:
+                raise OSError("disk gone")
+            return b"new!"
+
+    with pytest.raises(fm.FileManagerError) as broken:
+        fm.upload_stream("install", "data/runtime", "pack.bin", _Broken(), ctx=ctx)
+    assert broken.value.status_code == 500
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+    assert _leftovers(runtime) == []
+
+    (runtime / "sub").mkdir()
+    with pytest.raises(fm.FileManagerError) as onto_dir:
+        fm.upload_stream("install", "data/runtime", "sub", io.BytesIO(b"x"), ctx=ctx)
+    assert onto_dir.value.status_code == 409
+    assert _leftovers(runtime) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_overwrite_keeps_file_mode(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    target = ctx.data_dir / "run.sh"
+    target.write_text("echo old\n", encoding="utf-8")
+    target.chmod(0o750)
+    fm.upload_file("install", "data/runtime", "run.sh", b"echo new\n", ctx=ctx)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    fm.write_text("install", "data/runtime/run.sh", "echo edited\n", ctx=ctx)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    assert target.read_text(encoding="utf-8") == "echo edited\n"
+    assert _leftovers(ctx.data_dir) == []
+
+
+def test_upload_endpoint_streams_in_worker_thread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import anyio
+    import httpx
+    from fastapi import FastAPI
+
+    from app.api import files as files_api
+    from app.core.deps import require_admin
+
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(fm, "context_from_settings", lambda: ctx)
+    monkeypatch.setattr(fm, "MAX_UPLOAD_BYTES", 2 * 1024 * 1024)
+    seen: list[tuple[bool, bool]] = []
+    real_stream = fm.upload_stream
+
+    def _spy(root_id: str, dir_rel: str, filename: str, source: object, **kwargs: object) -> fm.MutateResult:
+        seen.append((threading.current_thread() is threading.main_thread(), isinstance(source, bytes)))
+        return real_stream(root_id, dir_rel, filename, source, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(fm, "upload_stream", _spy)
+    app = FastAPI()
+    app.include_router(files_api.router, prefix="/api")
+    app.dependency_overrides[require_admin] = lambda: object()
+    payload = os.urandom(1024 * 1024 + 7)
+
+    async def _run() -> tuple[httpx.Response, httpx.Response]:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            ok = await client.post(
+                "/api/settings/files/upload",
+                data={"root_id": "install", "path": "data/runtime"},
+                files={"file": ("blob.bin", payload, "application/octet-stream")},
+            )
+            big = await client.post(
+                "/api/settings/files/upload",
+                data={"root_id": "install", "path": "data/runtime"},
+                files={"file": ("huge.bin", b"h" * (2 * 1024 * 1024 + 1), "application/octet-stream")},
+            )
+        return ok, big
+
+    ok, big = anyio.run(_run)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["name"] == "blob.bin"
+    assert (ctx.data_dir / "blob.bin").read_bytes() == payload
+    assert big.status_code == 413
+    assert big.json()["detail"] == "上传不能超过 2MB"
+    assert not (ctx.data_dir / "huge.bin").exists()
+    assert _leftovers(ctx.data_dir) == []
+    assert seen == [(False, False), (False, False)]
