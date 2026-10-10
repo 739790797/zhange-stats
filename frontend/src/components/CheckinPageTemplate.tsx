@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Empty,
+  Grid,
   Modal,
   Space,
   Switch,
@@ -13,7 +14,13 @@ import {
   Typography,
   message,
 } from "antd";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
 import dayjs, { type Dayjs } from "dayjs";
 import type { components } from "@/api/generated/schema";
@@ -137,6 +144,33 @@ function ExtraTextRows({ text }: { text: string }) {
 function rowKey(row: CheckinPageResultItem) {
   return `${row.game_code || ""}::${row.role_uid || ""}`;
 }
+
+const ROWS_GRID_STYLE: CSSProperties = {
+  display: "grid",
+  /* 角色 | 区服 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
+  gridTemplateColumns:
+    "14rem max-content max-content minmax(0, 1fr) max-content max-content",
+  columnGap: 12,
+  rowGap: 10,
+  alignItems: "center",
+  justifyItems: "start",
+  paddingLeft: 30,
+};
+
+/** 窄屏六列放不下：一个角色一块，控件跟着折行。 */
+const ROWS_STACK_STYLE: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr)",
+  rowGap: 10,
+};
+
+const ROW_STACK_STYLE: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "8px 12px",
+  minWidth: 0,
+};
 
 type GameGroup = {
   game_code: string;
@@ -309,6 +343,8 @@ export function CheckinPageTemplate({
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [checkingKey, setCheckingKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<CheckinDialogState | null>(null);
+  const screens = Grid.useBreakpoint();
+  const stackRows = screens.md === false;
 
   // 展示路径始终回源官方；staleTime 避免平台 Tabs 切换时反复 force 打上游。
   // 有 persist / 内存缓存时不整卡 loading，用 extra 刷新钮的 isFetching。
@@ -493,19 +529,7 @@ export function CheckinPageTemplate({
                         {group.game_name}
                       </Typography.Text>
                     </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        /* 角色 | 区服 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
-                        gridTemplateColumns:
-                          "14rem max-content max-content minmax(0, 1fr) max-content max-content",
-                        columnGap: 12,
-                        rowGap: 10,
-                        alignItems: "center",
-                        justifyItems: "start",
-                        paddingLeft: 30,
-                      }}
-                    >
+                    <div style={stackRows ? ROWS_STACK_STYLE : ROWS_GRID_STYLE}>
                       {group.items.map((row, index) => {
                         const signed = isCheckinSuccess(row.status);
                         const canCheckin =
@@ -513,10 +537,11 @@ export function CheckinPageTemplate({
                         const channelLabel = displayCheckinChannelName(
                           row.channel_name,
                         );
+                        const extra = renderResultExtra?.(row) ?? null;
                         return (
                           <div
                             key={rowKey(row)}
-                            style={{ display: "contents" }}
+                            style={stackRows ? ROW_STACK_STYLE : { display: "contents" }}
                           >
                             <span
                               style={{
@@ -530,16 +555,16 @@ export function CheckinPageTemplate({
                             </span>
                             {channelLabel ? (
                               <Tag>{channelLabel}</Tag>
-                            ) : (
+                            ) : stackRows ? null : (
                               <span />
                             )}
                             <CheckinStatusTag
                               status={row.status}
                               statusLabel={row.status_label}
                             />
-                            <span style={{ minWidth: 0 }}>
-                              {renderResultExtra?.(row) ?? null}
-                            </span>
+                            {extra != null || !stackRows ? (
+                              <span style={{ minWidth: 0 }}>{extra}</span>
+                            ) : null}
                             <RoleAutoCheckinControls
                               row={row}
                               saving={savingKey === rowKey(row)}
@@ -547,30 +572,33 @@ export function CheckinPageTemplate({
                                 await saveRolePref.mutateAsync(payload);
                               }}
                             />
-                            <div style={{ justifySelf: "start" }}>
-                              {canCheckin ? (
-                                <Button
-                                  type="primary"
-                                  size="small"
-                                  loading={checkingKey === rowKey(row)}
-                                  disabled={
-                                    Boolean(checkingKey) &&
-                                    checkingKey !== rowKey(row)
-                                  }
-                                  onClick={() =>
-                                    checkin.mutate({
-                                      game_code: row.game_code!,
-                                      role_uid: row.role_uid!,
-                                    })
-                                  }
-                                >
-                                  签到
-                                </Button>
-                              ) : null}
-                            </div>
+                            {canCheckin || !stackRows ? (
+                              <div style={{ justifySelf: "start" }}>
+                                {canCheckin ? (
+                                  <Button
+                                    type="primary"
+                                    size="small"
+                                    loading={checkingKey === rowKey(row)}
+                                    disabled={
+                                      Boolean(checkingKey) &&
+                                      checkingKey !== rowKey(row)
+                                    }
+                                    onClick={() =>
+                                      checkin.mutate({
+                                        game_code: row.game_code!,
+                                        role_uid: row.role_uid!,
+                                      })
+                                    }
+                                  >
+                                    签到
+                                  </Button>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <div
                               style={{
                                 gridColumn: "1 / -1",
+                                flexBasis: "100%",
                                 paddingBottom: 4,
                                 display: "grid",
                                 gridTemplateColumns: "max-content 1fr",
