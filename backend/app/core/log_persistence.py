@@ -46,6 +46,29 @@ class _LazyDirRotatingFileHandler(RotatingFileHandler):
         return super()._open()
 
 
+class _OncePerRecord(logging.Filter):
+    """记录沿 logger 树上传时，挂在多级 logger 上的同一 handler 会被调多次；每条只放行第一次。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        seen = record.__dict__.setdefault("_zhange_seen_by", set())
+        if id(self) in seen:
+            return False
+        seen.add(id(self))
+        return True
+
+
+# uvicorn 的日志配置让这两个 logger 不再上传到 root，须单独挂；uvicorn.error、alembic 经 root 收到
+_DETACHED_FROM_ROOT = ("uvicorn", "uvicorn.access")
+
+
+def attach_app_log_handler(handler: logging.Handler) -> None:
+    """挂到 root 与 uvicorn 截断上传的 logger。没有 uvicorn 日志配置时它们照常传到 root，靠去重只记一次。"""
+    handler.addFilter(_OncePerRecord())
+    logging.getLogger().addHandler(handler)
+    for name in _DETACHED_FROM_ROOT:
+        logging.getLogger(name).addHandler(handler)
+
+
 class JsonLineLogFormatter(logging.Formatter):
     """结构化 JSONL，便于 tail 解析与 grep。"""
 
@@ -91,10 +114,7 @@ def install_file_log_handler(*, level: int) -> RotatingFileHandler | None:
         handler.setLevel(level)
         handler.setFormatter(JsonLineLogFormatter())
         handler.addFilter(BizTagFilter())
-        root = logging.getLogger()
-        root.addHandler(handler)
-        for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "alembic"):
-            logging.getLogger(name).addHandler(handler)
+        attach_app_log_handler(handler)
         _FILE_HANDLER = handler
         return handler
 

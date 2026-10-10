@@ -10,7 +10,7 @@ from typing import Deque
 from app.core.biz_logging import BizTagFilter, configure_runtime_logging, record_timestamp
 from app.core.config import get_settings
 from app.core.log_line import LogLine, filter_log_lines
-from app.core.log_persistence import install_file_log_handler
+from app.core.log_persistence import attach_app_log_handler, install_file_log_handler
 
 _BUFFER: RuntimeLogBuffer | None = None
 _INSTALL_LOCK = threading.Lock()
@@ -100,10 +100,7 @@ def install_runtime_log_buffer(capacity: int | None = None) -> RuntimeLogBuffer:
         level = configure_runtime_logging()
         cap = capacity if capacity is not None else settings.APP_LOG_RING_CAPACITY
         handler = RuntimeLogBuffer(capacity=cap, level=level)
-        root = logging.getLogger()
-        root.addHandler(handler)
-        for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "alembic"):
-            logging.getLogger(name).addHandler(handler)
+        attach_app_log_handler(handler)
         install_file_log_handler(level=level)
         _BUFFER = handler
         return handler
