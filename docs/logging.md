@@ -54,12 +54,19 @@
 
 - 成功且快的 GET；平台日志 / 运行环境 / `/health` 的轮询；RUM 上报
 - 循环里「处理了第 N 个」——签到一轮上百人会把环缓冲顶满
-- 密钥、Cookie、JWT、房间密码、验证码明文（生产 `ALLOW_EMAIL_CODE_LOG` 启动硬拒绝）
+- 密钥、Cookie、JWT、房间密码、验证码明文（生产 `ALLOW_EMAIL_CODE_LOG` 启动硬拒绝）；完整收件邮箱（脱敏成 `a***@域名`）
 - 上游整段 JSON、含 token 的响应体；QQ 用户信息失败只打 `ret`/`msg`
 - 给用户看的签到「上次执行」叙事（那是库表，不是 logger）
 - `print()`（验证码本地调试除外，且不得进生产）
 
 高频探活（RCON、三狗轮询、Redis 调用失败）：用 `log_until_change`。同一 `key` + 同一格式化消息只打一次 WARNING，之后 DEBUG；恢复成功后 `clear_log_until_change(key)`，下次失败再 WARNING。
+
+## 公开接口触发的 WARNING
+
+匿名请求也能走到的告警必须聚合或去重，否则一个脚本就能刷满环缓冲与 `app.jsonl`：
+
+- **CSP 违规**（`POST /api/csp-report` → `zhange.csp`）：不逐条打。进程内按「指令 + 被拦来源」计数，**每分钟最多一条** WARNING：`csp_report reports=总条数 distinct=键数 window=秒 other=超出 50 个键的条数 top=指令 来源 x次; …`（前 10 项）。被拦来源只留 `scheme://host[:port]` 或 `inline` / `eval` / `data` 之类关键字，不记路径与 query。没有后台定时器：安静一段后的第一条立即打，之后攒下的计数随窗口过后的下一次上报一起打出。接口另按 IP 限流（30 次 / 10 分钟）
+- **验证码邮件**（`app.services.email`，注册 / 找回 / 绑邮 / 注销发码都会走到）：按故障类型 `log_until_change`，键为 `email.unavailable`（未配 SMTP）、`email.plaintext_auth`（加密方式「无」却连远程服务器：直接拒发，不做明文 AUTH）、`email.smtp_error`（连接 / TLS / 认证 / 投递失败）。同类且消息不变只打一次 WARNING，之后 DEBUG；任一封发送成功即全部清掉。WARNING 只带 host、port、加密方式与错误类型（SMTP 应答只留状态码，`SMTPRecipientsRefused` 只留类名），不带收件人、验证码与堆栈；收件人只进 DEBUG，脱敏成 `a***@example.com`。本地调试的 `[email-dev]` 行同样脱敏收件人
 
 ## logger 名
 
