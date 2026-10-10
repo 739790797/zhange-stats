@@ -120,7 +120,7 @@ def test_migration_engine_turns_foreign_keys_off(tmp_path: Path) -> None:
         assert conn.exec_driver_sql("PRAGMA busy_timeout").scalar() == SQLITE_BUSY_TIMEOUT_MS
 
 
-def test_deletes_cascade_and_a_reused_member_id_starts_clean(tmp_path: Path) -> None:
+def test_deletes_cascade_and_a_new_member_starts_clean(tmp_path: Path) -> None:
     engine = _build_engine(f"sqlite:///{tmp_path / 'zhange.sqlite'}")
     try:
         Base.metadata.create_all(engine)
@@ -156,8 +156,7 @@ def test_deletes_cascade_and_a_reused_member_id_starts_clean(tmp_path: Path) -> 
             newcomer = Member(nickname="m2")
             db.add(newcomer)
             db.commit()
-            # members.id has no AUTOINCREMENT on SQLite, so the freed id is handed out again.
-            assert newcomer.id == old_member_id
+            assert newcomer.id > old_member_id
             assert _count_sessions(db.connection(), newcomer.id) == 0
     finally:
         engine.dispose()

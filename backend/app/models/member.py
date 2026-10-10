@@ -9,6 +9,8 @@ from app.core.timeutil import now_naive
 
 class Member(Base):
     __tablename__ = "members"
+    # 同 users：成员 id 在 URL 与缓存键里，SQLite 新建库不复用已删 id
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

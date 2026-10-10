@@ -94,6 +94,8 @@ class ArticleTag(Base):
 
 class Article(Base):
     __tablename__ = "articles"
+    # 同 users：文章 id 在链接里，SQLite 新建库不复用已删 id
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False)

@@ -15,6 +15,8 @@ class UserRole(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    # SQLite 默认会把删掉的最大 id 再发给下一行；令牌、Cookie、缓存都按 id 认人，新建库用 AUTOINCREMENT
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
