@@ -1,3 +1,4 @@
+import { escapeHtml } from "@/lib/escapeHtml";
 import { formatRequestError } from "@/lib/formatRequestError";
 import { logMapLabel } from "@/lib/tarkovGameLogs";
 import { tarkovRaidRoomHref } from "@/lib/tarkovHomeNav";
@@ -180,10 +181,29 @@ export function buildSoloRaidRoomDetail(opts: SoloRaidRoomDetailInput) {
   };
 }
 
-/** WS 断线后指数退避，上限 30 秒。 */
-export function raidRoomWsRetryDelayMs(attempt: number): number {
+/** WS 断线后指数退避，上限 30 秒；再上下抖 25%，免得服务重启后所有人同一刻挤回来。 */
+export function raidRoomWsRetryDelayMs(
+  attempt: number,
+  random: () => number = Math.random,
+): number {
   const n = Number.isFinite(attempt) ? Math.max(0, Math.trunc(attempt)) : 0;
-  return Math.min(30_000, 1000 * 2 ** n);
+  const base = Math.min(30_000, 1000 * 2 ** n);
+  const roll = Math.min(1, Math.max(0, random()));
+  return Math.round(base * (0.75 + roll * 0.5));
+}
+
+/** 服务端的终态关闭码，重连只会被同样拒绝；返回 null 表示可以退避重连。 */
+export function raidRoomWsCloseReason(code: number): string | null {
+  switch (code) {
+    case 4401:
+      return "登录已失效，房间实时同步已停止，请重新登录后刷新";
+    case 4403:
+      return "连接被拒绝（已不在座或无权访问），房间实时同步已停止";
+    case 4404:
+      return "房间已解散或不存在，实时同步已停止";
+    default:
+      return null;
+  }
 }
 
 /** 房间占用心跳：只要这条 WS 还在，服务端就不收座位；断线满 2 分钟才踢。 */
@@ -1353,6 +1373,13 @@ export function normalizeMarkLabel(raw: string): string {
   }
   const text = cleaned.replace(/\s+/g, " ").trim();
   return Array.from(text).slice(0, MARK_TEXT_MAX).join("");
+}
+
+/** Leaflet 把字符串 tooltip 写进 innerHTML；昵称是用户自填，必须转义。 */
+export function markAuthorTooltipHtml(
+  mark: Pick<RaidRoomMarkLike, "author_display_name">,
+): string {
+  return escapeHtml((mark.author_display_name || "").trim());
 }
 
 export function markStrokePoints(mark: RaidRoomMarkLike): StrokePoint[] {

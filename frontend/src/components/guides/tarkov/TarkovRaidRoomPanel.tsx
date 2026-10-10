@@ -128,6 +128,7 @@ import {
   playerFixIsFresh,
   shouldSuppressLocalPlayerFix,
   RAID_ROOM_WS_PING_MS,
+  raidRoomWsCloseReason,
   raidRoomWsRetryDelayMs,
   withRaidRoomViewerFlags,
   type RaidRoomMarkLike,
@@ -263,6 +264,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const [pendingMarks, setPendingMarks] = useState<RaidRoomMarkLike[]>([]);
   const [wsGen, setWsGen] = useState(0);
   const [wsLive, setWsLive] = useState(false);
+  const [wsStopReason, setWsStopReason] = useState("");
   const hidden = useDocumentHidden();
   const [logPhases, setLogPhases] = useState<RaidRoomLogPhase[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
@@ -364,9 +366,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   roomObjDonesRef.current = room?.objective_dones;
 
   /* 只跟 token / 房间身份重连，快照更新不要拆掉 WS */
-  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  const isMember = Boolean(roomQuery.data?.is_member || room?.is_member);
   useEffect(() => {
-    const isMember = Boolean(roomQuery.data?.is_member || room?.is_member);
     if (!token || !publicId || !isMember) {
       return undefined;
     }
@@ -500,10 +501,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           applyRoomWsEvent(current, payload, meIdRef.current),
         );
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setWsLive(false);
         if (stopped) return;
         void refetchRoomRef.current();
+        const reason = raidRoomWsCloseReason(event.code);
+        if (reason) {
+          setWsStopReason(reason);
+          return;
+        }
         retryTimer = window.setTimeout(() => {
           connect();
         }, raidRoomWsRetryDelayMs(retry));
@@ -532,10 +538,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       window.clearInterval(ping);
       window.clearTimeout(retryTimer);
       setWsLive(false);
+      setWsStopReason("");
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [token, publicId, room?.is_member, roomQuery.data?.is_member, navigate]);
+  }, [token, publicId, isMember, navigate]);
 
   useEffect(() => {
     lastLogPhaseSigRef.current = "";
@@ -1000,10 +1007,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     (room?.title || "").trim() ||
     (room?.host_display_name || "").trim() ||
     "房间";
-  const members =
-    room?.occupants?.length
-      ? room.occupants
-      : (room?.members || []).filter((row) => row.in_room !== false);
+  const members = useMemo(
+    () =>
+      room?.occupants?.length
+        ? room.occupants
+        : (room?.members || []).filter((row) => row.in_room !== false),
+    [room?.occupants, room?.members],
+  );
   const seatedActing = useMemo(() => {
     const fromMembers = (room?.members || []).filter((row) => row.in_room !== false);
     const rows = fromMembers.length ? fromMembers : members;
@@ -1699,6 +1709,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             />
           ) : null}
           {error ? <Alert type="error" showIcon message={error} /> : null}
+          {room.is_member && wsStopReason ? (
+            <Alert type="warning" showIcon message={wsStopReason} />
+          ) : null}
         </>
       }
       goonMapId={mapId || undefined}
@@ -1938,6 +1951,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               </div>
             }
           />
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 点列表空白处清高亮只是鼠标便捷操作，行内控件各自可键盘操作 */}
           <div
             className={styles.taskList}
             onClick={() => setHighlightTaskId("")}
@@ -2035,7 +2049,6 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         width={460}
         destroyOnClose
         closable={false}
-        className={styles.manageModal}
         classNames={{
           content: styles.manageModalContent,
           body: styles.manageModalBody,
