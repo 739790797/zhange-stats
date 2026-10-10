@@ -111,6 +111,8 @@ def poll_qr_bind(db: Session, *, user_id: int, member: Member, scan_id: str) -> 
         return {"status": "expired", "message": "二维码已过期，请刷新"}
 
     device_id = str(pending.get("device_id") or "")
+    # 前端每隔几秒轮询一次：交还连接再问上游
+    db.commit()
     poll = poll_scan_status(device_id, scan_id)
     if poll.status != "ready" or not poll.scan_code:
         return {
