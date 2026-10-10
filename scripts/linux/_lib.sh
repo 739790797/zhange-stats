@@ -295,7 +295,7 @@ start_dev_stack() {
     (
       cd "${BACKEND_DIR}"
       nohup "${py}" -m uvicorn app.main:app --reload --reload-dir app \
-        --host 127.0.0.1 --port "${BACKEND_PORT}" \
+        --host 127.0.0.1 --port "${BACKEND_PORT}" --ws-max-size 4194304 \
         >>"${DEV_DIR}/backend.out.log" 2>>"${DEV_DIR}/backend.err.log" &
       echo $! >"${DEV_DIR}/backend.pid"
     )

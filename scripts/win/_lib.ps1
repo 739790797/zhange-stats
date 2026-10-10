@@ -443,7 +443,8 @@ function Start-Backend {
     "--reload",
     "--reload-dir", "app",
     "--host", $BackendHost,
-    "--port", "$BackendPort"
+    "--port", "$BackendPort",
+    "--ws-max-size", "4194304"
   )
 
   $proc = Start-Process `
