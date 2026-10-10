@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import logging
 import time
+from mimetypes import guess_type
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,6 +20,7 @@ from app.api import files as files_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
+from app.core.body_limit import MULTIPART_SLACK_BYTES, BodyLimitMiddleware
 from app.core.http_headers import SecurityHeadersMiddleware
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_origin_regex
@@ -38,6 +40,12 @@ from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
 from app.core.startup import run_post_database_startup, start_background_services
+from app.services import avatar_store
+from app.services import file_manager as file_manager_svc
+from app.services.articles import store as article_store
+from app.services.articles.texteller import MAX_RECOGNIZE_BYTES as MATH_RECOGNIZE_MAX_BYTES
+from app.services.minecraft import files as minecraft_files_svc
+from app.services.tarkov.key_ocr import MAX_RECOGNIZE_BYTES as TARKOV_OCR_MAX_BYTES
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
@@ -73,6 +81,63 @@ class ImmutableStaticFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
+
+
+_ACTIVE_UPLOAD_TYPES = frozenset({"text/xml", "text/xsl", "application/xml"})
+
+
+def _is_active_media_type(media_type: str) -> bool:
+    mt = media_type.lower()
+    return (
+        mt in _ACTIVE_UPLOAD_TYPES
+        or mt.endswith("+xml")
+        or "html" in mt
+        or "javascript" in mt
+        or "ecmascript" in mt
+    )
+
+
+class UploadStaticFiles(StaticFiles):
+    """用户上传目录：目录由 lifespan 创建（import 不落盘）；HTML/SVG/XML/JS 一律 404，不从站点源下发可执行内容。"""
+
+    def __init__(self, directory: Path, *, cache_control: str) -> None:
+        super().__init__(directory=str(directory), check_dir=False)
+        self._cache_control = cache_control
+
+    async def check_config(self) -> None:
+        # 目录缺失（未跑 lifespan）按 404 处理，不抛 500
+        return None
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):  # type: ignore[override]
+        media_type = guess_type(str(full_path))[0] or "application/octet-stream"
+        if _is_active_media_type(media_type):
+            raise HTTPException(status_code=404, detail="Not Found")
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = self._cache_control
+        return response
+
+
+def _body_limit_rules() -> list[tuple[str, int]]:
+    def upload(max_file_bytes: int) -> int:
+        return max_file_bytes + MULTIPART_SLACK_BYTES
+
+    article_max = max(article_store.MAX_UPLOAD_BYTES, article_store.MAX_ATTACHMENT_BYTES)
+    return [
+        ("/api/settings/files/upload", upload(file_manager_svc.MAX_UPLOAD_BYTES)),
+        ("/api/guides/minecraft/files/upload", upload(minecraft_files_svc.MAX_UPLOAD_BYTES)),
+        ("/api/articles/assets", upload(article_max)),
+        ("/api/articles/math/recognize", upload(MATH_RECOGNIZE_MAX_BYTES)),
+        ("/api/profile/me/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
+        ("/api/members/{member_id}/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
+        ("/api/guides/tarkov/raid-prep/recognize", upload(TARKOV_OCR_MAX_BYTES)),
+        ("/api/guides/tarkov/key-owns/recognize", upload(TARKOV_OCR_MAX_BYTES)),
+        ("/api/csp-report", 64 * 1024),
+        ("/api/client-errors", 64 * 1024),
+        ("/api/client-rum", 256 * 1024),
+    ]
+
+
+BODY_LIMIT_RULES = _body_limit_rules()
 
 
 def _ping_database() -> bool:
@@ -236,11 +301,14 @@ else:
     if _cors_regex:
         _cors_kwargs["allow_origin_regex"] = _cors_regex
 
-app.add_middleware(RequestLogMiddleware)
-app.add_middleware(CORSMiddleware, **_cors_kwargs)
+# 最后 add = 最外层。外→内：SecurityHeaders → RequestLog → GZip → CORS → SetupRequired → BodyLimit。
+# RequestLog 在外才记得到 503 向导拦截与预检；CORS 在 SetupRequired 外，503 也带 CORS 头。
+# GZip：无反代时也能压 JSON；nginx 见到 Content-Encoding 通常不再压。
+app.add_middleware(BodyLimitMiddleware, rules=BODY_LIMIT_RULES)
 app.add_middleware(SetupRequiredMiddleware)
-# 最后 add = 最外层：无反代时也能压 JSON；nginx 见到 Content-Encoding 通常不再压。
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 api = APIRouter(prefix="/api")
@@ -266,18 +334,17 @@ api.include_router(client_errors_api.router)
 api.include_router(rum_api.router)
 app.include_router(api)
 
-# 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问
-upload_root = _ensure_upload_root()
-avatars_root = upload_root / "avatars"
+# 只挂载头像/文章子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问
+_upload_root = settings.upload_dir_path
+# 头像 URL 带 ?v= 版本；文章附件是 UUID 路径，可缓存更久
 app.mount(
     "/uploads/avatars",
-    StaticFiles(directory=str(avatars_root)),
+    UploadStaticFiles(_upload_root / "avatars", cache_control="public, max-age=86400"),
     name="uploads_avatars",
 )
-articles_root = upload_root / "articles"
 app.mount(
     "/uploads/articles",
-    StaticFiles(directory=str(articles_root)),
+    UploadStaticFiles(_upload_root / "articles", cache_control="public, max-age=604800"),
     name="uploads_articles",
 )
 
