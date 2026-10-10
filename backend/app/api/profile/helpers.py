@@ -4,25 +4,29 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.core.public_url import resolve_backend_base, resolve_frontend_base
+from app.core.public_url import (
+    allowed_frontend_base,
+    resolve_backend_base,
+    resolve_frontend_base,
+)
+from app.core.security import (
+    DISPLAY_NAME_MARKUP_ERROR,
+    has_markup_chars,
+    strip_markup_chars,
+)
 from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import MemberProfileOut, MemberProfileUpdate, UserBrief
 
 
-def _frontend_from_state(state_data: dict, request: Request) -> str:
-    stored = str(state_data.get("frontend") or "").rstrip("/")
-    if stored:
-        return stored
-    backend = str(state_data.get("backend") or "").rstrip("/")
-    if backend:
-        return backend
-    settings = get_settings()
-    override = (settings.PUBLIC_FRONTEND_URL or "").rstrip("/")
-    if override:
-        return override
-    return resolve_frontend_base(request) or resolve_backend_base(request)
+def _frontend_from_state(state_data: dict | None, request: Request) -> str:
+    """回调时按本次请求重算白名单：state 里记的地址不在其中就退回默认，绝不跳去发起方自报的站点。"""
+    stored = str((state_data or {}).get("frontend") or "")
+    return (
+        allowed_frontend_base(stored, request)
+        or resolve_frontend_base(request)
+        or resolve_backend_base(request)
+    )
 
 
 def _set_qq_profile(
@@ -53,7 +57,7 @@ def _set_qq_profile(
 
     member.qq_openid = value
     member.qq_unionid = (unionid or "").strip() or None
-    member.qq_nickname = (nickname or "").strip() or None
+    member.qq_nickname = strip_markup_chars(nickname).strip() or None
     member.qq_avatar_url = (avatar_url or "").strip() or None
     return member.qq_nickname
 
@@ -212,6 +216,8 @@ def _apply_profile_fields(
         name = str(data["display_name"]).strip()
         if not name:
             raise HTTPException(status_code=400, detail="显示名称不能为空")
+        if has_markup_chars(name):
+            raise HTTPException(status_code=400, detail=DISPLAY_NAME_MARKUP_ERROR)
         name = name[:64]
         user.display_name = name
         member.nickname = name

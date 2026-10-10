@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 import urllib.parse
@@ -9,7 +9,13 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
-from app.core.security import create_access_token, hash_password
+from app.core.rate_limit import auth_limiter, client_ip
+from app.core.security import create_user_access_token, hash_password, strip_markup_chars
+from app.core.session_cookies import (
+    QQ_OAUTH_NONCE_COOKIE,
+    clear_qq_oauth_nonce_cookie,
+    set_qq_oauth_nonce_cookie,
+)
 from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import (
@@ -43,11 +49,14 @@ from app.services.steam.openid import (
 from app.services.qq_oauth import (
     PURPOSE_BIND,
     PURPOSE_LOGIN,
+    STATE_TTL_MINUTES,
     QqOAuthError,
     build_qq_authorize_url,
     create_qq_oauth_state,
     decode_qq_oauth_state,
     exchange_code_for_profile,
+    new_oauth_nonce,
+    oauth_nonce_matches,
 )
 from app.api.profile.helpers import (
     _apply_profile_fields,
@@ -66,6 +75,7 @@ router = APIRouter(tags=["profile"])
 @router.get("/profile/qq/oauth/start", response_model=QqOAuthStartResponse)
 def qq_oauth_start(
     request: Request,
+    response: Response,
     member_id: int | None = Query(
         default=None, description="管理员可为指定成员发起绑定"
     ),
@@ -73,6 +83,10 @@ def qq_oauth_start(
     user: User = Depends(get_current_user),
 ) -> QqOAuthStartResponse:
     from app.services.integrations_config import get_qq_credentials
+
+    ip = client_ip(request)
+    auth_limiter.hit(f"qq-bind:ip:{ip}", limit=20, window_sec=600)
+    auth_limiter.hit(f"qq-bind:uid:{user.id}", limit=10, window_sec=600)
 
     qq_app_id, qq_app_key = get_qq_credentials(db)
     if not qq_app_id or not qq_app_key:
@@ -102,9 +116,11 @@ def qq_oauth_start(
         db.commit()
         target_member_id = member.id
 
+    nonce = new_oauth_nonce()
     try:
         state = create_qq_oauth_state(
             purpose=PURPOSE_BIND,
+            nonce=nonce,
             user_id=user.id,
             member_id=target_member_id,
             frontend=frontend,
@@ -113,6 +129,9 @@ def qq_oauth_start(
         url = build_qq_authorize_url(state=state, backend=backend)
     except QqOAuthError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    set_qq_oauth_nonce_cookie(
+        response, request, nonce, max_age=STATE_TTL_MINUTES * 60
+    )
     return QqOAuthStartResponse(url=url)
 
 
@@ -131,11 +150,10 @@ def qq_oauth_callback(
 
     def _redirect(frontend: str, path: str, **params: str) -> RedirectResponse:
         q = urllib.parse.urlencode(params)
-        return RedirectResponse(url=f"{frontend}{path}?{q}", status_code=302)
-
-    fallback_frontend = (
-        resolve_frontend_base(request) or resolve_backend_base(request) or ""
-    )
+        resp = RedirectResponse(url=f"{frontend}{path}?{q}", status_code=302)
+        # nonce 一次性：成败都清掉，回调 URL 被重放也换不出第二张 ticket
+        clear_qq_oauth_nonce_cookie(resp, request)
+        return resp
 
     state_data: dict | None = None
     if state:
@@ -144,10 +162,7 @@ def qq_oauth_callback(
         except QqOAuthError:
             state_data = None
 
-    frontend = (
-        (_frontend_from_state(state_data, request) if state_data else None)
-        or fallback_frontend
-    )
+    frontend = _frontend_from_state(state_data, request) or ""
     purpose = str((state_data or {}).get("purpose") or PURPOSE_LOGIN)
     err_path = "/login" if purpose == PURPOSE_LOGIN else "/profile"
     err_key = "qq_login" if purpose == PURPOSE_LOGIN else "qq_bind"
@@ -159,6 +174,13 @@ def qq_oauth_callback(
     if not state or not state_data:
         detail = "缺少 state" if not state else "QQ 登录状态已过期，请重试"
         return _redirect(frontend, err_path, **{err_key: "error", "detail": detail})
+
+    if not oauth_nonce_matches(state_data, request.cookies.get(QQ_OAUTH_NONCE_COOKIE)):
+        return _redirect(
+            frontend,
+            err_path,
+            **{err_key: "error", "detail": "QQ 授权校验失败，请在本浏览器重新发起"},
+        )
 
     backend = str(state_data.get("backend") or "").rstrip("/") or None
 
@@ -176,7 +198,9 @@ def qq_oauth_callback(
             if member and member.user:
                 user = member.user
                 member.qq_unionid = profile.unionid or member.qq_unionid
-                member.qq_nickname = profile.nickname or member.qq_nickname
+                member.qq_nickname = (
+                    strip_markup_chars(profile.nickname).strip() or member.qq_nickname
+                )
                 member.qq_avatar_url = profile.avatar_url or member.qq_avatar_url
                 if profile.avatar_url and not is_custom_avatar_url(member.avatar_url):
                     member.avatar_url = profile.avatar_url
@@ -193,7 +217,7 @@ def qq_oauth_callback(
                     return _redirect(
                         frontend, "/login", qq_login="error", detail="无法创建账号，请重试"
                     )
-                nick = (profile.nickname or username)[:64]
+                nick = strip_markup_chars(profile.nickname).strip()[:64] or username
                 user = User(
                     username=username,
                     email=None,
@@ -217,7 +241,7 @@ def qq_oauth_callback(
                     member.avatar_url = profile.avatar_url
 
             db.commit()
-            token = create_access_token(user.username, user_id=user.id)
+            token = create_user_access_token(user)
             from app.services.oauth_ticket import issue_oauth_ticket
 
             ticket = issue_oauth_ticket(db, token)

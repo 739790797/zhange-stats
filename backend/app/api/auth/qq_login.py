@@ -7,15 +7,17 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
 from app.core.rate_limit import auth_limiter, client_ip
-from app.core.session_cookies import attach_session_cookies
+from app.core.session_cookies import attach_session_cookies, set_qq_oauth_nonce_cookie
 from app.schemas import QqOAuthStartResponse, TokenResponse
 from app.services.integrations_config import get_qq_credentials
 from app.services.oauth_ticket import consume_oauth_ticket, prune_expired_oauth_tickets
 from app.services.qq_oauth import (
     PURPOSE_LOGIN,
+    STATE_TTL_MINUTES,
     QqOAuthError,
     build_qq_authorize_url,
     create_qq_oauth_state,
+    new_oauth_nonce,
 )
 
 router = APIRouter()
@@ -28,9 +30,10 @@ class QqExchangeRequest(BaseModel):
 @router.get("/qq/oauth/start", response_model=QqOAuthStartResponse)
 def qq_oauth_login_start(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> QqOAuthStartResponse:
-    """未登录用户发起 QQ 登录 / 一键注册。"""
+    """未登录用户发起 QQ 登录 / 一键注册。回跳只去白名单前端，且须回到发起的这个浏览器。"""
     ip = client_ip(request)
     auth_limiter.hit(f"qq-login:ip:{ip}", limit=20, window_sec=600)
 
@@ -44,15 +47,20 @@ def qq_oauth_login_start(
             detail="无法确定回调地址，请检查访问 Host 或配置 PUBLIC_BACKEND_URL",
         )
     frontend = resolve_frontend_base(request, backend=backend)
+    nonce = new_oauth_nonce()
     try:
         state = create_qq_oauth_state(
             purpose=PURPOSE_LOGIN,
+            nonce=nonce,
             frontend=frontend,
             backend=backend,
         )
         url = build_qq_authorize_url(state=state, backend=backend)
     except QqOAuthError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    set_qq_oauth_nonce_cookie(
+        response, request, nonce, max_age=STATE_TTL_MINUTES * 60
+    )
     return QqOAuthStartResponse(url=url)
 
 

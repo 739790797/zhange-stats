@@ -63,6 +63,11 @@ from app.api.profile.helpers import (
 
 router = APIRouter(tags=["profile"])
 
+
+def _steam_return_to(backend: str, state: str) -> str:
+    return f"{backend}/api/profile/steam/openid/callback?state={state}"
+
+
 @router.post("/profile/steam/preview", response_model=SteamBindPreviewResponse)
 def preview_steam_bind(
     body: SteamBindPreviewRequest,
@@ -145,7 +150,7 @@ def steam_openid_start(
         frontend=frontend,
         backend=backend,
     )
-    return_to = f"{backend}/api/profile/steam/openid/callback?state={state}"
+    return_to = _steam_return_to(backend, state)
     realm = f"{backend}/"
     return SteamOpenIdStartResponse(
         url=build_steam_login_url(return_to=return_to, realm=realm)
@@ -173,6 +178,12 @@ def steam_openid_callback(
     target_member_id = int(state_data.get("mid") or 0)
 
     query = {k: v for k, v in request.query_params.multi_items()}
+    # OpenID 2.0 §11.1：断言里签过名的 return_to 必须就是本次回调，防止拿别处的断言换 state 重放
+    backend = str(state_data.get("backend") or "").rstrip("/")
+    if not backend or query.get("openid.return_to") != _steam_return_to(backend, state):
+        return _redirect(
+            frontend, "/profile", steam_bind="error", detail="Steam 回调校验失败，请重新发起绑定"
+        )
     try:
         steam_id = verify_steam_openid_assertion(query)
     except ValueError as exc:
