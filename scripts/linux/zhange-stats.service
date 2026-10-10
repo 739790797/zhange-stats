@@ -12,7 +12,13 @@ Environment=APP_INSTALL_DIR=__REPO_ROOT__
 Environment=STATIC_DIR=__REPO_ROOT__/static
 Environment=DATA_DIR=__REPO_ROOT__/data/runtime
 Environment=UPLOAD_DIR=__REPO_ROOT__/data/uploads
+# 进程环境变量优先于 config/app.json：这里定死 production，管理端「运行环境」改 APP_ENV 对本单元不生效。
+# 要覆盖（APP_ENV、UVICORN_HOST/PORT、FORWARDED_ALLOW_IPS 等）写 config/systemd.env（KEY=VALUE 每行一个），再 restart。
 Environment=APP_ENV=production
+Environment=UVICORN_HOST=0.0.0.0
+Environment=UVICORN_PORT=8000
+# 只信任本机反代给的 X-Forwarded-For / X-Forwarded-Proto；反代在别的机器上时在 systemd.env 改成它的地址。
+Environment=FORWARDED_ALLOW_IPS=127.0.0.1
 Environment=PYTHONPYCACHEPREFIX=__REPO_ROOT__/data/cache/pycache
 Environment=HF_HOME=__REPO_ROOT__/data/cache/huggingface
 Environment=TORCH_HOME=__REPO_ROOT__/data/cache/torch
@@ -20,11 +26,16 @@ Environment=EASYOCR_MODULE_PATH=__REPO_ROOT__/data/cache/easyocr
 Environment=PIP_CACHE_DIR=__REPO_ROOT__/data/cache/pip
 Environment=XDG_CACHE_HOME=__REPO_ROOT__/data/cache/xdg
 Environment=TMPDIR=__REPO_ROOT__/data/tmp
-ExecStart=__REPO_ROOT__/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+EnvironmentFile=-__REPO_ROOT__/config/systemd.env
+# --ws-max-size：传输层 WebSocket 帧上限 4 MiB（uvicorn 默认 16 MiB；应用层另有更小的上限）。
+ExecStart=__REPO_ROOT__/backend/.venv/bin/uvicorn app.main:app --host ${UVICORN_HOST} --port ${UVICORN_PORT} --proxy-headers --ws-max-size 4194304
 Restart=on-failure
 RestartSec=3
 # 管理端一键更新：进程内落盘后 os.execv 同 PID 换码（AstrBot 式；无需 systemctl 权限）。
 TimeoutStopSec=30
+NoNewPrivileges=yes
+UMask=0027
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
