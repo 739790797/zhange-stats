@@ -21,6 +21,10 @@ PURPOSE_RESET = "reset"
 PURPOSE_DELETE = "delete"
 PURPOSE_STEPUP = "admin_stepup"
 
+# 6 位数字码：有效期与可试次数共同决定猜中概率，两者都在使用处封顶
+MAX_CODE_EXPIRE_MINUTES = 30
+MAX_CODE_ATTEMPTS = 5
+
 
 def _gen_code() -> str:
     return "".join(secrets.choice(string.digits) for _ in range(6))
@@ -45,7 +49,9 @@ def _upsert_register_challenge(
     from app.services.email_config import load_email_config
 
     cfg = load_email_config(db)
-    expire_minutes = max(1, int(cfg.get("code_expire_minutes") or 15))
+    expire_minutes = min(
+        MAX_CODE_EXPIRE_MINUTES, max(1, int(cfg.get("code_expire_minutes") or 15))
+    )
     code = _gen_code()
     expires = now_naive() + timedelta(minutes=expire_minutes)
     row = (
@@ -59,6 +65,7 @@ def _upsert_register_challenge(
     if row:
         row.code = code
         row.expires_at = expires
+        row.attempts = 0
     else:
         db.add(
             RegisterChallenge(
@@ -118,20 +125,36 @@ def _consume_register_challenge(
     *,
     purpose: str = PURPOSE_REGISTER,
 ) -> None:
-    row = (
-        db.query(RegisterChallenge)
-        .filter(
-            RegisterChallenge.email == email,
-            RegisterChallenge.purpose == purpose,
-        )
-        .first()
+    """校验并删除验证码。码错时失败计数会立即提交，调用前不要留未提交的写入。"""
+    challenge = (
+        RegisterChallenge.email == email,
+        RegisterChallenge.purpose == purpose,
     )
+    row = db.query(RegisterChallenge).filter(*challenge).first()
     if not row:
         raise HTTPException(status_code=400, detail="请先发送验证码")
     if to_naive(row.expires_at) < now_naive():
         raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
     provided = code.strip()
     if len(provided) != len(row.code) or not hmac.compare_digest(row.code, provided):
+        # 原子自增：并发猜码不会因读-改-写丢计数
+        db.query(RegisterChallenge).filter(*challenge).update(
+            {RegisterChallenge.attempts: RegisterChallenge.attempts + 1},
+            synchronize_session=False,
+        )
+        attempts = (
+            db.query(RegisterChallenge.attempts).filter(*challenge).scalar() or 0
+        )
+        exhausted = attempts >= MAX_CODE_ATTEMPTS
+        if exhausted:
+            db.query(RegisterChallenge).filter(*challenge).delete(
+                synchronize_session=False
+            )
+        db.commit()
+        if exhausted:
+            raise HTTPException(
+                status_code=400, detail="验证码错误次数过多，请重新获取"
+            )
         raise HTTPException(status_code=400, detail="验证码错误")
     db.delete(row)
     db.flush()

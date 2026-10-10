@@ -23,7 +23,9 @@ from app.core.rate_limit import auth_limiter, client_ip
 from app.core.security import hash_password
 from app.core.session_cookies import issue_session
 from app.models.user import User, UserRole
+from app.services.auth_config import get_min_password_length
 from app.services.member_sync import ensure_user_member
+from app.services.password_policy import PasswordPolicyError, validate_password
 
 router = APIRouter()
 
@@ -74,6 +76,13 @@ def register(
     if existing and existing.email_verified:
         raise HTTPException(status_code=400, detail="邮箱已被注册")
 
+    try:
+        password = validate_password(
+            body.password, min_length=get_min_password_length(db)
+        )
+    except PasswordPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     _consume_register_challenge(db, email, code, purpose=PURPOSE_REGISTER)
     _delete_challenges_for_email(db, email)
 
@@ -89,7 +98,7 @@ def register(
         username=username,
         email=email,
         display_name=display_name,
-        password_hash=hash_password(body.password),
+        password_hash=hash_password(password),
         role=UserRole.user,
         email_verified=True,
     )
@@ -120,6 +129,7 @@ def verify_email(
 
     email = str(body.email).strip().lower()
     code = body.code.strip()
+    auth_limiter.hit(f"verify:email:{email}", limit=10, window_sec=600)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=400, detail="验证失败，请检查邮箱与验证码")

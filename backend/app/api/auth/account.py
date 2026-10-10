@@ -45,6 +45,7 @@ def send_delete_account_code(
     email = user.email.strip().lower()
     auth_limiter.hit(f"send-code:ip:{ip}", limit=10, window_sec=600)
     auth_limiter.hit(f"send-code:email:{email}", limit=5, window_sec=600)
+    auth_limiter.hit(f"delete-code:uid:{user.id}", limit=5, window_sec=600)
     _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_DELETE)
     msg = _delivery_user_message(
         delivery,
