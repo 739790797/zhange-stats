@@ -209,6 +209,12 @@ async def lifespan(_: FastAPI):
             install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
         )
         _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
+        from app.services.setup import ensure_setup_token
+
+        try:
+            ensure_setup_token()
+        except OSError:
+            logger.warning("setup token could not be written", exc_info=True)
         from app.services.tarkov.goon_tracker_hub import hub as goon_hub
 
         # 向导完成后在工作线程里补跑启动步骤，三狗推送需要先绑定事件循环
