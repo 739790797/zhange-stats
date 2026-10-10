@@ -16,8 +16,9 @@ from starlette.routing import Mount
 
 from app.core import setup_middleware
 from app.core.body_limit import BodyLimitMiddleware
-from app.core.http_headers import SecurityHeadersMiddleware
-from app.main import BODY_LIMIT_RULES, UploadStaticFiles, app
+from app.core.config import get_settings
+from app.core.http_headers import CSP_POLICY, SecurityHeadersMiddleware
+from app.main import BODY_LIMIT_RULES, UPLOAD_CSP, UploadStaticFiles, app
 
 ORIGIN = "http://localhost:5173"
 
@@ -212,6 +213,7 @@ def test_upload_static_files_headers_and_active_types(tmp_path: Path) -> None:
     assert png.headers["content-type"] == "image/png"
     assert png.headers["cache-control"] == "public, max-age=60"
     assert png.headers["x-content-type-options"] == "nosniff"
+    assert png.headers["content-security-policy"] == UPLOAD_CSP
 
     etag = png.headers["etag"]
     cached = _call(target, "GET", "/uploads/articles/a.png", headers={"If-None-Match": etag})
@@ -222,10 +224,43 @@ def test_upload_static_files_headers_and_active_types(tmp_path: Path) -> None:
     assert lml.status_code == 200
     assert lml.headers["content-type"] == "application/octet-stream"
     assert lml.headers["x-content-type-options"] == "nosniff"
+    assert lml.headers["content-security-policy"] == UPLOAD_CSP
 
     for name in ("x.html", "x.htm", "x.svg", "x.xml", "x.js", "x.xhtml", "X.SVG"):
         resp = _call(target, "GET", f"/uploads/articles/{name}")
         assert resp.status_code == 404, name
+
+
+@pytest.mark.parametrize("enforce", [False, True])
+def test_upload_csp_is_the_only_policy_and_images_keep_their_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, enforce: bool
+) -> None:
+    monkeypatch.setenv("CSP_ENFORCE", "true" if enforce else "false")
+    get_settings.cache_clear()
+    root = tmp_path / "articles"
+    root.mkdir()
+    images = {
+        "a.jpg": (b"\xff\xd8\xff\xe0fake", "image/jpeg"),
+        "a.png": (b"\x89PNG\r\n\x1a\nfake", "image/png"),
+        "a.gif": (b"GIF89afake", "image/gif"),
+        "a.webp": (b"RIFF\x00\x00\x00\x00WEBPfake", "image/webp"),
+        "a.pdf": (b"%PDF-1.4 fake", "application/pdf"),
+    }
+    for name, (raw, _) in images.items():
+        (root / name).write_bytes(raw)
+    target = _upload_app(root)
+
+    for name, (raw, media_type) in images.items():
+        resp = _call(target, "GET", f"/uploads/articles/{name}")
+        assert resp.status_code == 200, name
+        assert resp.headers["content-type"] == media_type, name
+        assert resp.content == raw, name
+        assert resp.headers["content-security-policy"] == UPLOAD_CSP, name
+        assert "content-security-policy-report-only" not in resp.headers, name
+
+    site = _call(app, "GET", "/robots.txt")
+    site_header = "content-security-policy" if enforce else "content-security-policy-report-only"
+    assert site.headers[site_header] == CSP_POLICY
 
 
 def test_upload_static_files_missing_directory_is_404(tmp_path: Path) -> None:
@@ -235,20 +270,17 @@ def test_upload_static_files_missing_directory_is_404(tmp_path: Path) -> None:
     assert not (tmp_path / "not-created-yet").exists()
 
 
-def test_importing_app_does_not_create_upload_dirs(tmp_path: Path) -> None:
+def test_importing_app_and_building_openapi_writes_nothing(tmp_path: Path) -> None:
     install = tmp_path / "install"
     install.mkdir()
     (install / "VERSION").write_text("0.0.0\n", encoding="utf-8")
     (install / "backend").mkdir()
-    env = {
-        **os.environ,
-        "APP_INSTALL_DIR": str(install),
-        "SECRET_KEY": "import-side-effect-test-secret-0123456789",
-    }
-    env.pop("DATABASE_URL", None)
+    env = {**os.environ, "APP_INSTALL_DIR": str(install)}
+    for name in ("DATABASE_URL", "SECRET_KEY", "DATA_DIR", "UPLOAD_DIR"):
+        env.pop(name, None)
     backend = Path(__file__).resolve().parents[1]
     proc = subprocess.run(
-        [sys.executable, "-c", "import app.main"],
+        [sys.executable, "-c", "from app.main import app; app.openapi()"],
         cwd=backend,
         env=env,
         capture_output=True,
@@ -256,4 +288,4 @@ def test_importing_app_does_not_create_upload_dirs(tmp_path: Path) -> None:
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr[-2000:]
-    assert not (install / "data" / "uploads").exists()
+    assert sorted(p.name for p in install.iterdir()) == ["VERSION", "backend"]

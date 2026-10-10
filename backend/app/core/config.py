@@ -1,6 +1,8 @@
+import threading
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.file_config import read_json, resolve_database_url
@@ -11,6 +13,8 @@ from app.core.paths import (
     resolve_runtime_path,
 )
 from app.core.secret import DEFAULT_SECRET_KEY, ensure_secret_key
+
+_SECRET_KEY_LOCK = threading.Lock()
 
 
 def _read_version_file() -> str:
@@ -40,9 +44,12 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 15
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 10
-    # 留空或保持占位值时，首次启动会自动生成并写入 DATA_DIR/.secret_key
-    SECRET_KEY: str = DEFAULT_SECRET_KEY
-    # 默认 24 小时；管理端可在 config/auth.json 再调（最长 1 年）
+    # 环境变量 SECRET_KEY；留空或保持占位值时，首次读 settings.SECRET_KEY 才生成并写入 DATA_DIR/.secret_key
+    SECRET_KEY_CONFIGURED: str = Field(
+        default=DEFAULT_SECRET_KEY, validation_alias="SECRET_KEY", repr=False
+    )
+    _secret_key: str | None = PrivateAttr(default=None)
+    # 默认 24 小时；管理端可在 config/auth.json 再调（最长 30 天）
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     # 留空：本地 Vite + Tauri 2 用 allow_origin_regex；生产同域一般无需 CORS
     CORS_ORIGINS: str = ""
@@ -63,8 +70,10 @@ class Settings(BaseSettings):
 
     # 可选 Redis（限流跨实例）；留空则进程内滑动窗口
     REDIS_URL: str = ""
-    # 为 true 时限流信任 X-Forwarded-For 首段（仅置于受信反代后开启）
+    # 为 true 时限流取 X-Forwarded-For 最右一段（即紧邻的受信反代看到的对端；仅置于受信反代后开启）
     TRUST_X_FORWARDED_FOR: bool = False
+    # 登录 / 发码 / 平台短信等滑动窗口限流；仅排障或压测时关闭（登录失败退避不受此开关影响）
+    RATE_LIMIT_ENABLED: bool = True
 
     STEAM_API_KEY: str = ""
     # 可选手动覆盖 OAuth 回调基址；留空则从请求 Host / Origin / X-Forwarded-* 推断
@@ -160,6 +169,25 @@ class Settings(BaseSettings):
     def models_dir_path(self) -> Path:
         return resolve_runtime_path(DEFAULT_MODELS_DIR, configured_install=self.APP_INSTALL_DIR)
 
+    @property
+    def SECRET_KEY(self) -> str:
+        """首次读取才解析 / 生成：import app.main（导出 OpenAPI、脚本）不落盘，lifespan 启动时先读一次。"""
+        if self._secret_key is None:
+            with _SECRET_KEY_LOCK:
+                if self._secret_key is None:
+                    self._secret_key = ensure_secret_key(
+                        self.SECRET_KEY_CONFIGURED,
+                        data_dir=self.DATA_DIR,
+                        upload_dir=self.UPLOAD_DIR,
+                        install_dir=self.APP_INSTALL_DIR,
+                    )
+        return self._secret_key
+
+    @SECRET_KEY.setter
+    def SECRET_KEY(self, value: str) -> None:
+        self._secret_key = value
+
+
 def _apply_app_json(settings: Settings) -> None:
     data = read_json("app") or {}
     if not data:
@@ -171,6 +199,7 @@ def _apply_app_json(settings: Settings) -> None:
         "CORS_ORIGIN_REGEX": "CORS_ORIGIN_REGEX",
         "CSP_ENFORCE": "CSP_ENFORCE",
         "TRUST_X_FORWARDED_FOR": "TRUST_X_FORWARDED_FOR",
+        "RATE_LIMIT_ENABLED": "RATE_LIMIT_ENABLED",
         "ALLOW_EMAIL_CODE_LOG": "ALLOW_EMAIL_CODE_LOG",
         "ALLOW_IN_APP_UPDATE": "ALLOW_IN_APP_UPDATE",
         "PUBLIC_BACKEND_URL": "PUBLIC_BACKEND_URL",
@@ -212,10 +241,4 @@ def get_settings() -> Settings:
     _apply_app_json(settings)
     if not (settings.DATABASE_URL or "").strip():
         settings.DATABASE_URL = resolve_database_url()
-    settings.SECRET_KEY = ensure_secret_key(
-        settings.SECRET_KEY,
-        data_dir=settings.DATA_DIR,
-        upload_dir=settings.UPLOAD_DIR,
-        install_dir=settings.APP_INSTALL_DIR,
-    )
     return settings

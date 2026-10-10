@@ -1,15 +1,18 @@
-"""SECRET_KEY 文件：0600 原子写、失败不留半截、首启生成不覆盖并发写入者。"""
+"""SECRET_KEY 文件：0600 原子写、失败不留半截、首启生成不覆盖并发写入者；Settings 首次读取才解析。"""
 
 from __future__ import annotations
 
 import os
 import stat
 import sys
+import threading
 from pathlib import Path
 
+import anyio
 import pytest
 
 from app.core import secret
+from app.core.config import get_settings
 from app.core.secret import ensure_secret_key
 
 
@@ -102,3 +105,81 @@ def test_exclusive_falls_back_when_hard_links_unsupported(
         secret._write_secret_file(dest, "k2", exclusive=True)
     assert dest.read_text(encoding="utf-8") == "k1\n"
     assert [p.name for p in dest.parent.iterdir()] == [".secret_key"]
+
+
+def _settings_env(monkeypatch: pytest.MonkeyPatch, install: Path) -> None:
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    for name in ("SECRET_KEY", "DATA_DIR", "UPLOAD_DIR"):
+        monkeypatch.delenv(name, raising=False)
+    get_settings.cache_clear()
+
+
+def test_settings_create_secret_key_on_first_read_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install = _install(tmp_path)
+    _settings_env(monkeypatch, install)
+    dest = install / "data" / "runtime" / ".secret_key"
+
+    settings = get_settings()
+    assert settings.APP_INSTALL_DIR == str(install)
+    assert not (install / "data").exists()
+
+    seen: list[str] = []
+    readers = [threading.Thread(target=lambda: seen.append(settings.SECRET_KEY)) for _ in range(8)]
+    for reader in readers:
+        reader.start()
+    for reader in readers:
+        reader.join()
+    key = dest.read_text(encoding="utf-8").strip()
+    assert seen == [key] * 8
+    assert key not in repr(settings)
+
+    get_settings.cache_clear()
+    assert get_settings().SECRET_KEY == key
+    settings.SECRET_KEY = "assigned-in-test"
+    assert settings.SECRET_KEY == "assigned-in-test"
+
+
+def test_settings_env_secret_key_never_touches_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install = _install(tmp_path)
+    _settings_env(monkeypatch, install)
+    monkeypatch.setenv("SECRET_KEY", "env-secret-key-0123456789abcdef")
+    get_settings.cache_clear()
+
+    settings = get_settings()
+    assert settings.SECRET_KEY == "env-secret-key-0123456789abcdef"
+    assert "env-secret-key" not in repr(settings)
+    assert not (install / "data").exists()
+
+
+def test_lifespan_resolves_secret_key_before_serving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core import config as config_mod
+    from app.main import app, lifespan
+
+    install = _install(tmp_path)
+    _settings_env(monkeypatch, install)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    secret_file = install / "data" / "runtime" / ".secret_key"
+    served: list[bool] = []
+
+    async def _serve() -> None:
+        async with lifespan(app):
+            served.append(secret_file.is_file())
+
+    anyio.run(_serve)
+    assert served == [True]
+
+    def unwritable(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("Could not persist SECRET_KEY")
+
+    secret_file.unlink()
+    get_settings.cache_clear()
+    monkeypatch.setattr(config_mod, "ensure_secret_key", unwritable)
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        anyio.run(_serve)
+    assert served == [True]

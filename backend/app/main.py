@@ -84,6 +84,8 @@ class ImmutableStaticFiles(StaticFiles):
 
 
 _ACTIVE_UPLOAD_TYPES = frozenset({"text/xml", "text/xsl", "application/xml"})
+# 只在上传文件被当作顶层文档打开时生效（<img> 引用不受影响）；浏览器图片 / PDF / 纯文本查看器靠 img-src 与内联样式照常显示
+UPLOAD_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
 
 
 def _is_active_media_type(media_type: str) -> bool:
@@ -98,7 +100,7 @@ def _is_active_media_type(media_type: str) -> bool:
 
 
 class UploadStaticFiles(StaticFiles):
-    """用户上传目录：目录由 lifespan 创建（import 不落盘）；HTML/SVG/XML/JS 一律 404，不从站点源下发可执行内容。"""
+    """用户上传目录：目录由 lifespan 创建（import 不落盘）；HTML/SVG/XML/JS 一律 404，其余带沙箱 CSP，不从站点源跑脚本。"""
 
     def __init__(self, directory: Path, *, cache_control: str) -> None:
         super().__init__(directory=str(directory), check_dir=False)
@@ -114,6 +116,7 @@ class UploadStaticFiles(StaticFiles):
             raise HTTPException(status_code=404, detail="Not Found")
         response = super().file_response(full_path, stat_result, scope, status_code)
         response.headers["Cache-Control"] = self._cache_control
+        response.headers["Content-Security-Policy"] = UPLOAD_CSP
         return response
 
 
@@ -188,6 +191,8 @@ async def lifespan(_: FastAPI):
     sync_site_config()
     get_settings.cache_clear()
     cfg = get_settings()
+    # 布局迁移之后再解析密钥；DATA_DIR 不可写时在这里启动失败，而不是拖到第一次登录
+    _ = cfg.SECRET_KEY
     logger.info(
         "startup begin version=%s env=%s install_dir=%s",
         cfg.APP_VERSION,

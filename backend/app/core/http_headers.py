@@ -89,7 +89,8 @@ class SecurityHeadersMiddleware:
                     if settings.CSP_ENFORCE
                     else b"content-security-policy-report-only"
                 )
-                if csp_name not in existing:
+                # 响应自带强制 CSP（如 /uploads 沙箱）时不再叠站点策略，Report-Only 也不叠
+                if csp_name not in existing and b"content-security-policy" not in existing:
                     headers.append((csp_name, CSP_POLICY.encode("ascii")))
                 message = {**message, "headers": headers}
             await send(message)
