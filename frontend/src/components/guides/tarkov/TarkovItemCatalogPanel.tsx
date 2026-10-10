@@ -62,6 +62,7 @@ type Props = {
 
 type CatalogRow = TarkovCatalogItem & CatalogPriceRow;
 
+const EMPTY_ROWS: CatalogRow[] = [];
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
@@ -338,7 +339,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
   }, [columnIds, presetSlug, sortState, sortableIds]);
 
   const meta = catalogQuery.data;
-  const loadedRows = (meta?.items ?? []) as CatalogRow[];
+  const loadedRows = (meta?.items as CatalogRow[] | undefined) ?? EMPTY_ROWS;
   const filteredRows = useMemo(() => {
     if (!showRigKind || rigKind === "all") return loadedRows;
     return loadedRows.filter((row) => matchRigKindFilter(row, rigKind));
