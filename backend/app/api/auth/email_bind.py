@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.auth.helpers import (
     PURPOSE_BIND,
     _consume_register_challenge,
     _delivery_user_message,
+    _require_email_delivery,
     _upsert_register_challenge,
     _user_out,
 )
@@ -20,7 +21,13 @@ from app.api.auth.schemas import (
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.rate_limit import auth_limiter, client_ip
+from app.core.rate_limit import (
+    auth_limiter,
+    clear_login_failures,
+    client_ip,
+    ensure_login_not_locked,
+    record_login_failure,
+)
 from app.core.security import (
     hash_password,
     strip_markup_chars,
@@ -31,10 +38,18 @@ from app.models.member import Member
 from app.models.user import User
 from app.services.account_anonymize import user_is_anonymized
 from app.services.auth_config import get_min_password_length
+from app.services.email import NOTICE_BIND_TAKEN, NOTICE_QQ_LINKED, notify_account_event
 from app.services.member_sync import delete_user_with_member, ensure_user_member
 from app.services.password_policy import PasswordPolicyError, validate_password
 
 router = APIRouter()
+
+
+def _email_taken(db: Session, email: str, user: User) -> bool:
+    return (
+        db.query(User.id).filter(User.email == email, User.id != user.id).first()
+        is not None
+    )
 
 
 @router.post("/send-bind-email-code", response_model=RegisterResponse)
@@ -53,18 +68,15 @@ def send_bind_email_code(
     auth_limiter.hit(f"bind-email-code:uid:{user.id}", limit=5, window_sec=600)
     auth_limiter.hit(f"bind-email-code:email:{email}", limit=5, window_sec=600)
 
-    taken = (
-        db.query(User)
-        .filter(User.email == email, User.id != user.id)
-        .first()
+    _require_email_delivery(db)
+    # 已被占用的邮箱收提醒（可改走「绑已有账号」），响应与可绑邮箱一样，不能拿来探测谁注册过
+    notice = NOTICE_BIND_TAKEN if _email_taken(db, email, user) else None
+    _, delivery = _upsert_register_challenge(
+        db, email, purpose=PURPOSE_BIND, notice=notice
     )
-    if taken:
-        raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
-
-    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_BIND)
     msg = _delivery_user_message(
         delivery,
-        sent="验证码已发送",
+        sent="若该邮箱可以绑定，验证码已发送",
         logged="验证码已输出到服务端日志（邮件未配置）",
     )
     return RegisterResponse(message=msg, email=email, delivery=delivery["mode"])
@@ -87,14 +99,6 @@ def bind_email(
     auth_limiter.hit(f"bind-email:uid:{user.id}", limit=10, window_sec=600)
     auth_limiter.hit(f"bind-email:email:{email}", limit=10, window_sec=600)
 
-    taken = (
-        db.query(User)
-        .filter(User.email == email, User.id != user.id)
-        .first()
-    )
-    if taken:
-        raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
-
     password: str | None = None
     if body.password:
         try:
@@ -106,7 +110,10 @@ def bind_email(
         except PasswordPolicyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # 先验码再查占用：被占用的邮箱只收到提醒信、拿不到码
     _consume_register_challenge(db, email, code, purpose=PURPOSE_BIND)
+    if _email_taken(db, email, user):
+        raise HTTPException(status_code=400, detail="该邮箱已被其他账号使用")
     user.email = email
     user.email_verified = True
     if password:
@@ -124,6 +131,7 @@ def link_existing_account(
     body: LinkExistingAccountRequest,
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> LinkExistingAccountResponse:
@@ -135,7 +143,6 @@ def link_existing_account(
     email = str(body.email).strip().lower()
     auth_limiter.hit(f"link-existing:ip:{ip}", limit=20, window_sec=600)
     auth_limiter.hit(f"link-existing:uid:{user.id}", limit=10, window_sec=600)
-    auth_limiter.hit(f"link-existing:email:{email}", limit=10, window_sec=600)
 
     temp_member = (
         db.query(Member)
@@ -144,6 +151,7 @@ def link_existing_account(
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
             joinedload(Member.kujiequ_bind),
+            joinedload(Member.mihoyo_bind),
         )
         .filter(Member.user_id == user.id)
         .first()
@@ -161,19 +169,25 @@ def link_existing_account(
         or temp_member.taygedo_bind
         or temp_member.exilium_bind
         or temp_member.kujiequ_bind
+        or temp_member.mihoyo_bind
     ):
         raise HTTPException(
             status_code=400,
             detail="临时账号已绑定其他平台，请先解绑后再合并到已有账号",
         )
 
+    # 校验的是目标账号的密码：与登录共用 (账号, IP) 失败锁，不能拿这里绕过
+    ensure_login_not_locked(email, ip)
     target = db.query(User).filter(User.email == email).first()
-    if (
-        not target
-        or user_is_anonymized(target)
-        or not verify_login_password(body.password, target.password_hash)
-    ):
+    if target is not None and user_is_anonymized(target):
+        target = None
+    password_ok = verify_login_password(
+        body.password, target.password_hash if target else None
+    )
+    if target is None or not password_ok:
+        record_login_failure(email, ip)
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
+    clear_login_failures(email, ip)
     if target.id == user.id:
         raise HTTPException(status_code=400, detail="不能与当前账号合并")
     if target.email and not target.email_verified:
@@ -221,9 +235,9 @@ def link_existing_account(
     db.refresh(target_member)
     target.member = target_member
 
-    token = issue_session(response, request, target)
+    issue_session(response, request, target)
+    background_tasks.add_task(notify_account_event, target.email, NOTICE_QQ_LINKED)
     return LinkExistingAccountResponse(
         message="已合并到已有账号，可用 QQ 登录",
-        access_token=token,
         user=_user_out(target),
     )

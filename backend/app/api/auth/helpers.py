@@ -13,7 +13,12 @@ from app.core.timeutil import now_naive, to_naive
 from app.models.register_challenge import RegisterChallenge
 from app.models.user import User, UserRole
 from app.schemas import UserOut
-from app.services.email import send_verification_email
+from app.services.email import (
+    precheck_email_delivery,
+    send_notice_email,
+    send_verification_email,
+)
+from app.services.email_config import code_expire_minutes
 
 PURPOSE_REGISTER = "register"
 PURPOSE_BIND = "bind"
@@ -21,9 +26,15 @@ PURPOSE_RESET = "reset"
 PURPOSE_DELETE = "delete"
 PURPOSE_STEPUP = "admin_stepup"
 
-# 6 位数字码：有效期与可试次数共同决定猜中概率，两者都在使用处封顶
-MAX_CODE_EXPIRE_MINUTES = 30
+# 6 位数字码：可试次数与有效期上限（email_config.MAX_CODE_EXPIRE_MINUTES）共同决定猜中概率
 MAX_CODE_ATTEMPTS = 5
+
+_DELIVERY_ERRORS = {
+    "smtp_error": "邮件发送失败，请稍后重试",
+    "unavailable": (
+        "邮件服务未配置，无法发送验证码。请配置 SMTP，或本地调试时设置 ALLOW_EMAIL_CODE_LOG=true"
+    ),
+}
 
 
 def _gen_code() -> str:
@@ -40,20 +51,32 @@ def _gen_username(db: Session) -> str:
     raise HTTPException(status_code=500, detail="无法生成唯一用户名，请重试")
 
 
+def _require_email_delivery(db: Session) -> None:
+    """查邮箱是否已注册之前先确认邮件发得出去：已注册与未注册邮箱拿到同样的 503。"""
+    from app.services.email_config import load_email_config
+
+    mode = precheck_email_delivery(load_email_config(db))
+    if mode in _DELIVERY_ERRORS:
+        raise HTTPException(status_code=503, detail=_DELIVERY_ERRORS[mode])
+
+
 def _upsert_register_challenge(
     db: Session,
     email: str,
     *,
     purpose: str = PURPOSE_REGISTER,
+    notice: str | None = None,
 ) -> tuple[str, dict]:
+    """写入新验证码并发信。
+
+    给了 notice（如邮箱已注册）时照样落一条码，但发的是不带码的提醒信：
+    之后拿任意码来试，得到的报错与正常邮箱输错码完全一样。
+    """
     from app.services.email_config import load_email_config
 
     cfg = load_email_config(db)
-    expire_minutes = min(
-        MAX_CODE_EXPIRE_MINUTES, max(1, int(cfg.get("code_expire_minutes") or 15))
-    )
     code = _gen_code()
-    expires = now_naive() + timedelta(minutes=expire_minutes)
+    expires = now_naive() + timedelta(minutes=code_expire_minutes(cfg))
     row = (
         db.query(RegisterChallenge)
         .filter(
@@ -76,8 +99,12 @@ def _upsert_register_challenge(
             )
         )
     db.commit()
-    delivery = send_verification_email(email, code, db=db, purpose=purpose)
-    if delivery.get("mode") in ("unavailable", "smtp_error"):
+    if notice:
+        delivery = send_notice_email(email, notice, db=db)
+    else:
+        delivery = send_verification_email(email, code, db=db, purpose=purpose)
+    mode = delivery.get("mode")
+    if mode in _DELIVERY_ERRORS:
         row = (
             db.query(RegisterChallenge)
             .filter(
@@ -89,15 +116,7 @@ def _upsert_register_challenge(
         if row:
             db.delete(row)
             db.commit()
-        if delivery.get("mode") == "smtp_error":
-            raise HTTPException(
-                status_code=503,
-                detail="邮件发送失败，请稍后重试",
-            )
-        raise HTTPException(
-            status_code=503,
-            detail="邮件服务未配置，无法发送验证码。请配置 SMTP，或本地调试时设置 ALLOW_EMAIL_CODE_LOG=true",
-        )
+        raise HTTPException(status_code=503, detail=_DELIVERY_ERRORS[mode])
     return code, delivery
 
 

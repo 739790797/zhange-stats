@@ -18,12 +18,16 @@ from app.core.biz_logging import clear_log_until_change, log_until_change
 logger = logging.getLogger(__name__)
 
 _SWEEP_INTERVAL_SEC = 60.0
-# 同一账号前几次输错不锁；之后每错一次锁定时长翻倍（1、2、4、8 分钟…封顶 15 分钟）
+# 同一账号 + 同一 IP 前几次输错不锁；之后每错一次锁定时长翻倍（1、2、4、8 分钟…封顶 15 分钟）。
+# 按 (账号, IP) 锁，别人从别处乱输锁不住本人
 LOGIN_FAILURES_BEFORE_LOCK = 4
 LOGIN_LOCK_BASE_SEC = 60
 LOGIN_LOCK_MAX_SEC = 15 * 60
 # 最后一次输错后这么久没再错，失败计数归零
 LOGIN_FAILURE_MEMORY_SEC = 60 * 60
+# 账号维度只设高得多的上限（换 IP 撞库）：累计这么多次后整号锁一小会，计数重来
+LOGIN_ACCOUNT_FAILURES_BEFORE_LOCK = 50
+LOGIN_ACCOUNT_LOCK_SEC = 5 * 60
 
 
 def _get_redis() -> Any | None:
@@ -151,10 +155,29 @@ def client_ip(request: Request) -> str:
     return "unknown"
 
 
-def _login_failure_key(account: str) -> str:
-    ident = (account or "").strip().lower()
-    digest = hashlib.sha256(ident.encode("utf-8")).hexdigest()[:32]
-    return f"zhange:login-fail:{digest}"
+def _login_digest(*parts: str) -> str:
+    raw = "\n".join(parts)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
+
+
+def _login_ident(account: str) -> str:
+    return (account or "").strip().lower()
+
+
+def _login_failure_key(account: str, ip: str) -> str:
+    return f"zhange:login-fail:{_login_digest(_login_ident(account), ip or 'unknown')}"
+
+
+def _login_lock_key(account: str, ip: str) -> str:
+    return f"zhange:login-lock:{_login_digest(_login_ident(account), ip or 'unknown')}"
+
+
+def _account_failure_key(account: str) -> str:
+    return f"zhange:login-fail-account:{_login_digest(_login_ident(account))}"
+
+
+def _account_lock_key(account: str) -> str:
+    return f"zhange:login-lock-account:{_login_digest(_login_ident(account))}"
 
 
 def login_lock_seconds(failures: int) -> int:
@@ -164,22 +187,31 @@ def login_lock_seconds(failures: int) -> int:
     return min(LOGIN_LOCK_MAX_SEC, LOGIN_LOCK_BASE_SEC * 2 ** min(over - 1, 16))
 
 
-def _login_failure_state(account: str) -> tuple[int, float]:
-    """(连续失败次数, 锁定截止的 epoch 秒)。"""
+def _lock_remaining(key: str) -> float:
     from app.core.ephemeral_kv import ephemeral_get
 
-    raw = ephemeral_get(_login_failure_key(account)) or ""
-    count, _, until = raw.partition(":")
     try:
-        return max(0, int(count)), float(until or 0)
+        locked_until = float(ephemeral_get(key) or 0)
     except ValueError:
-        return 0, 0.0
+        return 0.0
+    return locked_until - time.time()
 
 
-def ensure_login_not_locked(account: str) -> None:
-    """锁定期内直接拒绝，不再校验口令（也省掉一次 bcrypt）。"""
-    _failures, locked_until = _login_failure_state(account)
-    remaining = locked_until - time.time()
+def _set_lock(key: str, seconds: int) -> None:
+    from app.core.ephemeral_kv import ephemeral_set
+
+    ephemeral_set(key, f"{time.time() + seconds:.0f}", ttl_sec=seconds + 1)
+
+
+def ensure_login_not_locked(account: str, ip: str) -> None:
+    """锁定期内直接拒绝，不再校验口令（也省掉一次 bcrypt）。
+
+    键用用户输入的账号名，不管账号是否存在，免得锁与不锁泄露账号存在性。
+    """
+    remaining = max(
+        _lock_remaining(_login_lock_key(account, ip)),
+        _lock_remaining(_account_lock_key(account)),
+    )
     if remaining > 0:
         minutes = max(1, math.ceil(remaining / 60))
         raise HTTPException(
@@ -188,23 +220,32 @@ def ensure_login_not_locked(account: str) -> None:
         )
 
 
-def record_login_failure(account: str) -> None:
-    from app.core.ephemeral_kv import ephemeral_set
+def record_login_failure(account: str, ip: str) -> None:
+    from app.core.ephemeral_kv import ephemeral_delete, ephemeral_incr
 
-    failures = _login_failure_state(account)[0] + 1
-    lock = login_lock_seconds(failures)
-    locked_until = time.time() + lock if lock else 0.0
-    ephemeral_set(
-        _login_failure_key(account),
-        f"{failures}:{locked_until:.0f}",
-        ttl_sec=LOGIN_FAILURE_MEMORY_SEC,
+    failures = ephemeral_incr(
+        _login_failure_key(account, ip), ttl_sec=LOGIN_FAILURE_MEMORY_SEC
     )
+    lock = login_lock_seconds(failures)
+    if lock:
+        _set_lock(_login_lock_key(account, ip), lock)
+    account_failures = ephemeral_incr(
+        _account_failure_key(account), ttl_sec=LOGIN_FAILURE_MEMORY_SEC
+    )
+    if account_failures >= LOGIN_ACCOUNT_FAILURES_BEFORE_LOCK:
+        _set_lock(_account_lock_key(account), LOGIN_ACCOUNT_LOCK_SEC)
+        ephemeral_delete(_account_failure_key(account))
 
 
-def clear_login_failures(account: str) -> None:
+def clear_login_failures(account: str, ip: str, *, account_wide: bool = False) -> None:
+    """登录成功只清本 IP 的计数；账号维度计数只在证明了邮箱归属（重置密码）后才清。"""
     from app.core.ephemeral_kv import ephemeral_delete
 
-    ephemeral_delete(_login_failure_key(account))
+    ephemeral_delete(_login_failure_key(account, ip))
+    ephemeral_delete(_login_lock_key(account, ip))
+    if account_wide:
+        ephemeral_delete(_account_failure_key(account))
+        ephemeral_delete(_account_lock_key(account))
 
 
 def reset_rate_limit_redis_for_tests() -> None:

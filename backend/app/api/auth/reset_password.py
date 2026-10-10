@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.auth.helpers import (
     PURPOSE_RESET,
     _consume_register_challenge,
+    _require_email_delivery,
     _upsert_register_challenge,
 )
 from app.api.auth.schemas import (
@@ -18,6 +19,7 @@ from app.core.rate_limit import auth_limiter, clear_login_failures, client_ip
 from app.core.security import bump_token_version, hash_password, verify_login_password
 from app.models.user import User
 from app.services.auth_config import get_min_password_length
+from app.services.email import NOTICE_NO_ACCOUNT_RESET
 from app.services.password_policy import (
     PasswordPolicyError,
     invalidate_weak_password_cache,
@@ -40,19 +42,19 @@ def send_reset_password_code(
     auth_limiter.hit(f"reset-code:ip:{ip}", limit=10, window_sec=600)
     auth_limiter.hit(f"reset-code:email:{email}", limit=5, window_sec=600)
 
+    _require_email_delivery(db)
     user = (
         db.query(User)
         .filter(User.email == email, User.email_verified.is_(True))
         .first()
     )
-    if not user:
-        return ResetPasswordResponse(
-            message=_FUZZY_SEND_MSG,
-            email=email,
-            delivery="skipped",
-        )
-
-    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_RESET)
+    # 没有可找回账号的邮箱收「无此账号」提醒，响应与真账号一样
+    _, delivery = _upsert_register_challenge(
+        db,
+        email,
+        purpose=PURPOSE_RESET,
+        notice=None if user else NOTICE_NO_ACCOUNT_RESET,
+    )
     msg = _FUZZY_SEND_MSG
     if delivery["mode"] == "log":
         msg = "验证码已输出到服务端日志（邮件未配置）"
@@ -71,6 +73,14 @@ def reset_password(
     auth_limiter.hit(f"reset-password:ip:{ip}", limit=10, window_sec=600)
     auth_limiter.hit(f"reset-password:email:{email}", limit=10, window_sec=600)
 
+    min_length = get_min_password_length(db)
+    try:
+        new_password = validate_password(body.new_password, min_length=min_length)
+    except PasswordPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # 先验码再查账号：没有验证码的人分不出邮箱是否已注册。之后的报错不提交，码留着可再试
+    _consume_register_challenge(db, email, code, purpose=PURPOSE_RESET)
     user = (
         db.query(User)
         .filter(User.email == email, User.email_verified.is_(True))
@@ -78,18 +88,10 @@ def reset_password(
     )
     if not user:
         raise HTTPException(status_code=400, detail="重置失败，请检查邮箱与验证码")
-
     try:
-        new_password = validate_password(
-            body.new_password,
-            username=user.username,
-            min_length=get_min_password_length(db),
-        )
+        validate_password(new_password, username=user.username, min_length=min_length)
     except PasswordPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    _consume_register_challenge(db, email, code, purpose=PURPOSE_RESET)
-
     if verify_login_password(new_password, user.password_hash):
         raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
 
@@ -97,6 +99,7 @@ def reset_password(
     user.password_hash = hash_password(new_password)
     bump_token_version(user)
     db.commit()
-    clear_login_failures(email)
-    clear_login_failures(user.username)
+    # 证明了邮箱归属：连同账号维度的失败计数一起清掉
+    clear_login_failures(email, ip, account_wide=True)
+    clear_login_failures(user.username, ip, account_wide=True)
     return ResetPasswordResponse(message="密码已重置，请使用新密码登录", email=email)

@@ -1,4 +1,6 @@
+import functools
 import re
+import secrets
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -57,14 +59,24 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def verify_login_password(plain: str, hashed: str) -> bool:
-    """先按原样校验；旧版改密 / 重置会去掉首尾空白再存，输入带首尾空白时再试一次去空白的值。"""
-    if verify_password(plain, hashed):
-        return True
-    stripped = (plain or "").strip()
-    if not stripped or stripped == plain:
-        return False
-    return verify_password(stripped, hashed)
+@functools.lru_cache(maxsize=1)
+def _dummy_password_hash() -> str:
+    return hash_password(secrets.token_urlsafe(16))
+
+
+def verify_login_password(plain: str, hashed: str | None) -> bool:
+    """先按原样校验；旧版改密 / 重置会去掉首尾空白再存，输入带首尾空白时再试一次去空白的值。
+
+    hashed 为空（账号不存在 / 已注销）时照样对随机哈希跑一遍 bcrypt 再返回 False，
+    响应耗时与真账号输错一致，不能靠计时判断账号是否存在。
+    """
+    target = hashed or _dummy_password_hash()
+    ok = verify_password(plain, target)
+    if not ok:
+        stripped = (plain or "").strip()
+        if stripped and stripped != plain:
+            ok = verify_password(stripped, target)
+    return ok and bool(hashed)
 
 
 def bump_token_version(user: Any) -> int:
