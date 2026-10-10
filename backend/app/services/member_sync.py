@@ -56,10 +56,12 @@ def sync_users_and_members(db: Session) -> dict[str, int]:
         if user.anonymized_at is not None:
             continue
         before = db.query(Member).filter(Member.user_id == user.id).first()
+        # ensure 拿到的是同一个对象、原地改昵称：先记下旧值
+        old_nickname = before.nickname if before is not None else None
         member = ensure_user_member(db, user)
         if before is None:
             created += 1
-        elif before.nickname != member.nickname:
+        elif old_nickname != member.nickname:
             synced += 1
 
     orphans = db.query(Member).filter(Member.user_id.is_(None)).all()
