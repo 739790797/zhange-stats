@@ -30,6 +30,10 @@ from app.core.file_config import set_config_dir_for_tests  # noqa: E402
 from app.core.rate_limit import reset_rate_limits_for_tests  # noqa: E402
 from app.core.runtime_cache import pin_library_cache_env  # noqa: E402
 
+def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
+    shutil.rmtree(_SESSION_DATA_ROOT, ignore_errors=True)
+
+
 _LOCAL_HOSTS = frozenset({"localhost", "localhost.localdomain", "ip6-localhost", ""})
 
 
