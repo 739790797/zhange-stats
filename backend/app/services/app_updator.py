@@ -1,8 +1,10 @@
-"""AstrBot-style self-update: GitHub Release zip + static asset + pip + restart."""
+"""AstrBot-style self-update: GitHub Release source + static asset + pip + restart."""
 
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import logging
 import os
 import re
@@ -14,14 +16,15 @@ import tempfile
 import threading
 import time
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import httpx
 
 from app.core.config import get_settings
+from app.core.file_config import database_is_configured
 from app.core.paths import cleanup_legacy_install_tree
 from app.core.paths import resolve_install_dir as resolve_install_dir_from_env
 from app.core.paths import resolve_runtime_path
@@ -40,11 +43,18 @@ SOURCE_WHITELIST: tuple[str, ...] = (
     "backend/alembic",
     "backend/requirements.txt",
     "backend/requirements-dev.txt",
+    "backend/constraints.txt",
     "backend/scripts",
     "scripts",
     "AGENTS.md",
     "README.md",
 )
+
+SHA256SUMS_NAME = "SHA256SUMS"
+# 与 scripts/linux/_lib.sh、scripts/win/_lib.ps1 共用：内容为 requirements/constraints 的 sha256
+PIP_STAMP_NAME = ".zhange-req.stamp"
+PIP_STAMP_FILES: tuple[str, ...] = ("requirements.txt", "constraints.txt")
+_GITHUB_HOSTS = frozenset({"api.github.com", "github.com", "www.github.com"})
 
 PROTECTED_PREFIXES: tuple[str, ...] = (
     ".env",
@@ -157,6 +167,16 @@ class _UpdateLock:
 
 
 _lock = _UpdateLock()
+# asyncio keeps only weak refs to tasks; hold the background update until it finishes.
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+@dataclass(frozen=True)
+class ReleaseAsset:
+    name: str
+    url: str
+    # GitHub 资产 ``digest``（``sha256:<hex>``）；旧 Release / 非 github.com 可能为空
+    digest: str = ""
 
 
 @dataclass
@@ -168,6 +188,9 @@ class ReleaseInfo:
     zipball_url: str
     static_asset_url: str | None = None
     static_asset_name: str | None = None
+    assets: dict[str, ReleaseAsset] = field(default_factory=dict)
+    draft: bool = False
+    prerelease: bool = False
 
 
 @dataclass
@@ -248,6 +271,7 @@ def _check_install_writable(install: Path) -> tuple[bool, str]:
         configured_install=getattr(settings, "APP_INSTALL_DIR", "") or "",
     )
     candidates = [
+        install,
         install / "VERSION",
         install / "backend" / "app",
         install / "static",
@@ -292,11 +316,15 @@ def _proxy_url(url: str, proxy: str | None) -> str:
     return urljoin(p + "/", url)
 
 
+def _github_api_base() -> str:
+    settings = get_settings()
+    return (settings.UPDATE_GITHUB_API or "https://api.github.com").rstrip("/")
+
+
 def _releases_api_url() -> str:
     settings = get_settings()
-    base = (settings.UPDATE_GITHUB_API or "https://api.github.com").rstrip("/")
     repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
-    return f"{base}/repos/{repo}/releases"
+    return f"{_github_api_base()}/repos/{repo}/releases"
 
 
 def _static_asset_name(version: str) -> str:
@@ -304,56 +332,124 @@ def _static_asset_name(version: str) -> str:
     return f"zhange-stats-{ver}-static.tar.gz"
 
 
-async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[ReleaseInfo]:
+def _source_asset_name(version: str) -> str:
+    ver = version.lstrip("vV")
+    return f"zhange-stats-{ver}-source.tar.gz"
+
+
+def _github_token() -> str:
+    try:
+        from app.services.integrations_config import get_github_token
+
+        return (get_github_token() or "").strip()
+    except Exception:  # noqa: BLE001
+        return (get_settings().UPDATE_GITHUB_TOKEN or "").strip()
+
+
+def _token_allowed(url: str) -> bool:
+    """Token goes to GitHub itself (or the operator's UPDATE_GITHUB_API), never a proxy."""
+    host = (urlparse(url).hostname or "").lower()
+    if not host:
+        return False
+    if host in _GITHUB_HOSTS:
+        return True
+    return host == (urlparse(_github_api_base()).hostname or "").lower()
+
+
+def _proxy_fallback_ok(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code if exc.response is not None else 0
+        return code in (403, 429) or code >= 500
+    return isinstance(exc, (httpx.TransportError, ValueError))
+
+
+async def _fetch_github_json(url: str, *, proxy: str | None = None) -> Any:
+    """GET GitHub API JSON directly; the proxy is only a tokenless fallback."""
     settings = get_settings()
-    url = _proxy_url(_releases_api_url(), proxy)
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": f"zhange-stats/{settings.APP_VERSION}",
     }
-    token = ""
-    try:
-        from app.services.integrations_config import get_github_token
-
-        token = (get_github_token() or "").strip()
-    except Exception:  # noqa: BLE001
-        token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
+    token = _github_token()
     async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-        resp = await client.get(url, headers=headers)
+        direct_headers = dict(headers)
+        if token and _token_allowed(url):
+            direct_headers["Authorization"] = f"Bearer {token}"
+        try:
+            resp = await client.get(url, headers=direct_headers)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            if not (proxy or "").strip() or not _proxy_fallback_ok(exc):
+                raise
+            logger.warning(
+                "GitHub API direct request failed (%s); falling back to proxy without token — "
+                "release metadata and digests then come from the proxy",
+                exc,
+            )
+        resp = await client.get(_proxy_url(url, proxy), headers=headers)
         resp.raise_for_status()
-        data = resp.json()
+        return resp.json()
+
+
+def _parse_release(item: dict[str, Any]) -> ReleaseInfo:
+    tag = str(item.get("tag_name") or "")
+    assets: dict[str, ReleaseAsset] = {}
+    for raw in item.get("assets") or []:
+        name = str(raw.get("name") or "")
+        url = str(raw.get("browser_download_url") or "")
+        if name and url:
+            assets[name] = ReleaseAsset(name=name, url=url, digest=str(raw.get("digest") or ""))
+    static = assets.get(_static_asset_name(tag))
+    return ReleaseInfo(
+        tag_name=tag,
+        name=str(item.get("name") or tag),
+        body=str(item.get("body") or ""),
+        published_at=str(item.get("published_at") or ""),
+        zipball_url=str(item.get("zipball_url") or ""),
+        static_asset_url=static.url if static else None,
+        static_asset_name=static.name if static else None,
+        assets=assets,
+        draft=bool(item.get("draft")),
+        prerelease=bool(item.get("prerelease")),
+    )
+
+
+async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[ReleaseInfo]:
+    data = await _fetch_github_json(_releases_api_url(), proxy=proxy)
     if not isinstance(data, list):
         raise RuntimeError("GitHub Releases 响应格式异常")
+    out = [
+        rel
+        for rel in (_parse_release(item) for item in data if isinstance(item, dict))
+        if rel.tag_name and not rel.draft
+    ]
+    return out[:limit]
 
-    out: list[ReleaseInfo] = []
-    for item in data[:limit]:
-        tag = str(item.get("tag_name") or "")
-        assets = item.get("assets") or []
-        static_url = None
-        static_name = None
-        want = _static_asset_name(tag)
-        for asset in assets:
-            name = str(asset.get("name") or "")
-            if name == want or name.endswith("-static.tar.gz"):
-                static_url = asset.get("browser_download_url")
-                static_name = name
-                if name == want:
-                    break
-        out.append(
-            ReleaseInfo(
-                tag_name=tag,
-                name=str(item.get("name") or tag),
-                body=str(item.get("body") or ""),
-                published_at=str(item.get("published_at") or ""),
-                zipball_url=str(item.get("zipball_url") or ""),
-                static_asset_url=static_url,
-                static_asset_name=static_name,
-            )
-        )
-    return out
+
+async def fetch_release_by_tag(version: str, proxy: str | None = None) -> ReleaseInfo:
+    ver = (version or "").strip()
+    tag = ver if ver.startswith("v") else f"v{ver}"
+    data = await _fetch_github_json(
+        f"{_releases_api_url()}/tags/{quote(tag, safe='')}", proxy=proxy
+    )
+    if not isinstance(data, dict) or not data.get("tag_name"):
+        raise RuntimeError("GitHub Release 响应格式异常")
+    rel = _parse_release(data)
+    if rel.draft:
+        raise RuntimeError(f"Release {tag} 仍是草稿")
+    return rel
+
+
+def latest_stable_release(releases: list[ReleaseInfo]) -> ReleaseInfo | None:
+    """Highest semver among published, non-prerelease releases (API order is by date)."""
+    stable = [r for r in releases if r.tag_name and not r.draft and not r.prerelease]
+    if not stable:
+        return None
+    return max(
+        stable,
+        key=functools.cmp_to_key(lambda a, b: compare_version(a.tag_name, b.tag_name)),
+    )
 
 
 def invalidate_check_cache() -> None:
@@ -398,12 +494,12 @@ async def check_update(
 
     settings = get_settings()
     releases = await fetch_releases(proxy=proxy)
-    current = settings.APP_VERSION
-    latest: ReleaseInfo | None = None
-    for rel in releases:
-        if compare_version(rel.tag_name, current) > 0:
-            latest = rel
-            break
+    newest = latest_stable_release(releases)
+    latest = (
+        newest
+        if newest is not None and compare_version(newest.tag_name, settings.APP_VERSION) > 0
+        else None
+    )
     if not (proxy or "").strip():
         _write_check_cache(latest, releases)
     return latest, releases
@@ -578,11 +674,15 @@ def _github_download_headers(url: str, *, token: str, user_agent: str) -> dict[s
     if not token:
         return headers
     host = (urlparse(url).hostname or "").lower()
-    if host in {"api.github.com", "github.com", "www.github.com"}:
+    if host in _GITHUB_HOSTS:
         headers["Authorization"] = f"Bearer {token}"
         if "/releases/download/" in url:
             headers["Accept"] = "application/octet-stream"
     return headers
+
+
+def _partial_size(path: Path) -> int:
+    return path.stat().st_size if path.exists() else 0
 
 
 def _download_send_range(url: str, have: int) -> bool:
@@ -590,7 +690,7 @@ def _download_send_range(url: str, have: int) -> bool:
     if have <= 0:
         return False
     host = (urlparse(url).hostname or "").lower()
-    return host not in {"api.github.com", "github.com", "www.github.com"}
+    return host not in _GITHUB_HOSTS
 
 
 async def _download_follow(
@@ -604,7 +704,7 @@ async def _download_follow(
     """Follow redirects then stream to dest. Resume with Range if dest is partial."""
     current = url
     for _ in range(12):
-        have = dest.stat().st_size if dest.exists() else 0
+        have = _partial_size(dest)
         headers = _github_download_headers(current, token=token, user_agent=user_agent)
         if _download_send_range(current, have):
             headers["Range"] = f"bytes={have}-"
@@ -621,7 +721,7 @@ async def _download_follow(
             continue
         if resp.status_code == 416:
             await resp.aclose()
-            dest.unlink(missing_ok=True)
+            await asyncio.to_thread(dest.unlink, missing_ok=True)
             raise IncompleteDownload("服务器拒绝续传（HTTP 416），将整文件重试")
         expected: int | None = None
         try:
@@ -656,13 +756,7 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
     final = _proxy_url(url, proxy)
     settings = get_settings()
     user_agent = f"zhange-stats/{settings.APP_VERSION}"
-    token = ""
-    try:
-        from app.services.integrations_config import get_github_token
-
-        token = (get_github_token() or "").strip()
-    except Exception:  # noqa: BLE001
-        token = (settings.UPDATE_GITHUB_TOKEN or "").strip()
+    token = _github_token()
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     timeout = httpx.Timeout(300.0, connect=30.0)
@@ -701,6 +795,133 @@ async def _download(url: str, dest: Path, proxy: str | None = None) -> None:
     raise RuntimeError(_format_download_error(last_exc or RuntimeError("下载失败")))
 
 
+class ChecksumMismatch(RuntimeError):
+    """Downloaded bytes do not match the release sha256."""
+
+
+def _normalize_sha256(digest: str) -> str:
+    value = (digest or "").strip().lower()
+    if value.startswith("sha256:"):
+        value = value[len("sha256:") :]
+    return value if re.fullmatch(r"[0-9a-f]{64}", value) else ""
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def parse_sha256sums(text: str) -> dict[str, str]:
+    """``sha256sum`` output (``<hex>  <name>`` or ``<hex> *<name>``) → {name: hex}."""
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(r"^([0-9a-fA-F]{64})\s+\*?(\S.*?)\s*$", line)
+        if match:
+            out[match.group(2).removeprefix("./")] = match.group(1).lower()
+    return out
+
+
+def expected_sha256(release: ReleaseInfo, name: str, sums: dict[str, str]) -> str:
+    asset = release.assets.get(name)
+    from_api = _normalize_sha256(asset.digest) if asset else ""
+    listed = sums.get(name, "")
+    if from_api and listed and from_api != listed:
+        raise ChecksumMismatch(f"{name} 的 sha256 与 {SHA256SUMS_NAME} 不一致，已中止更新")
+    return from_api or listed
+
+
+async def _download_verified(
+    url: str,
+    dest: Path,
+    *,
+    sha256: str,
+    label: str,
+    proxy: str | None,
+) -> None:
+    want = _normalize_sha256(sha256)
+    if not want:
+        raise ChecksumMismatch(f"{label} 缺少 sha256 校验值，已拒绝安装")
+    for attempt in (1, 2):
+        await _download(url, dest, proxy=proxy)
+        if await asyncio.to_thread(sha256_file, dest) == want:
+            return
+        await asyncio.to_thread(dest.unlink, missing_ok=True)
+        logger.warning("sha256 mismatch for %s (attempt %s/2)", label, attempt)
+    raise ChecksumMismatch(f"{label} 校验失败（sha256 不匹配），已中止更新")
+
+
+async def download_release_files(
+    target: ReleaseInfo,
+    work: Path,
+    *,
+    proxy: str | None,
+    need_source: bool = True,
+) -> tuple[Path | None, Path]:
+    """Download static (+ source) into ``work``; every release asset is sha256-checked."""
+    await asyncio.to_thread(work.mkdir, parents=True, exist_ok=True)
+    sums: dict[str, str] = {}
+    sums_asset = target.assets.get(SHA256SUMS_NAME)
+    if sums_asset is not None:
+        sums_path = work / SHA256SUMS_NAME
+        if _normalize_sha256(sums_asset.digest):
+            await _download_verified(
+                sums_asset.url,
+                sums_path,
+                sha256=sums_asset.digest,
+                label=SHA256SUMS_NAME,
+                proxy=proxy,
+            )
+        else:
+            await _download(sums_asset.url, sums_path, proxy=proxy)
+        sums = parse_sha256sums(
+            await asyncio.to_thread(sums_path.read_text, encoding="utf-8", errors="replace")
+        )
+
+    static_name = _static_asset_name(target.tag_name)
+    static_asset = target.assets.get(static_name)
+    if static_asset is None:
+        raise RuntimeError(f"Release {target.tag_name} 缺少前端资产 {static_name}")
+    static_path = work / "static.tar.gz"
+    _set_progress(busy=True, phase="download", message=f"下载 {static_name}…")
+    await _download_verified(
+        static_asset.url,
+        static_path,
+        sha256=expected_sha256(target, static_name, sums),
+        label=static_name,
+        proxy=proxy,
+    )
+    if not need_source:
+        return None, static_path
+
+    source_name = _source_asset_name(target.tag_name)
+    source_asset = target.assets.get(source_name)
+    if source_asset is not None:
+        source_path = work / source_name
+        _set_progress(busy=True, phase="download", message=f"下载 {source_name}…")
+        await _download_verified(
+            source_asset.url,
+            source_path,
+            sha256=expected_sha256(target, source_name, sums),
+            label=source_name,
+            proxy=proxy,
+        )
+        return source_path, static_path
+    if not target.zipball_url:
+        raise RuntimeError(f"Release {target.tag_name} 缺少源码包 {source_name} 与 zipball_url")
+    logger.warning(
+        "release %s has no %s asset; falling back to GitHub zipball (not checksum-verified)",
+        target.tag_name,
+        source_name,
+    )
+    _set_progress(busy=True, phase="download", message="该 Release 无源码包资产，回退 zipball（无法校验）…")
+    zip_path = work / "source.zip"
+    await _download(target.zipball_url, zip_path, proxy=proxy)
+    return zip_path, static_path
+
+
 def _resolve_target_release(
     releases: list[ReleaseInfo],
     version: str,
@@ -713,7 +934,9 @@ def _resolve_target_release(
         return UpdateResult(ok=False, message="未获取到任何 GitHub Release")
     ver = (version or "latest").strip()
     if ver in ("", "latest"):
-        target = releases[0]
+        target = latest_stable_release(releases)
+        if target is None:
+            return UpdateResult(ok=False, message="未获取到任何正式版 GitHub Release")
         if not force and compare_version(target.tag_name, current_version) <= 0:
             return UpdateResult(
                 ok=False,
@@ -840,62 +1063,105 @@ def remove_legacy_deploy_tree(install_dir: Path) -> bool:
     return True
 
 
-def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
-    """Extract zipball, then add/replace/delete whitelist paths in install_dir."""
+def _extract_tar_safe(tar_path: Path, dest: Path) -> None:
+    with tarfile.open(tar_path, "r:*") as tf:
+        if hasattr(tarfile, "data_filter"):
+            tf.extractall(dest, filter=tarfile.data_filter)
+            return
+        members: list[tarfile.TarInfo] = []
+        for member in tf.getmembers():
+            name = member.name.replace("\\", "/")
+            if name.startswith("/") or ".." in name.split("/"):
+                raise RuntimeError(f"归档包含不安全路径: {member.name}")
+            if member.isfile() or member.isdir():
+                members.append(member)
+        tf.extractall(dest, members=members)
+
+
+def extract_source_archive(archive: Path, dest: Path) -> Path:
+    """Extract a GitHub zipball or ``git archive`` tarball; return the source root."""
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive, "r") as zf:
+            zf.extractall(dest)
+    else:
+        _extract_tar_safe(archive, dest)
+    # zipball / ``git archive --prefix``: single top-level directory
+    children = list(dest.iterdir())
+    return children[0] if len(children) == 1 and children[0].is_dir() else dest
+
+
+def apply_source_tree(
+    src_root: Path,
+    install_dir: Path,
+    whitelist: tuple[str, ...],
+    merge: tuple[str, ...],
+) -> list[str]:
+    """Add/replace/delete whitelist paths and sync merge trees from an extracted tree."""
     applied: list[str] = []
-    with tempfile.TemporaryDirectory(
-        prefix="zhange-src-", dir=str(runtime_tmp_dir(install_dir))
-    ) as tmp:
-        tmp_path = Path(tmp)
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(tmp_path)
-        # GitHub zipball: single top-level directory
-        children = [p for p in tmp_path.iterdir() if p.name not in (".", "..")]
-        src_root = children[0] if len(children) == 1 and children[0].is_dir() else tmp_path
-        whitelist, merge = load_update_paths_from_extracted(src_root)
-
-        for rel in whitelist:
-            if not _path_allowed_from_whitelist(rel, whitelist):
-                continue
-            src = src_root / rel
-            dest = install_dir / rel
-            if not src.exists():
-                if dest.is_file():
-                    dest.unlink()
-                    applied.append(f"-{rel}")
-                continue
-            if src.is_dir():
-                if dest.exists():
-                    shutil.rmtree(dest)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(src, dest)
-                applied.append(rel.rstrip("/") + "/")
-            else:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dest)
-                applied.append(rel)
-
-        for rel in merge:
-            if _is_protected(rel):
-                continue
-            src = src_root / rel
-            dest = install_dir / rel
-            if not src.is_dir():
-                continue
-            _sync_merge_tree(src, dest)
+    for rel in whitelist:
+        if not _path_allowed_from_whitelist(rel, whitelist):
+            continue
+        src = src_root / rel
+        dest = install_dir / rel
+        if not src.exists():
+            if dest.is_file():
+                dest.unlink()
+                applied.append(f"-{rel}")
+            continue
+        if src.is_dir():
+            if dest.exists():
+                shutil.rmtree(dest)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(src, dest)
             applied.append(rel.rstrip("/") + "/")
-        for rel_leftover in cleanup_legacy_install_tree(install_dir):
-            applied.append(f"-{rel_leftover}")
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            applied.append(rel)
+
+    for rel in merge:
+        if _is_protected(rel):
+            continue
+        src = src_root / rel
+        dest = install_dir / rel
+        if not src.is_dir():
+            continue
+        _sync_merge_tree(src, dest)
+        applied.append(rel.rstrip("/") + "/")
+    for rel_leftover in cleanup_legacy_install_tree(install_dir):
+        applied.append(f"-{rel_leftover}")
     return applied
 
 
-def snapshot_source_paths(install_dir: Path, backup_dir: Path) -> list[str]:
-    """Copy current whitelist paths aside so a failed migrate can restore disk."""
+def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
+    """Extract a source archive, then add/replace/delete whitelist paths in install_dir."""
+    with tempfile.TemporaryDirectory(
+        prefix="zhange-src-", dir=str(runtime_tmp_dir(install_dir))
+    ) as tmp:
+        src_root = extract_source_archive(zip_path, Path(tmp) / "src")
+        whitelist, merge = load_update_paths_from_extracted(src_root)
+        return apply_source_tree(src_root, install_dir, whitelist, merge)
+
+
+def snapshot_source_paths(
+    install_dir: Path,
+    backup_dir: Path,
+    whitelist: tuple[str, ...] = SOURCE_WHITELIST,
+    merge: tuple[str, ...] = MERGE_TREES,
+) -> list[str]:
+    """Copy the paths an update will touch aside so any later failure can restore disk.
+
+    Pass the same ``whitelist`` / ``merge`` to ``restore_source_paths`` — paths
+    absent at snapshot time are then deleted on restore.
+    """
     if backup_dir.exists():
         shutil.rmtree(backup_dir)
     backup_dir.mkdir(parents=True, exist_ok=True)
     saved: list[str] = []
-    for rel in SOURCE_WHITELIST:
+    for rel in whitelist:
         src = install_dir / rel
         if not src.exists():
             continue
@@ -906,7 +1172,7 @@ def snapshot_source_paths(install_dir: Path, backup_dir: Path) -> list[str]:
         else:
             shutil.copy2(src, dest)
         saved.append(rel)
-    for rel in MERGE_TREES:
+    for rel in merge:
         src = install_dir / rel
         if not src.exists():
             continue
@@ -920,11 +1186,16 @@ def snapshot_source_paths(install_dir: Path, backup_dir: Path) -> list[str]:
     return saved
 
 
-def restore_source_paths(install_dir: Path, backup_dir: Path) -> None:
-    """Restore whitelist paths from ``snapshot_source_paths`` backup."""
+def restore_source_paths(
+    install_dir: Path,
+    backup_dir: Path,
+    whitelist: tuple[str, ...] = SOURCE_WHITELIST,
+    merge: tuple[str, ...] = MERGE_TREES,
+) -> None:
+    """Restore paths from a ``snapshot_source_paths`` backup taken with the same lists."""
     if not backup_dir.is_dir():
         raise RuntimeError(f"回滚目录不存在: {backup_dir}")
-    for rel in SOURCE_WHITELIST:
+    for rel in whitelist:
         dest = install_dir / rel
         src = backup_dir / rel
         if dest.exists():
@@ -939,7 +1210,7 @@ def restore_source_paths(install_dir: Path, backup_dir: Path) -> None:
             shutil.copytree(src, dest)
         else:
             shutil.copy2(src, dest)
-    for rel in MERGE_TREES:
+    for rel in merge:
         dest = install_dir / rel
         src = backup_dir / rel
         if src.is_dir():
@@ -974,7 +1245,11 @@ def run_install_migrations(install_dir: Path) -> None:
     """Run Alembic with *on-disk* new code before ``os.execv`` (subprocess).
 
     Keeps a migrate failure from taking down the still-running old process.
+    No-op before the setup wizard has chosen a database (fresh install).
     """
+    if not database_is_configured():
+        logger.info("pre-restart migrate skipped: database not configured yet")
+        return
     backend = install_dir / "backend"
     python = _resolve_venv_python(install_dir)
     env = os.environ.copy()
@@ -1007,20 +1282,61 @@ def run_install_migrations(install_dir: Path) -> None:
     )
 
 
+def resolve_static_dir(install_dir: Path) -> Path:
+    raw = (getattr(get_settings(), "STATIC_DIR", "") or "").strip()
+    static_dir = Path(raw).expanduser() if raw else install_dir / "static"
+    if not static_dir.is_absolute():
+        static_dir = (install_dir / static_dir).resolve()
+    return static_dir
+
+
+def _sibling(path: Path, suffix: str) -> Path:
+    return path.with_name(path.name + suffix)
+
+
+def stage_static_tar(tar_path: Path, staged_dir: Path) -> None:
+    """Extract the static asset next to the live dir (same filesystem → rename swap)."""
+    if staged_dir.exists():
+        shutil.rmtree(staged_dir)
+    staged_dir.mkdir(parents=True)
+    _extract_tar_safe(tar_path, staged_dir)
+    if not (staged_dir / "index.html").is_file():
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        raise RuntimeError("前端资产缺少 index.html，已中止")
+
+
+def swap_static_dir(staged_dir: Path, static_dir: Path) -> None:
+    """Put ``staged_dir`` in place of ``static_dir``; the old tree stays at ``<name>.prev``."""
+    prev = _sibling(static_dir, ".prev")
+    if prev.exists():
+        shutil.rmtree(prev)
+    if static_dir.exists():
+        try:
+            os.replace(static_dir, prev)
+        except OSError:
+            # Mount point, or (Windows) a file inside is open: copy in place instead.
+            logger.warning("static dir rename failed; replacing contents in place", exc_info=True)
+            shutil.copytree(static_dir, prev)
+            for child in list(static_dir.iterdir()):
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            shutil.copytree(staged_dir, static_dir, dirs_exist_ok=True)
+            shutil.rmtree(staged_dir, ignore_errors=True)
+            return
+    try:
+        os.replace(staged_dir, static_dir)
+    except OSError:
+        if prev.exists() and not static_dir.exists():
+            os.replace(prev, static_dir)
+        raise
+
+
 def apply_static_tar(tar_path: Path, static_dir: Path) -> None:
-    static_dir.mkdir(parents=True, exist_ok=True)
-    # Clear existing static contents but keep directory
-    for child in static_dir.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child)
-        else:
-            child.unlink(missing_ok=True)
-    with tarfile.open(tar_path, "r:gz") as tf:
-        # Python 3.12+ filter; use data filter when available
-        if hasattr(tarfile, "data_filter"):
-            tf.extractall(static_dir, filter=tarfile.data_filter)
-        else:
-            tf.extractall(static_dir)
+    staged = _sibling(static_dir, ".new")
+    stage_static_tar(tar_path, staged)
+    swap_static_dir(staged, static_dir)
 
 
 # EasyOCR 依赖 torch。PyPI 默认 Linux 轮是 CUDA（数 GB）。生产 LXC 无 GPU，必须先装 CPU 轮再 -r。
@@ -1074,12 +1390,47 @@ def _run_pip(cmd: list[str], *, cwd: Path, progress_prefix: str) -> None:
         raise RuntimeError(f"pip 安装失败（exit={rc}）。{tail}")
 
 
-def pip_install_requirements(install_dir: Path) -> None:
+def requirements_stamp(backend_dir: Path) -> str:
+    """``sha256sum``-format lines for requirements + constraints (host scripts write the same)."""
+    lines = [
+        f"{sha256_file(backend_dir / name)}  {name}"
+        for name in PIP_STAMP_FILES
+        if (backend_dir / name).is_file()
+    ]
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _pip_stamp_path(install_dir: Path) -> Path:
+    return install_dir / "backend" / ".venv" / PIP_STAMP_NAME
+
+
+def pip_stamp_matches(install_dir: Path, backend_dir: Path) -> bool:
+    want = requirements_stamp(backend_dir)
+    try:
+        have = _pip_stamp_path(install_dir).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return bool(want) and have.split() == want.split()
+
+
+def write_pip_stamp(install_dir: Path) -> None:
+    path = _pip_stamp_path(install_dir)
+    try:
+        path.write_text(requirements_stamp(install_dir / "backend"), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("could not write pip stamp %s: %s", path, exc)
+
+
+def pip_install_requirements(install_dir: Path, source_backend: Path | None = None) -> None:
+    """Install ``source_backend`` (default: the installed backend) requirements into the venv."""
     pin_library_cache_env(install=install_dir)
     backend = install_dir / "backend"
-    req = backend / "requirements.txt"
+    src_backend = source_backend or backend
+    req = src_backend / "requirements.txt"
     if not req.is_file():
         raise RuntimeError("缺少 backend/requirements.txt")
+    lock = src_backend / "constraints.txt"
+    pinned = ["-c", str(lock)] if lock.is_file() else []
     python = _resolve_venv_python(install_dir)
     # 先钉 CPU torch，避免随后 easyocr 把 CUDA 轮当升级装进来。
     _set_progress(busy=True, phase="pip", message="安装 CPU 版 PyTorch（避免拉取 CUDA）…")
@@ -1107,7 +1458,7 @@ def pip_install_requirements(install_dir: Path) -> None:
     try:
         _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
         _run_pip(
-            [str(python), "-m", "pip", "install", "-r", str(req), *extra],
+            [str(python), "-m", "pip", "install", "-r", str(req), *extra, *pinned],
             cwd=backend,
             progress_prefix="pip · ",
         )
@@ -1129,6 +1480,7 @@ def pip_install_requirements(install_dir: Path) -> None:
             "--force-reinstall",
             "--no-deps",
             "opencv-python-headless>=4.8.0",
+            *pinned,
         ],
         cwd=backend,
         progress_prefix="opencv · ",
@@ -1148,11 +1500,14 @@ async def _apply_update_core(
     reboot: bool,
     install_dir: Path,
 ) -> UpdateResult:
-    """Download + apply + pip + pre-restart migrate. Caller holds update lock.
+    """Verify → stage → pip → apply → migrate → swap static. Caller holds update lock.
 
-    Migrations run *before* ``os.execv``. On migrate failure the whitelist source
-    tree is restored so the still-running process keeps serving the previous
-    version (avoids Alembic crash → systemd restart → 502 loops).
+    The install tree is untouched until the release is checksum-verified, staged
+    and its requirements installed. Any failure after the source apply restores
+    the snapshot, so the still-running process keeps serving the previous
+    version. Migrations run *before* ``os.execv`` (avoids Alembic crash →
+    systemd restart → 502 loops); after they succeed there is no way back, so
+    the static swap comes last and only warns on failure.
     """
     settings = get_settings()
     tmp_root = resolve_runtime_path(
@@ -1161,6 +1516,8 @@ async def _apply_update_core(
     )
     work = tmp_root / "update-tmp"
     rollback_dir = work / "rollback-src"
+    static_dir = resolve_static_dir(install_dir)
+    staged_static = _sibling(static_dir, ".new")
 
     _set_progress(
         busy=True,
@@ -1174,66 +1531,66 @@ async def _apply_update_core(
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
 
-    zip_path = work / "source.zip"
-    if not target.zipball_url:
-        return UpdateResult(ok=False, message="该 Release 缺少 zipball_url")
-    await _download(target.zipball_url, zip_path, proxy=proxy)
-
-    static_path = work / "static.tar.gz"
-    if target.static_asset_url:
-        await _download(target.static_asset_url, static_path, proxy=proxy)
-    else:
-        repo = (settings.UPDATE_GITHUB_REPO or "739790797/zhange-stats").strip()
-        asset = _static_asset_name(target.tag_name)
-        tag = target.tag_name if target.tag_name.startswith("v") else f"v{target.tag_name}"
-        url = f"https://github.com/{repo}/releases/download/{tag}/{asset}"
-        try:
-            await _download(url, static_path, proxy=proxy)
-        except Exception as e:
-            logger.warning("下载 static 资产失败: %s", e)
-            static_path = Path("")
-
-    _set_progress(busy=True, phase="snapshot", message="备份当前代码（迁移失败可回滚）…")
-    await asyncio.to_thread(snapshot_source_paths, install_dir, rollback_dir)
-
-    _set_progress(busy=True, phase="apply", message="覆盖代码（白名单）…")
-    applied = await asyncio.to_thread(apply_source_zip, zip_path, install_dir)
-    logger.info("applied source paths: %s", applied)
-
-    static_dir = (
-        Path(settings.STATIC_DIR).expanduser()
-        if settings.STATIC_DIR
-        else install_dir / "static"
-    )
-    if not static_dir.is_absolute():
-        static_dir = (install_dir / static_dir).resolve()
-    if static_path and static_path.is_file():
-        _set_progress(busy=True, phase="static", message="解压前端 static…")
-        await asyncio.to_thread(apply_static_tar, static_path, static_dir)
-    else:
-        logger.warning("跳过 static 更新（无资产）")
-
-    _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
-    await asyncio.to_thread(pip_install_requirements, install_dir)
-
-    _set_progress(busy=True, phase="migrate", message="应用数据库迁移…")
+    static_note = ""
     try:
-        await asyncio.to_thread(run_install_migrations, install_dir)
-    except Exception as exc:
-        logger.exception("pre-restart migrate failed; restoring previous source")
+        source_path, static_path = await download_release_files(target, work, proxy=proxy)
+        if source_path is None:
+            raise RuntimeError("未下载到源码包")
+
+        _set_progress(busy=True, phase="stage", message="解压新版本…")
+        src_root = await asyncio.to_thread(extract_source_archive, source_path, work / "src")
+        if not (src_root / "VERSION").is_file() or not (src_root / "backend" / "app").is_dir():
+            raise RuntimeError("源码包结构异常（缺少 VERSION 或 backend/app），已中止")
+        await asyncio.to_thread(stage_static_tar, static_path, staged_static)
+
+        src_backend = src_root / "backend"
+        if await asyncio.to_thread(pip_stamp_matches, install_dir, src_backend):
+            logger.info("requirements unchanged since last install; skipping pip")
+        else:
+            _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
+            try:
+                await asyncio.to_thread(pip_install_requirements, install_dir, src_backend)
+            except Exception as exc:
+                raise RuntimeError(f"{exc} 代码未改动，当前版本继续运行。") from exc
+
+        whitelist, merge = load_update_paths_from_extracted(src_root)
+        _set_progress(busy=True, phase="snapshot", message="备份当前代码（失败可回滚）…")
+        await asyncio.to_thread(
+            snapshot_source_paths, install_dir, rollback_dir, whitelist, merge
+        )
         try:
-            await asyncio.to_thread(restore_source_paths, install_dir, rollback_dir)
-        except Exception:
-            logger.exception("source rollback failed after migrate error")
-            msg = (
-                f"数据库迁移失败且代码回滚也失败: {exc}。"
-                f"{_HOST_REPAIR_HINT}"
+            _set_progress(busy=True, phase="apply", message="覆盖代码（白名单）…")
+            applied = await asyncio.to_thread(
+                apply_source_tree, src_root, install_dir, whitelist, merge
             )
-            _set_progress(phase="error", message="更新失败", error=msg, busy=False)
+            logger.info("applied source paths: %s", applied)
+            _set_progress(busy=True, phase="migrate", message="应用数据库迁移…")
+            await asyncio.to_thread(run_install_migrations, install_dir)
+        except Exception as exc:
+            logger.exception("update apply/migrate failed; restoring previous source")
+            try:
+                await asyncio.to_thread(
+                    restore_source_paths, install_dir, rollback_dir, whitelist, merge
+                )
+            except Exception:
+                logger.exception("source rollback failed after update error")
+                msg = f"更新失败且代码回滚也失败: {exc}。{_HOST_REPAIR_HINT}"
+                _set_progress(phase="error", message="更新失败", error=msg, busy=False)
+                return UpdateResult(ok=False, message=msg)
+            msg = f"{exc} 已回滚代码，当前进程继续运行。{_HOST_REPAIR_HINT}"
+            _set_progress(phase="error", message="更新失败（已回滚）", error=msg, busy=False)
             return UpdateResult(ok=False, message=msg)
-        msg = f"{exc} 已回滚代码，当前进程继续运行。{_HOST_REPAIR_HINT}"
-        _set_progress(phase="error", message="更新失败（已回滚）", error=msg, busy=False)
-        return UpdateResult(ok=False, message=msg)
+
+        _set_progress(busy=True, phase="static", message="切换前端 static…")
+        try:
+            await asyncio.to_thread(swap_static_dir, staged_static, static_dir)
+        except Exception as exc:
+            logger.exception("static swap failed after migrate")
+            static_note = f"；但前端 static 切换失败（{exc}），请在主机执行更新脚本加 --force"
+        await asyncio.to_thread(write_pip_stamp, install_dir)
+    finally:
+        if staged_static.exists():
+            shutil.rmtree(staged_static, ignore_errors=True)
 
     new_ver = (install_dir / "VERSION").read_text(encoding="utf-8").strip()
     invalidate_check_cache()
@@ -1244,13 +1601,13 @@ async def _apply_update_core(
         trigger_restart(delay_sec=1.5)
         return UpdateResult(
             ok=True,
-            message=f"更新成功（{new_ver}），即将重启以加载新代码",
+            message=f"更新成功（{new_ver}），即将重启以加载新代码{static_note}",
             version=new_ver,
             reboot=True,
         )
     return UpdateResult(
         ok=True,
-        message=f"更新成功（{new_ver}），请手动重启服务",
+        message=f"更新成功（{new_ver}），请手动重启服务{static_note}",
         version=new_ver,
         reboot=False,
     )
@@ -1382,13 +1739,66 @@ async def enqueue_update(
                 _set_progress(busy=False)
             _lock.release()
 
-    asyncio.create_task(_job())
+    task = asyncio.create_task(_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return UpdateResult(
         ok=True,
         message=f"已开始更新到 {target.tag_name}，完成后将自动重启",
         version=target_ver,
         reboot=reboot,
     )
+
+
+_STATIC_ONLY_HINT = (
+    "可选做法：\n"
+    "  1. 稍后重试，或经 GitHub 代理：update 脚本加 --static-only --proxy <代理前缀>"
+    "（Windows：update.ps1 -StaticOnly -Proxy <代理前缀>）\n"
+    "  2. 当前 VERSION 可能尚未发版：git fetch --tags 后检出已发布的 tag，再重跑 install\n"
+    "  3. 本机构建：cd frontend && npm ci --legacy-peer-deps && npm run build，"
+    "再把 frontend/dist/ 里的文件复制到安装根 static/"
+)
+
+
+async def install_static_only(*, proxy: str | None = None) -> UpdateResult:
+    """Fresh install: put the checksum-verified static asset of local VERSION in place.
+
+    Touches neither source nor database, so it works before the setup wizard.
+    """
+    install_dir = resolve_install_dir()
+    version_file = install_dir / "VERSION"
+    if not version_file.is_file():
+        return UpdateResult(ok=False, message=f"安装根无效：未找到 VERSION（{install_dir}）")
+    version = version_file.read_text(encoding="utf-8").strip()
+    try:
+        got_lock = _lock.acquire(blocking=False)
+    except PermissionError as e:
+        return UpdateResult(ok=False, message=str(e))
+    if not got_lock:
+        return UpdateResult(ok=False, message="已有更新任务进行中")
+    try:
+        release = await fetch_release_by_tag(version, proxy=proxy)
+        static_dir = resolve_static_dir(install_dir)
+        with tempfile.TemporaryDirectory(
+            prefix="zhange-static-", dir=str(runtime_tmp_dir(install_dir))
+        ) as tmp:
+            _, static_path = await download_release_files(
+                release, Path(tmp), proxy=proxy, need_source=False
+            )
+            await asyncio.to_thread(apply_static_tar, static_path, static_dir)
+        return UpdateResult(
+            ok=True,
+            message=f"已安装前端 static（{release.tag_name}，sha256 已校验）：{static_dir}",
+            version=version,
+        )
+    except Exception as exc:
+        logger.warning("static-only install failed: %s", exc)
+        return UpdateResult(
+            ok=False,
+            message=f"无法获取 v{version} 的前端资产：{_format_download_error(exc)}\n{_STATIC_ONLY_HINT}",
+        )
+    finally:
+        _lock.release()
 
 
 def host_update_main(argv: list[str] | None = None) -> int:
@@ -1400,9 +1810,9 @@ def host_update_main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         description=(
-            "从 GitHub Release 更新战鸽数据："
-            "白名单目录整棵替换（增删改）、frontend 同步（保留 node_modules）、"
-            "static、pip、Alembic。成功后由 update.sh / update.ps1 重启。"
+            "从 GitHub Release 更新战鸽数据：校验 sha256 → 暂存 → pip → "
+            "白名单目录整棵替换（增删改）、frontend 同步（保留 node_modules）→ "
+            "Alembic → 切换 static。成功后由 update.sh / update.ps1 重启。"
         )
     )
     parser.add_argument("--version", default="latest", help="目标 tag，默认 latest")
@@ -1414,7 +1824,15 @@ def host_update_main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="不重启（由 update.sh / update.ps1 处理；直接调用本入口时无效）",
     )
+    parser.add_argument(
+        "--static-only",
+        action="store_true",
+        help="只下载并校验当前 VERSION 的前端 static（全新安装用；不改代码、不需要数据库、不重启）",
+    )
     args = parser.parse_args(argv)
+    if args.static_only and (args.version or "latest") != "latest":
+        print("--static-only 只安装当前 VERSION 的前端，不能指定 --version", file=sys.stderr)
+        return 1
 
     logging.basicConfig(level=logging.INFO, format="[update] %(message)s")
     orig_set = _set_progress
@@ -1434,6 +1852,10 @@ def host_update_main(argv: list[str] | None = None) -> int:
 
     async def _run() -> int:
         proxy = (args.proxy or "").strip() or None
+        if args.static_only:
+            static_result = await install_static_only(proxy=proxy)
+            print(static_result.message, file=sys.stdout if static_result.ok else sys.stderr)
+            return 0 if static_result.ok else 1
         if args.check:
             latest, _releases = await check_update(proxy=proxy, force=True)
             settings = get_settings()
