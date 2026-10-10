@@ -55,6 +55,11 @@ export function TarkovItemKeyLocks({ detail }: Props) {
   const firstLock = (selected?.locks || []).find(
     (lock) => lock.x != null && lock.z != null,
   );
+  const viewerLocks = useMemo(
+    () =>
+      selected ? itemKeyLocksAsMapLocks(selected, detail.id, detail.name) : [],
+    [selected, detail.id, detail.name],
+  );
 
   useEffect(() => {
     const point = firstLock ? lockFocusPoint(firstLock) : null;
@@ -69,7 +74,6 @@ export function TarkovItemKeyLocks({ detail }: Props) {
 
   const locks = selected.locks || [];
   const summary = lockTypeSummary(locks);
-  const viewerLocks = itemKeyLocksAsMapLocks(selected, detail.id, detail.name);
 
   const focusLock = (lock: TarkovItemKeyLock) => {
     const point = lockFocusPoint(lock);
@@ -148,9 +152,6 @@ export function TarkovItemKeyLocks({ detail }: Props) {
           <TarkovMapViewer
             slug={selected.slug}
             parentSlug={selected.parent_slug || undefined}
-            extracts={[]}
-            bosses={[]}
-            spawns={[]}
             locks={viewerLocks}
             overlayMode="locks"
             layerChrome="floors"

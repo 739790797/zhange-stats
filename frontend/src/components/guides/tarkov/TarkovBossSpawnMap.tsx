@@ -46,6 +46,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
       points: active.points,
     });
   }, [active, detail.id, detail.name, detail.slug]);
+  const overlayBosses = useMemo(() => (overlay ? [overlay] : []), [overlay]);
 
   useEffect(() => {
     if (!views.length) return;
@@ -147,9 +148,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
             key={active.slug}
             slug={active.slug}
             parentSlug={heatmapMapParentSlug(active.slug) || undefined}
-            bosses={[overlay]}
-            extracts={[]}
-            spawns={[]}
+            bosses={overlayBosses}
             overlayMode="boss-spawns"
             layerChrome="floors"
             focusRequest={focus}

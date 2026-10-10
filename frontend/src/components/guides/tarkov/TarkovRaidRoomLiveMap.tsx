@@ -66,6 +66,9 @@ type MemberLike = {
   display_name: string;
 };
 
+const NO_MARKS = Object.freeze([]) as never[];
+const NO_MEMBERS: readonly MemberLike[] = Object.freeze([]);
+
 export type TarkovRaidRoomLiveMapProps = {
   publicId: string;
   mapId: string;
@@ -207,13 +210,13 @@ export function TarkovRaidRoomLiveMap({
   questSkippedByTask,
   focusRequest,
   highlightTaskId,
-  boardMarks = [],
+  boardMarks = NO_MARKS,
   suppressLocalFix,
   authorUserId,
   authorDisplayName = "",
   drawMode = "pan",
   canEdit = false,
-  members = [],
+  members = NO_MEMBERS,
   wsRef,
   wsGen = 0,
   onStroke,
@@ -479,6 +482,15 @@ export function TarkovRaidRoomLiveMap({
     return () => window.clearTimeout(timer);
   }, [pulseLines]);
 
+  const viewDrafts = useMemo(
+    () =>
+      drafts.filter(
+        (row) =>
+          !row.mapId || !mapId || raidPrepMapsEquivalent(row.mapId, mapId),
+      ),
+    [drafts, mapId],
+  );
+
   const onDraftStroke = useCallback(
     (draft: { floor: string; points: StrokePoint[] } | null) => {
       const ws = wsRef?.current;
@@ -526,12 +538,7 @@ export function TarkovRaidRoomLiveMap({
         focusRequest={focusRequest}
         highlightTaskId={highlightTaskId}
         boardMarks={boardMarks}
-        remoteDrafts={drafts.filter(
-          (row) =>
-            !row.mapId ||
-            !mapId ||
-            raidPrepMapsEquivalent(row.mapId, mapId),
-        )}
+        remoteDrafts={viewDrafts}
         topLeft={topLeft}
         remotePlayerFixes={remotePlayerMarks}
         playerFixPulseLines={pulseLines}

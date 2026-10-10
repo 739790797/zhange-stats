@@ -101,7 +101,9 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
                 {model.maps.map((col, colIdx) => {
                   const cell = model.cells[rowIdx][colIdx];
                   if (!cell.label) {
-                    return <td key={col.slug} className={styles.tdEmpty} />;
+                    return (
+                      <td key={col.slug} className={styles.tdEmpty} aria-label="不刷新" />
+                    );
                   }
                   const blocks = heatmapCellHoverBlocks(cell.recipes, boss);
                   return (
@@ -213,6 +215,10 @@ function SpawnMapModal({
   onClose: () => void;
   onFocus: (point: HeatmapSpawnPoint) => void;
 }) {
+  const overlayBosses = useMemo(
+    () => (spawn ? [overlayBoss(spawn)] : []),
+    [spawn],
+  );
   const locations = spawn ? heatmapSpawnLocationOptions(spawn.points) : [];
   const countBlocks = spawn
     ? heatmapCellHoverBlocks(spawn.recipes, spawn.boss)
@@ -301,9 +307,7 @@ function SpawnMapModal({
               <TarkovMapViewer
                 slug={spawn.mapSlug}
                 parentSlug={heatmapMapParentSlug(spawn.mapSlug) || undefined}
-                bosses={[overlayBoss(spawn)]}
-                extracts={[]}
-                spawns={[]}
+                bosses={overlayBosses}
                 overlayMode="boss-spawns"
                 layerChrome="floors"
                 focusRequest={focus}
@@ -372,7 +376,7 @@ function EscortHoverTip({
         </>
       ) : (
         blocks.map((block, index) => (
-          <div key={`${block.chance}-${block.land}-${index}`} className={styles.tipBlock}>
+          <div key={`${block.chance}-${block.land}-${index}`}>
             <SquadSizeLines block={block} landOnce={landOnce} />
             {block.showChance && block.chance && !block.squadSizes.length ? (
               <div className={styles.tipChance}>{block.chance}</div>

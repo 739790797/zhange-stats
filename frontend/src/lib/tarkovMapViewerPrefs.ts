@@ -31,6 +31,20 @@ export function mapLootLayerTogglesVisible(
   return overlayMode === "all";
 }
 
+/** overlay 模式的固定开关要引用稳定，否则地图按开关重建图层的 effect 每次渲染都会跑。 */
+const OVERLAY_EXTRACTS_OFF: TarkovExtractKindFlags = Object.freeze(
+  defaultExtractKindFlags(false),
+);
+const OVERLAY_SPAWNS_BOSS_ONLY: TarkovSpawnKindFlags = Object.freeze({
+  pmc: false,
+  scav: false,
+  sniper: false,
+  boss: true,
+});
+const OVERLAY_SPAWNS_OFF: TarkovSpawnKindFlags = Object.freeze(
+  defaultSpawnKindFlags(false),
+);
+
 export function overlayFlagsForMode(
   prefs: TarkovMapViewerPrefs,
   overlayMode: TarkovMapOverlayMode = "all",
@@ -53,8 +67,8 @@ export function overlayFlagsForMode(
 > {
   if (overlayMode === "boss-spawns") {
     return {
-      extractKinds: defaultExtractKindFlags(false),
-      spawnKinds: { pmc: false, scav: false, sniper: false, boss: true },
+      extractKinds: OVERLAY_EXTRACTS_OFF,
+      spawnKinds: OVERLAY_SPAWNS_BOSS_ONLY,
       showLabels: false,
       showQuests: false,
       showLocks: false,
@@ -71,8 +85,8 @@ export function overlayFlagsForMode(
   }
   if (overlayMode === "locks") {
     return {
-      extractKinds: defaultExtractKindFlags(false),
-      spawnKinds: { pmc: false, scav: false, sniper: false, boss: false },
+      extractKinds: OVERLAY_EXTRACTS_OFF,
+      spawnKinds: OVERLAY_SPAWNS_OFF,
       showLabels: true,
       showQuests: false,
       showLocks: true,
