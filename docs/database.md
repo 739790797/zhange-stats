@@ -59,7 +59,7 @@ articles ── * article_versions
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`。回源只打 json.tarkov.dev（PVP=`/regular/`，PVE=`/pve/`），**不**请求 `api.tarkov.dev` GraphQL。json 文件一张表；`overlay` 为社区补丁。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras/overlay 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，任务/物品/制作在 parse 前与 overlay 内存合入，不落合并表。详见 `.cursor/rules/tarkov-upstream.mdc`。 |
+| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`。回源只打 json.tarkov.dev（PVP=`/regular/`，PVE=`/pve/`），**不**请求 `api.tarkov.dev` GraphQL。json 文件一张表；`overlay` 为社区补丁。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras/overlay 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，任务/物品/制作在 parse 前与 overlay 内存合入，不落合并表。ORM 里 `raw_json` 为延迟加载（只读 `source` / `synced_at` 等元数据时不拉整列，表结构不变）。详见 `.cursor/rules/tarkov-upstream.mdc`。 |
 | `tarkov_items_raws` | json.tarkov.dev `/items` + `/items_zh`。弹药/枪械派生与目录列表的 `source` / `synced_at` / `note` 读当前模式主文件行 |
 | `tarkov_maps_raws` | json.tarkov.dev `/maps` + `/maps_zh`（含 mobs；地图与 BOSS 共用） |
 | `tarkov_tasks_raws` | json.tarkov.dev `/tasks` + `/tasks_zh` |
@@ -115,7 +115,7 @@ articles ── * article_versions
 | `system_configs` | 非界面 KV（如北京时间口径标记 `time_storage`，见下文「时间与默认值」；旧配置一次性迁入标记 `legacy_config_imported`，删掉该行会在下次启动重跑迁入）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引；`attempts`（int，默认 0）为校验失败次数，到上限即删行，须重新发码 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
-| `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
+| `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存；`details_missed_at` / `icon_missed_at`（迁移 `20261010_0122`）记上次商店详情 / 库列表小图标回源查无的时间，重试窗口内不再回源。图标与商店卡片接口只解析站内游玩记录（`play_sessions` / `presence_segments`）或本表里已有的 AppID |
 
 迁移 `20260806_0026` 会一次性清空四平台 `*_checkin_logs` 并曾重置各 bind 的 `last_checkin_*`。`20260826_0066` 已删除 bind 上的 `last_checkin_*` 列（上次执行只信 `*_checkin_logs`）；`checkin_hour` / `checkin_minute` 仍作 prefs 种子保留。不可 `downgrade` 恢复 0026 清掉的数据。
 
