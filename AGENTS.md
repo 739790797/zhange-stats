@@ -54,7 +54,7 @@ alembic upgrade head
 
 ## 禁止清单
 
-- 无 Alembic 改表；往 `schema_ensure.py` 堆新 `ALTER`
+- 无 Alembic 改表；启动时在 Alembic 之外 `create_all` / `ALTER`（无 `alembic_version` 的服务端旧库直接拒绝，见 `backend/alembic/README.md`「Alembic 之前的旧库」）
 - 签到 status 写 `bind.last_checkin_*`；签到展示打开页不 force 回源；用户侧展示执行记录
 - 新签到平台复制整份 `*_checkin` 编排（应实现 Adapter + 注册表）
 - 新平台签到/兑换页不套 `CheckinPageTemplate` / `ExchangePageTemplate` / `PlatformFeatureTabsPage`

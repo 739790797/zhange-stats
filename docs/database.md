@@ -112,7 +112,7 @@ articles ── * article_versions
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档、删除超过 14 天的 `rum_samples`。索引含 `(job_key, started_at)` |
 | `rum_samples` | 浏览器 RUM 原始样本：`kind`=`api`（接口转圈）/`img`（第三方图），`url_key` 已归并 id/瓦片，`duration_ms` 为用户侧等待。另存 `host`、`page_path`、`status_code`、`transfer_size`、`method`；不记用户 id。公开 `POST /api/client-rum` 写入；管理端「用户等待」按侧栏业务分类后聚合 p50/p95。保留约 14 天。索引 `(recorded_at)` / `(kind, recorded_at)` |
-| `system_configs` | 非界面 KV（如北京时间口径标记 `time_storage`，见下文「时间与默认值」）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
+| `system_configs` | 非界面 KV（如北京时间口径标记 `time_storage`，见下文「时间与默认值」；旧配置一次性迁入标记 `legacy_config_imported`，删掉该行会在下次启动重跑迁入）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
 | `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引；`attempts`（int，默认 0）为校验失败次数，到上限即删行，须重新发码 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |

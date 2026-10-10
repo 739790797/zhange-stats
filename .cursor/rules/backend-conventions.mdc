@@ -47,7 +47,7 @@ alwaysApply: false
 
 ## 数据库
 
-改 `models/` → Alembic + `docs/database.md`；勿扩 `schema_ensure`（见 `db-schema-readme.mdc`）。
+改 `models/` → Alembic + `docs/database.md`；勿在启动时绕过 Alembic 改表（见 `db-schema-readme.mdc`）。
 
 ## 测试
 
