@@ -1,9 +1,10 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 from app.core.sqltypes import LongText
 
 
@@ -22,12 +23,13 @@ class KujiequBind(Base):
     checkin_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     checkin_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     bound_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, server_default=text("CURRENT_TIMESTAMP"), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=now_naive,
         nullable=False,
     )
 
@@ -74,7 +76,7 @@ class KujiequCheckinLog(Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False, default="status")
     checkin_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     checked_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, server_default=text("CURRENT_TIMESTAMP"), nullable=False
     )
 
     bind = relationship("KujiequBind", back_populates="logs")
@@ -106,7 +108,8 @@ class KujiequAttendanceRaw(Base):
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
 
 
@@ -129,5 +132,6 @@ class KujiequWwBoxRaw(Base):
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )

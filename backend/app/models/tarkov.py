@@ -12,12 +12,13 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.core.sqltypes import LongText
+from app.core.timeutil import now_naive
 
 
 class TarkovCatalogRawMixin:
@@ -28,10 +29,11 @@ class TarkovCatalogRawMixin:
     lang: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
+    # 部分 raw 表在迁移里有 CURRENT_TIMESTAMP 默认、部分没有，只在 Python 侧给值
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -145,8 +147,9 @@ class TarkovAmmo(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=now_naive,
     )
 
 
@@ -173,8 +176,9 @@ class TarkovGun(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=now_naive,
     )
 
 
@@ -201,7 +205,7 @@ class TarkovRaidRoom(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -224,12 +228,13 @@ class TarkovRaidRoomMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     started_task_ids_json: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
@@ -258,7 +263,7 @@ class TarkovRaidRoomTaskClaim(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -277,7 +282,7 @@ class TarkovUserTaskDone(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -296,7 +301,7 @@ class TarkovUserTaskFailed(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -315,7 +320,7 @@ class TarkovUserTaskStarted(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -335,7 +340,7 @@ class TarkovUserTaskObjectiveDone(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -353,7 +358,7 @@ class TarkovUserKeyOwn(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -372,7 +377,7 @@ class TarkovUserCollectionOwn(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -390,7 +395,7 @@ class TarkovUserCollectionLayout(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -412,7 +417,7 @@ class TarkovUserCollectionPlacement(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -438,7 +443,7 @@ class TarkovUserProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -456,7 +461,7 @@ class TarkovUserMapFilter(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -476,7 +481,7 @@ class TarkovUserHideoutLevel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -514,12 +519,12 @@ class TarkovUserRaidLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -543,7 +548,7 @@ class TarkovUserRaidPrep(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -566,7 +571,7 @@ class TarkovRaidRoomKeyBring(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -590,7 +595,7 @@ class TarkovRaidRoomObjectiveDone(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -623,7 +628,7 @@ class TarkovRaidRoomMark(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 
 
@@ -653,11 +658,11 @@ class TarkovMapPlace(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
     )
 

@@ -12,14 +12,13 @@ from sqlalchemy import (
     Integer,
     String,
     Table,
-    Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.core.sqltypes import LongText
+from app.core.timeutil import now_naive
 
 article_category_links = Table(
     "article_category_links",
@@ -66,7 +65,7 @@ class ArticleCategory(Base):
     admin_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     chip_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
 
     articles = relationship(
@@ -83,7 +82,7 @@ class ArticleTag(Base):
     slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
 
     articles = relationship(
@@ -97,7 +96,7 @@ class Article(Base):
     __tablename__ = "articles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     summary: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     body: Mapped[str] = mapped_column(LongText, nullable=False, default="")
@@ -114,12 +113,12 @@ class Article(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        onupdate=now_naive,
         nullable=False,
     )
 
@@ -173,7 +172,7 @@ class ArticleComment(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
 
     article = relationship("Article", back_populates="comments")
@@ -202,7 +201,7 @@ class ArticleAuthor(Base):
         primary_key=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
 
     user = relationship("User")
@@ -234,7 +233,7 @@ class ArticleVersion(Base):
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=now_naive, nullable=False
     )
 
     article = relationship("Article", back_populates="versions")

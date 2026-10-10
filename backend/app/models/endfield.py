@@ -2,11 +2,12 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.core.sqltypes import LongText
+from app.core.timeutil import now_naive
 
 
 class EndfieldBoxRaw(Base):
@@ -29,7 +30,8 @@ class EndfieldBoxRaw(Base):
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
 
 
@@ -58,5 +60,6 @@ class EndfieldAttendanceRaw(Base):
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )

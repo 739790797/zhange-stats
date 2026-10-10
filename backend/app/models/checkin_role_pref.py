@@ -2,10 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class CheckinRolePref(Base):
@@ -43,7 +44,8 @@ class CheckinRolePref(Base):
     checkin_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=now_naive,
         nullable=False,
     )

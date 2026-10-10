@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class SteamApp(Base):
@@ -28,7 +29,8 @@ class SteamApp(Base):
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     details_fetched_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),

@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class Member(Base):
@@ -32,7 +33,10 @@ class Member(Base):
         nullable=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
     )
 
     user = relationship("User", back_populates="member")

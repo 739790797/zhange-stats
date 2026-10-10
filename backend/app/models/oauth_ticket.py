@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class OAuthExchangeTicket(Base):
@@ -17,5 +18,8 @@ class OAuthExchangeTicket(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
     )
