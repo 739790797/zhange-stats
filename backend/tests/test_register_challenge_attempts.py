@@ -11,7 +11,6 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.auth.helpers import (
     MAX_CODE_ATTEMPTS,
-    MAX_CODE_EXPIRE_MINUTES,
     PURPOSE_RESET,
     _consume_register_challenge,
     _upsert_register_challenge,
@@ -22,6 +21,7 @@ from app.models.member import Member  # noqa: F401
 from app.models.register_challenge import RegisterChallenge
 from app.models.system_config import SystemConfig  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.services.email_config import MAX_CODE_EXPIRE_MINUTES
 
 EMAIL = "user@example.com"
 

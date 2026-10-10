@@ -136,7 +136,12 @@ def save_auth_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, 
     return data
 
 
-def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> bool:
+def effective_reject_weak_admin_password(
+    cfg: dict[str, Any] | None = None,
+    *,
+    production: bool | None = None,
+) -> bool:
+    """production 缺省按当前 APP_ENV；切换环境前的预检传 True，按生产口径算默认值。"""
     settings = get_settings()
     if cfg is None:
         reject = None
@@ -146,7 +151,7 @@ def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> b
         return reject
     if settings.REJECT_WEAK_ADMIN_PASSWORD is not None:
         return bool(settings.REJECT_WEAK_ADMIN_PASSWORD)
-    return settings.is_production
+    return settings.is_production if production is None else production
 
 
 def public_auth_config(

@@ -1,3 +1,4 @@
+import urllib.parse
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
+from app.core.security import MAX_ACCESS_TOKEN_MINUTES
 from app.models.user import User
 from app.services.auth_config import (
     enforce_single_admin_if_needed,
@@ -16,6 +18,7 @@ from app.services.auth_config import (
 )
 from app.services.email import send_verification_email
 from app.services.email_config import (
+    MAX_CODE_EXPIRE_MINUTES,
     load_email_config,
     plaintext_auth_error,
     public_email_config,
@@ -79,7 +82,7 @@ class EmailSettingsUpdate(BaseModel):
     smtp_host: str = ""
     smtp_port: int = Field(default=465, ge=1, le=65535)
     encryption: str = Field(default="SSL", pattern="^(SSL|STARTTLS|NONE)$")
-    code_expire_minutes: int = Field(default=15, ge=1, le=1440)
+    code_expire_minutes: int = Field(default=15, ge=1, le=MAX_CODE_EXPIRE_MINUTES)
 
 
 class EmailTestRequest(BaseModel):
@@ -169,7 +172,7 @@ class AuthSettingsOut(BaseModel):
 
 class AuthSettingsUpdate(BaseModel):
     access_token_expire_minutes: int | None = Field(
-        default=None, ge=5, le=60 * 24 * 365
+        default=None, ge=5, le=MAX_ACCESS_TOKEN_MINUTES
     )
     min_password_length: int | None = Field(default=None, ge=6, le=72)
     reject_weak_admin_password: bool | None = None
@@ -640,9 +643,13 @@ def update_platform_features(
 
 
 class RuntimeEnvOut(BaseModel):
+    """redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。"""
+
     app_env: str
     is_production: bool
     redis_url: str = ""
+    redis_url_set: bool = False
+    redis_password_set: bool = False
     cors_origins: str = ""
     cors_origin_regex: str = ""
     csp_enforce: bool = False
@@ -657,8 +664,14 @@ class RuntimeEnvOut(BaseModel):
 
 
 class RuntimeEnvUpdate(BaseModel):
+    """redis_url 空或缺省保留原值；clear_redis_url=true 才清空（优先于新值）。
+
+    回传的脱敏地址（不带账号口令）若与已存的主机、端口一致，沿用已存账号口令与查询串。
+    """
+
     app_env: str | None = Field(default=None, max_length=32)
     redis_url: str | None = Field(default=None, max_length=512)
+    clear_redis_url: bool = False
     cors_origins: str | None = Field(default=None, max_length=2000)
     cors_origin_regex: str | None = Field(default=None, max_length=2000)
     csp_enforce: bool | None = None
@@ -679,6 +692,79 @@ _RUNTIME_ENV_FIELDS = {
     "rate_limit_enabled": "RATE_LIMIT_ENABLED",
 }
 _RUNTIME_DB_FIELDS = ("db_engine", "db_path", "db_url")
+_REDIS_DEFAULT_PORT = 6379
+_PRODUCTION_ENV_NAMES = ("production", "prod")
+
+
+def _redis_target(url: str) -> tuple[urllib.parse.SplitResult, str, int] | None:
+    """解析出 (parts, 主机, 端口)；没有主机（含 unix socket）或端口非法时返回 None。"""
+    try:
+        parts = urllib.parse.urlsplit((url or "").strip())
+        port = parts.port or _REDIS_DEFAULT_PORT
+    except ValueError:
+        return None
+    host = parts.hostname or ""
+    if not host:
+        return None
+    return parts, host, port
+
+
+def _redis_password_set(url: str) -> bool:
+    try:
+        parts = urllib.parse.urlsplit((url or "").strip())
+    except ValueError:
+        return False
+    query = urllib.parse.parse_qs(parts.query)
+    return bool(parts.password or query.get("password"))
+
+
+def _mask_redis_url(url: str) -> str:
+    """redis-py 也从查询串读 password=，所以查询串和账号口令一起去掉。"""
+    target = _redis_target(url)
+    if target is None:
+        return ""
+    parts, host, port = target
+    netloc = f"[{host}]" if ":" in host else host
+    return f"{parts.scheme}://{netloc}:{port}{parts.path}"
+
+
+def _merge_redis_url(submitted: str, stored: str) -> str:
+    """表单回传脱敏地址时补回已存账号口令与查询串；换了主机或端口则原样保存，已存口令不跟去别的服务器。"""
+    text = (submitted or "").strip()
+    new = _redis_target(text)
+    old = _redis_target(stored)
+    if new is None or old is None:
+        return text
+    new_parts, new_host, new_port = new
+    old_parts, old_host, old_port = old
+    if (new_host, new_port) != (old_host, old_port):
+        return text
+    if new_parts.username or new_parts.password or new_parts.query:
+        return text
+    userinfo = old_parts.netloc.rpartition("@")[0]
+    netloc = f"{userinfo}@{new_parts.netloc}" if userinfo else new_parts.netloc
+    return urllib.parse.urlunsplit(
+        (new_parts.scheme, netloc, new_parts.path, old_parts.query, "")
+    )
+
+
+def _redis_canonical(url: str) -> str:
+    target = _redis_target(url)
+    if target is None:
+        return (url or "").strip()
+    parts, host, port = target
+    db = parts.path.strip("/") or "0"
+    return "|".join(
+        (
+            parts.scheme.lower(),
+            parts.username or "",
+            parts.password or "",
+            host,
+            str(port),
+            db,
+            parts.query,
+        )
+    )
 
 
 def _runtime_env_locked() -> list[str]:
@@ -702,6 +788,8 @@ def _runtime_env_unchanged(field: str, value: Any, effective: dict[str, Any]) ->
     b = str(current or "").strip()
     if field == "app_env":
         return a.lower() == b.lower()
+    if field == "redis_url":
+        return _redis_canonical(a) == _redis_canonical(b)
     return a == b
 
 
@@ -711,10 +799,13 @@ def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
 
     s = get_settings()
     db = load_database_settings()
+    redis_url = s.REDIS_URL or ""
     return {
         "app_env": s.APP_ENV,
         "is_production": s.is_production,
-        "redis_url": s.REDIS_URL or "",
+        "redis_url": _mask_redis_url(redis_url),
+        "redis_url_set": bool(redis_url.strip()),
+        "redis_password_set": _redis_password_set(redis_url),
         "cors_origins": s.CORS_ORIGINS or "",
         "cors_origin_regex": s.CORS_ORIGIN_REGEX or "",
         "csp_enforce": bool(s.CSP_ENFORCE),
@@ -737,6 +828,7 @@ def get_runtime_env(_: User = Depends(require_admin)) -> dict[str, Any]:
 def update_runtime_env(
     body: RuntimeEnvUpdate,
     _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     from app.core.config import get_settings
     from app.core.file_config import (
@@ -749,9 +841,18 @@ def update_runtime_env(
 
     current = read_json("app") or {}
     payload = body.model_dump(exclude_unset=True)
+    stored_redis = get_settings().REDIS_URL or ""
+    if payload.pop("clear_redis_url", False):
+        payload["redis_url"] = ""
+    elif "redis_url" in payload:
+        submitted = str(payload["redis_url"] or "").strip()
+        if submitted:
+            payload["redis_url"] = _merge_redis_url(submitted, stored_redis)
+        else:
+            payload.pop("redis_url")
     locked = set(_runtime_env_locked())
     if locked:
-        effective = _runtime_env_out()
+        effective = {**_runtime_env_out(), "redis_url": stored_redis}
         blocked = sorted(
             {
                 _RUNTIME_ENV_FIELDS.get(field, "DATABASE_URL")
@@ -767,6 +868,16 @@ def update_runtime_env(
             )
         # 表单整页提交时锁定项原样带回，跳过即可
         payload = {k: v for k, v in payload.items() if k not in locked}
+    if str(payload.get("app_env") or "").strip().lower() in _PRODUCTION_ENV_NAMES:
+        from app.services.security_bootstrap import production_preflight_problems
+
+        # 启动体检在 production 下会拒绝启动；先在这里拦住，免得重启后进不了管理端
+        problems = production_preflight_problems(db)
+        if problems:
+            raise HTTPException(
+                status_code=400,
+                detail="生产环境启动体检未通过（保存后重启会拒绝启动）：" + " ".join(problems),
+            )
     mapping = _RUNTIME_ENV_FIELDS
     restart = False
     for field, json_key in mapping.items():
@@ -835,9 +946,12 @@ def test_runtime_redis(
     body: RuntimeRedisTestIn,
     _: User = Depends(require_admin),
 ) -> RuntimeConnTestOut:
+    from app.core.config import get_settings
     from app.services.runtime_health import probe_redis_url
 
-    result = probe_redis_url(body.redis_url)
+    stored = get_settings().REDIS_URL or ""
+    submitted = (body.redis_url or "").strip()
+    result = probe_redis_url(_merge_redis_url(submitted, stored) if submitted else stored)
     return RuntimeConnTestOut(
         ok=result.ok,
         message=result.message,

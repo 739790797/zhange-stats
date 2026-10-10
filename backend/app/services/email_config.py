@@ -11,6 +11,17 @@ from app.core.file_config import read_json, write_json
 
 EMAIL_CONFIG_KEY = "email_smtp"
 
+# 6 位数字码：有效期与可试次数共同决定猜中概率，配置里写多大都按这个封顶
+MAX_CODE_EXPIRE_MINUTES = 30
+
+
+def code_expire_minutes(cfg: dict[str, Any]) -> int:
+    try:
+        minutes = int(cfg.get("code_expire_minutes") or 15)
+    except (TypeError, ValueError):
+        minutes = 15
+    return min(MAX_CODE_EXPIRE_MINUTES, max(1, minutes))
+
 
 def _encryption_from_legacy(use_ssl: bool, starttls: bool) -> str:
     if use_ssl:
@@ -52,7 +63,7 @@ def _normalize(cfg: dict[str, Any]) -> dict[str, Any]:
     out["smtp_host"] = str(out.get("smtp_host") or "")
     out["smtp_port"] = int(out.get("smtp_port") or 465)
     out["smtp_password"] = str(out.get("smtp_password") or "")
-    out["code_expire_minutes"] = max(1, int(out.get("code_expire_minutes") or 15))
+    out["code_expire_minutes"] = code_expire_minutes(out)
     return out
 
 
