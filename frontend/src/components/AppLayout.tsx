@@ -42,6 +42,7 @@ import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { adminContentShell } from "@/lib/adminContentShell";
 import { isAssistantEmbed } from "@/lib/assistantShell";
+import { BRAND_NAVY } from "@/theme/antdApp";
 import {
   ADMIN_HUBS,
   ADMIN_LEAF_PATHS,
@@ -163,7 +164,8 @@ export function AppLayout() {
   });
 
   useEffect(() => {
-    if (!meQuery.data) return;
+    /* 登出后迟到的 /auth/me 不得把上一位用户写回 store */
+    if (!meQuery.data || !useAuthStore.getState().user) return;
     setUser(meQuery.data);
   }, [meQuery.data, setUser]);
 
@@ -499,7 +501,7 @@ export function AppLayout() {
         onOpenChange={setOpenKeys}
         items={menuItems}
         style={{
-          background: "#1a2332",
+          background: BRAND_NAVY,
           borderInlineEnd: "none",
           flex: 1,
           minHeight: 0,
@@ -607,7 +609,7 @@ export function AppLayout() {
           width={220}
           closable={false}
           styles={{
-            body: { padding: 0, background: "#1a2332", height: "100%" },
+            body: { padding: 0, background: BRAND_NAVY, height: "100%" },
           }}
         >
           {siderInner}
@@ -616,7 +618,7 @@ export function AppLayout() {
         <Sider
           width={220}
           style={{
-            background: "#1a2332",
+            background: BRAND_NAVY,
             height: "100vh",
             position: "sticky",
             top: 0,
@@ -639,7 +641,7 @@ export function AppLayout() {
         {isMobile && !assistantEmbed ? (
           <Header
             style={{
-              background: "#1a2332",
+              background: BRAND_NAVY,
               padding: "0 12px",
               height: 48,
               lineHeight: "48px",

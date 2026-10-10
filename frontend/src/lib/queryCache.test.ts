@@ -1,9 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
+  claimQueryPersistOwner,
   isInitialQueryPending,
+  QUERY_PERSIST_OWNER_KEY,
   shouldDehydratePersistedQuery,
   shouldPersistQueryKey,
 } from "./queryCache";
+
+function memoryStorage(seed: Record<string, string> = {}) {
+  const data = new Map(Object.entries(seed));
+  return {
+    data,
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      data.set(key, value);
+    },
+  };
+}
+
+describe("claimQueryPersistOwner", () => {
+  it("reports a change whenever the persisted cache belongs to someone else", () => {
+    const storage = memoryStorage();
+    expect(claimQueryPersistOwner(storage, 7)).toBe(true);
+    expect(storage.data.get(QUERY_PERSIST_OWNER_KEY)).toBe("7");
+    expect(claimQueryPersistOwner(storage, 7)).toBe(false);
+    expect(claimQueryPersistOwner(storage, 8)).toBe(true);
+    expect(claimQueryPersistOwner(storage, null)).toBe(true);
+    expect(claimQueryPersistOwner(storage, undefined)).toBe(false);
+  });
+
+  it("treats unreadable storage as a change", () => {
+    const broken = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => undefined,
+    };
+    expect(claimQueryPersistOwner(broken, 7)).toBe(true);
+  });
+});
 
 describe("shouldPersistQueryKey", () => {
   it("keeps platform status and features", () => {
