@@ -781,10 +781,6 @@
   font-weight: 600;
 }
 
-.error {
-  color: #e07070;
-}
-
 @media (min-width: 1100px) {
   .itemGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

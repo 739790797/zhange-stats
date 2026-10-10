@@ -68,37 +68,6 @@
   letter-spacing: 0.08em;
 }
 
-.chipBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  flex: 1;
-}
-
-.chip {
-  flex: none;
-  margin: 0;
-  padding: 0 12px;
-  height: 36px;
-  border: 1px solid #2a2a2a;
-  background: #1a1b14;
-  color: var(--hb-muted, #b0ae9a);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  appearance: none;
-  user-select: none;
-}
-
-.chip:hover,
-.chipOn {
-  background: #101010;
-  color: var(--hb-orange, #c8932a);
-  border-color: var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
-}
-
 .traderBar {
   display: flex;
   flex-wrap: wrap;
@@ -133,15 +102,6 @@
   object-fit: cover;
   object-position: top center;
   opacity: 0.62;
-}
-
-.traderThumb {
-  display: block;
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  object-position: top center;
-  flex: none;
 }
 
 .traderBtn:hover,
@@ -363,44 +323,6 @@
   color: #8a8c78;
   border-color: #4a4a40;
   background: rgba(138, 140, 120, 0.1);
-}
-
-.statusChip {
-  display: inline-block;
-  padding: 1px 8px;
-  border: 1px solid #3a3d30;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-.statusAvailable {
-  border-color: #c8932a;
-  color: #e0b45a;
-}
-
-.statusComplete {
-  border-color: #3d5c3a;
-  color: #8fbf88;
-}
-
-.statusLocked {
-  border-color: #4a4a40;
-  color: #8a8c78;
-}
-
-.statusFailed {
-  border-color: #6a3333;
-  color: #d08080;
-}
-
-.hintLink {
-  color: var(--hb-orange, #c8932a);
-  text-decoration: none;
-}
-
-.hintLink:hover {
-  text-decoration: underline;
 }
 
 @media (max-width: 700px) {

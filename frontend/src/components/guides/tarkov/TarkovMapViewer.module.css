@@ -42,10 +42,6 @@
   cursor: grab;
 }
 
-.wrapDraw .leaflet-marker-pane,
-.wrapDraw .leaflet-overlay-pane,
-.wrapDraw .leaflet-tooltip-pane,
-.wrapDraw .leaflet-popup-pane,
 .wrapDraw :global(.leaflet-iconCanvas-pane),
 .wrapPlaceEdit :global(.leaflet-iconCanvas-pane) {
   pointer-events: none;
@@ -65,7 +61,6 @@
 .wrap.isPanning :global(.leaflet-marker-pane) .extractIcon,
 .wrap.isPanning :global(.leaflet-marker-pane) .labelIcon,
 .wrap.isPanning :global(.leaflet-marker-pane) .extractName,
-.wrap.isPanning :global(.leaflet-marker-pane) .bossName,
 .wrap.isPanning :global(.leaflet-marker-pane) .labelText,
 .wrap.isPanning :global(.leaflet-board-pane) .boardText {
   visibility: hidden !important;
@@ -73,10 +68,6 @@
 
 .wrap.isPanning :global(.leaflet-tooltip-pane) {
   display: none;
-}
-
-.wrapDraw .leaflet-board-pane {
-  z-index: 650;
 }
 
 .map {
@@ -603,8 +594,6 @@
 }
 
 .extractIcon,
-.spawnIcon,
-.bossIcon,
 .labelIcon,
 .questIcon {
   background: transparent;
@@ -613,11 +602,6 @@
 
 .labelIcon {
   overflow: visible !important;
-}
-
-.spawnIcon {
-  background: transparent !important;
-  border: 0 !important;
 }
 
 .questIcon {
@@ -657,8 +641,7 @@
   overflow: visible !important;
 }
 
-.extractRow,
-.bossRow {
+.extractRow {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -706,16 +689,7 @@
   color: #e8c36a;
 }
 
-.diamond {
-  width: 8px;
-  height: 8px;
-  background: #d44a4a;
-  transform: rotate(45deg);
-  box-shadow: 0 0 0 1px #000;
-}
-
-.extractName,
-.bossName {
+.extractName {
   font-size: 12px;
   font-weight: 700;
   font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -733,34 +707,6 @@
 .wrap :global(.leaflet-popup-content) {
   margin: 10px 12px;
   min-width: 0;
-}
-
-.wrap :global(.leaflet-popup).questPopup .leaflet-popup-content-wrapper {
-  background: #22241a;
-  color: #eee9d6;
-  border: 1px solid #4a4d40;
-  border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
-}
-
-.wrap :global(.leaflet-popup).questPopup .leaflet-popup-content {
-  margin: 8px 10px;
-  min-width: 180px;
-}
-
-.wrap :global(.leaflet-popup).questPopup .leaflet-popup-tip {
-  background: #22241a;
-}
-
-.wrap :global(.leaflet-popup).questPopup .leaflet-popup-close-button {
-  top: 4px;
-  right: 4px;
-  color: #c8c4a8;
-  font-size: 16px;
-}
-
-.wrap :global(.leaflet-popup).questPopup .leaflet-popup-close-button:hover {
-  color: #eee9d6;
 }
 
 .wrap :global(.leaflet-tooltip).questTooltip {
@@ -1055,12 +1001,6 @@
   white-space: nowrap;
 }
 
-.questTipMeta {
-  color: #b8b39a;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
 .questTipSteps {
   display: flex;
   flex-direction: column;
@@ -1079,18 +1019,6 @@
 .questTipStepOn {
   color: #eee9d6;
   font-weight: 700;
-}
-
-.questTipOptional {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 5px;
-  border: 1px solid #5a5340;
-  color: #c8c0a0;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.5;
-  vertical-align: baseline;
 }
 
 .questTipKeys {
@@ -1114,14 +1042,7 @@
   line-height: 1.6;
 }
 
-.questTipNoKey {
-  color: #8a8470;
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.questLabelKey,
-.questLabelNoKey {
+.questLabelKey {
   flex: none;
   padding: 0 4px;
   color: #e0b45a;
@@ -1129,11 +1050,6 @@
   font-weight: 700;
   line-height: 1.5;
   text-shadow: none;
-}
-
-.questLabelNoKey {
-  border: 1px solid #4a4d40;
-  color: #9a9580;
 }
 
 .questLabelHelp {
@@ -1286,31 +1202,6 @@
 
 .placeBox {
   cursor: pointer;
-}
-
-.playerEnable {
-  display: block;
-  width: 100%;
-  margin: 4px 0 0;
-  padding: 6px 8px;
-  border: 1px solid var(--hb-orange-dim, rgba(200, 147, 42, 0.55));
-  background: #1a160c;
-  color: var(--hb-orange, #c8932a);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.playerEnable:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.playerStatus {
-  color: #eee9d6;
-  font-size: 12px;
-  line-height: 1.35;
 }
 
 .playerIcon {

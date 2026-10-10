@@ -110,12 +110,6 @@
   min-width: 0;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .table {
   width: 100%;
   min-width: 0;
@@ -176,19 +170,4 @@
   height: 8px;
   border-radius: 50%;
   flex: none;
-}
-
-.map,
-.status {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status {
-  color: #9a9888;
-}
-
-.row[data-status="in_raid"] .status {
-  color: #d7c07a;
 }
