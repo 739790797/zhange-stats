@@ -269,14 +269,12 @@ def get_exastris_box_for_member(
     force: bool = False,
 ):
     """读库二次加工异环盒子；无记录或 force 时回源落库。"""
-    from app.services.taygedo.attendance import ensure_session
-    from app.services.taygedo.checkin import _load_creds, _save_creds, get_bind_for_member
+    from app.services.taygedo.checkin import _session_for_bind, get_bind_for_member
 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
 
-    creds = _load_creds(bind)
     roles: list[TaygedoRole] | None = None
     if not force:
         from app.services.box_role_cache import taygedo_nte_roles_from_raws
@@ -285,10 +283,7 @@ def get_exastris_box_for_member(
 
     working = None
     if roles is None:
-        working = ensure_session(creds)
-        if working.access_token != creds.access_token or working.refresh_token != creds.refresh_token:
-            _save_creds(bind, working)
-            db.commit()
+        working = _session_for_bind(db, bind).creds
         roles = list_nte_roles(working)
     if not roles:
         raise TaygedoApiError("未找到异环绑定角色")
@@ -316,13 +311,10 @@ def get_exastris_box_for_member(
     if force or row is None:
         try:
             if working is None:
-                working = ensure_session(creds)
-                if (
-                    working.access_token != creds.access_token
-                    or working.refresh_token != creds.refresh_token
-                ):
-                    _save_creds(bind, working)
-                    db.commit()
+                working = _session_for_bind(db, bind).creds
+            else:
+                # 交还连接再打上游
+                db.commit()
             raw = fetch_exastris_characters(working, role.role_id)
             raw_json = json.dumps(raw, ensure_ascii=False)
             from app.services.raw_payload_monitor import note_raw_payload

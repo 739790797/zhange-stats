@@ -10,16 +10,24 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive
-from app.models.kujiequ import KujiequAttendanceRaw, KujiequBind, KujiequCheckinLog
+from app.models.kujiequ import (
+    KujiequAttendanceRaw,
+    KujiequBind,
+    KujiequCheckinLog,
+    KujiequWwBoxRaw,
+)
 from app.models.member import Member
 from app.services.checkin.adapter import (
     CheckinAdapterBase,
     CheckinRunOutcome,
     SkipPolicy,
 )
+from app.services.checkin.binding import after_bind, unbind_member
 from app.services.checkin.common import CheckinResult, is_success_status
-from app.services.checkin.orchestrator import (
-    checkin_job_wrapper as _orch_job_wrapper,
+from app.services.checkin.credentials import (
+    StoredCreds,
+    refresh_creds_locked,
+    store_creds_if_changed,
 )
 from app.services.checkin.orchestrator import (
     query_today_for_bind as _orch_query_today,
@@ -42,6 +50,7 @@ from app.services.kujiequ.client import (
     GameRole,
     KujiequApiError,
     KujiequCredentials,
+    _ensure_device,
     exchange_commodity,
     get_total_gold,
     list_all_game_roles,
@@ -75,12 +84,47 @@ def _load_creds(bind: KujiequBind) -> KujiequCredentials:
     return KujiequCredentials.from_dict(payload)
 
 
+def _creds_columns(creds: KujiequCredentials) -> dict[str, Any]:
+    return {
+        "phone_mask": mask_phone(creds.phone)
+        or (creds.user_name and f"@{creds.user_name}")
+        or None
+    }
+
+
 def _save_creds(bind: KujiequBind, creds: KujiequCredentials) -> None:
     bind.credentials_enc = encrypt_secret(json.dumps(creds.to_dict(), ensure_ascii=False))
-    bind.phone_mask = mask_phone(creds.phone) or (
-        creds.user_name and f"@{creds.user_name}"
-    ) or None
+    bind.phone_mask = _creds_columns(creds)["phone_mask"]
     bind.updated_at = now_naive()
+
+
+def _store_creds(
+    db: Session, bind: KujiequBind, stored: StoredCreds[KujiequCredentials]
+) -> None:
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
+
+
+def _prepare_creds(creds: KujiequCredentials) -> KujiequCredentials:
+    """补稳定设备号（每次换 did 会让 bat 失效）与缺失的 user_id。"""
+    from app.services.kujiequ.client import fetch_mine
+
+    creds = _ensure_device(creds)
+    if not creds.user_id:
+        mine = fetch_mine(creds)
+        creds.user_id = mine["user_id"]
+        creds.user_name = mine["user_name"] or creds.user_name
+    return creds
+
+
+def _session_for_bind(db: Session, bind: KujiequBind) -> StoredCreds[KujiequCredentials]:
+    return refresh_creds_locked(
+        db,
+        bind,
+        platform=PLATFORM_KUJIEQU,
+        load=_load_creds,
+        refresh=_prepare_creds,
+        extra=_creds_columns,
+    )
 
 
 def _upsert_bind(db: Session, member: Member, creds: KujiequCredentials) -> KujiequBind:
@@ -91,7 +135,7 @@ def _upsert_bind(db: Session, member: Member, creds: KujiequCredentials) -> Kuji
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(kujiequ_adapter, db, bind)
     return bind
 
 
@@ -113,23 +157,8 @@ def bind_with_sms(db: Session, member: Member, phone: str, captcha: str) -> Kuji
     return _upsert_bind(db, member, creds)
 
 
-def _maybe_checkin_after_bind(db: Session, bind: KujiequBind) -> None:
-    if not bind.auto_checkin:
-        return
-    try:
-        run_checkin_for_bind(db, bind, force=False)
-    except Exception:  # noqa: BLE001
-        logger.exception("kujiequ checkin after bind failed member_id=%s", bind.member_id)
-        db.rollback()
-        db.refresh(bind)
-
-
 def unbind_kujiequ(db: Session, member: Member) -> None:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return
-    db.delete(bind)
-    db.commit()
+    unbind_member(kujiequ_adapter, db, member.id)
 
 
 def update_bind_prefs(
@@ -162,15 +191,7 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
-    creds = _load_creds(bind)
-    if not creds.user_id:
-        from app.services.kujiequ.client import fetch_mine
-
-        mine = fetch_mine(creds)
-        creds.user_id = mine["user_id"]
-        creds.user_name = mine["user_name"] or creds.user_name
-        _save_creds(bind, creds)
-        db.commit()
+    creds = _session_for_bind(db, bind).creds
 
     out: list[dict[str, str]] = [
         {
@@ -194,26 +215,13 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     return out
 
 
-def _session_for_bind(db: Session, bind: KujiequBind) -> KujiequCredentials:
-    creds = _load_creds(bind)
-    if not creds.user_id:
-        from app.services.kujiequ.client import fetch_mine
-
-        mine = fetch_mine(creds)
-        creds.user_id = mine["user_id"]
-        creds.user_name = mine["user_name"] or creds.user_name
-        _save_creds(bind, creds)
-        db.commit()
-    return creds
-
-
 def fetch_exchange_shop(
     db: Session, member: Member, *, game_id: int | None = None
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     items = list_commodities(working, game_id=game_id)
     gold = get_total_gold(working)
     roles = list_all_game_roles(working)
@@ -243,7 +251,7 @@ def run_exchange_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     shop = {i.commodity_code: i for i in list_commodities(working)}
     target = shop.get(str(commodity_code).strip())
     if target is None:
@@ -291,6 +299,7 @@ class KujiequCheckinAdapter(CheckinAdapterBase):
     job_key = JOB_KEY
     bind_model = KujiequBind
     log_model = KujiequCheckinLog
+    member_raw_models = (KujiequAttendanceRaw, KujiequWwBoxRaw)
     api_error_cls = KujiequApiError
     empty_message = "未执行任何签到"
     # 即使今日已签，仍补跑社区每日任务
@@ -299,29 +308,32 @@ class KujiequCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> KujiequBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(self, db: Session, bind: KujiequBind) -> KujiequCredentials:
-        return _load_creds(bind)
+    def load_session(
+        self, db: Session, bind: KujiequBind
+    ) -> StoredCreds[KujiequCredentials]:
+        return _session_for_bind(db, bind)
 
     def save_session(
-        self, db: Session, bind: KujiequBind, session: KujiequCredentials
+        self, db: Session, bind: KujiequBind, session: StoredCreds[KujiequCredentials]
     ) -> None:
-        _save_creds(bind, session)
+        _store_creds(db, bind, session)
 
     def query_today_all(
-        self, session: KujiequCredentials
-    ) -> tuple[KujiequCredentials, list[CheckinResult]]:
-        return kujiequ_query_today_all(session)
+        self, session: StoredCreds[KujiequCredentials]
+    ) -> tuple[StoredCreds[KujiequCredentials], list[CheckinResult]]:
+        working, results = kujiequ_query_today_all(session.creds)
+        return session.with_creds(working), results
 
     def run_checkins(
         self,
-        session: KujiequCredentials,
+        session: StoredCreds[KujiequCredentials],
         *,
         force: bool,
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         _ = force
-        working, results = run_all_checkins(session, role_keys=role_keys)
-        return CheckinRunOutcome(session=working, results=results)
+        working, results = run_all_checkins(session.creds, role_keys=role_keys)
+        return CheckinRunOutcome(session=session.with_creds(working), results=results)
 
     def prepare_cached_results(
         self, results: list[CheckinResult]
@@ -444,14 +456,12 @@ def get_kujiequ_attendance_calendar_for_member(
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
 
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     game_name = GAME_NAMES.get(game_id, f"游戏{game_id}")
     try:
         roles = list_roles_for_game(working, game_id)
     except KujiequApiError as exc:
         raise KujiequApiError(friendly_error_message(exc.message)) from exc
-    _save_creds(bind, working)
-    db.commit()
 
     if not roles:
         raise KujiequApiError(f"未找到{game_name}绑定角色")
@@ -488,6 +498,8 @@ def get_kujiequ_attendance_calendar_for_member(
     stale = False
     need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
     if need_fetch:
+        # 交还连接再打上游
+        db.commit()
         try:
             bundle = fetch_game_attendance_bundle(working, role)
             raw_json = json.dumps(bundle, ensure_ascii=False)
@@ -574,7 +586,3 @@ def run_checkin_for_member(
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    _orch_job_wrapper(kujiequ_adapter, due_only=due_only, member_id=member_id)

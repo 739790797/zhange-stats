@@ -334,19 +334,22 @@ def get_ww_box_for_member(
     force: bool = False,
 ):
     """读库二次加工鸣潮资料卡；无记录或 force 时回源落库。"""
-    from app.services.kujiequ.checkin import _load_creds, _save_creds, get_bind_for_member
+    from app.services.kujiequ.checkin import _session_for_bind, get_bind_for_member
 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise KujiequApiError("尚未绑定库街区")
 
-    creds = _load_creds(bind)
-    had_device = bool(creds.dev_code and creds.distinct_id)
-    creds = _ensure_device(creds)
-    if not had_device:
-        # 稳定 did：首次生成后写回，避免每次换 did 导致 bat 失效
-        _save_creds(bind, creds)
-        db.commit()
+    creds: KujiequCredentials | None = None
+
+    def upstream_creds() -> KujiequCredentials:
+        # 真要回源才取凭证（含首次补稳定 did）；每次打上游前交还连接
+        nonlocal creds
+        if creds is None:
+            creds = _session_for_bind(db, bind).creds
+        else:
+            db.commit()
+        return creds
 
     roles: list[GameRole] | None = None
     if not force:
@@ -354,7 +357,7 @@ def get_ww_box_for_member(
 
         roles = kujiequ_ww_roles_from_raws(db, member.id)
     if roles is None:
-        roles = list_roles_for_game(creds, GAME_WW)
+        roles = list_roles_for_game(upstream_creds(), GAME_WW)
     if not roles:
         raise KujiequApiError("未找到鸣潮绑定角色")
 
@@ -378,7 +381,7 @@ def get_ww_box_for_member(
         .one_or_none()
     )
     if (force or row is None) and not role.server_id:
-        roles = list_roles_for_game(creds, GAME_WW)
+        roles = list_roles_for_game(upstream_creds(), GAME_WW)
         if target_uid:
             role = next((r for r in roles if r.role_id == target_uid), None)
         else:
@@ -388,7 +391,7 @@ def get_ww_box_for_member(
     stale = False
     if force or row is None:
         try:
-            bundle = fetch_ww_box_bundle(creds, role)
+            bundle = fetch_ww_box_bundle(upstream_creds(), role)
             raw_json = json.dumps(bundle, ensure_ascii=False)
             from app.services.raw_payload_monitor import note_raw_payload
 

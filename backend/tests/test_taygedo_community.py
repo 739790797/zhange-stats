@@ -589,23 +589,134 @@ def test_ensure_session_raises_when_refresh_and_laohu_fail() -> None:
             ensure_session(_creds())
 
 
-def test_adapter_load_session_persists_rotated_tokens() -> None:
-    from app.services.taygedo.checkin import TaygedoCheckinAdapter
+@pytest.fixture
+def taygedo_db(monkeypatch):
+    import json
+    from types import SimpleNamespace
 
-    bind = MagicMock()
-    old = _creds()
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core import crypto_secret
+    from app.core.database import Base
+    from app.models.member import Member
+    from app.models.taygedo import TaygedoBind
+
+    holder = SimpleNamespace(SECRET_KEY="unit-test-secret-key-0123456789abcdef")
+    monkeypatch.setattr(crypto_secret, "get_settings", lambda: holder)
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    db = sessionmaker(bind=engine)()
+    db.add(Member(id=1, nickname="m1"))
+    bind = TaygedoBind(
+        member_id=1,
+        credentials_enc=crypto_secret.encrypt_secret(json.dumps(_creds().to_dict())),
+    )
+    db.add(bind)
+    db.commit()
+    yield db, bind
+    db.close()
+
+
+def test_adapter_load_session_persists_rotated_tokens(taygedo_db) -> None:
+    from app.services.taygedo.checkin import TaygedoCheckinAdapter, _load_creds
+
+    db, bind = taygedo_db
     fresh = TaygedoCredentials(
         uid="u100",
         device_id="dev",
         access_token="fresh",
         refresh_token="new-r",
+        phone="13800001234",
     )
-    db = MagicMock()
-    with (
-        patch("app.services.taygedo.checkin._load_creds", return_value=old),
-        patch("app.services.taygedo.attendance.ensure_session", return_value=fresh),
-        patch("app.services.taygedo.checkin._save_creds") as save,
-    ):
+    with patch("app.services.taygedo.attendance.ensure_session", return_value=fresh):
         out = TaygedoCheckinAdapter().load_session(db, bind)
-    save.assert_called_once_with(bind, fresh)
-    assert out.access_token == "fresh"
+
+    assert out.creds.access_token == "fresh"
+    db.expire_all()
+    assert _load_creds(bind).refresh_token == "new-r"
+    assert bind.phone_mask == "138****1234"
+
+
+def test_checkin_probes_session_and_lists_roles_once(taygedo_db) -> None:
+    from app.services.checkin.common import CheckinResult
+    from app.services.taygedo.checkin import run_checkin_for_bind
+
+    db, bind = taygedo_db
+    role = TaygedoRole(game_code=GAME_NTE, game_name=GAME_NTE_NAME, role_id="r1", role_name="主角")
+
+    def result(game_code: str, role_uid: str, status: str) -> CheckinResult:
+        return CheckinResult(
+            game_code=game_code,
+            game_name=game_code,
+            role_uid=role_uid,
+            role_name="-",
+            channel_name="-",
+            status=status,
+            message=status,
+        )
+
+    with (
+        patch(
+            "app.services.taygedo.attendance.ensure_session", side_effect=lambda c: c
+        ) as ensure,
+        patch(
+            "app.services.taygedo.attendance.list_all_game_roles", return_value=[role]
+        ) as list_roles,
+        patch(
+            "app.services.taygedo.attendance.query_app_today",
+            return_value=result(GAME_APP, "u100", "already"),
+        ) as app_probe,
+        patch(
+            "app.services.taygedo.attendance.query_game_today",
+            return_value=result(GAME_NTE, "r1", "already"),
+        ),
+        patch(
+            "app.services.taygedo.checkin.checkin_target",
+            return_value=result(GAME_APP, "u100", "ok"),
+        ) as sign,
+    ):
+        out = run_checkin_for_bind(db, bind, force=False)
+
+    assert ensure.call_count == 1
+    assert list_roles.call_count == 1
+    # 社区已签时查询也会跑每日任务；签到本来就会跑，不再先查一遍
+    app_probe.assert_not_called()
+    sign.assert_called_once()
+    assert {(r["game_code"], r["status"]) for r in out["results"]} == {
+        (GAME_APP, "ok"),
+        (GAME_NTE, "already"),
+    }
+
+
+def test_forced_checkin_signs_every_target_without_probing(taygedo_db) -> None:
+    from app.services.checkin.common import CheckinResult
+    from app.services.taygedo.checkin import run_checkin_for_bind
+
+    db, bind = taygedo_db
+    role = TaygedoRole(game_code=GAME_NTE, game_name=GAME_NTE_NAME, role_id="r1", role_name="主角")
+
+    def sign(creds, *, game_code, role):
+        return CheckinResult(
+            game_code=game_code,
+            game_name=game_code,
+            role_uid=role.role_id if role else "u100",
+            role_name="-",
+            channel_name="-",
+            status="already",
+            message="already",
+        )
+
+    with (
+        patch("app.services.taygedo.attendance.ensure_session", side_effect=lambda c: c),
+        patch("app.services.taygedo.attendance.list_all_game_roles", return_value=[role]),
+        patch("app.services.taygedo.attendance.query_app_today") as app_probe,
+        patch("app.services.taygedo.attendance.query_game_today") as game_probe,
+        patch("app.services.taygedo.checkin.checkin_target", side_effect=sign) as signer,
+    ):
+        out = run_checkin_for_bind(db, bind, force=True)
+
+    app_probe.assert_not_called()
+    game_probe.assert_not_called()
+    assert [c.kwargs["game_code"] for c in signer.call_args_list] == [GAME_APP, GAME_NTE]
+    assert len(out["results"]) == 2

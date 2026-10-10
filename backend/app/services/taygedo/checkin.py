@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
+from app.models.exastris import ExastrisBoxRaw
 from app.models.member import Member
 from app.models.taygedo import TaygedoAttendanceRaw, TaygedoBind, TaygedoCheckinLog
 from app.services.checkin.adapter import (
@@ -17,9 +19,12 @@ from app.services.checkin.adapter import (
     CheckinRunOutcome,
     SkipPolicy,
 )
+from app.services.checkin.binding import after_bind, unbind_member
 from app.services.checkin.common import CheckinResult, is_success_status
-from app.services.checkin.orchestrator import (
-    checkin_job_wrapper as _orch_job_wrapper,
+from app.services.checkin.credentials import (
+    StoredCreds,
+    refresh_creds_locked,
+    store_creds_if_changed,
 )
 from app.services.checkin.orchestrator import (
     query_today_for_bind as _orch_query_today,
@@ -39,6 +44,7 @@ from app.services.taygedo.attendance import (
     friendly_error_message,
     get_user_coin_state,
     list_shop_goods,
+    query_targets_today,
     query_today_all as taygedo_query_today_all,
     sort_taygedo_results,
 )
@@ -86,6 +92,30 @@ def _save_creds(bind: TaygedoBind, creds: TaygedoCredentials) -> None:
     bind.updated_at = now_naive()
 
 
+def _creds_columns(creds: TaygedoCredentials) -> dict[str, Any]:
+    return {"phone_mask": mask_phone(creds.phone)}
+
+
+def _session_for_bind(db: Session, bind: TaygedoBind) -> StoredCreds[TaygedoCredentials]:
+    """校验/换票后的凭证；refresh token 每次换票都轮换，同成员必须串行。"""
+    from app.services.taygedo.attendance import ensure_session
+
+    return refresh_creds_locked(
+        db,
+        bind,
+        platform=PLATFORM_TAYGEDO,
+        load=_load_creds,
+        refresh=ensure_session,
+        extra=_creds_columns,
+    )
+
+
+def _store_creds(
+    db: Session, bind: TaygedoBind, stored: StoredCreds[TaygedoCredentials]
+) -> None:
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
+
+
 def bind_with_password(db: Session, member: Member, phone: str, password: str) -> TaygedoBind:
     creds = login_with_password(phone, password)
     try:
@@ -100,7 +130,7 @@ def bind_with_password(db: Session, member: Member, phone: str, password: str) -
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(taygedo_adapter, db, bind)
     return bind
 
 
@@ -120,7 +150,7 @@ def bind_with_sms(
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(taygedo_adapter, db, bind)
     return bind
 
 
@@ -142,30 +172,12 @@ def bind_with_credentials_json(db: Session, member: Member, raw_json: str) -> Ta
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(taygedo_adapter, db, bind)
     return bind
 
 
-def _maybe_checkin_after_bind(db: Session, bind: TaygedoBind) -> None:
-    """绑定成功后：若开启自动签到且今日尚未签到，则立即补签。"""
-    if not bind.auto_checkin:
-        return
-    try:
-        run_checkin_for_bind(db, bind, force=False)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "taygedo checkin after bind failed member_id=%s", bind.member_id
-        )
-        db.rollback()
-        db.refresh(bind)
-
-
 def unbind_taygedo(db: Session, member: Member) -> None:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return
-    db.delete(bind)
-    db.commit()
+    unbind_member(taygedo_adapter, db, member.id)
 
 
 def update_bind_prefs(
@@ -198,14 +210,8 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    creds = _load_creds(bind)
-    from app.services.taygedo.attendance import ensure_session
-
-    working = ensure_session(creds)
+    working = _session_for_bind(db, bind).creds
     roles = list_all_game_roles(working)
-    if working.access_token != creds.access_token or working.refresh_token != creds.refresh_token:
-        _save_creds(bind, working)
-        db.commit()
 
     out: list[dict[str, str]] = [
         {
@@ -236,27 +242,13 @@ _GAME_NAMES = {
 }
 
 
-def _session_for_bind(db: Session, bind: TaygedoBind) -> TaygedoCredentials:
-    from app.services.taygedo.attendance import ensure_session
-
-    creds = _load_creds(bind)
-    working = ensure_session(creds)
-    if (
-        working.access_token != creds.access_token
-        or working.refresh_token != creds.refresh_token
-    ):
-        _save_creds(bind, working)
-        db.commit()
-    return working
-
-
 def fetch_exchange_shop(
     db: Session, member: Member, *, tab: str | None = None
 ) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     goods, tabs = list_shop_goods(working, tab=str(tab or "all").strip() or "all")
     coin_state: dict[str, Any] = {}
     try:
@@ -276,8 +268,6 @@ def fetch_exchange_shop(
     except (TypeError, ValueError):
         today_total = 0
     roles = list_all_game_roles(working)
-    _save_creds(bind, working)
-    db.commit()
     return {
         "gold": gold,
         "today_get": today_get,
@@ -307,7 +297,7 @@ def run_exchange_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     goods_id = str(goods_id or "").strip()
     game_id = str(game_id or "").strip()
     role_id = str(role_id or "").strip()
@@ -354,8 +344,6 @@ def run_exchange_for_member(
         gold_after = int(coin_after.get("total") or 0)
     except (TypeError, ValueError):
         gold_after = None
-    _save_creds(bind, working)
-    db.commit()
     return {
         "ok": True,
         "message": f"已兑换 {target.name}，请到游戏或社区查看",
@@ -369,6 +357,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
     job_key = JOB_KEY
     bind_model = TaygedoBind
     log_model = TaygedoCheckinLog
+    member_raw_models = (TaygedoAttendanceRaw, ExastrisBoxRaw)
     api_error_cls = TaygedoApiError
     empty_message = "未执行任何签到"
     # 即使今日已签，仍补跑社区每日任务
@@ -377,28 +366,21 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> TaygedoBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(self, db: Session, bind: TaygedoBind) -> TaygedoCredentials:
-        from app.services.taygedo.attendance import ensure_session
-
-        creds = _load_creds(bind)
-        working = ensure_session(creds)
-        if (
-            working.access_token != creds.access_token
-            or working.refresh_token != creds.refresh_token
-        ):
-            # orchestrator 在打上游前会 commit，须先把轮换后的 refresh 写回 bind
-            _save_creds(bind, working)
-        return working
+    def load_session(
+        self, db: Session, bind: TaygedoBind
+    ) -> StoredCreds[TaygedoCredentials]:
+        return _session_for_bind(db, bind)
 
     def save_session(
-        self, db: Session, bind: TaygedoBind, session: TaygedoCredentials
+        self, db: Session, bind: TaygedoBind, session: StoredCreds[TaygedoCredentials]
     ) -> None:
-        _save_creds(bind, session)
+        _store_creds(db, bind, session)
 
     def query_today_all(
-        self, session: TaygedoCredentials
-    ) -> tuple[TaygedoCredentials, list[CheckinResult]]:
-        return taygedo_query_today_all(session)
+        self, session: StoredCreds[TaygedoCredentials]
+    ) -> tuple[StoredCreds[TaygedoCredentials], list[CheckinResult]]:
+        working, results = taygedo_query_today_all(session.creds, session_checked=True)
+        return session.with_creds(working), results
 
     def prepare_cached_results(
         self, results: list[CheckinResult]
@@ -412,14 +394,14 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
 
     def run_checkins(
         self,
-        session: TaygedoCredentials,
+        session: StoredCreds[TaygedoCredentials],
         *,
         force: bool,
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         from app.services.taygedo.attendance import list_checkin_targets
 
-        working, targets = list_checkin_targets(session)
+        working, targets = list_checkin_targets(session.creds, session_checked=True)
 
         if role_keys is not None:
             filtered = []
@@ -431,7 +413,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
 
         if not targets:
             return CheckinRunOutcome(
-                session=working,
+                session=session.with_creds(working),
                 early_response={
                     "skipped": False,
                     "ok": False,
@@ -440,21 +422,17 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
                 },
             )
 
-        live_working, live_results = taygedo_query_today_all(working)
-        working = live_working
-        live_map = {(r.game_code, r.role_uid): r for r in live_results}
+        # 社区 APP 即使已签也走 checkin_target 以补跑每日任务；探测它（已签时也跑每日任务）是白跑一遍
+        probe = [] if force else [t for t in targets if t[0] != GAME_APP]
+        live_map = {
+            (r.game_code, r.role_uid): r for r in query_targets_today(working, probe)
+        }
 
         results: list[CheckinResult] = []
         for game_code, role in targets:
             role_uid = role.role_id if role else working.uid
             probed = live_map.get((game_code, role_uid))
-            # 社区 APP 即使已签也走 checkin_target，以补跑每日任务
-            if (
-                not force
-                and game_code != GAME_APP
-                and probed is not None
-                and is_success_status(probed.status)
-            ):
+            if probed is not None and is_success_status(probed.status):
                 results.append(probed)
                 continue
 
@@ -485,7 +463,7 @@ class TaygedoCheckinAdapter(CheckinAdapterBase):
                 )
             results.append(result)
 
-        return CheckinRunOutcome(session=working, results=results)
+        return CheckinRunOutcome(session=session.with_creds(working), results=results)
 
     def after_checkin(
         self, db: Session, bind: TaygedoBind, results: list[CheckinResult]
@@ -600,11 +578,9 @@ def get_taygedo_attendance_calendar_for_member(
     force: bool = False,
 ) -> tuple[dict[str, Any], TaygedoRole, list[TaygedoRole], datetime | None, bool]:
     """读库二次加工异环/幻塔签到日历；无记录、跨月或 force 时回源落库。"""
-    from datetime import datetime
-
     from app.core.timeutil import BEIJING, now as beijing_now
     from app.services.raw_payload_monitor import note_raw_payload
-    from app.services.taygedo.attendance import ensure_session, fetch_game_attendance_bundle
+    from app.services.taygedo.attendance import fetch_game_attendance_bundle
     from app.services.taygedo.client import list_game_roles
 
     game_code = str(game_code or "").strip()
@@ -615,15 +591,12 @@ def get_taygedo_attendance_calendar_for_member(
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
 
-    creds = _load_creds(bind)
     try:
-        working = ensure_session(creds)
+        working = _session_for_bind(db, bind).creds
         game_name = "异环" if game_code == GAME_NTE else "幻塔"
         roles = list_game_roles(working, game_code, game_name)
     except TaygedoApiError as exc:
         raise TaygedoApiError(friendly_error_message(exc.message)) from exc
-    _save_creds(bind, working)
-    db.commit()
 
     if not roles:
         raise TaygedoApiError(f"未找到{game_name}绑定角色")
@@ -660,6 +633,8 @@ def get_taygedo_attendance_calendar_for_member(
     stale = False
     need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
     if need_fetch:
+        # 交还连接再打上游
+        db.commit()
         try:
             bundle = fetch_game_attendance_bundle(
                 working, game_code, role_id=role.role_id
@@ -743,7 +718,3 @@ def run_checkin_for_member(
     if bind is None:
         raise TaygedoApiError("尚未绑定塔吉多")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    _orch_job_wrapper(taygedo_adapter, due_only=due_only, member_id=member_id)

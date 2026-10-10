@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
+from app.models.arknights import ArknightsBoxSnapshot
+from app.models.arknights_rogue import ArknightsRogueRaw
 from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.member import Member
 from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
 from app.services.checkin.adapter import CheckinAdapterBase, CheckinRunOutcome
+from app.services.checkin.binding import after_bind, unbind_member
 from app.services.checkin.common import CheckinResult, is_success_status
-from app.services.checkin.orchestrator import (
-    checkin_job_wrapper as _orch_job_wrapper,
-)
 from app.services.checkin.orchestrator import (
     query_today_for_bind as _orch_query_today,
 )
@@ -105,22 +105,8 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
     db.commit()
     db.refresh(bind)
     put_cached_skland_session(member.id, token, session)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(skland_adapter, db, bind)
     return bind
-
-
-def _maybe_checkin_after_bind(db: Session, bind: SklandBind) -> None:
-    """绑定成功后：若开启自动签到且今日尚未签到，则立即补签。"""
-    if not bind.auto_checkin:
-        return
-    try:
-        run_checkin_for_bind(db, bind, force=False)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "skland checkin after bind failed member_id=%s", bind.member_id
-        )
-        db.rollback()
-        db.refresh(bind)
 
 
 def bind_skland_with_password(
@@ -146,12 +132,9 @@ def send_skland_sms(phone: str) -> None:
 def unbind_skland(db: Session, member: Member) -> None:
     from app.services.skland.session_cache import invalidate_skland_session
 
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return
-    db.delete(bind)
-    db.commit()
-    invalidate_skland_session(member.id)
+    member_id = member.id
+    if unbind_member(skland_adapter, db, member_id):
+        invalidate_skland_session(member_id)
 
 
 def update_bind_prefs(
@@ -184,7 +167,7 @@ def preview_roles(db: Session, member: Member) -> list[SklandRole]:
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
     # 复用会话缓存，避免绑定后立刻再 grant 一次把刚写入的 cred 顶掉
-    return list_roles(_session_for_bind(bind))
+    return list_roles(_session_for_bind(db, bind))
 
 
 def get_arknights_box_for_member(db: Session, member: Member, uid: str | None = None):
@@ -192,7 +175,7 @@ def get_arknights_box_for_member(db: Session, member: Member, uid: str | None = 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session = _session_for_bind(bind)
+    session = _session_for_bind(db, bind)
     roles = [r for r in list_roles(session) if r.game_code == GAME_ARKNIGHTS]
     if not roles:
         raise SklandApiError("未找到明日方舟绑定角色")
@@ -245,13 +228,7 @@ def get_arknights_attendance_calendar_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session: SklandSession | None = None
-
-    def _ensure_session() -> SklandSession:
-        nonlocal session
-        if session is None:
-            session = _session_for_bind(bind)
-        return session
+    _ensure_session = _lazy_session(db, bind)
 
     roles: list[SklandRole] | None = None
     if not force:
@@ -395,13 +372,7 @@ def get_endfield_attendance_calendar_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session: SklandSession | None = None
-
-    def _ensure_session() -> SklandSession:
-        nonlocal session
-        if session is None:
-            session = _session_for_bind(bind)
-        return session
+    _ensure_session = _lazy_session(db, bind)
 
     roles: list[SklandRole] | None = None
     if not force:
@@ -538,13 +509,7 @@ def get_endfield_box_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session: SklandSession | None = None
-
-    def _ensure_session() -> SklandSession:
-        nonlocal session
-        if session is None:
-            session = _session_for_bind(bind)
-        return session
+    _ensure_session = _lazy_session(db, bind)
 
     roles: list[SklandRole] | None = None
     if not force:
@@ -646,7 +611,6 @@ def get_arknights_rogue_for_member(
     """读库二次加工方舟肉鸽；无记录或 force 时回源落库。"""
     import json
 
-    from app.models.arknights_rogue import ArknightsRogueRaw
     from app.services.skland.rogue import (
         DEFAULT_TOPIC_ID,
         fetch_arknights_rogue,
@@ -658,13 +622,7 @@ def get_arknights_rogue_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
-    session: SklandSession | None = None
-
-    def _ensure_session() -> SklandSession:
-        nonlocal session
-        if session is None:
-            session = _session_for_bind(bind)
-        return session
+    _ensure_session = _lazy_session(db, bind)
 
     roles: list[SklandRole] | None = None
     if not force:
@@ -755,25 +713,39 @@ def get_arknights_rogue_for_member(
     return box, role, roles, row.synced_at, stale
 
 
-def _session_for_bind(bind: SklandBind, *, bypass_cache: bool = False):
+def _session_for_bind(db: Session, bind: SklandBind):
+    """调用方拿到会话就打上游：读完 bind 先交还连接（换票本身也是上游请求）。"""
     from app.services.skland.session_cache import (
         get_cached_skland_session,
-        invalidate_skland_session,
         put_cached_skland_session,
     )
 
     token = decrypt_secret(bind.token_enc)
+    member_id = bind.member_id
+    db.commit()
     if not token:
         raise SklandApiError("凭证已损坏，请重新绑定")
-    if not bypass_cache:
-        cached = get_cached_skland_session(bind.member_id, token)
-        if cached is not None:
-            return cached
-    else:
-        invalidate_skland_session(bind.member_id)
+    cached = get_cached_skland_session(member_id, token)
+    if cached is not None:
+        return cached
     session = login_with_token(token)
-    put_cached_skland_session(bind.member_id, token, session)
+    put_cached_skland_session(member_id, token, session)
     return session
+
+
+def _lazy_session(db: Session, bind: SklandBind) -> Callable[[], SklandSession]:
+    """首次调用才取会话；每次调用后都紧跟上游请求，先交还连接。"""
+    session: SklandSession | None = None
+
+    def get() -> SklandSession:
+        nonlocal session
+        if session is None:
+            session = _session_for_bind(db, bind)
+        else:
+            db.commit()
+        return session
+
+    return get
 
 
 _EMPTY_ROLES_MSG = (
@@ -786,6 +758,13 @@ class SklandCheckinAdapter(CheckinAdapterBase):
     job_key = JOB_KEY
     bind_model = SklandBind
     log_model = SklandCheckinLog
+    member_raw_models = (
+        SklandAttendanceRaw,
+        EndfieldAttendanceRaw,
+        EndfieldBoxRaw,
+        ArknightsRogueRaw,
+        ArknightsBoxSnapshot,
+    )
     api_error_cls = SklandApiError
     empty_message = _EMPTY_ROLES_MSG
 
@@ -793,7 +772,7 @@ class SklandCheckinAdapter(CheckinAdapterBase):
         return get_bind_for_member(db, member_id)
 
     def load_session(self, db: Session, bind: SklandBind):
-        return _session_for_bind(bind)
+        return _session_for_bind(db, bind)
 
     def query_today_all(self, session) -> tuple[Any, list[CheckinResult]]:
         return skland_query_today_all(session)
@@ -948,6 +927,17 @@ class SklandCheckinAdapter(CheckinAdapterBase):
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)
 
+    def renew_session_after_auth_error(
+        self, db: Session, bind: SklandBind, exc: Exception
+    ) -> bool:
+        # 缓存 cred 可能已被别处换票顶掉，hg token 仍可用：作废缓存，下一次 load_session 换票
+        if not _looks_like_skland_auth_error(getattr(exc, "message", None) or str(exc)):
+            return False
+        from app.services.skland.session_cache import invalidate_skland_session
+
+        invalidate_skland_session(bind.member_id)
+        return True
+
     def prepare_cached_results(
         self, results: list[CheckinResult]
     ) -> list[CheckinResult] | None:
@@ -988,18 +978,9 @@ def query_today_for_bind(
     用户展示路径应传 force=True（打开页始终回源官方）；force=False 时调度可读今日
     logs 成功态短路。方舟已签但缺结构化奖励图标时，prepare_cached_results 会强制回源补全。
 
-    缓存 cred 失效但 hg token 仍可用时：清缓存并强制换票重试一次。
+    缓存 cred 失效但 hg token 仍可用时：见 renew_session_after_auth_error（签到同用）。
     """
-    try:
-        return _orch_query_today(skland_adapter, db, bind, force=force)
-    except SklandApiError as exc:
-        if not _looks_like_skland_auth_error(exc.message):
-            raise
-        from app.services.skland.session_cache import invalidate_skland_session
-
-        invalidate_skland_session(bind.member_id)
-        _session_for_bind(bind, bypass_cache=True)
-        return _orch_query_today(skland_adapter, db, bind, force=True)
+    return _orch_query_today(skland_adapter, db, bind, force=force)
 
 
 def run_checkin_for_bind(
@@ -1029,7 +1010,3 @@ def run_checkin_for_member(
     if bind is None:
         raise SklandApiError("尚未绑定森空岛")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    _orch_job_wrapper(skland_adapter, due_only=due_only, member_id=member_id)
