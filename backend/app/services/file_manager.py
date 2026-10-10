@@ -374,6 +374,35 @@ def rel_posix(child: Path, parent: Path) -> str | None:
     return rest.replace("\\", "/")
 
 
+_IO_REPARSE_TAG_MOUNT_POINT = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)
+
+
+def _lstat_is_link(st: os.stat_result) -> bool:
+    return stat.S_ISLNK(st.st_mode) or (
+        getattr(st, "st_reparse_tag", 0) == _IO_REPARSE_TAG_MOUNT_POINT
+    )
+
+
+def _is_link(path: Path) -> bool:
+    """Symlink or Windows junction. resolve() follows both, so test the unresolved path."""
+    try:
+        return _lstat_is_link(path.lstat())
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return True
+
+
+def _entry_is_link(entry: os.DirEntry[str]) -> bool:
+    try:
+        if entry.is_symlink():
+            return True
+        # Junctions only exist on Windows, where the no-follow stat comes from the directory scan for free.
+        return os.name == "nt" and _lstat_is_link(entry.stat(follow_symlinks=False))
+    except OSError:
+        return True
+
+
 def resolve_in_root(root: Path, rel: str) -> Path:
     try:
         root_resolved = root.resolve()
@@ -394,14 +423,17 @@ def resolve_in_root(root: Path, rel: str) -> Path:
 
 
 def walk_size(path: Path, *, exclude: tuple[Path, ...] = ()) -> tuple[int, int]:
-    """Return (bytes, file_count). Skip dir symlinks; do not follow file symlinks."""
+    """Return (bytes, file_count) of path's target; links below it are neither followed nor counted.
+
+    Only bucket paths reach here, and catalog_buckets already dropped those resolving outside the install root.
+    """
     try:
         resolved = path.resolve()
     except OSError:
         return 0, 0
     if not resolved.exists():
         return 0, 0
-    if resolved.is_file() and not resolved.is_symlink():
+    if resolved.is_file():
         try:
             return int(resolved.stat().st_size), 1
         except OSError:
@@ -425,7 +457,7 @@ def walk_size(path: Path, *, exclude: tuple[Path, ...] = ()) -> tuple[int, int]:
                             for item in excluded
                         ):
                             continue
-                        if entry.is_symlink():
+                        if _entry_is_link(entry):
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             stack.append(entry_path)
@@ -907,6 +939,15 @@ def _real_rel(root: BrowseRoot, target: Path) -> str:
     return rel
 
 
+def _refuse_links(root: BrowseRoot, rel_n: str, action: str) -> None:
+    """Every component under the root must be a real entry: listings hide links, operations never follow them."""
+    current = root.path
+    for part in rel_n.split("/") if rel_n else ():
+        current = current / part
+        if _is_link(current):
+            raise FileManagerError(f"符号链接不可{action}")
+
+
 def list_directory(
     root_id: str,
     rel: str = "",
@@ -918,6 +959,7 @@ def list_directory(
     rel_n = normalize_rel(rel)
     if rel_is_sensitive(rel_n):
         raise FileManagerError("敏感路径不可浏览", status_code=403)
+    _refuse_links(root, rel_n, "浏览")
     target = resolve_in_root(root.path, rel_n)
     real_rel = _real_rel(root, target)
     if rel_is_sensitive(real_rel):
@@ -934,10 +976,10 @@ def list_directory(
         raise FileManagerError("无法读取目录", status_code=500) from exc
     for entry in scanned:
         try:
+            if _entry_is_link(entry):
+                continue
             is_dir = entry.is_dir(follow_symlinks=False)
             is_file = entry.is_file(follow_symlinks=False)
-            if entry.is_symlink():
-                continue
             size = 0
             if is_file:
                 size = int(entry.stat(follow_symlinks=False).st_size)
@@ -986,10 +1028,11 @@ def resolve_download(
         raise FileManagerError("请指定文件")
     if rel_is_sensitive(rel_n):
         raise FileManagerError("敏感文件不可下载", status_code=403)
+    _refuse_links(root, rel_n, "下载")
     target = resolve_in_root(root.path, rel_n)
     if is_sensitive_name(target.name) or rel_is_sensitive(_real_rel(root, target)):
         raise FileManagerError("敏感文件不可下载", status_code=403)
-    if not target.exists() or not target.is_file() or target.is_symlink():
+    if not target.exists() or not target.is_file():
         raise FileManagerError("文件不存在", status_code=404)
     return target
 
@@ -1068,9 +1111,10 @@ def _root_and_dir(
     root = _root_by_id(ctx, root_id)
     rel_n = normalize_rel(dir_rel)
     _refuse_sensitive(rel_n, "操作")
+    _refuse_links(root, rel_n, "操作")
     target = resolve_in_root(root.path, rel_n)
     _refuse_sensitive(_real_rel(root, target), "操作")
-    if not target.exists() or not target.is_dir() or target.is_symlink():
+    if not target.exists() or not target.is_dir():
         raise FileManagerError("目录不存在", status_code=404)
     return root, rel_n, target
 
@@ -1079,7 +1123,7 @@ def dir_contains_sensitive(path: Path, rel: str) -> bool:
     if rel_is_sensitive(rel):
         return True
     try:
-        if not path.is_dir() or path.is_symlink():
+        if not path.is_dir() or _is_link(path):
             return False
     except OSError:
         return True
@@ -1092,7 +1136,7 @@ def dir_contains_sensitive(path: Path, rel: str) -> bool:
                     child_rel_n = f"{current_rel}/{entry.name}" if current_rel else entry.name
                     if rel_is_sensitive(child_rel_n):
                         return True
-                    if entry.is_symlink():
+                    if _entry_is_link(entry):
                         continue
                     if entry.is_dir(follow_symlinks=False):
                         stack.append((Path(entry.path), child_rel_n))
@@ -1108,6 +1152,8 @@ def _new_child_path(
     rel = child_rel(parent_rel, child_name)
     _refuse_sensitive(rel, action)
     target = parent.joinpath(child_name)
+    if _is_link(target):
+        raise FileManagerError("已存在同名文件或目录", status_code=409)
     try:
         resolved = target.resolve()
     except OSError as exc:
@@ -1115,7 +1161,7 @@ def _new_child_path(
     if not is_under(resolved, parent.resolve()):
         raise FileManagerError("路径不合法")
     _refuse_sensitive(_real_rel(root, resolved), action)
-    if target.is_symlink() or resolved.exists():
+    if resolved.exists():
         raise FileManagerError("已存在同名文件或目录", status_code=409)
     return rel, resolved
 
@@ -1212,11 +1258,12 @@ def write_text(
         raise FileManagerError("请指定文件")
     _refuse_sensitive(rel_n, "修改")
     root = _root_by_id(ctx, root_id)
+    _refuse_links(root, rel_n, "修改")
     target = resolve_in_root(root.path, rel_n)
     if is_sensitive_name(target.name):
         raise FileManagerError("敏感路径不可修改", status_code=403)
     _refuse_sensitive(_real_rel(root, target), "修改")
-    if not target.exists() or not target.is_file() or target.is_symlink():
+    if not target.exists() or not target.is_file():
         raise FileManagerError("文件不存在", status_code=404)
     data = (content or "").encode("utf-8")
     if len(data) > MAX_EDIT_BYTES:
@@ -1290,6 +1337,8 @@ def upload_stream(
     rel = child_rel(parent_rel, child_name)
     _refuse_sensitive(rel, "上传")
     target = parent.joinpath(child_name)
+    if _is_link(target):
+        raise FileManagerError("不支持覆盖该项目", status_code=409)
     try:
         resolved = target.resolve()
     except OSError as exc:
@@ -1299,8 +1348,6 @@ def upload_stream(
     if is_sensitive_name(resolved.name):
         raise FileManagerError("敏感路径不可上传", status_code=403)
     _refuse_sensitive(_real_rel(root, resolved), "上传")
-    if target.is_symlink():
-        raise FileManagerError("不支持覆盖该项目", status_code=409)
     if resolved.is_dir():
         raise FileManagerError("已存在同名目录", status_code=409)
     _atomic_write(resolved, source, limit=MAX_UPLOAD_BYTES)
@@ -1341,6 +1388,10 @@ def rename_entry(
     _refuse_sensitive(dest_rel, "重命名")
     src_path = parent.joinpath(src_name)
     dest_path = parent.joinpath(dest_name)
+    if _is_link(src_path):
+        raise FileManagerError("符号链接不可重命名")
+    if _is_link(dest_path):
+        raise FileManagerError("已存在同名文件或目录", status_code=409)
     try:
         src_resolved = src_path.resolve()
         dest_resolved = dest_path.resolve()
@@ -1349,12 +1400,12 @@ def rename_entry(
         raise FileManagerError("路径不合法") from exc
     if not is_under(src_resolved, parent_resolved) or not is_under(dest_resolved, parent_resolved):
         raise FileManagerError("路径不合法")
-    if not src_resolved.exists() or src_path.is_symlink():
+    if not src_resolved.exists():
         raise FileManagerError("文件不存在", status_code=404)
     src_real = _real_rel(root, src_resolved)
     _refuse_sensitive(src_real, "重命名")
     _refuse_sensitive(_real_rel(root, dest_resolved), "重命名")
-    if dest_path.is_symlink() or dest_resolved.exists():
+    if dest_resolved.exists():
         raise FileManagerError("已存在同名文件或目录", status_code=409)
     if src_resolved.is_dir() and dir_contains_sensitive(src_resolved, src_real):
         raise FileManagerError("目录含敏感文件，不可重命名", status_code=403)
@@ -1371,7 +1422,7 @@ def _delete_tree(path: Path, rel: str) -> bool:
     if rel_is_sensitive(rel):
         return False
     try:
-        if path.is_symlink():
+        if _is_link(path):
             return False
         if path.is_file():
             path.unlink()
@@ -1389,7 +1440,7 @@ def _delete_tree(path: Path, rel: str) -> bool:
     for entry in entries:
         child_rel_n = f"{rel}/{entry.name}" if rel else entry.name
         child = Path(entry.path)
-        if rel_is_sensitive(child_rel_n) or entry.is_symlink():
+        if rel_is_sensitive(child_rel_n) or _entry_is_link(entry):
             remaining = True
             continue
         try:
@@ -1441,8 +1492,8 @@ def delete_entries(
         rel = child_rel(parent_rel, name)
         _refuse_sensitive(rel, "删除")
         target = parent.joinpath(name)
-        if target.is_symlink():
-            raise FileManagerError("不支持删除该项目")
+        if _is_link(target):
+            raise FileManagerError("符号链接不可删除")
         try:
             resolved = target.resolve()
         except OSError as exc:

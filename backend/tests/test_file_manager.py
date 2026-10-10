@@ -7,6 +7,7 @@ import os
 import stat
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -569,50 +570,133 @@ def test_secret_config_files_locked(tmp_path: Path) -> None:
     assert "pw@db" in (cfg / "database.json").read_text(encoding="utf-8")
 
 
-def test_symlink_inside_root_cannot_alias_sensitive(tmp_path: Path) -> None:
+def _snapshot(root: Path) -> dict[str, bytes | str]:
+    out: dict[str, bytes | str] = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        for name in (*dirnames, *filenames):
+            path = Path(dirpath) / name
+            rel = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                out[rel] = f"-> {os.readlink(path)}"
+            elif path.is_file():
+                out[rel] = path.read_bytes()
+            else:
+                out[rel] = "<dir>"
+    return out
+
+
+def test_symlinks_refused_before_resolve_for_every_operation(tmp_path: Path) -> None:
     fm.clear_size_cache()
     ctx = _ctx(tmp_path)
     cfg = _site_config(ctx)
-    (cfg / "email.json").unlink()
     mdb_data = ctx.data_root / "mariadb" / "data"
     mdb_data.mkdir(parents=True)
     (mdb_data / "ibdata1").write_bytes(b"x" * 8)
+    backups = ctx.data_root / "backups"
+    backups.mkdir()
+    backup = backups / "zhange-20261010-010101.tar.gz"
+    backup.write_bytes(b"\x1f\x8bbackup")
+    docs = ctx.install_dir / "docs"
+    docs.mkdir()
+    (docs / "readme.md").write_text("plain\n", encoding="utf-8")
+    (ctx.data_dir / "note.txt").write_text("n\n", encoding="utf-8")
+    dir_links = {
+        "data/dblink": (mdb_data, "ibdata1"),
+        "cfglink": (cfg, "app.json"),
+        "docslink": (docs, "readme.md"),
+    }
+    file_links = {
+        "data/latest.tar.gz": backup,
+        "dbjson": cfg / "database.json",
+        "data/runtime/dangling": ctx.data_root / "nowhere",
+    }
     try:
-        (ctx.install_dir / "cfglink").symlink_to(cfg, target_is_directory=True)
-        (ctx.data_root / "dblink").symlink_to(mdb_data, target_is_directory=True)
-        (ctx.install_dir / "dbjson").symlink_to(cfg / "database.json")
+        for rel, (target, _) in dir_links.items():
+            (ctx.install_dir / rel).symlink_to(target, target_is_directory=True)
+        for rel, target in file_links.items():
+            (ctx.install_dir / rel).symlink_to(target)
     except (OSError, NotImplementedError):
         pytest.skip("symlinks unavailable")
+    before = _snapshot(ctx.install_dir)
 
-    listing = fm.list_directory("install", "cfglink", ctx=ctx)
-    names = {row.name: row for row in listing.entries}
-    assert names["database.json"].sensitive is True
-    assert names["database.json"].downloadable is False
-    assert names["app.json"].downloadable is True
-    for action in (
-        lambda: fm.resolve_download("install", "cfglink/database.json", ctx=ctx),
-        lambda: fm.resolve_download("install", "dbjson", ctx=ctx),
-        lambda: fm.write_text("install", "cfglink/integrations.json", "{}", ctx=ctx),
-        lambda: fm.upload_file("install", "cfglink", "database.json", b"{}", ctx=ctx),
-        lambda: fm.create_file("install", "cfglink", "email.json", "{}", ctx=ctx),
-        lambda: fm.delete_entries("install", "cfglink", ["database.json"], ctx=ctx),
-        lambda: fm.rename_entry("install", "cfglink", "database.json", "db.json", ctx=ctx),
-        lambda: fm.list_directory("install", "data/dblink", ctx=ctx),
-        lambda: fm.resolve_download("install", "data/dblink/ibdata1", ctx=ctx),
-    ):
-        with pytest.raises(fm.FileManagerError) as blocked:
-            action()
-        assert blocked.value.status_code == 403
-    for link in ("cfglink", "dbjson"):
-        with pytest.raises(fm.FileManagerError) as link_delete:
-            fm.delete_entries("install", "", [link], ctx=ctx)
-        assert link_delete.value.status_code == 400
-    with pytest.raises(fm.FileManagerError):
-        fm.delete_entries("install", "data", ["dblink"], ctx=ctx)
-    assert (cfg / "database.json").is_file()
-    assert (cfg / "integrations.json").read_text(encoding="utf-8") == '{"steam_api_key": "k"}\n'
-    assert not (cfg / "email.json").exists()
-    assert (mdb_data / "ibdata1").is_file()
+    root_names = {row.name for row in fm.list_directory("install", "", ctx=ctx).entries}
+    data_names = {row.name for row in fm.list_directory("install", "data", ctx=ctx).entries}
+    assert {"docs", "config"} <= root_names
+    assert root_names.isdisjoint({"cfglink", "dbjson", "docslink"})
+    assert {"backups", "mariadb"} <= data_names
+    assert data_names.isdisjoint({"dblink", "latest.tar.gz"})
+
+    traversals: list[tuple[object, tuple[object, ...]]] = []
+    for link, (_, inner) in dir_links.items():
+        traversals += [
+            (fm.list_directory, ("install", link)),
+            (fm.resolve_download, ("install", f"{link}/{inner}")),
+            (fm.read_text, ("install", f"{link}/{inner}")),
+            (fm.write_text, ("install", f"{link}/{inner}", "{}")),
+            (fm.upload_file, ("install", link, "new.bin", b"x")),
+            (fm.create_folder, ("install", link, "sub")),
+            (fm.create_file, ("install", link, "new.txt", "x")),
+            (fm.rename_entry, ("install", link, inner, "renamed")),
+            (fm.delete_entries, ("install", link, [inner])),
+        ]
+    for link in file_links:
+        traversals += [
+            (fm.resolve_download, ("install", link)),
+            (fm.read_text, ("install", link)),
+            (fm.write_text, ("install", link, "{}")),
+        ]
+    for link in (*dir_links, *file_links):
+        parent, _, name = link.rpartition("/")
+        traversals += [
+            (fm.delete_entries, ("install", parent, [name])),
+            (fm.rename_entry, ("install", parent, name, "renamed")),
+        ]
+    for func, args in traversals:
+        with pytest.raises(fm.FileManagerError) as refused:
+            func(*args, ctx=ctx)  # type: ignore[operator]
+        assert refused.value.status_code == 400, (func, args)
+        assert "符号链接" in refused.value.message, (func, args)
+
+    for link in (*dir_links, *file_links):
+        parent, _, name = link.rpartition("/")
+        source = "note.txt" if parent == "data/runtime" else ("docs" if not parent else "mariadb")
+        for func, args in (
+            (fm.upload_file, ("install", parent, name, b"x")),
+            (fm.create_folder, ("install", parent, name)),
+            (fm.create_file, ("install", parent, name, "x")),
+            (fm.rename_entry, ("install", parent, source, name)),
+        ):
+            with pytest.raises(fm.FileManagerError) as taken:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert taken.value.status_code == 409, (func, args)
+
+    assert _snapshot(ctx.install_dir) == before
+
+
+def test_walk_size_never_counts_links_below_the_bucket(tmp_path: Path) -> None:
+    real = tmp_path / "real"
+    (real / "sub").mkdir(parents=True)
+    (real / "a.bin").write_bytes(b"x" * 3)
+    (real / "sub" / "b.bin").write_bytes(b"y" * 4)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "big.bin").write_bytes(b"z" * 100)
+    try:
+        (real / "dirlink").symlink_to(outside, target_is_directory=True)
+        (real / "sub" / "filelink").symlink_to(outside / "big.bin")
+        (tmp_path / "bucketlink").symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+    assert fm.walk_size(real) == (7, 2)
+    assert fm.walk_size(tmp_path / "bucketlink") == (7, 2)
+
+
+def test_junction_reparse_tag_counts_as_link() -> None:
+    directory = stat.S_IFDIR | 0o755
+    assert fm._lstat_is_link(SimpleNamespace(st_mode=directory, st_reparse_tag=0xA0000003))  # type: ignore[arg-type]
+    assert fm._lstat_is_link(SimpleNamespace(st_mode=stat.S_IFLNK | 0o777))  # type: ignore[arg-type]
+    assert not fm._lstat_is_link(SimpleNamespace(st_mode=directory, st_reparse_tag=0))  # type: ignore[arg-type]
+    assert not fm._lstat_is_link(SimpleNamespace(st_mode=directory))  # type: ignore[arg-type]
 
 
 def _leftovers(path: Path) -> list[str]:
