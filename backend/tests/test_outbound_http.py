@@ -93,12 +93,21 @@ def test_openid_falls_back_to_get_on_403(monkeypatch) -> None:
         return _Resp(status_code=200, text="ns:http://specs.openid.net/auth/2.0\nis_valid:true\n")
 
     monkeypatch.setattr(steam_openid, "http_request", fake)
+    claimed = "https://steamcommunity.com/openid/id/76561198000000000"
+    return_to = "https://site.example/api/profile/steam/openid/callback?state=s"
     sid = steam_openid.verify_steam_openid_assertion(
         {
+            "openid.ns": steam_openid.OPENID_NS,
             "openid.mode": "id_res",
-            "openid.claimed_id": "https://steamcommunity.com/openid/id/76561198000000000",
+            "openid.claimed_id": claimed,
+            "openid.identity": claimed,
             "openid.op_endpoint": steam_openid.STEAM_OPENID_ENDPOINT,
-        }
+            "openid.return_to": return_to,
+            "openid.response_nonce": steam_openid.utc_now().strftime("%Y-%m-%dT%H:%M:%SZ") + "a1",
+            "openid.assoc_handle": "1",
+            "openid.signed": "op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
+        },
+        return_to=return_to,
     )
     assert sid == "76561198000000000"
     assert calls == ["POST", "GET"]

@@ -20,6 +20,9 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 # 只随 QQ 回调（/api/auth/qq/callback）发送；Lax 下从 graph.qq.com 顶层跳回时仍会带上
 QQ_OAUTH_NONCE_COOKIE = "zhange_qq_nonce"
 QQ_OAUTH_NONCE_PATH = "/api/auth/qq"
+# 同理只随 Steam 回调（/api/profile/steam/openid/callback）发送
+STEAM_OPENID_NONCE_COOKIE = "zhange_steam_nonce"
+STEAM_OPENID_NONCE_PATH = "/api/profile/steam/openid"
 
 
 def csrf_tokens_match(cookie: str | None, header: str | None) -> bool:
@@ -90,13 +93,13 @@ def clear_session_cookies(response: Response, request: Request) -> None:
     )
 
 
-def set_qq_oauth_nonce_cookie(
-    response: Response, request: Request, nonce: str, *, max_age: int
+def _set_nonce_cookie(
+    response: Response, request: Request, name: str, path: str, nonce: str, max_age: int
 ) -> None:
     response.set_cookie(
-        QQ_OAUTH_NONCE_COOKIE,
+        name,
         nonce,
-        path=QQ_OAUTH_NONCE_PATH,
+        path=path,
         max_age=max_age,
         httponly=True,
         samesite="lax",
@@ -104,14 +107,38 @@ def set_qq_oauth_nonce_cookie(
     )
 
 
-def clear_qq_oauth_nonce_cookie(response: Response, request: Request) -> None:
+def _clear_nonce_cookie(response: Response, request: Request, name: str, path: str) -> None:
     response.delete_cookie(
-        QQ_OAUTH_NONCE_COOKIE,
-        path=QQ_OAUTH_NONCE_PATH,
+        name,
+        path=path,
         httponly=True,
         samesite="lax",
         secure=cookie_secure(request),
     )
+
+
+def set_qq_oauth_nonce_cookie(
+    response: Response, request: Request, nonce: str, *, max_age: int
+) -> None:
+    _set_nonce_cookie(
+        response, request, QQ_OAUTH_NONCE_COOKIE, QQ_OAUTH_NONCE_PATH, nonce, max_age
+    )
+
+
+def clear_qq_oauth_nonce_cookie(response: Response, request: Request) -> None:
+    _clear_nonce_cookie(response, request, QQ_OAUTH_NONCE_COOKIE, QQ_OAUTH_NONCE_PATH)
+
+
+def set_steam_openid_nonce_cookie(
+    response: Response, request: Request, nonce: str, *, max_age: int
+) -> None:
+    _set_nonce_cookie(
+        response, request, STEAM_OPENID_NONCE_COOKIE, STEAM_OPENID_NONCE_PATH, nonce, max_age
+    )
+
+
+def clear_steam_openid_nonce_cookie(response: Response, request: Request) -> None:
+    _clear_nonce_cookie(response, request, STEAM_OPENID_NONCE_COOKIE, STEAM_OPENID_NONCE_PATH)
 
 
 def issue_session(response: Response, request: Request, user: User) -> str:

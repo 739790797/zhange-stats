@@ -1,10 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+import logging
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 import urllib.parse
 
+from app.core.biz_logging import log_until_change
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -34,6 +47,7 @@ from app.services.avatar_store import (
     is_custom_avatar_url,
     save_avatar_upload,
 )
+from app.services.email import NOTICE_QQ_LINKED, notify_account_event
 from app.services.member_sync import delete_user_with_member, ensure_user_member
 from app.services.steam.bind import (
     PRIVACY_HINT,
@@ -69,6 +83,8 @@ from app.api.profile.helpers import (
     _set_steam_id,
     _user_brief,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["profile"])
 
@@ -138,13 +154,17 @@ def qq_oauth_start(
 @router.get("/auth/qq/callback")
 def qq_oauth_callback(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    code: str | None = Query(default=None),
-    state: str | None = Query(default=None),
-    error: str | None = Query(default=None),
-    error_description: str | None = Query(default=None),
+    code: str | None = Query(default=None, max_length=512),
+    state: str | None = Query(default=None, max_length=4096),
+    error: str | None = Query(default=None, max_length=128),
 ) -> RedirectResponse:
-    """QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。"""
+    """QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。
+
+    回跳只带 qq_login|qq_bind=ok|error、固定 reason 码（码表见 docs/security.md）、
+    一次性 ticket 与 need_complete，不带 QQ 返回或异常里的任何文案。
+    """
     import secrets
     import string
 
@@ -167,26 +187,35 @@ def qq_oauth_callback(
     err_path = "/login" if purpose == PURPOSE_LOGIN else "/profile"
     err_key = "qq_login" if purpose == PURPOSE_LOGIN else "qq_bind"
 
+    def _fail(path: str, reason: str, detail: str = "") -> RedirectResponse:
+        if detail:
+            log_until_change(
+                logger,
+                "qq_oauth.rejected",
+                "QQ 回调失败 purpose=%s reason=%s detail=%s",
+                purpose,
+                reason,
+                detail,
+            )
+        return _redirect(frontend, path, **{err_key: "error", "reason": reason})
+
     if error:
-        detail = error_description or error or "用户取消授权"
-        return _redirect(frontend, err_path, **{err_key: "error", "detail": detail})
+        if error == "access_denied":
+            return _fail(err_path, "cancelled")
+        # error 是回跳 URL 里任何人都能改的值：repr 转义换行，免得伪造日志行
+        return _fail(err_path, "upstream_error", f"error={error!r}")
 
     if not state or not state_data:
-        detail = "缺少 state" if not state else "QQ 登录状态已过期，请重试"
-        return _redirect(frontend, err_path, **{err_key: "error", "detail": detail})
+        return _fail(err_path, "state_invalid", "缺少 state" if not state else "state 无效或已过期")
 
     if not oauth_nonce_matches(state_data, request.cookies.get(QQ_OAUTH_NONCE_COOKIE)):
-        return _redirect(
-            frontend,
-            err_path,
-            **{err_key: "error", "detail": "QQ 授权校验失败，请在本浏览器重新发起"},
-        )
+        return _fail(err_path, "browser_mismatch", "nonce Cookie 与 state 不符")
 
     backend = str(state_data.get("backend") or "").rstrip("/") or None
 
     if purpose == PURPOSE_LOGIN:
         if not code:
-            return _redirect(frontend, "/login", qq_login="error", detail="缺少授权 code")
+            return _fail("/login", "missing_code", "缺少 code")
         try:
             profile = exchange_code_for_profile(code, backend=backend)
             member = (
@@ -214,9 +243,7 @@ def qq_oauth_callback(
                         username = candidate
                         break
                 if not username:
-                    return _redirect(
-                        frontend, "/login", qq_login="error", detail="无法创建账号，请重试"
-                    )
+                    return _fail("/login", "account_create_failed", "无法生成唯一用户名")
                 nick = strip_markup_chars(profile.nickname).strip()[:64] or username
                 user = User(
                     username=username,
@@ -247,16 +274,19 @@ def qq_oauth_callback(
             ticket = issue_oauth_ticket(db, token)
             db.commit()
             params = {"qq_login": "ok", "ticket": ticket}
-            if member.qq_nickname:
-                params["name"] = member.qq_nickname
             if not user.email:
                 params["need_complete"] = "1"
             return _redirect(frontend, "/login", **params)
         except QqOAuthError as exc:
-            return _redirect(frontend, "/login", qq_login="error", detail=exc.message)
+            db.rollback()
+            return _fail("/login", "upstream_error", exc.message)
         except HTTPException as exc:
-            detail = str(exc.detail) if exc.detail else "登录失败"
-            return _redirect(frontend, "/login", qq_login="error", detail=detail)
+            db.rollback()
+            return _fail("/login", getattr(exc, "reason", None) or "server_error", str(exc.detail))
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("QQ 登录回调异常")
+            return _fail("/login", "server_error")
 
     # 绑定流程
     actor_id = int(state_data["uid"])
@@ -264,7 +294,7 @@ def qq_oauth_callback(
 
     actor = db.query(User).filter(User.id == actor_id).first()
     if not actor:
-        return _redirect(frontend, "/profile", qq_bind="error", detail="登录用户不存在")
+        return _fail("/profile", "user_not_found", f"uid={actor_id}")
 
     member = (
         db.query(Member)
@@ -273,9 +303,9 @@ def qq_oauth_callback(
         .first()
     )
     if not member:
-        return _redirect(frontend, "/profile", qq_bind="error", detail="成员不存在")
+        return _fail("/profile", "member_not_found", f"mid={target_member_id}")
     if member.user_id != actor.id and not _is_admin_user(actor):
-        return _redirect(frontend, "/profile", qq_bind="error", detail="无权绑定该成员")
+        return _fail("/profile", "forbidden", f"uid={actor_id} mid={member.id}")
 
     path = (
         "/profile"
@@ -284,11 +314,11 @@ def qq_oauth_callback(
     )
 
     if not code:
-        return _redirect(frontend, path, qq_bind="error", detail="缺少授权 code")
+        return _fail(path, "missing_code", "缺少 code")
 
     try:
         profile = exchange_code_for_profile(code, backend=backend)
-        nickname = _set_qq_profile(
+        _set_qq_profile(
             db,
             member,
             openid=profile.openid,
@@ -298,15 +328,20 @@ def qq_oauth_callback(
         )
         db.commit()
     except QqOAuthError as exc:
-        return _redirect(frontend, path, qq_bind="error", detail=exc.message)
+        db.rollback()
+        return _fail(path, "upstream_error", exc.message)
     except HTTPException as exc:
-        detail = str(exc.detail) if exc.detail else "绑定失败"
-        return _redirect(frontend, path, qq_bind="error", detail=detail)
+        db.rollback()
+        return _fail(path, getattr(exc, "reason", None) or "bind_failed", str(exc.detail))
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("QQ 绑定回调异常 member_id=%s", member.id)
+        return _fail(path, "server_error")
 
-    params = {"qq_bind": "ok"}
-    if nickname:
-        params["name"] = nickname
-    return _redirect(frontend, path, **params)
+    owner = member.user
+    if owner is not None and owner.email and owner.email_verified:
+        background_tasks.add_task(notify_account_event, owner.email, NOTICE_QQ_LINKED)
+    return _redirect(frontend, path, qq_bind="ok")
 
 
 @router.delete("/profile/qq", response_model=MemberProfileOut)
