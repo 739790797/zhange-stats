@@ -38,7 +38,7 @@ articles ── * article_versions
 
 | 表 | 用途 |
 |---|---|
-| `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin`。注销为 **anonymize**：保留 `id`，`anonymized_at` 非空，邮箱清空、用户名改为 `deleted_{id}`、显示名「已注销用户」、口令改为不可用哈希、`role` 降为 user；成员行与平台 bind CASCADE 删除。已发布酒馆文保留 `author_user_id`，草稿物理删 |
+| `users` | 账号、`role`（权限唯一来源）、邮箱验证；API 仍返回派生字段 `is_admin`。注销为 **anonymize**：保留 `id`，`anonymized_at` 非空，邮箱清空、用户名改为 `deleted_{id}`、显示名「已注销用户」、口令改为不可用哈希、`role` 降为 user；成员行与平台 bind CASCADE 删除。已发布酒馆文保留 `author_user_id`，草稿物理删。`token_version`（int，默认 0）写进 JWT 的 `ver`：改密 / 重置密码 / 降级 / 注销 / 退出所有设备时 +1，旧令牌随即失效 |
 | `article_categories` | 战鸽酒馆文章分类；`slug` 唯一；`admin_only` 仅管理员能把文章标到该分类；`chip_color` 为文章卡片芯片色（`#RGB` / `#RRGGBB`，空则前端用默认蓝） |
 | `article_tags` | 战鸽酒馆文章标签；`slug` 唯一 |
 | `articles` | 酒馆文稿：`slug` 唯一、`body` / `body_format`（`markdown` / `html`）、`status`（`published` / `draft`）、`author_user_id` ON DELETE SET NULL。删除为物理删除（评论 / 版本 / 分类标签关联 CASCADE） |
@@ -112,11 +112,25 @@ articles ── * article_versions
 | `kujiequ_ww_box_raws` | 鸣潮 roleBox（baseData + calabashData）组合原始 JSON（按 member+role 最新一份；force / 首次回源） |
 | `job_runs` | 轮询 / 签到等任务执行日志；与 `*_checkin_logs` 默认保留 90 天，由定时任务 `job_runs_prune` 清理。该任务同时上卷 Minecraft 性能档、删除超过 14 天的 `rum_samples`。索引含 `(job_key, started_at)` |
 | `rum_samples` | 浏览器 RUM 原始样本：`kind`=`api`（接口转圈）/`img`（第三方图），`url_key` 已归并 id/瓦片，`duration_ms` 为用户侧等待。另存 `host`、`page_path`、`status_code`、`transfer_size`、`method`；不记用户 id。公开 `POST /api/client-rum` 写入；管理端「用户等待」按侧栏业务分类后聚合 p50/p95。保留约 14 天。索引 `(recorded_at)` / `(kind, recorded_at)` |
-| `system_configs` | 非界面 KV（如北京时间迁移标记）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
-| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引 |
+| `system_configs` | 非界面 KV（如北京时间口径标记 `time_storage`，见下文「时间与默认值」）。SMTP / 集成密钥 / 调度 / 备案号 / OCR 已迁到安装根 `config/*.json` |
+| `register_challenges` | 邮箱验证码挑战；复合主键 `(email, purpose)`，`purpose`=`register` / `bind` / `reset` / `delete`（历史 `admin_stepup` 行可忽略）；`expires_at` 有索引；`attempts`（int，默认 0）为校验失败次数，到上限即删行，须重新发码 |
 | `oauth_exchange_tickets` | QQ 登录一次性换票码（短 TTL；`access_token` Fernet 加密落库，避免 JWT 进回调 URL）；`expires_at` 有索引 |
 | `steam_apps` | Steam AppID → 显示名 / 库封面图标 / 头图 / 国区价格缓存 |
 
 迁移 `20260806_0026` 会一次性清空四平台 `*_checkin_logs` 并曾重置各 bind 的 `last_checkin_*`。`20260826_0066` 已删除 bind 上的 `last_checkin_*` 列（上次执行只信 `*_checkin_logs`）；`checkin_hour` / `checkin_minute` 仍作 prefs 种子保留。不可 `downgrade` 恢复 0026 清掉的数据。
 
-启动时会 DROP 已废弃表：`games` / `match_records` / `cs2_*`。
+已废弃表 `games` / `match_records` / `cs2_*` 由基线迁移 `20260731_0001` 与旧库对齐路径（`schema_ensure`）删除，启动不再 DROP。旧版每次 MySQL 启动都跑的两项修补已搬进迁移 `20261010_0119`：`register_challenges` 改成 `(email, purpose)` 主键时复制行、不删表；`minecraft_server_profiles.public_*` 先写进 `system_configs` 的 `integrations` 再删列。该迁移还给 `create_all` 时代的 SQLite 库补 `arknights_operators` 的 `profession` / `rarity` 索引，并在 SQLite 上按各外键的 ON DELETE 清掉孤儿行（CASCADE 删行、SET NULL 置空）。每步先看现状再动，可重跑；`downgrade` 为空操作。
+
+## SQLite 连接
+
+应用引擎的每条连接都设 `foreign_keys=ON`（上表各外键的 ON DELETE CASCADE / SET NULL 在 SQLite 上同样生效）和 `busy_timeout=10000`；文件库另设 `journal_mode=WAL` 与 `synchronous=NORMAL`。文件系统不支持 WAL 时保持回滚日志与 `synchronous=FULL`，只打一条 WARNING。WAL 会在库旁生成 `zhange.sqlite-wal` / `zhange.sqlite-shm`，最近的提交可能只在 `-wal` 里：运行中不要单独拷贝、删除或替换这几个文件，备份走 `backup` 脚本（SQLite 在线备份 API）。Alembic 的迁移连接保持 `foreign_keys=OFF`：batch 模式重建表要 `DROP TABLE`，开着外键会把子表级联删掉。
+
+## 时间与默认值
+
+业务时间一律存北京墙钟（naive `DATETIME`，见 `app.core.timeutil`）。时间列默认值由 Python 写入：`default=now_naive`，更新时间另有 `onupdate=now_naive`。SQLite 的 `CURRENT_TIMESTAMP` 是 UTC，不能依赖库端默认；库端 `CURRENT_TIMESTAMP` 默认只保留在迁移里本来就有的列上（MySQL 会话时区固定 `+08:00`）。手写 SQL 插入须自己给时间。SQLite 旧库在此之前靠库端默认写入的 `created_at` / `joined_at` / `synced_at` 等是 UTC，未回填。迁移给 NOT NULL 列加的常量默认（`'0'`、`''` 等）只为回填旧行；模型已有 Python 默认时，`alembic check` 不把这类库端默认算作漂移（`app.core.migrate.compare_server_default`）。
+
+`system_configs` 的 `time_storage` 记本库时间口径：`beijing_v1` 为北京墙钟；`utc_pending` 为 UTC 时代的旧数据，等下次启动平移。`run_migrations` 写入，已有值不动：空库建出来的写 `beijing_v1`；没有 `alembic_version` 的旧库，或修订停在 `20260801_0006` 及以前（北京墙钟改造前）的库写 `utc_pending`。启动时（仅 MySQL/MariaDB）遇到 `utc_pending`，或没有标记且修订仍在上述范围，把 `presence_segments` / `play_sessions` / `job_runs` / `steam_apps` / `register_challenges` 的时间列 +8 小时，并在同一事务里改成 `beijing_v1`。SQLite 支持晚于这次改造，从不平移。
+
+## 连接池
+
+MySQL/MariaDB 每个进程一个连接池：`DB_POOL_SIZE`（默认 15）+ `DB_MAX_OVERFLOW`（默认 10），借不到连接时等 `DB_POOL_TIMEOUT`（默认 10 秒）后报错。三者只读环境变量，不在 `config/*.json` 里。`pool_recycle=3600` 短于 MariaDB 默认 `wait_timeout`（28800 秒），并开 `pool_pre_ping`。会同时借连接的线程：同步路由与依赖跑在 AnyIO 线程池（默认 40），APScheduler 线程池 10，WebSocket 经 `asyncio.to_thread` 走默认执行器（`min(32, CPU 数 + 4)`）。会话都是短借短还，平时 25 条够用；日志出现 `QueuePool limit ... reached` 时再加大 `DB_MAX_OVERFLOW`，并保证「进程数 ×（`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`）」低于库的 `max_connections`（MariaDB 默认 151）。SQLite 用 SQLAlchemy 默认池；写入串行，等锁最多 `busy_timeout` 10 秒。
