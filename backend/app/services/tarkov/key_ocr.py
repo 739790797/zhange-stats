@@ -9,7 +9,6 @@ i/l 等易混字做映射。引擎由系统配置「文字识别」按场景「�
 
 from __future__ import annotations
 
-import io
 import re
 import threading
 import unicodedata
@@ -17,13 +16,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 from app.services.ocr.boxes import box_to_xywh  # noqa: F401
+from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.ocr.types import NamedEngine, OcrEngine, OcrError, OcrLine
 from app.services.tarkov.search import compact_text, hit_rank
-
-Image.MAX_IMAGE_PIXELS = 20_000_000
 
 TILE_BEST = 540
 TILE_ALT = 520
@@ -607,11 +605,10 @@ def load_image(raw: bytes) -> Image.Image:
     if len(raw) > MAX_RECOGNIZE_BYTES:
         raise TarkovKeyOcrError("图片过大，请裁切钥匙箱后再试")
     try:
-        image = Image.open(io.BytesIO(raw))
-        image.load()
-    except UnidentifiedImageError as exc:
-        raise TarkovKeyOcrError("无法读取截图") from exc
-    except OSError as exc:
+        image = open_bounded_image(raw)
+    except ImageTooLarge as exc:
+        raise TarkovKeyOcrError("图片尺寸过大，请裁切钥匙箱后再试") from exc
+    except ImageDecodeError as exc:
         raise TarkovKeyOcrError("无法读取截图") from exc
     image = image.convert("RGB")
     width, height = image.size
