@@ -7,6 +7,11 @@ export ZHANGE_LOG_TAG="${ZHANGE_LOG_TAG:-restart}"
 # shellcheck source=./_lib.sh
 source "${SCRIPT_DIR}/_lib.sh"
 
+trap fix_tree_owner EXIT
 ensure_deps
+if has_systemd_unit; then
+  ensure_static_assets
+fi
 restart_app
 log "已重启。"
+show_setup_token

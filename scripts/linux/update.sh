@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# 从 GitHub Release 更新：白名单增删改、frontend 同步、static、pip、迁移，再重启。
+# 从 GitHub Release 更新：校验 sha256 → 暂存 → pip → 白名单增删改、frontend 同步 → 迁移 → 切换 static，再重启。
 # 不区分生产/开发。管理端无法更新时用本脚本；日常生产仍可用管理端一键更新。
+# --static-only：只补当前 VERSION 的预构建前端（全新安装用；不改代码、不重启）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,6 +9,7 @@ export ZHANGE_LOG_TAG="${ZHANGE_LOG_TAG:-update}"
 # shellcheck source=./_lib.sh
 source "${SCRIPT_DIR}/_lib.sh"
 
+trap fix_tree_owner EXIT
 ensure_deps
 
 CHECK=0
@@ -15,12 +17,12 @@ NO_RESTART=0
 for arg in "$@"; do
   case "${arg}" in
     --check|-h|--help) CHECK=1 ;;
-    --no-restart) NO_RESTART=1 ;;
+    --no-restart|--static-only) NO_RESTART=1 ;;
   esac
 done
 
 set +e
-"${VENV_PY}" "${REPO_ROOT}/scripts/common/update.py" "$@"
+as_service_user "${VENV_PY}" "${REPO_ROOT}/scripts/common/update.py" "$@"
 rc=$?
 set -e
 
@@ -37,11 +39,9 @@ fi
 
 if [[ "${EUID}" -eq 0 ]]; then
   write_systemd_unit
-  if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
-    chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
-    chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}" 2>/dev/null || true
-  fi
+  fix_tree_owner
+  chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
+  chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}" 2>/dev/null || true
 else
   log "WARN: 非 root，未刷新 systemd 单元；请 sudo bash scripts/linux/install.sh 后 restart"
 fi
