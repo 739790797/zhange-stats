@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import shutil
 import socket
 import tempfile
 
@@ -13,6 +14,15 @@ import pytest
 _SESSION_DATA_ROOT = tempfile.mkdtemp(prefix="zhange-test-data-")
 os.environ.setdefault("DATA_DIR", os.path.join(_SESSION_DATA_ROOT, "runtime"))
 os.environ.setdefault("UPLOAD_DIR", os.path.join(_SESSION_DATA_ROOT, "uploads"))
+# lifespan 会对安装根跑布局迁移与遗留清理：指向临时安装根，别动真实 checkout（带上配置模板）
+_SESSION_INSTALL_ROOT = os.path.join(_SESSION_DATA_ROOT, "install")
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+shutil.copytree(
+    os.path.join(_REPO_ROOT, "scripts", "config.example"),
+    os.path.join(_SESSION_INSTALL_ROOT, "scripts", "config.example"),
+    dirs_exist_ok=True,
+)
+os.environ.setdefault("APP_INSTALL_DIR", _SESSION_INSTALL_ROOT)
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.ephemeral_kv import reset_ephemeral_kv_for_tests  # noqa: E402
