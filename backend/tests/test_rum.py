@@ -184,10 +184,46 @@ def test_ingest_drops_bad_events() -> None:
             RumEventIn(kind="other", url="/api/x", duration_ms=10),
             RumEventIn(kind="api", url="/api/x", duration_ms=-1),
             RumEventIn(kind="api", url="/api/x", duration_ms=999999),
+            RumEventIn(kind="api", url="/api/x", duration_ms=float("inf")),
+            RumEventIn(kind="api", url="/api/x", duration_ms=float("nan")),
             RumEventIn(kind="img", url="", duration_ms=10),
         ],
     )
     assert n == 0
+
+
+def test_ingest_is_one_bulk_insert_and_clips_fields() -> None:
+    from sqlalchemy import event
+
+    db = _session()
+    statements: list[tuple[str, bool]] = []
+
+    @event.listens_for(db.get_bind(), "before_cursor_execute")
+    def _capture(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+        if statement.lstrip().upper().startswith("INSERT"):
+            statements.append((statement, executemany))
+
+    long_page = "/p" + "x" * 1000
+    events = [
+        RumEventIn(
+            kind="img", url="https://cdn.example/" + "y" * 600, duration_ms=5, transfer_size=10**12
+        )
+    ] + [
+        RumEventIn(kind="api", url=f"/api/a/{i}?token=secret", duration_ms=10 + i, method="get")
+        for i in range(120)
+    ]
+    n = ingest_rum_events(db, page=long_page, events=events)
+    db.commit()
+    assert n == 80
+    assert len(statements) == 1
+    rows = db.query(RumSample).all()
+    assert len(rows) == 80
+    assert all(len(r.page_path) == 256 for r in rows)
+    assert all(len(r.url_key) <= 256 for r in rows)
+    assert all("secret" not in r.url_key for r in rows)
+    assert {r.url_key for r in rows if r.kind == "api"} == {"GET /api/a/{id}"}
+    img = next(r for r in rows if r.kind == "img")
+    assert img.transfer_size is None
 
 
 def test_classify_rum_biz_matches_sidebar() -> None:
