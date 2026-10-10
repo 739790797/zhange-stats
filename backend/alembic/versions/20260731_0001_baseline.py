@@ -8,6 +8,7 @@ Create Date: 2026-07-31
 
 from __future__ import annotations
 
+import logging
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -19,17 +20,91 @@ down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-_OBSOLETE_TABLES = (
-    "cs2_match_players",
-    "cs2_matches",
-    "match_records",
-    "games",
-)
+logger = logging.getLogger("zhange.migrate")
+
+# CircleStats demo and v0.1.0 CS2 tables, children first. The schema may be shared with another
+# app, so a same-named table is only ours when it has exactly these columns.
+_OBSOLETE_TABLES: dict[str, frozenset[str]] = {
+    "cs2_match_players": frozenset(
+        {
+            "id",
+            "match_id",
+            "steam_id",
+            "member_id",
+            "team",
+            "kills",
+            "deaths",
+            "assists",
+            "mvps",
+            "score",
+            "damage",
+            "won",
+            "persona_name",
+        }
+    ),
+    "cs2_matches": frozenset(
+        {
+            "id",
+            "match_id",
+            "outcome_id",
+            "token",
+            "share_code",
+            "map_name",
+            "played_at",
+            "score_team0",
+            "score_team1",
+            "demo_url",
+            "enriched",
+            "raw_json",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "match_records": frozenset(
+        {
+            "id",
+            "member_id",
+            "game_id",
+            "played_at",
+            "result",
+            "mode",
+            "stats",
+            "raw_text",
+            "source",
+            "created_at",
+        }
+    ),
+    "games": frozenset({"id", "name", "platform", "icon_url", "created_at"}),
+}
+
+
+def _drop_obsolete_tables() -> None:
+    insp = sa.inspect(op.get_bind())
+    existing = set(insp.get_table_names())
+    present = [name for name in _OBSOLETE_TABLES if name in existing]
+    if not present:
+        return
+    obsolete = {
+        name
+        for name in present
+        if {c["name"] for c in insp.get_columns(name)} == _OBSOLETE_TABLES[name]
+    }
+    referenced = {
+        fk["referred_table"] for name in existing - obsolete for fk in insp.get_foreign_keys(name)
+    }
+    for name in present:
+        if name in obsolete and name not in referenced:
+            op.drop_table(name)
+        else:
+            logger.warning(
+                "baseline: leaving table %s alone (not the obsolete CircleStats table, "
+                "or another table references it)",
+                name,
+            )
 
 
 def upgrade() -> None:
-    for name in _OBSOLETE_TABLES:
-        op.execute(sa.text(f"DROP TABLE IF EXISTS `{name}`"))
+    _drop_obsolete_tables()
 
     op.create_table(
         "users",
