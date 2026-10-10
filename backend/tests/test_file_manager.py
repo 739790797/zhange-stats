@@ -570,6 +570,107 @@ def test_secret_config_files_locked(tmp_path: Path) -> None:
     assert "pw@db" in (cfg / "database.json").read_text(encoding="utf-8")
 
 
+def _sqlite_url(path: Path) -> str:
+    return "sqlite:///" + path.resolve().as_posix()
+
+
+def test_live_sqlite_rels_cover_database_and_sidecars(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    (install / "data" / "runtime").mkdir(parents=True)
+    db = install / "data" / "runtime" / "Zhange.sqlite"
+    assert fm.live_sqlite_rels(install, _sqlite_url(db)) == {
+        "data/runtime/zhange.sqlite",
+        "data/runtime/zhange.sqlite-wal",
+        "data/runtime/zhange.sqlite-shm",
+        "data/runtime/zhange.sqlite-journal",
+    }
+    assert fm.live_sqlite_rels(install, _sqlite_url(tmp_path / "elsewhere.sqlite")) == frozenset()
+    assert fm.live_sqlite_rels(install, "sqlite:///:memory:") == frozenset()
+    assert fm.live_sqlite_rels(install, "mysql+pymysql://u:p@127.0.0.1/zhange") == frozenset()
+    assert fm.live_sqlite_rels(install, "") == frozenset()
+
+
+def test_context_locks_the_configured_sqlite_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import get_settings
+    from app.core.file_config import write_json
+
+    install = tmp_path / "zhange-stats"
+    install.mkdir()
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    write_json("database", {"engine": "sqlite", "path": "data/runtime/site.sqlite"})
+    get_settings.cache_clear()
+    assert "data/runtime/site.sqlite-wal" in fm.context_from_settings().locked_rels
+
+    write_json("database", {"engine": "mysql", "url": "mysql+pymysql://u:p@127.0.0.1/zhange"})
+    get_settings.cache_clear()
+    assert fm.context_from_settings().locked_rels == frozenset()
+
+
+def test_live_sqlite_database_files_locked(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    base = _ctx(tmp_path)
+    runtime = base.data_dir
+    db = runtime / "zhange.sqlite"
+    ctx = fm.FileManagerContext(
+        **{**base.__dict__, "locked_rels": fm.live_sqlite_rels(base.install_dir, _sqlite_url(db))}
+    )
+    content = {
+        "zhange.sqlite": b"SQLite format 3\x00main",
+        "zhange.sqlite-wal": b"recent commits",
+        "zhange.sqlite-shm": b"\x00" * 16,
+    }
+    for name, data in content.items():
+        (runtime / name).write_bytes(data)
+    (runtime / "notes.txt").write_text("hi\n", encoding="utf-8")
+    (base.data_root / "zhange.sqlite").write_bytes(b"not the live database")
+
+    listing = fm.list_directory("install", "data/runtime", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    for name in content:
+        assert (names[name].sensitive, names[name].downloadable, names[name].editable) == (
+            True,
+            False,
+            False,
+        )
+    assert names["notes.txt"].sensitive is False
+    assert fm.resolve_download("install", "data/zhange.sqlite", ctx=ctx).is_file()
+
+    for name in (*content, "zhange.sqlite-journal"):
+        rel = f"data/runtime/{name}"
+        attempts: list[tuple[object, tuple[object, ...]]] = [
+            (fm.resolve_download, ("install", rel)),
+            (fm.read_text, ("install", rel)),
+            (fm.write_text, ("install", rel, "x")),
+            (fm.upload_file, ("install", "data/runtime", name, b"x")),
+            (fm.create_file, ("install", "data/runtime", name, "x")),
+            (fm.create_folder, ("install", "data/runtime", name)),
+            (fm.rename_entry, ("install", "data/runtime", "notes.txt", name)),
+            (fm.delete_entries, ("install", "data/runtime", [name])),
+        ]
+        if name in content:
+            attempts.append((fm.rename_entry, ("install", "data/runtime", name, "old.sqlite")))
+        for func, args in attempts:
+            with pytest.raises(fm.FileManagerError) as blocked:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert blocked.value.status_code == 403, (func, args)
+            assert "数据库" in blocked.value.message, (func, args)
+
+    with pytest.raises(fm.FileManagerError) as rename_dir:
+        fm.rename_entry("install", "data", "runtime", "runtime-old", ctx=ctx)
+    assert rename_dir.value.status_code == 403
+    deleted = fm.delete_entries("install", "data", ["runtime"], ctx=ctx)
+    assert deleted.kept_sensitive is True
+    assert not (runtime / "notes.txt").exists()
+    assert {p.name: p.read_bytes() for p in runtime.iterdir()} == content
+    assert not (runtime / "zhange.sqlite-journal").exists()
+
+    unlocked = fm.list_directory("install", "data/runtime", ctx=base)
+    assert {row.name: row.downloadable for row in unlocked.entries}["zhange.sqlite"] is True
+
+
 def _snapshot(root: Path) -> dict[str, bytes | str]:
     out: dict[str, bytes | str] = {}
     for dirpath, dirnames, filenames in os.walk(root):

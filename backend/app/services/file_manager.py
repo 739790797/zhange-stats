@@ -15,7 +15,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Literal
 
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
 from app.core.config import get_settings
+from app.core.file_config import resolve_database_url
 from app.core.paths import resolve_install_dir, resolve_runtime_path
 from app.core.timeutil import BEIJING
 
@@ -136,6 +140,8 @@ SENSITIVE_NAMES = frozenset(
 SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 # config/ 里这几份明文存库口令、第三方密钥与 SMTP 口令；write_json 的 `.<name>.*.tmp` 同样带密钥。
 SENSITIVE_CONFIG_STEMS = frozenset({"database", "integrations", "email"})
+# WAL 下最近的提交还在 -wal 里，主文件单独拷走、换掉或删掉旁路文件都会丢数据
+_SQLITE_SIDECARS = ("", "-wal", "-shm", "-journal")
 
 _WRITE_CHUNK = 1024 * 1024
 
@@ -162,6 +168,8 @@ class FileManagerContext:
     node_modules_dir: Path
     static_dir: Path | None
     backup_dir: Path | None
+    # 配置里的 SQLite 库及其旁路文件，相对安装根、小写
+    locked_rels: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -374,6 +382,31 @@ def rel_posix(child: Path, parent: Path) -> str | None:
     return rest.replace("\\", "/")
 
 
+def _sqlite_db_file(url: str) -> Path | None:
+    if not url.startswith("sqlite"):
+        return None
+    try:
+        database = (make_url(url).database or "").strip()
+    except ArgumentError:
+        return None
+    if not database or database == ":memory:" or database.startswith("file:"):
+        return None
+    return Path(database)
+
+
+def live_sqlite_rels(install: Path, url: str) -> frozenset[str]:
+    """SQLite 库文件与 -wal / -shm / -journal 相对安装根的路径（小写）；非 SQLite 或库在根外时为空。"""
+    db_file = _sqlite_db_file(url)
+    if db_file is None:
+        return frozenset()
+    rels: set[str] = set()
+    for suffix in _SQLITE_SIDECARS:
+        rel = rel_posix(db_file.with_name(db_file.name + suffix), install)
+        if rel:
+            rels.add(rel.lower())
+    return frozenset(rels)
+
+
 _IO_REPARSE_TAG_MOUNT_POINT = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)
 
 
@@ -528,6 +561,7 @@ def context_from_settings() -> FileManagerContext:
         node_modules_dir=(install / "frontend" / "node_modules").resolve(),
         static_dir=static,
         backup_dir=_backup_dir(install),
+        locked_rels=live_sqlite_rels(install, resolve_database_url()),
     )
 
 
@@ -987,8 +1021,8 @@ def list_directory(
             child_real = f"{real_rel}/{entry.name}" if real_rel else entry.name
             sensitive = (
                 is_sensitive_name(entry.name)
-                or rel_is_sensitive(child_rel)
-                or rel_is_sensitive(child_real)
+                or _is_sensitive(ctx, child_rel)
+                or _is_sensitive(ctx, child_real)
             )
             entries.append(
                 BrowseEntry(
@@ -1028,10 +1062,13 @@ def resolve_download(
         raise FileManagerError("请指定文件")
     if rel_is_sensitive(rel_n):
         raise FileManagerError("敏感文件不可下载", status_code=403)
+    _refuse_locked(ctx, rel_n, "下载")
     _refuse_links(root, rel_n, "下载")
     target = resolve_in_root(root.path, rel_n)
-    if is_sensitive_name(target.name) or rel_is_sensitive(_real_rel(root, target)):
+    real_rel = _real_rel(root, target)
+    if is_sensitive_name(target.name) or rel_is_sensitive(real_rel):
         raise FileManagerError("敏感文件不可下载", status_code=403)
+    _refuse_locked(ctx, real_rel, "下载")
     if not target.exists() or not target.is_file():
         raise FileManagerError("文件不存在", status_code=404)
     return target
@@ -1093,9 +1130,30 @@ def child_rel(dir_rel: str, name: str) -> str:
     return f"{parent}/{child}" if parent else child
 
 
-def _refuse_sensitive(rel: str, action: str) -> None:
+def _is_locked(ctx: FileManagerContext, rel: str) -> bool:
+    if not ctx.locked_rels:
+        return False
+    try:
+        return normalize_rel(rel).lower() in ctx.locked_rels
+    except FileManagerError:
+        return True
+
+
+def _is_sensitive(ctx: FileManagerContext, rel: str) -> bool:
+    return rel_is_sensitive(rel) or _is_locked(ctx, rel)
+
+
+def _refuse_locked(ctx: FileManagerContext, rel: str, action: str) -> None:
+    if _is_locked(ctx, rel):
+        raise FileManagerError(
+            f"正在使用的数据库文件不可{action}，要拷贝请用备份脚本", status_code=403
+        )
+
+
+def _refuse_sensitive(ctx: FileManagerContext, rel: str, action: str) -> None:
     if rel_is_sensitive(rel):
         raise FileManagerError(f"敏感路径不可{action}", status_code=403)
+    _refuse_locked(ctx, rel, action)
 
 
 def _io_error(_exc: OSError, fallback: str) -> FileManagerError:
@@ -1110,17 +1168,17 @@ def _root_and_dir(
 ) -> tuple[BrowseRoot, str, Path]:
     root = _root_by_id(ctx, root_id)
     rel_n = normalize_rel(dir_rel)
-    _refuse_sensitive(rel_n, "操作")
+    _refuse_sensitive(ctx, rel_n, "操作")
     _refuse_links(root, rel_n, "操作")
     target = resolve_in_root(root.path, rel_n)
-    _refuse_sensitive(_real_rel(root, target), "操作")
+    _refuse_sensitive(ctx, _real_rel(root, target), "操作")
     if not target.exists() or not target.is_dir():
         raise FileManagerError("目录不存在", status_code=404)
     return root, rel_n, target
 
 
-def dir_contains_sensitive(path: Path, rel: str) -> bool:
-    if rel_is_sensitive(rel):
+def dir_contains_sensitive(ctx: FileManagerContext, path: Path, rel: str) -> bool:
+    if _is_sensitive(ctx, rel):
         return True
     try:
         if not path.is_dir() or _is_link(path):
@@ -1134,7 +1192,7 @@ def dir_contains_sensitive(path: Path, rel: str) -> bool:
             with os.scandir(current) as it:
                 for entry in it:
                     child_rel_n = f"{current_rel}/{entry.name}" if current_rel else entry.name
-                    if rel_is_sensitive(child_rel_n):
+                    if _is_sensitive(ctx, child_rel_n):
                         return True
                     if _entry_is_link(entry):
                         continue
@@ -1146,11 +1204,17 @@ def dir_contains_sensitive(path: Path, rel: str) -> bool:
 
 
 def _new_child_path(
-    root: BrowseRoot, parent: Path, parent_rel: str, name: str, *, action: str
+    ctx: FileManagerContext,
+    root: BrowseRoot,
+    parent: Path,
+    parent_rel: str,
+    name: str,
+    *,
+    action: str,
 ) -> tuple[str, Path]:
     child_name = validate_entry_name(name)
     rel = child_rel(parent_rel, child_name)
-    _refuse_sensitive(rel, action)
+    _refuse_sensitive(ctx, rel, action)
     target = parent.joinpath(child_name)
     if _is_link(target):
         raise FileManagerError("已存在同名文件或目录", status_code=409)
@@ -1160,7 +1224,7 @@ def _new_child_path(
         raise FileManagerError("路径不合法") from exc
     if not is_under(resolved, parent.resolve()):
         raise FileManagerError("路径不合法")
-    _refuse_sensitive(_real_rel(root, resolved), action)
+    _refuse_sensitive(ctx, _real_rel(root, resolved), action)
     if resolved.exists():
         raise FileManagerError("已存在同名文件或目录", status_code=409)
     return rel, resolved
@@ -1256,13 +1320,13 @@ def write_text(
     rel_n = normalize_rel(rel)
     if not rel_n:
         raise FileManagerError("请指定文件")
-    _refuse_sensitive(rel_n, "修改")
+    _refuse_sensitive(ctx, rel_n, "修改")
     root = _root_by_id(ctx, root_id)
     _refuse_links(root, rel_n, "修改")
     target = resolve_in_root(root.path, rel_n)
     if is_sensitive_name(target.name):
         raise FileManagerError("敏感路径不可修改", status_code=403)
-    _refuse_sensitive(_real_rel(root, target), "修改")
+    _refuse_sensitive(ctx, _real_rel(root, target), "修改")
     if not target.exists() or not target.is_file():
         raise FileManagerError("文件不存在", status_code=404)
     data = (content or "").encode("utf-8")
@@ -1285,7 +1349,7 @@ def create_folder(
 ) -> MutateResult:
     ctx = ctx or context_from_settings()
     root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
-    _, target = _new_child_path(root, parent, parent_rel, name, action="创建")
+    _, target = _new_child_path(ctx, root, parent, parent_rel, name, action="创建")
     try:
         target.mkdir(exist_ok=False)
     except FileExistsError as exc:
@@ -1312,7 +1376,7 @@ def create_file(
             f"文件内容超过 {MAX_EDIT_BYTES // (1024 * 1024)}MB，请改为上传",
             status_code=413,
         )
-    _, target = _new_child_path(root, parent, parent_rel, name, action="创建")
+    _, target = _new_child_path(ctx, root, parent, parent_rel, name, action="创建")
     _write_bytes(target, data)
     clear_size_cache()
     return MutateResult(root_id=root.id, path=parent_rel, name=target.name)
@@ -1335,7 +1399,7 @@ def upload_stream(
     root, parent_rel, parent = _root_and_dir(root_id, dir_rel, ctx=ctx)
     child_name = validate_entry_name(filename, from_upload=True)
     rel = child_rel(parent_rel, child_name)
-    _refuse_sensitive(rel, "上传")
+    _refuse_sensitive(ctx, rel, "上传")
     target = parent.joinpath(child_name)
     if _is_link(target):
         raise FileManagerError("不支持覆盖该项目", status_code=409)
@@ -1347,7 +1411,7 @@ def upload_stream(
         raise FileManagerError("路径不合法")
     if is_sensitive_name(resolved.name):
         raise FileManagerError("敏感路径不可上传", status_code=403)
-    _refuse_sensitive(_real_rel(root, resolved), "上传")
+    _refuse_sensitive(ctx, _real_rel(root, resolved), "上传")
     if resolved.is_dir():
         raise FileManagerError("已存在同名目录", status_code=409)
     _atomic_write(resolved, source, limit=MAX_UPLOAD_BYTES)
@@ -1384,8 +1448,8 @@ def rename_entry(
         return MutateResult(root_id=root.id, path=parent_rel, name=dest_name)
     src_rel = child_rel(parent_rel, src_name)
     dest_rel = child_rel(parent_rel, dest_name)
-    _refuse_sensitive(src_rel, "重命名")
-    _refuse_sensitive(dest_rel, "重命名")
+    _refuse_sensitive(ctx, src_rel, "重命名")
+    _refuse_sensitive(ctx, dest_rel, "重命名")
     src_path = parent.joinpath(src_name)
     dest_path = parent.joinpath(dest_name)
     if _is_link(src_path):
@@ -1403,11 +1467,11 @@ def rename_entry(
     if not src_resolved.exists():
         raise FileManagerError("文件不存在", status_code=404)
     src_real = _real_rel(root, src_resolved)
-    _refuse_sensitive(src_real, "重命名")
-    _refuse_sensitive(_real_rel(root, dest_resolved), "重命名")
+    _refuse_sensitive(ctx, src_real, "重命名")
+    _refuse_sensitive(ctx, _real_rel(root, dest_resolved), "重命名")
     if dest_resolved.exists():
         raise FileManagerError("已存在同名文件或目录", status_code=409)
-    if src_resolved.is_dir() and dir_contains_sensitive(src_resolved, src_real):
+    if src_resolved.is_dir() and dir_contains_sensitive(ctx, src_resolved, src_real):
         raise FileManagerError("目录含敏感文件，不可重命名", status_code=403)
     try:
         src_resolved.rename(dest_resolved)
@@ -1417,9 +1481,9 @@ def rename_entry(
     return MutateResult(root_id=root.id, path=parent_rel, name=dest_name)
 
 
-def _delete_tree(path: Path, rel: str) -> bool:
+def _delete_tree(ctx: FileManagerContext, path: Path, rel: str) -> bool:
     """Delete path; skip sensitive descendants. True if path is gone."""
-    if rel_is_sensitive(rel):
+    if _is_sensitive(ctx, rel):
         return False
     try:
         if _is_link(path):
@@ -1440,7 +1504,7 @@ def _delete_tree(path: Path, rel: str) -> bool:
     for entry in entries:
         child_rel_n = f"{rel}/{entry.name}" if rel else entry.name
         child = Path(entry.path)
-        if rel_is_sensitive(child_rel_n) or _entry_is_link(entry):
+        if _is_sensitive(ctx, child_rel_n) or _entry_is_link(entry):
             remaining = True
             continue
         try:
@@ -1450,7 +1514,7 @@ def _delete_tree(path: Path, rel: str) -> bool:
             remaining = True
             continue
         if is_dir:
-            if not _delete_tree(child, child_rel_n):
+            if not _delete_tree(ctx, child, child_rel_n):
                 remaining = True
         elif is_file:
             try:
@@ -1490,7 +1554,7 @@ def delete_entries(
             continue
         seen.add(name)
         rel = child_rel(parent_rel, name)
-        _refuse_sensitive(rel, "删除")
+        _refuse_sensitive(ctx, rel, "删除")
         target = parent.joinpath(name)
         if _is_link(target):
             raise FileManagerError("符号链接不可删除")
@@ -1503,8 +1567,8 @@ def delete_entries(
         if not resolved.exists():
             raise FileManagerError(f"{name} 不存在", status_code=404)
         real = _real_rel(root, resolved)
-        _refuse_sensitive(real, "删除")
-        gone = _delete_tree(resolved, real)
+        _refuse_sensitive(ctx, real, "删除")
+        gone = _delete_tree(ctx, resolved, real)
         if not gone and resolved.exists():
             kept_sensitive = True
         last_name = name
