@@ -139,21 +139,7 @@ client.interceptors.request.use(async (config) => {
   }
   if (isTarkovCatalogGet(config.method, url)) {
     const key = tarkovCatalogCacheKey(url, config.params);
-    if (isTarkovMapFileUrl(url)) {
-      await hydrateMapFileCache();
-      if (!catalogBodies.has(key)) {
-        try {
-          const rec = await loadMapFile(key);
-          if (rec?.etag) {
-            catalogEtags.set(key, rec.etag);
-          } else {
-            catalogEtags.delete(key);
-          }
-        } catch {
-          catalogEtags.delete(key);
-        }
-      }
-    }
+    if (isTarkovMapFileUrl(url)) await hydrateMapFileCache();
     const etag = catalogEtags.get(key);
     if (etag && (catalogBodies.has(key) || isTarkovMapFileUrl(url))) {
       config.headers["If-None-Match"] = etag;
@@ -180,13 +166,19 @@ client.interceptors.response.use(
             rememberCatalogBody(key, rec.body);
           }
         } catch {
-          /* IndexedDB 读失败则保持空 body */
+          /* IndexedDB 读失败时按缺正文处理 */
         }
       }
       if (cached !== undefined) {
         res.data = cached;
+        return res;
       }
-      return res;
+      const marked = res.config as { catalogRefetch?: boolean };
+      if (marked.catalogRefetch) return res;
+      // 本地已没有这份正文（被淘汰或读不出来），304 没法用：去掉条件头整份重拉一次。
+      catalogEtags.delete(key);
+      res.config.headers.delete("If-None-Match");
+      return client.request({ ...res.config, catalogRefetch: true } as typeof res.config);
     }
     const etag = res.headers?.etag || res.headers?.ETag;
     if (etag) catalogEtags.set(key, String(etag));
@@ -196,9 +188,15 @@ client.interceptors.response.use(
         etag: String(etag),
         body: res.data,
         savedAt: Date.now(),
-      }).catch(() => {
-        /* 配额满则下次再写 */
-      });
+      })
+        .then((evicted) => {
+          for (const itemKey of evicted) {
+            if (!catalogBodies.has(itemKey)) catalogEtags.delete(itemKey);
+          }
+        })
+        .catch(() => {
+          /* 配额满则下次再写 */
+        });
     }
     return res;
   },

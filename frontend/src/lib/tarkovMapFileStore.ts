@@ -1,6 +1,8 @@
 import {
+  mapFileEvictionEntries,
   mapFileKeysToEvict,
   TARKOV_MAP_FILE_CACHE_MAX,
+  type TarkovMapFileEtagRecord,
   type TarkovMapFileRecord,
 } from "./tarkovMapFileCache";
 
@@ -8,11 +10,6 @@ const DB_NAME = "zhange-tarkov-map-files";
 const STORE = "files";
 const ETAG_STORE = "etags";
 const DB_VERSION = 2;
-
-type TarkovMapFileEtagRecord = {
-  etag: string;
-  savedAt: number;
-};
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -109,10 +106,11 @@ export async function loadMapFile(
   }
 }
 
+/** 返回因超出上限被删掉的 key。挑淘汰对象只读小的 etags 表，不把整份地图正文读出来。 */
 export async function saveMapFile(
   key: string,
   record: TarkovMapFileRecord,
-): Promise<void> {
+): Promise<string[]> {
   const db = await openDb();
   try {
     const stores = [STORE, ETAG_STORE].filter((name) =>
@@ -128,22 +126,25 @@ export async function saveMapFile(
     }
     await waitTx(putTx);
 
-    const readTx = db.transaction(STORE, "readonly");
-    const readStore = readTx.objectStore(STORE);
-    const [keys, vals] = await Promise.all([
-      idbReq(readStore.getAllKeys()),
-      idbReq(readStore.getAll()),
+    const readTx = db.transaction(stores, "readonly");
+    const etagStore = stores.includes(ETAG_STORE)
+      ? readTx.objectStore(ETAG_STORE)
+      : null;
+    const [fileKeys, etagKeys, etagVals] = await Promise.all([
+      idbReq(readTx.objectStore(STORE).getAllKeys()),
+      etagStore ? idbReq(etagStore.getAllKeys()) : Promise.resolve([]),
+      etagStore ? idbReq(etagStore.getAll()) : Promise.resolve([]),
     ]);
     await waitTx(readTx);
 
-    const entries: { key: string; savedAt: number }[] = [];
-    (keys as IDBValidKey[]).forEach((itemKey, index) => {
-      if (typeof itemKey !== "string") return;
-      const rec = (vals as TarkovMapFileRecord[])[index];
-      entries.push({ key: itemKey, savedAt: rec?.savedAt || 0 });
-    });
+    const entries = mapFileEvictionEntries(
+      fileKeys,
+      etagKeys,
+      etagVals as (TarkovMapFileEtagRecord | undefined)[],
+      { key, savedAt: record.savedAt },
+    );
     const evict = mapFileKeysToEvict(entries, TARKOV_MAP_FILE_CACHE_MAX);
-    if (!evict.length) return;
+    if (!evict.length) return [];
 
     const delTx = db.transaction(stores, "readwrite");
     for (const itemKey of evict) {
@@ -153,6 +154,7 @@ export async function saveMapFile(
       }
     }
     await waitTx(delTx);
+    return evict;
   } finally {
     db.close();
   }
