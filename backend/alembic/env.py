@@ -7,6 +7,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from app.core.beijing_time_migrate import UtcEraUpgradeMarker
 from app.core.config import get_settings
 from app.core.database import Base, prepare_migration_engine
 from app.core.migrate import compare_server_default
@@ -61,6 +62,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=compare_server_default,
             render_as_batch=connection.dialect.name == "sqlite",
+            on_version_apply=UtcEraUpgradeMarker(),
         )
 
         with context.begin_transaction():

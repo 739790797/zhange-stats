@@ -1,16 +1,17 @@
 """一次性：把原先按 UTC 写入的业务时间改为北京墙钟（+8 小时）。
 
-只有 UTC 时代的旧库需要平移。迁移时（`run_migrations`）就记下这份库的口径：空库建出来的直接标
-`beijing_v1`；旧库标 `utc_pending`，启动时 `ensure_beijing_time_storage` 平移后再改成 `beijing_v1`。
+只有 UTC 时代的旧库需要平移。迁移时就记下这份库的口径：从 UTC 时代修订出发的升级由
+`alembic/env.py` 挂的 `UtcEraUpgradeMarker` 标 `utc_pending`（命令行直接 `alembic upgrade` 也会记）；
+其余库由 `run_migrations` 标 `beijing_v1`。启动时 `ensure_beijing_time_storage` 平移后再改成 `beijing_v1`。
 """
 
 from __future__ import annotations
 
 import logging
 
-from alembic.runtime.migration import MigrationContext
+from alembic.runtime.migration import MigrationContext, MigrationInfo
 from sqlalchemy import inspect, select, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
 from app.models.system_config import SystemConfig
@@ -49,28 +50,53 @@ def current_revision(engine: Engine) -> str | None:
         return MigrationContext.configure(conn).get_current_revision()
 
 
+def _insert_marker_if_missing(conn: Connection, value: str) -> None:
+    table = SystemConfig.__table__
+    existing = conn.execute(select(table.c.value).where(table.c.key == _MARKER_KEY)).first()
+    if existing is None:
+        conn.execute(table.insert().values(key=_MARKER_KEY, value=value))
+
+
 def record_time_storage_origin(engine: Engine, *, utc_era: bool) -> None:
     """迁移时记下口径；已有标记不动，没有 system_configs 时跳过。"""
     if "system_configs" not in set(inspect(engine).get_table_names()):
         return
-    table = SystemConfig.__table__
     with engine.begin() as conn:
-        existing = conn.execute(
-            select(table.c.value).where(table.c.key == _MARKER_KEY)
-        ).first()
-        if existing is not None:
+        _insert_marker_if_missing(conn, _PENDING_VALUE if utc_era else _MARKER_VALUE)
+
+
+class UtcEraUpgradeMarker:
+    """Alembic `on_version_apply` 钩子：本次升级从 UTC 时代修订出发时记 `utc_pending`。
+
+    升级完修订号就分不出旧库了，所以在升级途中、与修订号同一事务里记。按本次第一步的起点判断：
+    从 base 建起的空库链会途经 0001–0006，但那是新库，不记。每次 env.py 运行新建一个实例。
+    """
+
+    def __init__(self) -> None:
+        self._first_step_seen = False
+        self._pending = False
+
+    def __call__(
+        self, *, ctx: MigrationContext, step: MigrationInfo, heads: set, run_args: dict
+    ) -> None:
+        if ctx.as_sql or not step.is_upgrade or step.is_stamp:
             return
-        conn.execute(
-            table.insert().values(
-                key=_MARKER_KEY, value=_PENDING_VALUE if utc_era else _MARKER_VALUE
-            )
-        )
+        if not self._first_step_seen:
+            self._first_step_seen = True
+            self._pending = bool(set(step.source_revision_ids) & UTC_ERA_REVISIONS)
+        if not self._pending:
+            return
+        conn = ctx.connection
+        if conn is None or "system_configs" not in set(inspect(conn).get_table_names()):
+            return
+        _insert_marker_if_missing(conn, _PENDING_VALUE)
+        self._pending = False
 
 
 def _needs_shift(marker: str, engine: Engine) -> bool:
     if marker == _PENDING_VALUE:
         return True
-    # 没走 run_migrations 记口径的库：按当前修订判断
+    # 迁移时没记口径的库（早于标记的版本升级上来）：按当前修订判断
     revision = current_revision(engine)
     return revision is None or revision in UTC_ERA_REVISIONS
 

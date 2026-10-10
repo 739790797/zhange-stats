@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import enum
 import logging
 from pathlib import Path
 
@@ -10,15 +11,23 @@ from alembic.config import Config
 from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
 
-from app.core.beijing_time_migrate import (
-    UTC_ERA_REVISIONS,
-    current_revision,
-    record_time_storage_origin,
-)
+from app.core.beijing_time_migrate import current_revision, record_time_storage_origin
 from app.core.database import Base, get_engine
-from app.core.schema_ensure import ensure_schema
 
 logger = logging.getLogger("zhange.migrate")
+
+
+class UnversionedSchemaError(RuntimeError):
+    """The server database holds app tables but no alembic_version; startup will not touch it."""
+
+
+_PRE_ALEMBIC_HELP = (
+    "数据库里有 users 表却没有 alembic_version，启动不会改动这种库。"
+    "若是 v0.1.1–v0.1.3（Alembic 之前）建的库：先备份，在 backend/ 执行 "
+    "`alembic stamp 20260731_0001` 后重启，会从基线升级到最新；"
+    "v0.1.0 的库先删掉 CS2 表与列，见 backend/alembic/README.md「Alembic 之前的旧库」。"
+    "若这是别的应用在用的库，请给战鸽数据单独建一个库。"
+)
 
 _REQUIRED_TABLES = (
     "users",
@@ -37,28 +46,6 @@ _REQUIRED_TABLES = (
     "checkin_role_prefs",
     "oauth_exchange_tickets",
 )
-
-_REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
-    "users": frozenset({"email", "role", "email_verified"}),
-    "members": frozenset(
-        {
-            "steam_id",
-            "steam_persona_name",
-            "user_id",
-        }
-    ),
-    "skland_binds": frozenset({"member_id", "cred_enc", "auto_checkin"}),
-    "checkin_role_prefs": frozenset(
-        {
-            "member_id",
-            "platform",
-            "game_code",
-            "role_uid",
-            "included",
-            "enabled",
-        }
-    ),
-}
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
@@ -91,39 +78,48 @@ def compare_server_default(
 
     Migrations give NOT NULL columns a DB default only to backfill existing rows. When the
     model has a Python-side default the ORM always writes the value, so a DB-only default is
-    not drift. A model server_default the DB lacks is still reported.
+    not drift, unless it contradicts a scalar Python default: raw SQL that omits the column
+    would store a value the app never writes. A model server_default the DB lacks is still
+    reported.
     """
-    if metadata_default is None and metadata_column.default is not None:
-        return False
+    python_default = metadata_column.default
+    if metadata_default is None and python_default is not None:
+        value = python_default.arg if python_default.is_scalar else None
+        if inspected_default is None or not isinstance(value, (bool, int, float, str, enum.Enum)):
+            return False
+        return not _same_literal(value, inspected_default)
     return None
 
 
-def _verify_aligned_schema() -> None:
-    inspector = inspect(get_engine())
-    tables = set(inspector.get_table_names())
-    missing_tables = [t for t in _REQUIRED_TABLES if t not in tables]
-    if missing_tables:
-        raise RuntimeError(
-            "Legacy schema alignment incomplete; missing tables: "
-            + ", ".join(missing_tables)
+def _same_literal(value: object, reflected: str) -> bool:
+    text = reflected.strip()
+    while text.startswith("(") and text.endswith(")"):
+        text = text[1:-1].strip()
+    if len(text) >= 2 and text[0] == text[-1] == "'":
+        text = text[1:-1].replace("''", "'")
+    text = {"true": "1", "false": "0"}.get(text.lower(), text)
+    if isinstance(value, enum.Enum):
+        value = value.value
+    if isinstance(value, bool):
+        return text == ("1" if value else "0")
+    if isinstance(value, (int, float)):
+        try:
+            return float(text) == float(value)
+        except ValueError:
+            return False
+    return text == str(value)
+
+
+def _refuse_unversioned(tables: set[str]) -> None:
+    if "users" in tables:
+        raise UnversionedSchemaError(_PRE_ALEMBIC_HELP)
+    leftover = sorted(set(_REQUIRED_TABLES) & tables)
+    if leftover:
+        raise UnversionedSchemaError(
+            "Incomplete database without users/alembic_version; "
+            f"leftover tables: {', '.join(leftover)}. "
+            "Restore a backup or drop these tables before starting."
         )
-    for table, required in _REQUIRED_COLUMNS.items():
-        columns = {c["name"] for c in inspector.get_columns(table)}
-        missing = sorted(required - columns)
-        if missing:
-            raise RuntimeError(
-                f"Legacy schema alignment incomplete; {table} missing columns: "
-                + ", ".join(missing)
-            )
-
-
-def _align_legacy_schema() -> None:
-    """Bring pre-Alembic databases up to current models before stamping."""
-    import app.models  # noqa: F401
-
-    Base.metadata.create_all(bind=get_engine())
-    ensure_schema(get_engine())
-    _verify_aligned_schema()
 
 
 def _run_sqlite_schema(engine: Engine) -> None:
@@ -142,39 +138,13 @@ def _run_sqlite_schema(engine: Engine) -> None:
 
 
 def _run_server_schema(engine: Engine) -> None:
+    tables = set(inspect(engine).get_table_names())
+    if "alembic_version" not in tables:
+        _refuse_unversioned(tables)
     cfg = _alembic_config()
-    inspector = inspect(engine)
-    tables = set(inspector.get_table_names())
 
     try:
-        if "alembic_version" not in tables and "users" in tables:
-            logger.warning(
-                "Legacy schema path: ensure_schema + stamp head. "
-                "New schema changes must use Alembic only; do not extend schema_ensure."
-            )
-            logger.info(
-                "Existing schema detected without alembic_version; "
-                "aligning schema then stamping baseline as applied"
-            )
-            _align_legacy_schema()
-            # Pre-Alembic data predates the Beijing wall-clock switch.
-            record_time_storage_origin(engine, utc_era=True)
-            command.stamp(cfg, "head")
-        elif "alembic_version" not in tables:
-            leftover = sorted(set(_REQUIRED_TABLES) & tables)
-            if leftover:
-                raise RuntimeError(
-                    "Incomplete database without users/alembic_version; "
-                    f"leftover tables: {', '.join(leftover)}. "
-                    "Restore a backup or drop these tables before starting."
-                )
-            command.upgrade(cfg, "head")
-        else:
-            # Classify before upgrading: afterwards the revision no longer tells UTC-era data apart.
-            record_time_storage_origin(
-                engine, utc_era=current_revision(engine) in UTC_ERA_REVISIONS
-            )
-            command.upgrade(cfg, "head")
+        command.upgrade(cfg, "head")
     except Exception as exc:
         msg = str(exc)
         logger.exception("Database migration failed: %s", msg)
@@ -195,13 +165,13 @@ def _run_server_schema(engine: Engine) -> None:
             ) from exc
         raise
 
-    # Schema built from an empty database: everything it holds is Beijing wall clock.
+    # Upgrades that started at a UTC-era revision were marked utc_pending inside Alembic (env.py).
     record_time_storage_origin(engine, utc_era=False)
     logger.info("Database migrations are up to date")
 
 
 def run_migrations() -> None:
-    """Apply pending migrations; stamp existing create_all databases once."""
+    """Apply pending migrations; a new SQLite file is built with create_all and stamped."""
     engine = get_engine()
     before = current_revision(engine)
     if engine.dialect.name == "sqlite":
