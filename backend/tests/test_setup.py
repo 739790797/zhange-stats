@@ -98,6 +98,22 @@ def test_rejects_weak_password(monkeypatch) -> None:
     db.close()
 
 
+def test_rejects_password_over_72_bytes(monkeypatch) -> None:
+    db = _session()
+    monkeypatch.setattr("app.services.setup.get_min_password_length", lambda _db: 8)
+    with pytest.raises(SetupError) as exc:
+        complete_initial_admin(
+            db,
+            email="admin@example.com",
+            display_name="站长",
+            password="Passw0rd-" + "密" * 22,
+        )
+    assert exc.value.status_code == 400
+    assert "最多 72 字节" in exc.value.message
+    assert needs_setup(db) is True
+    db.close()
+
+
 def test_setup_complete_cache_sticky() -> None:
     reset_setup_complete_for_tests()
     assert is_setup_complete_cached() is False

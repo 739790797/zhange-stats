@@ -121,6 +121,35 @@ def test_admin_password_reset_revokes_target_sessions(db) -> None:
     assert root.token_version == 0
 
 
+# 31 个字符、75 字节：过得了 schema 的字符上限，过不了 bcrypt 的 72 字节
+OVERLONG = "Passw0rd-" + "密" * 22
+
+
+def test_admin_create_refuses_password_over_72_bytes(db) -> None:
+    root = _user(db, "root", admin=True)
+    body = UserAdminCreate(email="new@example.com", display_name="new", password=OVERLONG)
+    with pytest.raises(HTTPException) as exc:
+        create_user(body, db=db, _=root)
+    assert exc.value.status_code == 400
+    assert "最多 72 字节" in exc.value.detail
+    db.rollback()
+    assert db.query(User).count() == 1
+
+
+def test_admin_password_reset_refuses_more_than_72_bytes(db) -> None:
+    root = _user(db, "root", admin=True)
+    bob = _user(db, "bob")
+    old_hash = bob.password_hash
+    with pytest.raises(HTTPException) as exc:
+        _patch(db, bob, root, password=OVERLONG)
+    assert exc.value.status_code == 400
+    assert "最多 72 字节" in exc.value.detail
+    db.rollback()
+    bob = db.get(User, bob.id)
+    assert bob.password_hash == old_hash
+    assert bob.token_version == 0
+
+
 def test_anonymized_admins_do_not_count(db) -> None:
     ghost = _user(db, "ghost", admin=True)
     ghost.anonymized_at = now_naive()

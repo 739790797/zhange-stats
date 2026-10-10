@@ -62,6 +62,18 @@ def test_validate_password_keeps_input_as_typed() -> None:
     assert validate_password("  Abcdefg1!  ", min_length=8) == "  Abcdefg1!  "
 
 
+@pytest.mark.parametrize("password", ["Abc1!" + "x" * 67, "密" * 24])
+def test_validate_password_accepts_exactly_72_bytes(password: str) -> None:
+    assert len(password.encode("utf-8")) == 72
+    assert validate_password(password) == password
+
+
+@pytest.mark.parametrize("password", ["Abc1!" + "x" * 68, "密" * 25, "Passw0rd-" + "密" * 22])
+def test_validate_password_rejects_more_than_72_bytes(password: str) -> None:
+    with pytest.raises(PasswordPolicyError, match="最多 72 字节"):
+        validate_password(password)
+
+
 @pytest.mark.parametrize(
     ("password", "kwargs", "message"),
     [

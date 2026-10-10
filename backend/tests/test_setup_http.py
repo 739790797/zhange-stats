@@ -133,8 +133,7 @@ def test_first_deploy_sqlite_wizard_http(
 
         admin = client.post("/api/setup/admin", json=admin_body, headers=auth)
         assert admin.status_code == 200, admin.text
-        assert admin.json()["access_token"]
-        token = admin.json()["access_token"]
+        assert admin.json() == {"message": "初始化完成，已创建管理员账号"}
         assert client.cookies.get("zhange_access")
         assert startup_calls == ["post_db", "background"]
         assert read_setup_token() == ""
@@ -153,10 +152,7 @@ def test_first_deploy_sqlite_wizard_http(
         )
         assert second.status_code == 409
 
-        me = client.get(
-            "/api/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        me = client.get("/api/auth/me")
         assert me.status_code == 200
         assert me.json()["email"] == "admin@example.com"
         assert me.json()["role"] == "admin"

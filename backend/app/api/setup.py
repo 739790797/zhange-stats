@@ -56,7 +56,7 @@ class SetupStatusOut(BaseModel):
 
 class SetupDatabaseRequest(BaseModel):
     engine: str = Field(pattern="^(sqlite|mysql)$")
-    url: str = ""
+    url: str = Field(default="", max_length=2000)
 
 
 class SetupDatabaseResponse(BaseModel):
@@ -69,13 +69,14 @@ class SetupDatabaseResponse(BaseModel):
 class SetupAdminRequest(BaseModel):
     email: EmailStr
     display_name: str = Field(min_length=1, max_length=64)
-    password: str = Field(min_length=1, max_length=72)
+    # 72 字节上限由 validate_password 给中文提示
+    password: str = Field(min_length=1, max_length=256)
 
 
 class SetupAdminResponse(BaseModel):
+    """会话只在 HttpOnly Cookie 里，响应体不回令牌。"""
+
     message: str
-    access_token: str
-    token_type: str = "bearer"
 
 
 def _apply_schema() -> None:
@@ -233,7 +234,4 @@ def post_setup_admin(
     _finish_startup_after_setup()
     mark_setup_complete()
     attach_session_cookies(response, token, request, setup_response=True)
-    return SetupAdminResponse(
-        message="初始化完成，已创建管理员账号",
-        access_token=token,
-    )
+    return SetupAdminResponse(message="初始化完成，已创建管理员账号")

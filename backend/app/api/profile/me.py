@@ -88,7 +88,7 @@ def get_my_profile(
 
 @router.get("/profile/daily-tasks")
 def list_my_daily_tasks(
-    platform: str | None = Query(default=None),
+    platform: str | None = Query(default=None, max_length=32),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -109,7 +109,7 @@ def list_my_daily_tasks(
 
 @router.get("/profile/daily-task-logs")
 def list_my_daily_task_logs(
-    platform: str | None = Query(default=None),
+    platform: str | None = Query(default=None, max_length=32),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),

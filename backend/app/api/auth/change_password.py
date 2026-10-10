@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.auth.schemas import PASSWORD_INPUT_MAX
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter
@@ -25,13 +26,19 @@ _USERNAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{2,31}$")
 
 
 class ChangePasswordBody(BaseModel):
-    current_password: str = Field(min_length=1, max_length=72)
-    new_password: str = Field(min_length=1, max_length=72)
+    current_password: str = Field(min_length=1, max_length=PASSWORD_INPUT_MAX)
+    new_password: str = Field(min_length=1, max_length=PASSWORD_INPUT_MAX)
 
 
 class ChangeUsernameBody(BaseModel):
     new_username: str = Field(min_length=3, max_length=32)
-    current_password: str = Field(min_length=1, max_length=72)
+    current_password: str = Field(min_length=1, max_length=PASSWORD_INPUT_MAX)
+
+
+class ChangeUsernameResponse(BaseModel):
+    ok: bool = True
+    message: str
+    username: str
 
 
 class PasswordPolicyOut(BaseModel):
@@ -86,14 +93,14 @@ def change_password(
     return {"ok": True, "message": "密码已更新"}
 
 
-@router.post("/change-username")
+@router.post("/change-username", response_model=ChangeUsernameResponse)
 def change_username(
     body: ChangeUsernameBody,
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
-) -> dict:
+) -> ChangeUsernameResponse:
     auth_limiter.hit(f"change-username:uid:{current.id}", limit=10, window_sec=600)
     if not verify_login_password(body.current_password, current.password_hash):
         raise HTTPException(status_code=400, detail="当前密码不正确")
@@ -109,11 +116,5 @@ def change_username(
         raise HTTPException(status_code=400, detail="该用户名已被占用")
     current.username = new_username
     db.commit()
-    token = issue_session(response, request, current)
-    return {
-        "ok": True,
-        "message": "用户名已更新",
-        "access_token": token,
-        "token_type": "bearer",
-        "username": current.username,
-    }
+    issue_session(response, request, current)
+    return ChangeUsernameResponse(message="用户名已更新", username=current.username)

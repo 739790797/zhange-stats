@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.auth.schemas import SessionResponse
 from app.core.database import get_db
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
 from app.core.rate_limit import auth_limiter, client_ip
 from app.core.session_cookies import attach_session_cookies, set_qq_oauth_nonce_cookie
-from app.schemas import QqOAuthStartResponse, TokenResponse
+from app.schemas import QqOAuthStartResponse
 from app.services.integrations_config import get_qq_credentials
 from app.services.oauth_ticket import consume_oauth_ticket, prune_expired_oauth_tickets
 from app.services.qq_oauth import (
@@ -64,14 +65,14 @@ def qq_oauth_login_start(
     return QqOAuthStartResponse(url=url)
 
 
-@router.post("/qq/exchange", response_model=TokenResponse)
+@router.post("/qq/exchange", response_model=SessionResponse)
 def qq_oauth_exchange(
     body: QqExchangeRequest,
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-) -> TokenResponse:
-    """用回调 URL 中的一次性 ticket 换取会话（不把 access_token 放进 query）。"""
+) -> SessionResponse:
+    """用回调 URL 中的一次性 ticket 换取会话（令牌只进 HttpOnly Cookie，不进 query 也不进响应体）。"""
     ip = client_ip(request)
     auth_limiter.hit(f"qq-exchange:ip:{ip}", limit=30, window_sec=600)
     prune_expired_oauth_tickets(db)
@@ -82,4 +83,4 @@ def qq_oauth_exchange(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     attach_session_cookies(response, token, request)
-    return TokenResponse(access_token=token)
+    return SessionResponse(message="登录成功")

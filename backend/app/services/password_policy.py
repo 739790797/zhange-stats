@@ -21,6 +21,8 @@ WEAK_PASSWORDS = frozenset(
 )
 
 _DEFAULT_MIN_LENGTH = 8
+# bcrypt 只取前 72 字节，超出部分静默丢弃；设置口令时直接拒绝，免得用户以为长口令全部生效。
+MAX_PASSWORD_BYTES = 72
 
 
 class PasswordPolicyError(ValueError):
@@ -54,6 +56,10 @@ def validate_password(
         raise PasswordPolicyError("请设置密码")
     if "\x00" in pwd:
         raise PasswordPolicyError("密码不能包含空字符")
+    if len(pwd.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise PasswordPolicyError(
+            f"密码过长：最多 {MAX_PASSWORD_BYTES} 字节（字母、数字、符号各占 1 字节，汉字约 3 字节）"
+        )
     if len(pwd) < min_len:
         raise PasswordPolicyError(f"密码至少 {min_len} 位")
     if core.lower() in WEAK_PASSWORDS:
