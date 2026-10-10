@@ -1,5 +1,6 @@
 """checkin_common 纯函数单测（无 DB）。"""
 
+from contextlib import nullcontext
 from datetime import date
 
 from app.services.checkin.common import (
@@ -124,6 +125,9 @@ def test_upsert_and_reload_preserves_extra_text() -> None:
 
         def flush(self):
             return None
+
+        def begin_nested(self):
+            return nullcontext()
 
     live = CheckinResult(
         game_code="exilium",

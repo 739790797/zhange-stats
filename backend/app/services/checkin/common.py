@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
 
 STATUS_OK = "ok"
 STATUS_ALREADY = "already"
@@ -531,16 +533,13 @@ def upsert_day_checkin_logs(
         ):
             awards_text = (r.awards_text or "").strip() or None
             message = awards_text or ""
-        row = (
-            db.query(log_model)
-            .filter(
-                log_model.member_id == member_id,
-                log_model.checkin_date == checkin_date,
-                log_model.game_code == game_code,
-                log_model.role_uid == role_uid,
-            )
-            .one_or_none()
+        filters = (
+            log_model.member_id == member_id,
+            log_model.checkin_date == checkin_date,
+            log_model.game_code == game_code,
+            log_model.role_uid == role_uid,
         )
+        row = db.query(log_model).filter(*filters).one_or_none()
         extra: dict[str, Any] = {}
         if hasattr(log_model, "awards_json"):
             extra["awards_json"] = dumps_awards_json(r.awards)
@@ -562,48 +561,68 @@ def upsert_day_checkin_logs(
             )
             if hasattr(log_model, "source"):
                 create_kw["source"] = source
-            db.add(log_model(**create_kw))
-        else:
-            row.game_name = r.game_name or row.game_name
-            row.role_name = r.role_name or row.role_name
-            row.channel_name = r.channel_name or row.channel_name
-            # 上游残缺查询（如 B 服 GET 无 records）不得把已签降成未签/待确认
-            status_protected = is_success_status(row.status) and r.status in (
-                STATUS_PENDING,
-                STATUS_UNKNOWN,
-            )
-            if not status_protected:
-                row.status = r.status
-                # 状态被保护时，勿用「今日尚未签到」等查询文案覆盖执行摘要
-                row.message = message or row.message
-            # 奖励文案：同步残缺 / B 服「已签」空 awards 不得覆盖此前 POST 落库的明细
-            prev_text = row.awards_text
-            prev_items = loads_awards_json(getattr(row, "awards_json", None))
-            row.awards_text = prefer_richer_awards(prev_text, awards_text)
-            if hasattr(row, "awards_json"):
-                row.awards_json = dumps_awards_json(
-                    prefer_richer_award_items(
-                        prev_text, prev_items, awards_text, r.awards
-                    )
+            row = _insert_unless_taken(db, log_model, create_kw, filters)
+            if row is None:
+                continue
+        row.game_name = r.game_name or row.game_name
+        row.role_name = r.role_name or row.role_name
+        row.channel_name = r.channel_name or row.channel_name
+        # 上游残缺查询（如 B 服 GET 无 records）不得把已签降成未签/待确认
+        status_protected = is_success_status(row.status) and r.status in (
+            STATUS_PENDING,
+            STATUS_UNKNOWN,
+        )
+        if not status_protected:
+            row.status = r.status
+            # 状态被保护时，勿用「今日尚未签到」等查询文案覆盖执行摘要
+            row.message = message or row.message
+        # 奖励文案：同步残缺 / B 服「已签」空 awards 不得覆盖此前 POST 落库的明细
+        prev_text = row.awards_text
+        prev_items = loads_awards_json(getattr(row, "awards_json", None))
+        row.awards_text = prefer_richer_awards(prev_text, awards_text)
+        if hasattr(row, "awards_json"):
+            row.awards_json = dumps_awards_json(
+                prefer_richer_award_items(
+                    prev_text, prev_items, awards_text, r.awards
                 )
-            if (
-                source == LOG_SOURCE_ACTION
-                and game_code == "arknights"
-                and is_success_status(r.status)
-            ):
-                # 方舟执行摘要只保留 award（合并后），不写「今日已签到」等状态句
-                row.message = row.awards_text or ""
-            # action 优先：status 同步不得把已执行记录改回「仅查询」
-            if hasattr(row, "source"):
-                prev_source = str(getattr(row, "source", "") or LOG_SOURCE_STATUS)
-                if source == LOG_SOURCE_ACTION or prev_source != LOG_SOURCE_ACTION:
-                    row.source = source
-                if source == LOG_SOURCE_ACTION:
-                    row.checked_at = now
-                elif prev_source != LOG_SOURCE_ACTION:
-                    row.checked_at = now
-            else:
+            )
+        if (
+            source == LOG_SOURCE_ACTION
+            and game_code == "arknights"
+            and is_success_status(r.status)
+        ):
+            # 方舟执行摘要只保留 award（合并后），不写「今日已签到」等状态句
+            row.message = row.awards_text or ""
+        # action 优先：status 同步不得把已执行记录改回「仅查询」
+        if hasattr(row, "source"):
+            prev_source = str(getattr(row, "source", "") or LOG_SOURCE_STATUS)
+            if source == LOG_SOURCE_ACTION or prev_source != LOG_SOURCE_ACTION:
+                row.source = source
+            if source == LOG_SOURCE_ACTION:
                 row.checked_at = now
+            elif prev_source != LOG_SOURCE_ACTION:
+                row.checked_at = now
+        else:
+            row.checked_at = now
+
+
+def _insert_unless_taken(
+    db: Any, log_model: Any, values: dict[str, Any], filters: tuple[Any, ...]
+) -> Any | None:
+    """插入今日行并返回 None；同键刚被并发请求（打开页 / 调度）插入时返回那一行，由调用方合并。"""
+    try:
+        with db.begin_nested():
+            # 必须在 savepoint 里 add：begin_nested 会先 flush 已挂起的对象，
+            # 新行若先挂上，冲突就发生在 savepoint 之外，整个事务作废
+            db.add(log_model(**values))
+            db.flush()
+    except IntegrityError:
+        # 加锁读：MySQL 可重复读下普通 SELECT 停在旧快照，看不到对方刚提交的行
+        row = db.query(log_model).filter(*filters).with_for_update().one_or_none()
+        if row is None:
+            raise
+        return row
+    return None
 
 
 def upsert_and_reload_day_results(
