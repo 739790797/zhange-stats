@@ -40,7 +40,7 @@ jobs:
       - name: Install & lint & test & build
         working-directory: frontend
         run: |
-          npm ci --legacy-peer-deps
+          npm ci
           npm run lint
           npm run test
           npm run build
@@ -195,16 +195,15 @@ jobs:
           python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
           python -m pip install -r requirements.txt -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
 
-      # package.json 的 export:openapi 是 Windows cmd 写法，sh 下跑不了：直接调它包的同一个脚本
       - name: Export OpenAPI & check drift
         env:
           DATABASE_URL: "mysql+pymysql://ci:ci@127.0.0.1:3306/ci"
           SECRET_KEY: "ci-openapi-drift-check-not-for-prod-use-only"
           ADMIN_PASSWORD: "ci-strong-password-9"
         run: |
-          (cd backend && python scripts/export_openapi.py)
           cd frontend
-          npm ci --legacy-peer-deps
+          npm ci
+          npm run export:openapi
           npm run gen:api
           git diff --exit-code -- src/api/generated/openapi.json src/api/generated/schema.d.ts
 

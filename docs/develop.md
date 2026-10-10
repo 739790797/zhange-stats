@@ -11,7 +11,7 @@
 
 ## Windows 本地开发
 
-需要 Python 3.11+、Node 18+。**不必预先安装数据库**：`install` / `run` 只装 Python/前端依赖。首次打开站点进入 **安装向导**，可选本机 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。本机 MariaDB 若仍需要，可手工跑 `scripts/common/provision_mariadb.py`。
+需要 Python 3.11+、Node 22.12+（Vitest 5 / Vite 8）。**不必预先安装数据库**：`install` / `run` 只装 Python/前端依赖。首次打开站点进入 **安装向导**，可选本机 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。本机 MariaDB 若仍需要，可手工跑 `scripts/common/provision_mariadb.py`。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\install.ps1

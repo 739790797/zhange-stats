@@ -37,7 +37,7 @@
 
 ```bash
 # 前端（frontend/）
-npm ci --legacy-peer-deps
+npm ci
 npm run dev
 npm run lint && npm run test && npm run build
 npm run export:openapi && npm run gen:api   # 改后端 API 后必做

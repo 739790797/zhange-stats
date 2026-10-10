@@ -1755,7 +1755,7 @@ _STATIC_ONLY_HINT = (
     "  1. 稍后重试，或经 GitHub 代理：update 脚本加 --static-only --proxy <代理前缀>"
     "（Windows：update.ps1 -StaticOnly -Proxy <代理前缀>）\n"
     "  2. 当前 VERSION 可能尚未发版：git fetch --tags 后检出已发布的 tag，再重跑 install\n"
-    "  3. 本机构建：cd frontend && npm ci --legacy-peer-deps && npm run build，"
+    "  3. 本机构建：cd frontend && npm ci && npm run build，"
     "再把 frontend/dist/ 里的文件复制到安装根 static/"
 )
 

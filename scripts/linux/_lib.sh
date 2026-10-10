@@ -172,7 +172,7 @@ ensure_frontend_deps() {
   fi
   command -v npm >/dev/null 2>&1 || return 0
   log "安装前端依赖…"
-  (cd "${REPO_ROOT}/frontend" && as_service_user npm install --legacy-peer-deps)
+  (cd "${REPO_ROOT}/frontend" && as_service_user npm ci)
 }
 
 # 全新安装（git clone）没有 static/：取当前 VERSION 的 Release 预构建前端并校验 sha256。失败不致命。

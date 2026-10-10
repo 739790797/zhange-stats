@@ -361,8 +361,8 @@ function Ensure-FrontendDeps {
   Write-Host "[npm] installing frontend deps..."
   Push-Location $FrontendDir
   try {
-    & $npmCmd.Source install --legacy-peer-deps
-    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+    & $npmCmd.Source ci
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
   } finally {
     Pop-Location
   }

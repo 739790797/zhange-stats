@@ -19,7 +19,7 @@ sudo bash scripts/linux/run.sh       # 向导未完成时会打印安装令牌
 已有远程库：向导填 `mysql+pymysql://` 连接串，或把连接写进 `config/database.json`（不要覆盖已有文件以外的手工 JSON）。本机 MariaDB 若仍需要，手工跑 `scripts/common/provision_mariadb.py`。
 
 - **Python 3.11+**：Debian 12 自带 3.11，Ubuntu 24.04 自带 3.12。系统 `python3` 更旧时先装 `python3.11` 与 `python3.11-venv`，再 `sudo ZHANGE_PYTHON=python3.11 bash scripts/linux/install.sh`。已有的 `backend/.venv` 低于 3.11 时脚本会停下，删掉它后重跑 `install`。
-- **前端 static**：`static/` 不入库。`install.sh` 发现 `static/index.html` 不存在时，下载当前 `VERSION` 对应 Release 的 `zhange-stats-<VERSION>-static.tar.gz`，校验 sha256 后放进 `static/`（不需要数据库）；有 systemd 单元时 `run.sh` / `restart.sh` 也会补一次。下载失败只告警、后端照常启动，但页面在补上 `static/` 之前打不开。补救：`sudo bash scripts/linux/update.sh --static-only --proxy <GitHub 代理前缀>` 重试；主干上的 `VERSION` 可能还没发版，可 `git fetch --tags` 后检出已发布的 tag 再 `install`；或本机 `cd frontend && npm ci --legacy-peer-deps && npm run build`，把 `frontend/dist/` 里的文件复制到 `static/`。
+- **前端 static**：`static/` 不入库。`install.sh` 发现 `static/index.html` 不存在时，下载当前 `VERSION` 对应 Release 的 `zhange-stats-<VERSION>-static.tar.gz`，校验 sha256 后放进 `static/`（不需要数据库）；有 systemd 单元时 `run.sh` / `restart.sh` 也会补一次。下载失败只告警、后端照常启动，但页面在补上 `static/` 之前打不开。补救：`sudo bash scripts/linux/update.sh --static-only --proxy <GitHub 代理前缀>` 重试；主干上的 `VERSION` 可能还没发版，可 `git fetch --tags` 后检出已发布的 tag 再 `install`；或本机 `cd frontend && npm ci && npm run build`，把 `frontend/dist/` 里的文件复制到 `static/`。
 - **安装令牌**：向导要求填写 `data/runtime/setup-token` 的内容（0600，只在服务器上）。`run.sh` / `restart.sh` 在向导未完成时把它打印出来；读不到时 `sudo cat` 该文件。向导完成后令牌自动删除。
 - **属主**：以 root 跑 `install` / `run` / `restart` / `update` 时，建 venv、pip、npm、站点配置同步和更新器都以服务用户 `zhange` 身份执行（`runuser`）。脚本退出时（失败也算）会把安装树里属主不对的文件改回 `zhange`，`data/mariadb/` 除外。
 
@@ -40,7 +40,7 @@ sudo bash scripts/linux/run.sh       # 向导未完成时会打印安装令牌
 
 ## Windows 本机部署
 
-公开生产仍推荐 Linux LXC（管理端一键更新、systemd）。Windows 用于开发机或单机自托管。需要 Python 3.11+、Node 18+。首次 `run` 打开向导选 SQLite 或外部库。本机 MariaDB 改为手工 `scripts/common/provision_mariadb.py`（便携包仍落到 `data/mariadb/`）。
+公开生产仍推荐 Linux LXC（管理端一键更新、systemd）。Windows 用于开发机或单机自托管。需要 Python 3.11+、Node 22.12+（Vitest 5 / Vite 8）。首次 `run` 打开向导选 SQLite 或外部库。本机 MariaDB 改为手工 `scripts/common/provision_mariadb.py`（便携包仍落到 `data/mariadb/`）。
 
 ```powershell
 git clone https://github.com/739790797/zhange-stats.git
