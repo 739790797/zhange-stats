@@ -1,4 +1,4 @@
-"""清理过期 job_runs 与 checkin_logs（默认保留 90 天），维护 Minecraft 性能聚合档，并删除超过 14 天的 RUM 样本。"""
+"""清理过期 job_runs 与 checkin_logs（默认保留 90 天），维护 Minecraft 性能聚合档，删除超过 14 天的 RUM 样本与过期的验证码 / OAuth 换票。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.timeutil import now_naive
 from app.models.job_run import JobRun
+from app.models.register_challenge import RegisterChallenge
 from app.services.minecraft.perf_rollup import maintain_perf_archive
+from app.services.oauth_ticket import prune_expired_oauth_tickets
 from app.services.rum import prune_rum_samples
 from app.services.scheduler_config import load_scheduler_config
 
@@ -19,17 +21,34 @@ logger = logging.getLogger("zhange.job_runs_prune")
 
 JOB_KEY = "job_runs_prune"
 DEFAULT_RETENTION_DAYS = 90
+# 过期验证码多留一天再删：这期间提交旧码仍提示「已过期」，而不是「请先发送验证码」
+CHALLENGE_PRUNE_GRACE = timedelta(days=1)
 
-_CHECKIN_LOG_MODELS: tuple[tuple[str, str], ...] = (
-    ("skland", "app.models.skland.SklandCheckinLog"),
-    ("taygedo", "app.models.taygedo.TaygedoCheckinLog"),
-    ("exilium", "app.models.exilium.ExiliumCheckinLog"),
-    ("kujiequ", "app.models.kujiequ.KujiequCheckinLog"),
-    ("mihoyo", "app.models.mihoyo.MihoyoCheckinLog"),
-)
+# 超过这个时长仍是 running 的行视为僵尸（线程已死却没回写），不再挡手动触发。
+STALE_RUNNING_AFTER = timedelta(hours=6)
 
 
 INTERRUPTED_MESSAGE = "进程重启，任务中断"
+
+
+def fail_job_run(
+    db: Session,
+    run_id: int,
+    message: str,
+    *,
+    stats: dict[str, Any] | None = None,
+) -> None:
+    """失败回写：先 rollback 再按 id 重读，否则会话卡在失败事务里 commit 不了，行会一直停在 running。"""
+    db.rollback()
+    run = db.get(JobRun, run_id)
+    if run is None:
+        return
+    run.status = "error"
+    run.message = message
+    if stats is not None:
+        run.stats = stats
+    run.finished_at = now_naive()
+    db.commit()
 
 
 def mark_interrupted_job_runs(db: Session) -> int:
@@ -60,17 +79,13 @@ def _retention_days(db: Session) -> int:
     return max(7, min(3650, days))
 
 
-def _import_log_model(dotted: str) -> Any:
-    module_path, name = dotted.rsplit(".", 1)
-    mod = __import__(module_path, fromlist=[name])
-    return getattr(mod, name)
-
-
 def prune_checkin_logs(db: Session, *, retention_days: int) -> dict[str, int]:
+    from app.services.checkin.registry import get_checkin_adapters
+
     cutoff = now_naive().date() - timedelta(days=retention_days)
     deleted: dict[str, int] = {}
-    for platform, dotted in _CHECKIN_LOG_MODELS:
-        model = _import_log_model(dotted)
+    for platform, adapter in get_checkin_adapters().items():
+        model = adapter.log_model
         n = (
             db.query(model)
             .filter(model.checkin_date < cutoff)
@@ -79,6 +94,19 @@ def prune_checkin_logs(db: Session, *, retention_days: int) -> dict[str, int]:
         deleted[platform] = int(n)
     db.flush()
     return deleted
+
+
+def prune_expired_auth_rows(db: Session) -> dict[str, int]:
+    challenges = (
+        db.query(RegisterChallenge)
+        .filter(RegisterChallenge.expires_at < now_naive() - CHALLENGE_PRUNE_GRACE)
+        .delete(synchronize_session=False)
+    )
+    db.flush()
+    return {
+        "register_challenges": int(challenges),
+        "oauth_exchange_tickets": prune_expired_oauth_tickets(db),
+    }
 
 
 def prune_job_runs(
@@ -97,6 +125,7 @@ def prune_job_runs(
     checkin_deleted = prune_checkin_logs(db, retention_days=days)
     mc_perf = maintain_perf_archive(db, prune=True)
     rum_deleted = prune_rum_samples(db)
+    auth_deleted = prune_expired_auth_rows(db)
     return {
         "deleted": int(job_deleted),
         "retention_days": days,
@@ -104,6 +133,7 @@ def prune_job_runs(
         "checkin_logs_total": sum(checkin_deleted.values()),
         "minecraft_perf": mc_perf,
         "rum_samples_deleted": rum_deleted,
+        "auth_rows_deleted": auth_deleted,
     }
 
 
@@ -117,26 +147,23 @@ def prune_job_wrapper() -> None:
     )
     db.add(run)
     db.commit()
-    db.refresh(run)
+    run_id = run.id
     try:
-        stats = prune_job_runs(db, keep_run_id=run.id)
+        stats = prune_job_runs(db, keep_run_id=run_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("job_runs prune failed")
-        db.rollback()
-        run = db.get(JobRun, run.id)
-        if run is not None:
-            run.status = "error"
-            run.message = str(exc)[:500]
-            run.finished_at = now_naive()
-            db.commit()
+        fail_job_run(db, run_id, str(exc)[:500])
     else:
+        auth = stats.get("auth_rows_deleted") or {}
         run.status = "ok"
         run.message = (
             f"已删除 {stats['deleted']} 条 job_runs、"
             f"{stats['checkin_logs_total']} 条 checkin_logs"
             f"（保留 {stats['retention_days']} 天）；"
             f"MC 原始采样删除 {stats.get('minecraft_perf', {}).get('raw_deleted', 0)} 条；"
-            f"RUM 样本删除 {stats.get('rum_samples_deleted', 0)} 条"
+            f"RUM 样本删除 {stats.get('rum_samples_deleted', 0)} 条；"
+            f"过期验证码 {auth.get('register_challenges', 0)} 条、"
+            f"OAuth 换票 {auth.get('oauth_exchange_tickets', 0)} 条"
         )
         run.stats = stats
         run.finished_at = now_naive()

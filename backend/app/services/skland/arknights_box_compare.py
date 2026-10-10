@@ -532,10 +532,13 @@ def run_arknights_box_sync_job(db: Session) -> dict[str, Any]:
 def box_sync_job_wrapper() -> None:
     from app.core.database import SessionLocal
 
+    from app.services.job_runs_prune import fail_job_run
+
     db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running")
+    job = JobRun(job_key=JOB_KEY, status="running", started_at=now_naive())
     db.add(job)
     db.commit()
+    run_id = job.id
     try:
         stats = run_arknights_box_sync_job(db)
         job.status = "ok"
@@ -544,9 +547,6 @@ def box_sync_job_wrapper() -> None:
         db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("arknights box sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        fail_job_run(db, run_id, str(exc))
     finally:
         db.close()

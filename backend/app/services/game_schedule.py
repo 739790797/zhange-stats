@@ -530,12 +530,14 @@ def get_game_events(
 def _game_schedule_sync_job(game: GameCode) -> None:
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
+    from app.services.job_runs_prune import fail_job_run
 
     job_key = SCHEDULE_JOB_KEYS[game]
     db = SessionLocal()
-    job = JobRun(job_key=job_key, status="running")
+    job = JobRun(job_key=job_key, status="running", started_at=now_naive())
     db.add(job)
     db.commit()
+    run_id = job.id
     try:
         result = sync_game_schedule(db, game)
         job.status = "ok"
@@ -544,10 +546,7 @@ def _game_schedule_sync_job(game: GameCode) -> None:
         db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("game_schedule sync job failed game=%s", game)
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        fail_job_run(db, run_id, str(exc))
     finally:
         db.close()
 
