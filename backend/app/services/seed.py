@@ -41,9 +41,11 @@ def seed_data(db: Session) -> None:
         return
 
     min_len = get_min_password_length(db)
+    # .env / 密钥文件常带尾随换行；不去掉就会存下一个登录框里打不出来的口令。
+    env_password = (settings.ADMIN_PASSWORD or "").strip()
     try:
         password = validate_password(
-            settings.ADMIN_PASSWORD,
+            env_password,
             username=settings.ADMIN_USERNAME,
             min_length=min_len,
         )
@@ -56,7 +58,7 @@ def seed_data(db: Session) -> None:
                 f"无法创建种子管理员：{exc}。"
                 "请设置更强的 ADMIN_PASSWORD，或关闭 ALLOW_ENV_ADMIN_SEED 改用安装向导。"
             ) from exc
-        password = (settings.ADMIN_PASSWORD or "").strip() or "123456"
+        password = env_password or "123456"
 
     admin = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
     if not admin:
