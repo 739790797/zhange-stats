@@ -24,6 +24,7 @@ from app.core.body_limit import MULTIPART_SLACK_BYTES, BodyLimitMiddleware
 from app.core.http_headers import SecurityHeadersMiddleware
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_origin_regex
+from app.core.error_handlers import install_error_handlers
 from app.core.database import engine
 from app.core.file_config import database_is_configured, ensure_config_dir
 from app.core.http_client import close_http_client
@@ -294,6 +295,7 @@ app = FastAPI(
     redoc_url=None if _disable_docs else "/redoc",
     openapi_url=None if _disable_docs else "/openapi.json",
 )
+install_error_handlers(app)
 
 _cors_origins = settings.cors_origin_list
 _cors_kwargs: dict = {
