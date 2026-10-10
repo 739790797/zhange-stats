@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from pathlib import Path
 
@@ -29,13 +30,49 @@ def _read_secret_file(path: Path) -> str | None:
         return None
 
 
-def _write_secret_file(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value + "\n", encoding="utf-8")
+def _fsync_dir(path: Path) -> None:
     try:
-        path.chmod(0o600)
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
     except OSError:
         pass
+    finally:
+        os.close(fd)
+
+
+def _write_secret_file(path: Path, value: str, *, exclusive: bool = False) -> None:
+    """0600 临时文件 + fsync + rename：读方看不到半截密钥，也没有先宽权限后 chmod 的窗口。
+
+    exclusive=True 时目标已存在则抛 FileExistsError（并发首启不互相覆盖已生成的密钥）。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.{secrets.token_hex(8)}.tmp")
+    fd = os.open(
+        tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o600
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(value + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        if not exclusive:
+            os.replace(tmp, path)
+        else:
+            try:
+                os.link(tmp, path)
+            except FileExistsError:
+                raise
+            except OSError:
+                # 文件系统不支持硬链接时退回 rename
+                if path.exists():
+                    raise FileExistsError(str(path)) from None
+                os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+    _fsync_dir(path.parent)
 
 
 def _legacy_secret_candidates(
@@ -118,7 +155,13 @@ def ensure_secret_key(
 
     generated = secrets.token_urlsafe(48)
     try:
-        _write_secret_file(secret_path, generated)
+        try:
+            _write_secret_file(secret_path, generated, exclusive=True)
+        except FileExistsError:
+            stored = _read_secret_file(secret_path)
+            if stored:
+                return stored
+            _write_secret_file(secret_path, generated)
     except OSError as exc:
         raise RuntimeError(
             f"Could not persist SECRET_KEY to {secret_path}. "
