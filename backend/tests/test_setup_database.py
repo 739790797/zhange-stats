@@ -17,6 +17,7 @@ def test_setup_status_without_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATA_DIR", raising=False)
     monkeypatch.setenv("APP_INSTALL_DIR", str(tmp_path))
     get_settings.cache_clear()
     from app.api.setup import get_setup_status

@@ -144,6 +144,7 @@ def test_rejects_markup_in_display_name(monkeypatch) -> None:
 @pytest.fixture
 def install_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_INSTALL_DIR", str(tmp_path))
+    monkeypatch.delenv("DATA_DIR", raising=False)
     get_settings.cache_clear()
     yield tmp_path
     delete_setup_token()
