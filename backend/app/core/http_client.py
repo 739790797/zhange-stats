@@ -8,6 +8,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from typing import Any
 
 import httpx
@@ -35,19 +36,35 @@ def _timeout(
     return httpx.Timeout(read, connect=connect_sec)
 
 
+class _NoStoreCookiePolicy(DefaultCookiePolicy):
+    """进程级 client 被所有用户共用：上游 Set-Cookie 只能从 resp.cookies / 响应头读，不得落 jar 串号。"""
+
+    def set_ok(self, cookie, request) -> bool:  # noqa: ANN001
+        return False
+
+    def return_ok(self, cookie, request) -> bool:  # noqa: ANN001
+        return False
+
+
+def _new_client(**kwargs: Any) -> httpx.Client:
+    return httpx.Client(
+        timeout=_timeout(DEFAULT_READ_TIMEOUT_SEC),
+        follow_redirects=True,
+        limits=httpx.Limits(
+            max_connections=40,
+            max_keepalive_connections=20,
+            keepalive_expiry=30.0,
+        ),
+        cookies=CookieJar(policy=_NoStoreCookiePolicy()),
+        **kwargs,
+    )
+
+
 def get_http_client() -> httpx.Client:
     global _client
     with _lock:
         if _client is None:
-            _client = httpx.Client(
-                timeout=_timeout(DEFAULT_READ_TIMEOUT_SEC),
-                follow_redirects=True,
-                limits=httpx.Limits(
-                    max_connections=40,
-                    max_keepalive_connections=20,
-                    keepalive_expiry=30.0,
-                ),
-            )
+            _client = _new_client()
         return _client
 
 
