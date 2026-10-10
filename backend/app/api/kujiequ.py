@@ -68,18 +68,9 @@ router = APIRouter(
 )
 
 
-@router.get("/status", response_model=KujiequStatusOut)
-def kujiequ_status(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    member: Member = Depends(require_user_member),
-    include_roles: bool = Query(default=True),
-    force: bool = Query(
-        default=True,
-        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
-    ),
-):
-    _ = user
+def _status_out(
+    db: Session, member: Member, *, include_roles: bool, force: bool
+) -> KujiequStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -98,6 +89,21 @@ def kujiequ_status(
     )
 
 
+@router.get("/status", response_model=KujiequStatusOut)
+def kujiequ_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+    include_roles: bool = Query(default=True),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
+):
+    _ = user
+    return _status_out(db, member, include_roles=include_roles, force=force)
+
+
 @router.post("/bind/token", response_model=KujiequStatusOut)
 def kujiequ_bind_token(
     payload: KujiequBindTokenRequest,
@@ -109,7 +115,7 @@ def kujiequ_bind_token(
         bind_with_token(db, member, payload.token)
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
-    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/sms/send", response_model=KujiequBindSmsSendResponse)
@@ -150,7 +156,7 @@ def kujiequ_bind_sms(
         bind_with_sms(db, member, payload.phone, payload.captcha)
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
-    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.delete("/bind", response_model=KujiequStatusOut)
@@ -183,7 +189,7 @@ def kujiequ_patch_bind(
         )
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
-    return kujiequ_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=False)
 
 
 @router.patch(
@@ -211,7 +217,7 @@ def kujiequ_update_role_pref(
         bind=bind,
         payload=payload,
     )
-    return kujiequ_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.get(
@@ -235,6 +241,7 @@ def kujiequ_role_tree(
         db=db,
         platform=PLATFORM_KUJIEQU,
         member_id=member.id,
+        bind=bind,
         preview_roles=preview_roles,
         member=member,
         api_error_cls=KujiequApiError,
@@ -266,7 +273,7 @@ def kujiequ_replace_role_memberships(
         bind=bind,
         body=body,
     )
-    return kujiequ_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.post(

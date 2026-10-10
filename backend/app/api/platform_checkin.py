@@ -58,13 +58,16 @@ def build_checkin_status(
     preview_roles: Callable[..., list[Any]],
     api_error_cls: type[Exception],
     include_roles: bool = True,
-    force: bool = False,
+    force: bool,
     extra_fields: dict[str, Any] | None = None,
     serialize_role: Callable[[Any], RoleT] | None = None,
     soft_roles_on_none_ok: bool = False,
     role_pref_platform: str | None = None,
 ) -> StatusT:
     """Assemble *StatusOut for a bound (or unbound) checkin platform.
+
+    force: True queries upstream (page display, status right after binding);
+    False reads today's logs first (echo after saving prefs).
 
     soft_roles_on_none_ok: when True (skland), only downgrade token_ok on role
     failure if token_ok is still None; otherwise always set token_ok False.
@@ -198,13 +201,16 @@ def build_role_membership_tree(
     db: Session,
     platform: str,
     member_id: int,
+    bind: Any,
     preview_roles: Callable[..., list[Any]],
     member: Member,
     api_error_cls: type[Exception],
 ) -> RoleMembershipTreeOut:
+    """角色树（绑定 / 更换绑定后前端紧接着会打开）；账号下已不存在的角色顺手退出自动签到。"""
     from app.services.checkin.role_prefs import (
         build_membership_tree_from_roles,
         load_pref_map,
+        retire_vanished_prefs,
     )
 
     try:
@@ -212,6 +218,9 @@ def build_role_membership_tree(
     except api_error_cls as exc:  # type: ignore[misc]
         raise_api_error(exc, api_error_cls)
         raise  # pragma: no cover
+    retire_vanished_prefs(
+        db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles
+    )
     pref_map = load_pref_map(db, platform=platform, member_id=member_id)
     nodes = build_membership_tree_from_roles(
         platform=platform, roles=raw_roles, pref_map=pref_map

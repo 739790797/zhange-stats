@@ -54,18 +54,9 @@ from app.services.skland.qr import poll_qr_bind, start_qr_bind
 router = APIRouter(tags=["skland"])
 
 
-@router.get("/status", response_model=SklandStatusOut)
-def skland_status(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    member: Member = Depends(require_user_member),
-    include_roles: bool = Query(default=True),
-    force: bool = Query(
-        default=True,
-        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
-    ),
-):
-    _ = user
+def _status_out(
+    db: Session, member: Member, *, include_roles: bool, force: bool
+) -> SklandStatusOut:
     bind = get_bind_for_member(db, member.id)
 
     def _ser_role(r: object) -> SklandRoleOut:
@@ -95,6 +86,21 @@ def skland_status(
     )
 
 
+@router.get("/status", response_model=SklandStatusOut)
+def skland_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+    include_roles: bool = Query(default=True),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
+):
+    _ = user
+    return _status_out(db, member, include_roles=include_roles, force=force)
+
+
 @router.post("/bind", response_model=SklandStatusOut)
 def skland_bind(
     payload: SklandBindRequest,
@@ -106,7 +112,7 @@ def skland_bind(
         bind_skland(db, member, payload.token)
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    return skland_status(db=db, user=user, member=_member_or_404(db, user), include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/password", response_model=SklandStatusOut)
@@ -120,7 +126,7 @@ def skland_bind_password(
         bind_skland_with_password(db, member, payload.phone, payload.password)
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    return skland_status(db=db, user=user, member=_member_or_404(db, user), include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/sms/send", response_model=SklandBindSmsSendResponse)
@@ -155,7 +161,7 @@ def skland_bind_sms(
         bind_skland_with_sms(db, member, payload.phone, payload.code)
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    return skland_status(db=db, user=user, member=_member_or_404(db, user), include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/qr/start", response_model=SklandQrStartResponse)
@@ -186,7 +192,7 @@ def skland_qr_poll(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
     if out.get("status") == "ok":
-        status = skland_status(db=db, user=user, member=member, include_roles=True)
+        status = _status_out(db, member, include_roles=True, force=False)
         return SklandQrPollResponse(
             status="ok",
             message=str(out.get("message") or "扫码绑定成功"),
@@ -234,7 +240,7 @@ def skland_update_bind(
         )
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    return skland_status(db=db, user=user, member=_member_or_404(db, user), include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.patch(
@@ -260,7 +266,7 @@ def skland_update_role_pref(
         bind=bind,
         payload=payload,
     )
-    return skland_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.get(
@@ -283,6 +289,7 @@ def skland_role_tree(
         db=db,
         platform=PLATFORM_SKLAND,
         member_id=member.id,
+        bind=bind,
         preview_roles=preview_roles,
         member=member,
         api_error_cls=SklandApiError,
@@ -312,7 +319,7 @@ def skland_replace_role_memberships(
         bind=bind,
         body=body,
     )
-    return skland_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.post(
