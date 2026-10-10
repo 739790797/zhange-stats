@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,15 +11,17 @@ from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTradersRaw
+from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
-    cache_key,
     json_api_prefix,
     json_resource_url,
     parse_game_mode,
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,8 @@ TRADER_WIKI: dict[str, str] = {
 
 TRADER_SLUG_ORDER = list(TRADER_LABELS.keys())
 
-_parsed_lock = threading.Lock()
-_parsed_cache: tuple[str, list[dict[str, Any]], list[dict[str, Any]]] | None = None
+# (rows, offers)
+_parsed_cache: ModeCache[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = ModeCache()
 
 
 class TarkovTradersError(Exception):
@@ -421,9 +422,7 @@ def persist_traders_bundle(db: Session, bundle: TradersUpstreamBundle) -> dict[s
         note=bundle.note,
     )
     db.commit()
-    global _parsed_cache
-    with _parsed_lock:
-        _parsed_cache = None
+    _parsed_cache.clear()
     return {
         "trader_count": len(rows),
         "offer_count": offer_count,
@@ -472,29 +471,38 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 
 
 def ensure_traders(db: Session) -> None:
-    if get_traders_raw(db) is not None:
-        return
-    sync_from_upstream(db, game_mode=parse_game_mode())
+    sync_lock.fill_once(
+        db,
+        lambda: get_traders_raw(db) is None,
+        lambda: sync_from_upstream(db, game_mode=parse_game_mode()),
+    )
+
+
+def _parse_key(db: Session, traders_synced: str | None) -> str:
+    """报价可能取自 items dump：items 重新同步也要换键。"""
+    from app.services.tarkov import items as items_svc
+
+    _source, items_synced, _note = items_svc.items_raw_header(db)
+    return parsed_cache_key(db, f"{traders_synced or ''}|{items_synced or ''}")
 
 
 def load_parsed_traders(
     db: Session,
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], str | None, str | None]:
-    global _parsed_cache
+    """表头键未变则直接用进程缓存，不再读商人 / items raw。"""
+    from app.services.tarkov import upstream as upstream_svc
+
     ensure_traders(db)
     row = get_traders_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            source, _payload, synced_at, note = _load_payload(db)
-            return source, cached[1], cached[2], synced_at, note
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _parsed_cache.get(_parse_key(db, synced))
+        if hit is not None:
+            return source or "", hit[0], hit[1], synced, note
     source, payload, synced_at, note = _load_payload(db)
     rows = parse_trader_rows(payload)
     offers = _offers_list(payload)
-    with _parsed_lock:
-        _parsed_cache = (key, rows, offers)
+    _parsed_cache.put(_parse_key(db, synced_at), (rows, offers))
     return source, rows, offers, synced_at, note
 
 

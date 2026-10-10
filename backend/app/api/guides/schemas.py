@@ -54,19 +54,14 @@ class TarkovItemsSyncOut(BaseModel):
     message: str = Field(default="ok")
 
 
-class TarkovFullSyncDomainOut(BaseModel):
-    id: str
-    ok: bool
-    error: str | None = None
-    source: str | None = None
-    synced_at: str | None = None
+class TarkovFullSyncStartOut(BaseModel):
+    """整站同步已转后台；进度与各栏目结果见任务管理里 run_id 这条执行记录。"""
 
-
-class TarkovFullSyncOut(BaseModel):
-    ok_count: int
-    failed_count: int
-    domains: list[TarkovFullSyncDomainOut] = Field(default_factory=list)
-    message: str = Field(default="ok")
+    accepted: bool = True
+    job_id: str
+    run_id: int
+    status: str = "running"
+    message: str = ""
 
 
 class TarkovGunItemOut(BaseModel):

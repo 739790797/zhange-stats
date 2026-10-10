@@ -21,6 +21,7 @@ from app.services.tarkov.game_mode import (
 )
 from app.services.tarkov.guides import TarkovGuidesError, load_parsed_guides
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.item_sources import _load_task_rows
 from app.services.tarkov.items import TarkovItemsError
 from app.services.tarkov.maps import (
     HUB_SKIP,
@@ -819,29 +820,25 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         for row in rows
         if isinstance(row, dict) and row.get("id")
     }
-    try:
-        _src, payload, _synced, _note = tasks_svc._load_payload(db)
-        locale = locale or tasks_svc._locale_map(payload)
-        raw_rows: list[dict[str, Any]] = []
-        for tid, row in tasks_svc._tasks_map(payload).items():
-            if not isinstance(row, dict):
-                continue
-            copied = dict(row)
-            task_id = str(copied.get("id") or tid).strip()
-            copied["id"] = task_id
-            parsed_name = names.get(task_id) or ""
-            loc_name = tasks_svc._locale_lookup(
-                locale, f"{task_id} name", f"{task_id} Name"
-            )
-            if parsed_name and not tasks_svc._is_placeholder_name(task_id, parsed_name):
-                copied["name"] = parsed_name
-            elif loc_name:
-                copied["name"] = loc_name
-            raw_rows.append(copied)
-        return raw_rows, locale
-    except TarkovTasksError as exc:
-        logger.warning("key packs raw task rewards unavailable: %s", exc)
-    return rows, locale
+    # 与物品来源共用按表头缓存的任务 raw 行：钥匙 OCR 每次都要建目录，不能每次解码任务 dump。
+    task_raws, raw_locale = _load_task_rows(db)
+    if not task_raws:
+        return rows, locale
+    locale = locale or raw_locale
+    raw_rows: list[dict[str, Any]] = []
+    for row in task_raws:
+        copied = dict(row)
+        task_id = str(copied.get("id") or "").strip()
+        parsed_name = names.get(task_id) or ""
+        loc_name = tasks_svc._locale_lookup(
+            locale, f"{task_id} name", f"{task_id} Name"
+        )
+        if parsed_name and not tasks_svc._is_placeholder_name(task_id, parsed_name):
+            copied["name"] = parsed_name
+        elif loc_name:
+            copied["name"] = loc_name
+        raw_rows.append(copied)
+    return raw_rows, locale
 
 
 def _merge_note(catalog_note: str | None, source: str) -> str | None:

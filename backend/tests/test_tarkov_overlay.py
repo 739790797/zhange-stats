@@ -357,7 +357,7 @@ def test_disabled_overlay_task_hidden_from_progress_not_deleted() -> None:
     )
     db.add(user)
     db.flush()
-    tasks_svc._parsed_cache = None
+    tasks_svc._parsed_cache.clear()
     tasks_svc._raid_prep_cache.clear()
     tasks_svc._raid_prep_index_cache.clear()
     with game_mode_scope("pvp"):

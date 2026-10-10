@@ -9,7 +9,6 @@ hideout / maps.mobs 算的。此处同样只扫已落库 dump，不打 GraphQL�
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -18,6 +17,7 @@ from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov.guides import TarkovGuidesError
 from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.parse_cache import ModeCache
 from app.services.tarkov.tasks import TarkovTasksError
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ _ITEM_SPEND_OBJECTIVE_TYPES = frozenset(
     }
 )
 
-_task_source_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
-_task_source_lock = threading.Lock()
+# (task rows, locale)
+_task_source_cache: ModeCache[tuple[list[dict[str, Any]], dict[str, Any]]] = ModeCache()
 
 
 def empty_item_sources() -> dict[str, Any]:
@@ -680,24 +680,20 @@ def _task_rows_from_payload(
 
 
 def _load_task_rows(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    global _task_source_cache
     raw_row = tasks_svc.get_tasks_raw(db)
     if raw_row is None:
         return [], {}
     synced = raw_row.synced_at.isoformat() if raw_row.synced_at else None
-    key = parsed_cache_key(db, synced)
-    with _task_source_lock:
-        cached = _task_source_cache
-        if cached is not None and cached[0] == key:
-            return cached[1], cached[2]
+    hit = _task_source_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
     try:
-        _source, payload, _synced, _note = tasks_svc._load_payload(db)
+        _source, payload, synced_at, _note = tasks_svc._load_payload(db)
     except TarkovTasksError as exc:
         logger.warning("item sources tasks unavailable: %s", exc)
         return [], {}
     rows, locale = _task_rows_from_payload(payload)
-    with _task_source_lock:
-        _task_source_cache = (key, rows, locale)
+    _task_source_cache.put(parsed_cache_key(db, synced_at), (rows, locale))
     return rows, locale
 
 

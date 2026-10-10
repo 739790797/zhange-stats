@@ -7,18 +7,21 @@ json.tarkov.dev 整包含 handbookCategories；GraphQL split 仅弹药/枪械。
 from __future__ import annotations
 
 import html
+import json
 import logging
 import re
-import threading
+from collections.abc import Iterator, Mapping
 from typing import Any, Iterable
 
 from sqlalchemy.orm import Session
 
 from app.services.tarkov import items as items_svc
+from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
-from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.overlay import overlay_cache_token, parsed_cache_key
 from app.services.tarkov.items import GRAPHQL_SPLIT_FORMAT, TarkovItemsError
 from app.services.tarkov.item_sources import attach_item_sources
+from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +47,12 @@ _HEAVY_PROP_KEYS = {
     "__typename",
 }
 
-_parsed_lock = threading.Lock()
-_parsed_cache: tuple[
-    str, str, list[dict[str, Any]], str | None, str | None
-] | None = None
-_pack_index_cache: tuple[str, dict[str, dict[str, Any]]] | None = None
+# (source, rows, synced_at, note)
+_parsed_cache: ModeCache[
+    tuple[str, list[dict[str, Any]], str | None, str | None]
+] = ModeCache()
+_pack_index_cache: ModeCache[dict[str, dict[str, Any]]] = ModeCache()
+_items_index_cache: ModeCache[ItemsIndex] = ModeCache()
 
 # 手册「弹药 > 弹药包」
 AMMO_PACK_HANDBOOK_ID = "5b47574386f77428ca22b33c"
@@ -159,7 +163,7 @@ def _item_stub(
 
 def _resolve_item_ref(
     value: Any,
-    items_by_id: dict[str, dict[str, Any]],
+    items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> dict[str, Any] | None:
     ident = _extract_ref_id(value)
@@ -259,7 +263,7 @@ def _resolve_category_list(
 
 def _hydrate_ref_list(
     value: Any,
-    items_by_id: dict[str, dict[str, Any]],
+    items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> list[dict[str, Any]]:
     raw_list = value if isinstance(value, list) else (
@@ -337,7 +341,7 @@ def _enrich_plate_stub(
 
 def _hydrate_preset_stub(
     value: Any,
-    items_by_id: dict[str, dict[str, Any]],
+    items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> dict[str, Any] | None:
     stub = _resolve_item_ref(value, items_by_id, locale)
@@ -360,7 +364,7 @@ def _hydrate_preset_stub(
 
 def _hydrate_contains_items(
     value: Any,
-    items_by_id: dict[str, dict[str, Any]],
+    items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> list[dict[str, Any]]:
     if not isinstance(value, list):
@@ -382,7 +386,7 @@ def _hydrate_contains_items(
 
 def _hydrate_armor_slots(
     slots: Any,
-    items_by_id: dict[str, dict[str, Any]],
+    items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> Any:
     if not isinstance(slots, list):
@@ -409,15 +413,7 @@ def _hydrate_armor_slots(
     return out
 
 
-def _hydrate_detail_refs(
-    detail: dict[str, Any],
-    items_by_id: dict[str, dict[str, Any]],
-    payload: dict[str, Any],
-    locale: dict[str, Any],
-) -> dict[str, Any]:
-    """json.tarkov.dev 把弹药/预设/分类存成 id，详情需要名称才能展示。"""
-    item = dict(detail.get("item") or {})
-    props = dict(detail.get("properties") or {})
+def _detail_catalogs(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     data = _items_data_blob(payload)
     item_cats = data.get("itemCategories") if isinstance(data.get("itemCategories"), dict) else {}
     handbook_cats = (
@@ -425,7 +421,18 @@ def _hydrate_detail_refs(
         if isinstance(data.get("handbookCategories"), dict)
         else {}
     )
-    catalogs = (item_cats, handbook_cats)
+    return item_cats, handbook_cats
+
+
+def _hydrate_detail_refs(
+    detail: dict[str, Any],
+    items_by_id: Mapping[str, dict[str, Any]],
+    catalogs: tuple[dict[str, Any], dict[str, Any]],
+    locale: dict[str, Any],
+) -> dict[str, Any]:
+    """json.tarkov.dev 把弹药/预设/分类存成 id，详情需要名称才能展示。"""
+    item = dict(detail.get("item") or {})
+    props = dict(detail.get("properties") or {})
 
     for key in _ITEM_REF_KEYS:
         if key not in props or props[key] in (None, ""):
@@ -852,23 +859,18 @@ def parse_ammo_pack_index(
 
 def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     """当前模式 items raw 里的弹药包索引；缺 raw / 解析失败时为空。"""
-    global _pack_index_cache
-    if items_svc.get_items_raw(db) is None:
+    source, synced, _note = items_svc.items_raw_header(db)
+    if source is None:
         return {}
-    _source, synced, _note = items_svc.items_raw_header(db)
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        cached = _pack_index_cache
-        if cached is not None and cached[0] == key:
-            return cached[1]
+    hit = _pack_index_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
     try:
         source, payload, synced_at, _note = _load_payload(db)
     except TarkovItemsError:
         return {}
     index = parse_ammo_pack_index(source, payload)
-    key = parsed_cache_key(db, synced_at)
-    with _parsed_lock:
-        _pack_index_cache = (key, index)
+    _pack_index_cache.put(parsed_cache_key(db, synced_at), index)
     return index
 
 
@@ -1018,54 +1020,136 @@ def paginate_catalog_items(
 def load_parsed_catalog(
     db: Session,
 ) -> tuple[str, list[dict[str, Any]], str | None, str | None]:
-    """解析整包目录；synced_at 未变则复用进程缓存，翻页不必重读 raw_json。"""
-    global _parsed_cache
+    """解析整包目录；表头键（synced_at + overlay）未变则直接复用进程缓存，翻页不读 raw_json。"""
     items_svc.ensure_items(db)
     _source, synced, _note = items_svc.items_raw_header(db)
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            return cached[1], cached[2], cached[3], cached[4]
+    hit = _parsed_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
 
     source, payload, synced_at, note = _load_payload(db)
     if not payload_has_full_items(source, payload):
         try:
-            ensure_full_item_catalog(db)
+            _upgrade_to_json_items(db)
             source, payload, synced_at, note = _load_payload(db)
         except TarkovItemsError as exc:
             logger.warning("upgrade catalog to json failed, using split raw: %s", exc)
-    rows = parse_catalog_items(source, payload)
-    key = parsed_cache_key(db, synced_at)
-    with _parsed_lock:
-        _parsed_cache = (key, source, rows, synced_at, note)
-    return source, rows, synced_at, note
+    parsed = (source, parse_catalog_items(source, payload), synced_at, note)
+    _parsed_cache.put(parsed_cache_key(db, synced_at), parsed)
+    return parsed
 
 
 def peek_catalog_items(db: Session) -> list[dict[str, Any]]:
-    """搜索用：有 raw 则解析，不回源、不把 GraphQL split 升级成 json、不覆盖进程缓存。"""
-    if items_svc.get_items_raw(db) is None:
+    """搜索用：有 raw 则解析，不回源、不把 GraphQL split 升级成 json；split 结果不进进程缓存。"""
+    source, synced, _note = items_svc.items_raw_header(db)
+    if source is None:
         return []
-    _source, synced, _note = items_svc.items_raw_header(db)
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            return list(cached[2])
-    source, payload, _synced, _note = _load_payload(db)
-    return parse_catalog_items(source, payload)
+    hit = _parsed_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return list(hit[1])
+    source, payload, synced_at, note = _load_payload(db)
+    rows = parse_catalog_items(source, payload)
+    if payload_has_full_items(source, payload):
+        _parsed_cache.put(parsed_cache_key(db, synced_at), (source, rows, synced_at, note))
+    return list(rows)
 
 
-def extract_item_detail(
-    source: str,
-    payload: dict[str, Any],
+class ItemsIndex(Mapping[str, dict[str, Any]]):
+    """items raw（含 overlay）按 id 的只读索引，连同表头与详情要用的 locale / 分类表。
+
+    每条只存紧凑 JSON 文本、取用时才解码：整份 dump 常驻成 Python 对象要大好几倍。
+    """
+
+    def __init__(
+        self,
+        source: str,
+        payload: dict[str, Any],
+        synced_at: str | None,
+        note: str | None,
+    ) -> None:
+        self.source = source
+        self.synced_at = synced_at
+        self.note = note
+        self.full = payload_has_full_items(source, payload)
+        self.locale = items_svc._locale_map(payload)
+        self.catalogs = _detail_catalogs(payload)
+        self._raw = {
+            ident: json.dumps(raw, separators=(",", ":"))
+            for ident, raw in iter_raw_items(source, payload)
+            if ident
+        }
+
+    def __getitem__(self, item_id: str) -> dict[str, Any]:
+        return json.loads(self._raw[item_id])
+
+    def __contains__(self, item_id: object) -> bool:
+        return item_id in self._raw
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._raw)
+
+    def __len__(self) -> int:
+        return len(self._raw)
+
+
+def _items_index(db: Session) -> ItemsIndex | None:
+    source, synced, _note = items_svc.items_raw_header(db)
+    if source is None:
+        return None
+    hit = _items_index_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
+    source, payload, synced_at, note = _read_payload(db)
+    index = ItemsIndex(source, payload, synced_at, note)
+    _items_index_cache.put(parsed_cache_key(db, synced_at), index)
+    return index
+
+
+def load_items_index(db: Session) -> ItemsIndex:
+    """详情 / 按 id 查物品用；表头键未变则直接复用，不读 raw_json。"""
+    items_svc.ensure_items(db)
+    index = _items_index(db)
+    if index is None:
+        raise TarkovItemsError("无物品 raw")
+    return index
+
+
+def peek_items_index(db: Session) -> ItemsIndex | None:
+    """同 load_items_index，但不回源、不重算派生表；库里没有 items raw 时为 None。"""
+    return _items_index(db)
+
+
+def item_detail_cache_parts(db: Session) -> tuple[str, ...]:
+    """物品详情 ETag 的表头部分：items / 地图门锁 / 任务与藏身处来源 / overlay，任一重新同步即失效。"""
+    from app.services.tarkov import upstream as upstream_svc
+    from app.services.tarkov.guides import guides_cache_token
+
+    items_svc.ensure_items(db)
+    _source, items_synced, _note = items_svc.items_raw_header(db)
+    _maps_source, maps_synced, _note = upstream_svc.raw_row_header(
+        upstream_svc.load_raw_row(db, "maps")
+    )
+    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(
+        upstream_svc.load_raw_row(db, "tasks")
+    )
+    return (
+        items_synced or "",
+        maps_synced or "",
+        tasks_synced or "",
+        guides_cache_token(db),
+        overlay_cache_token(db),
+    )
+
+
+def _item_detail(
     item_id: str,
+    items_by_id: Mapping[str, dict[str, Any]],
+    catalogs: tuple[dict[str, Any], dict[str, Any]],
+    locale: dict[str, Any],
 ) -> dict[str, Any] | None:
     item_id = (item_id or "").strip()
     if not item_id:
         return None
-    locale = items_svc._locale_map(payload)
-    items_by_id = _raw_items_by_id(source, payload)
     raw = items_by_id.get(item_id)
     if not isinstance(raw, dict):
         return None
@@ -1088,14 +1172,31 @@ def extract_item_detail(
         "item": item_out,
         "properties": dict(props) if isinstance(props, dict) else {},
     }
-    return _hydrate_detail_refs(detail, items_by_id, payload, locale)
+    return _hydrate_detail_refs(detail, items_by_id, catalogs, locale)
+
+
+def extract_item_detail(
+    source: str,
+    payload: dict[str, Any],
+    item_id: str,
+) -> dict[str, Any] | None:
+    return _item_detail(
+        item_id,
+        _raw_items_by_id(source, payload),
+        _detail_catalogs(payload),
+        items_svc._locale_map(payload),
+    )
 
 
 def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
+    items_svc.ensure_items(db)
+    return _read_payload(db)
+
+
+def _read_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
     from app.services.tarkov import overlay as overlay_svc
     from app.services.tarkov import upstream as upstream_svc
 
-    items_svc.ensure_items(db)
     source, payload, synced, note = upstream_svc.load_main_payload(
         db,
         "items",
@@ -1106,14 +1207,29 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
     return source, overlay_svc.apply_loaded_overlay(db, "items", payload), synced, note
 
 
+def _items_full(db: Session) -> bool:
+    source, _synced, _note = items_svc.items_raw_header(db)
+    if (source or "").strip() == SOURCE_JSON_API:
+        return True
+    return load_items_index(db).full
+
+
+def _upgrade_to_json_items(db: Session) -> None:
+    with sync_lock.cold_start():
+        # 等锁期间可能已有人升级：结束旧事务才看得到它提交的 raw（MariaDB 可重复读）。
+        db.commit()
+        if _items_full(db):
+            return
+        logger.info("tarkov catalog needs json items; upgrading raw from GraphQL split")
+        bundle = items_svc.download_json_api_items(lang="zh")
+        items_svc.persist_items_bundle(db, bundle)
+
+
 def ensure_full_item_catalog(db: Session) -> None:
-    """目录需要整包 items；若当前是 GraphQL split 则回源 json 一次。"""
-    source, payload, _synced, _note = _load_payload(db)
-    if payload_has_full_items(source, payload):
-        return
-    logger.info("tarkov catalog needs json items; upgrading raw from GraphQL split")
-    bundle = items_svc.download_json_api_items(lang="zh")
-    items_svc.persist_items_bundle(db, bundle)
+    """目录需要整包 items；若当前是 GraphQL split 则回源 json 一次。json 源只看表头。"""
+    items_svc.ensure_items(db)
+    if not _items_full(db):
+        _upgrade_to_json_items(db)
 
 
 def list_catalog(
@@ -1185,18 +1301,18 @@ def get_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     if not item_id:
         raise TarkovItemsError("物品 id 无效")
 
-    source, payload, _synced, _note = _load_payload(db)
-    detail = extract_item_detail(source, payload, item_id)
-    if detail is None and not payload_has_full_items(source, payload):
+    index = load_items_index(db)
+    detail = _item_detail(item_id, index, index.catalogs, index.locale)
+    if detail is None and not index.full:
         try:
-            ensure_full_item_catalog(db)
-            source, payload, _synced, _note = _load_payload(db)
-            detail = extract_item_detail(source, payload, item_id)
+            _upgrade_to_json_items(db)
+            index = load_items_index(db)
+            detail = _item_detail(item_id, index, index.catalogs, index.locale)
         except TarkovItemsError as exc:
             logger.warning("upgrade catalog for detail failed: %s", exc)
     if detail is None:
         raise TarkovItemsError(f"未找到物品: {item_id}")
-    detail["source"] = source
+    detail["source"] = index.source
     attach_item_key_locks(db, detail)
     attach_item_sources(db, detail)
     return detail

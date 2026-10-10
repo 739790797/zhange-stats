@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.database import Base
+from app.models.tarkov import TarkovAmmo
 from app.services.tarkov import ammo as svc
+from app.services.tarkov import catalog as catalog_svc
+from app.services.tarkov.game_mode import game_mode_scope, raw_row_id
+
+
+def _session() -> Session:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(bind=engine)()
 
 
 def test_normalize_caliber():
@@ -119,3 +131,46 @@ def test_parse_json_api_ammo():
     assert rows[0]["tracer_color"] == "red"
     assert rows[0]["fragmentation_chance"] == pytest.approx(0.4)
     assert rows[0]["ricochet_chance"] == pytest.approx(0.2)
+
+
+def test_ammo_catalog_rows_current_mode_with_pack_icons(monkeypatch):
+    db = _session()
+    for mode, item_id, caliber, pen in (
+        ("pvp", "bs", "5.45x39mm", 51),
+        ("pvp", "ps", "5.45x39mm", 21),
+        ("pvp", "m855", "5.56x45mm", 31),
+        ("pve", "pve-only", "5.45x39mm", 40),
+    ):
+        db.add(
+            TarkovAmmo(
+                mode_id=raw_row_id(mode),
+                item_id=item_id,
+                name=item_id.upper(),
+                short_name=item_id,
+                caliber=caliber,
+                penetration=pen,
+                tracer=item_id == "bs",
+                tracer_color="",
+                icon_link=f"https://img/{item_id}.webp",
+            )
+        )
+    db.commit()
+    monkeypatch.setattr(
+        catalog_svc,
+        "list_ammo_pack_index",
+        lambda _db: {"bs": {"pack_icon_link": "https://img/bs-pack.webp", "pack_item_id": "bs-pack"}},
+    )
+
+    with game_mode_scope("pvp"):
+        rows = svc.ammo_catalog_rows(db)
+
+    assert [r["id"] for r in rows] == ["ps", "bs", "m855"]
+    bs = rows[1]
+    assert bs["tracer"] is True
+    assert bs["pack_icon_link"] == "https://img/bs-pack.webp"
+    assert bs["pack_item_id"] == "bs-pack"
+    assert bs["icon_link"] == "https://img/bs.webp"
+    assert rows[0]["pack_icon_link"] == ""
+    assert rows[0]["pack_item_id"] == ""
+    assert rows[0]["tracer"] is False
+    assert rows[0]["tracer_color"] == ""

@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.services.tarkov import upstream as upstream_svc
-from app.services.tarkov.game_mode import cache_key, json_api_prefix
+from app.services.tarkov.game_mode import cache_key, json_api_prefix, parse_game_mode
 from app.services.tarkov.http import download_bytes_with_meta
 
 logger = logging.getLogger(__name__)
@@ -367,14 +367,20 @@ def load_overlay(db: Session) -> dict[str, Any] | None:
 
 
 def overlay_cache_token(db: Session) -> str:
+    """overlay raw 的 synced_at；一次请求里各栏目算 parse key / ETag 共用一次查询。"""
+    memo = upstream_svc.session_memo(db)
+    memo_key = ("overlay_token", parse_game_mode())
+    if memo is not None and memo_key in memo:
+        return memo[memo_key]
     try:
         row = upstream_svc.load_raw_row(db, OVERLAY_RESOURCE)
     except Exception as exc:
         logger.warning("tarkov overlay cache token unavailable: %s", exc)
         return ""
-    if row is None or not row.synced_at:
-        return ""
-    return row.synced_at.isoformat()
+    token = row.synced_at.isoformat() if row is not None and row.synced_at else ""
+    if memo is not None:
+        memo[memo_key] = token
+    return token
 
 
 def parsed_cache_key(db: Session, resource_synced: str | None) -> str:

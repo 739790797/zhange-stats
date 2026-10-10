@@ -227,6 +227,9 @@ class _RawQuery:
         self.model = model
         self._rows = list(session.store.get(model, []))
 
+    def options(self, *_a, **_k):  # noqa: ANN001
+        return self
+
     def filter(self, *args, **_k):  # noqa: ANN001
         for expr in args:
             left = getattr(expr, "left", None)

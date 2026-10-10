@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovTasksRaw
+from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     GAME_MODES,
@@ -28,6 +28,7 @@ from app.services.tarkov.game_mode import (
 )
 from app.services.tarkov.overlay import OVERLAY_PARSE_REV, parsed_cache_key
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.parse_cache import ModeCache, ModeKeyedCache
 from app.services.tarkov.task_lines import index_task_lines, stamp_task_line_fields
 
 logger = logging.getLogger(__name__)
@@ -89,12 +90,14 @@ MAP_SLUG_EQUIV_GROUPS: tuple[tuple[str, ...], ...] = (
     ("customs", "bigmap"),
 )
 
-_parsed_lock = threading.Lock()
-_parsed_cache: tuple[str, list[dict[str, Any]], dict[str, Any]] | None = None
-# cache_key:canon_map → (map_name, rows)；与 _parsed_cache 同锁、同次 sync 清空
-_raid_prep_cache: dict[str, tuple[str, list[dict[str, Any]]]] = {}
-# cache_key → map_slug → {task_id: name}
-_raid_prep_index_cache: dict[str, dict[str, dict[str, dict[str, str]]]] = {}
+# (rows, locale)
+_parsed_cache: ModeCache[tuple[list[dict[str, Any]], dict[str, Any]]] = ModeCache()
+# canon_map → (map_name, rows, quest_items)；与 _parsed_cache 同次 sync 清空
+_raid_prep_cache: ModeKeyedCache[
+    tuple[str, list[dict[str, Any]], dict[str, dict[str, Any]]]
+] = ModeKeyedCache()
+# map_slug → {task_id: name}
+_raid_prep_index_cache: ModeCache[dict[str, dict[str, dict[str, str]]]] = ModeCache()
 
 
 class TarkovTasksError(Exception):
@@ -1885,11 +1888,9 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
         note=bundle.note,
     )
     db.commit()
-    global _parsed_cache
-    with _parsed_lock:
-        _parsed_cache = None
-        _raid_prep_cache.clear()
-        _raid_prep_index_cache.clear()
+    _parsed_cache.clear()
+    _raid_prep_cache.clear()
+    _raid_prep_index_cache.clear()
     return {
         "task_count": len(rows),
         "source": bundle.source,
@@ -1927,9 +1928,11 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 
 
 def ensure_tasks(db: Session) -> None:
-    if get_tasks_raw(db) is not None:
-        return
-    sync_from_upstream(db, game_mode=parse_game_mode())
+    sync_lock.fill_once(
+        db,
+        lambda: get_tasks_raw(db) is None,
+        lambda: sync_from_upstream(db, game_mode=parse_game_mode()),
+    )
 
 
 def catalog_task_id_set(db: Session) -> set[str] | None:
@@ -1950,21 +1953,20 @@ def catalog_task_id_set(db: Session) -> set[str] | None:
 def load_parsed_tasks(
     db: Session,
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any], str | None, str | None]:
-    global _parsed_cache
+    """表头键（synced_at + overlay）未变则直接用进程缓存，不再读任务 raw。"""
+    from app.services.tarkov import upstream as upstream_svc
+
     ensure_tasks(db)
     row = get_tasks_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            source, payload, synced_at, note = _load_payload(db)
-            return source, cached[1], cached[2], synced_at, note
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _parsed_cache.get(parsed_cache_key(db, synced))
+        if hit is not None:
+            return source or "", hit[0], hit[1], synced, note
     source, payload, synced_at, note = _load_payload(db)
     rows = parse_task_rows(payload)
     locale = _locale_map(payload)
-    with _parsed_lock:
-        _parsed_cache = (key, rows, locale)
+    _parsed_cache.put(parsed_cache_key(db, synced_at), (rows, locale))
     return source, rows, locale, synced_at, note
 
 
@@ -2320,22 +2322,19 @@ def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, dict[str, str]]
     """按当前 game_mode 读任务 raw 建瘦索引；无 raw 时各图空字典。"""
     slugs = raid_prep_room_map_slugs()
     empty: dict[str, dict[str, dict[str, str]]] = {slug: {} for slug in slugs}
-    if get_tasks_raw(db) is None:
-        return empty
     row = get_tasks_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        hit = _raid_prep_index_cache.get(key)
-        if hit is not None:
-            return hit
+    if row is None:
+        return empty
+    synced = row.synced_at.isoformat() if row.synced_at else None
+    hit = _raid_prep_index_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
     try:
-        _source, payload, _synced_at, _note = _load_payload(db)
+        _source, payload, synced_at, _note = _load_payload(db)
     except TarkovTasksError:
         return empty
     index = collect_raid_prep_task_index(payload)
-    with _parsed_lock:
-        _raid_prep_index_cache[key] = index
+    _raid_prep_index_cache.put(parsed_cache_key(db, synced_at), index)
     return index
 
 
@@ -2344,30 +2343,36 @@ def load_raid_prep_rows(
     map_slug: str,
     *,
     ensure: bool = True,
-) -> tuple[str, str, list[dict[str, Any]], str | None, str | None, dict[str, Any]]:
-    """带按图缓存的联机大厅投影；返回 source, map_name, rows, synced_at, note, payload。"""
+) -> tuple[
+    str, str, list[dict[str, Any]], str | None, str | None, dict[str, dict[str, Any]]
+]:
+    """带按图缓存的联机大厅投影；返回 source, map_name, rows, synced_at, note, quest_items。
+
+    表头键未变则整份走缓存：认领 / 房间快照每次都要查本图目录，不能每次解码任务 raw。
+    """
+    from app.services.tarkov import upstream as upstream_svc
+
     if ensure:
         ensure_tasks(db)
-    elif get_tasks_raw(db) is None:
-        raise TarkovTasksError("无任务 raw")
     row = get_tasks_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = parsed_cache_key(db, synced)
+    if row is None:
+        raise TarkovTasksError("无任务 raw")
     canon = canonical_raid_map_slug(map_slug)
-    keys, ids = map_match_keys(map_slug)
+    _keys, ids = map_match_keys(map_slug)
     if not ids:
         raise TarkovTasksError("地图无效")
-    entry_key = f"{key}:{canon}"
-    with _parsed_lock:
-        hit = _raid_prep_cache.get(entry_key)
-        if hit is not None:
-            source, payload, synced_at, note = _load_payload(db)
-            return source, hit[0], hit[1], synced_at, note, payload
+    source, synced, note = upstream_svc.raw_row_header(row)
+    hit = _raid_prep_cache.get(parsed_cache_key(db, synced), canon)
+    if hit is not None:
+        map_name, rows, quest_items = hit
+        return source or "", map_name, rows, synced, note, quest_items
     source, payload, synced_at, note = _load_payload(db)
     map_name, rows = collect_raid_prep_rows(payload, canon)
-    with _parsed_lock:
-        _raid_prep_cache[entry_key] = (map_name, rows)
-    return source, map_name, rows, synced_at, note, payload
+    quest_items = _quest_items_map(payload)
+    _raid_prep_cache.put(
+        parsed_cache_key(db, synced_at), canon, (map_name, rows, quest_items)
+    )
+    return source, map_name, rows, synced_at, note, quest_items
 
 
 def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
@@ -2378,7 +2383,7 @@ def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
     if get_tasks_raw(db) is None:
         return None
     try:
-        _source, _name, rows, _synced, _note, _payload = load_raid_prep_rows(
+        _source, _name, rows, _synced, _note, _quest_items = load_raid_prep_rows(
             db, map_slug, ensure=False
         )
     except TarkovTasksError:
@@ -2432,7 +2437,7 @@ def list_raid_prep(
     map_slug = (map_slug or "").strip()
     if not map_slug:
         raise TarkovTasksError("地图无效")
-    source, map_name, base_rows, synced_at, note, payload = load_raid_prep_rows(
+    source, map_name, base_rows, synced_at, note, quest_items = load_raid_prep_rows(
         db, map_slug
     )
     # 缓存行是共享的；注解进度前浅拷贝，避免污染缓存
@@ -2474,9 +2479,7 @@ def list_raid_prep(
         key=lambda r: (not r.get("has_map_markers"), not r.get("on_this_map"))
     )
     if geometry:
-        _enrich_items_from_catalog(
-            db, ordered, quest_items=_quest_items_map(payload)
-        )
+        _enrich_items_from_catalog(db, ordered, quest_items=quest_items)
     return {
         "map_slug": map_slug,
         "map_name": map_name,
@@ -2631,26 +2634,24 @@ def _lookup_item_hits_from_catalog(
     if not wanted:
         return {}
     try:
-        from app.services.tarkov import upstream as upstream_svc
-        from app.services.tarkov.catalog import _row_from_raw, iter_raw_items
-        from app.services.tarkov.items import _locale_map as items_locale
+        from app.services.tarkov.catalog import _row_from_raw, peek_items_index
     except Exception:  # noqa: BLE001
         return {}
     try:
-        source, items_payload, _synced, _note = upstream_svc.load_main_payload(db, "items")
+        index = peek_items_index(db)
     except Exception:  # noqa: BLE001
         return {}
-    locale = items_locale(items_payload)
+    if index is None:
+        return {}
     found: dict[str, dict[str, Any]] = {}
     try:
-        for ident, raw in iter_raw_items(source, items_payload):
-            if ident not in wanted or ident in found:
+        for ident in wanted:
+            raw = index.get(ident)
+            if raw is None:
                 continue
-            hit = _row_from_raw(ident, raw, locale)
+            hit = _row_from_raw(ident, raw, index.locale)
             if hit:
                 found[ident] = hit
-            if len(found) >= len(wanted):
-                break
     except Exception:  # noqa: BLE001
         logger.warning("task item enrich: catalog unavailable", exc_info=True)
         return {}

@@ -28,7 +28,8 @@ class TarkovCatalogRawMixin:
     mode_id: Mapped[int] = mapped_column(Integer, nullable=False)
     lang: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    raw_json: Mapped[str] = mapped_column(LongText, nullable=False)
+    # 整站 dump 动辄几十 MB：默认只读表头，要解码时由 upstream.load_raw_row(with_json=True) 显式带上。
+    raw_json: Mapped[str] = mapped_column(LongText, nullable=False, deferred=True)
     # 部分 raw 表在迁移里有 CURRENT_TIMESTAMP 默认、部分没有，只在 Python 侧给值
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
