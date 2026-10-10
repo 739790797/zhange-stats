@@ -29,20 +29,34 @@ def issue_oauth_ticket(db: Session, access_token: str) -> str:
 
 
 def consume_oauth_ticket(db: Session, code: str) -> str:
-    """核销 ticket，返回 JWT；失败抛 ValueError。"""
+    """核销 ticket，返回 JWT；失败抛 ValueError。
+
+    用带条件的 DELETE 抢占：同一张 ticket 并发来换，只有真正删到那一行的请求拿得到令牌。
+    """
     raw = (code or "").strip()
     if not raw:
         raise ValueError("缺少换票码")
     row = db.get(OAuthExchangeTicket, raw)
     if row is None:
         raise ValueError("换票码无效或已使用")
-    if to_naive(row.expires_at) < now_naive():
+    now = now_naive()
+    if to_naive(row.expires_at) < now:
         db.delete(row)
         db.flush()
         raise ValueError("换票码已过期，请重新登录")
-    token = decrypt_secret(row.access_token)
-    db.delete(row)
-    db.flush()
+    sealed = row.access_token
+    deleted = (
+        db.query(OAuthExchangeTicket)
+        .filter(
+            OAuthExchangeTicket.code == raw,
+            OAuthExchangeTicket.expires_at >= now,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.expunge(row)
+    if deleted != 1:
+        raise ValueError("换票码无效或已使用")
+    token = decrypt_secret(sealed)
     if not token:
         raise ValueError("换票码无效或已使用")
     return token
