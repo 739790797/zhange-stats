@@ -2,23 +2,39 @@
 
 from __future__ import annotations
 
+import hmac
+import logging
+import os
 import secrets
 import string
+import tempfile
 import threading
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import (
+    DISPLAY_NAME_MARKUP_ERROR,
+    create_user_access_token,
+    has_markup_chars,
+    hash_password,
+)
 from app.models.system_config import SystemConfig
 from app.models.user import User, UserRole
 from app.services.auth_config import get_min_password_length
 from app.services.member_sync import ensure_user_member
 from app.services.password_policy import PasswordPolicyError, validate_password
 
+logger = logging.getLogger("zhange.setup")
+
 SETUP_COMPLETED_KEY = "setup_completed"
+SETUP_TOKEN_FILENAME = "setup-token"
+SETUP_TOKEN_HEADER = "X-Setup-Token"
 
 _setup_done = False
 _setup_lock = threading.Lock()
+_token_lock = threading.Lock()
+_token_announced = False
 
 
 def is_setup_complete_cached() -> bool:
@@ -48,6 +64,86 @@ def needs_setup(db: Session) -> bool:
     return db.query(User).filter(User.role == UserRole.admin).count() == 0
 
 
+def setup_marker_exists(db: Session) -> bool:
+    return db.get(SystemConfig, SETUP_COMPLETED_KEY) is not None
+
+
+def setup_open(db: Session) -> bool:
+    """还能走向导建首位管理员：既没有管理员，也从未写过完成标记。"""
+    return needs_setup(db) and not setup_marker_exists(db)
+
+
+def setup_token_path() -> Path:
+    from app.core.config import get_settings
+
+    return get_settings().data_dir_path / SETUP_TOKEN_FILENAME
+
+
+def read_setup_token() -> str:
+    try:
+        return setup_token_path().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _write_private_file(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # mkstemp 建出来就是 0600；replace 保证读者不会读到半个令牌
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def ensure_setup_token() -> Path:
+    """向导未完成时保证令牌文件存在。日志只给路径，令牌本身只在文件里。"""
+    global _token_announced
+    path = setup_token_path()
+    with _token_lock:
+        if not read_setup_token():
+            _write_private_file(path, secrets.token_urlsafe(24) + "\n")
+            _token_announced = False
+        if not _token_announced:
+            _token_announced = True
+            logger.warning(
+                "setup: install token is in %s; enter it in the setup wizard "
+                "(deleted once setup completes)",
+                path,
+            )
+    return path
+
+
+def setup_token_matches(provided: str | None) -> bool:
+    expected = read_setup_token()
+    given = (provided or "").strip()
+    if not expected or not given:
+        return False
+    return hmac.compare_digest(expected.encode("utf-8"), given.encode("utf-8"))
+
+
+def delete_setup_token() -> None:
+    global _token_announced
+    path = setup_token_path()
+    with _token_lock:
+        _token_announced = False
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            logger.warning("setup: could not delete install token %s (%s)", path, exc)
+
+
 def ensure_setup_marker_if_admins_exist(db: Session) -> None:
     """已有管理员的旧库：补写完成标记。"""
     if needs_setup(db):
@@ -75,14 +171,16 @@ def complete_initial_admin(
     display_name: str,
     password: str,
 ) -> tuple[User, str]:
-    """创建首位管理员并返回 (user, access_token)。"""
-    if not needs_setup(db):
+    """创建首位管理员并返回 (user, access_token)。已有管理员或写过完成标记即拒绝。"""
+    if not setup_open(db):
         raise SetupError("系统已完成初始化", status_code=409)
 
     email_norm = email.strip().lower()
     name = display_name.strip()
     if not name:
         raise SetupError("请填写显示名")
+    if has_markup_chars(name):
+        raise SetupError(DISPLAY_NAME_MARKUP_ERROR)
     if "@" not in email_norm:
         raise SetupError("邮箱格式不正确")
 
@@ -123,6 +221,5 @@ def complete_initial_admin(
         db.add(SystemConfig(key=SETUP_COMPLETED_KEY, value="1"))
     db.commit()
     db.refresh(user)
-    mark_setup_complete()
-    token = create_access_token(user.username, user_id=user.id)
+    token = create_user_access_token(user)
     return user, token

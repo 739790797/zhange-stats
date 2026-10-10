@@ -12,7 +12,12 @@ from app.services.auth_config import (
     load_auth_config,
 )
 from app.services.password_policy import list_admins_with_weak_password
-from app.services.setup import needs_setup
+from app.services.setup import (
+    delete_setup_token,
+    ensure_setup_token,
+    needs_setup,
+    setup_marker_exists,
+)
 
 logger = logging.getLogger("zhange.security")
 
@@ -29,8 +34,18 @@ def check_email_code_log_policy() -> None:
 
 def check_admin_password_health(db: Session) -> None:
     if needs_setup(db):
+        if setup_marker_exists(db):
+            logger.warning(
+                "已完成过初始化但当前没有管理员；安装向导不会再开放，恢复步骤见 docs/security.md"
+            )
+            return
         logger.info("尚未初始化管理员，请打开站点完成安装向导")
+        try:
+            ensure_setup_token()
+        except OSError:
+            logger.warning("无法写入安装令牌文件，安装向导将无法提交", exc_info=True)
         return
+    delete_setup_token()
 
     cfg = load_auth_config(db)
     reject = effective_reject_weak_admin_password(cfg)

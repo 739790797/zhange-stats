@@ -13,17 +13,25 @@ from app.models.user import UserRole
 from app.services.setup import complete_initial_admin, needs_setup
 
 
-def test_setup_status_without_database(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_status_without_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("APP_INSTALL_DIR", str(tmp_path))
     get_settings.cache_clear()
     from app.api.setup import get_setup_status
+    from app.services.setup import read_setup_token, setup_token_path
 
     status = get_setup_status()
     assert status.needs_setup is True
     assert status.needs_database is True
     assert status.needs_admin is True
+    assert status.token_required is True
     assert "sqlite" in status.engines
     assert "mysql" in status.engines
+    assert setup_token_path().is_relative_to(tmp_path)
+    assert read_setup_token()
+    get_settings.cache_clear()
 
 
 def test_sqlite_create_all_then_admin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -45,7 +53,7 @@ def test_sqlite_create_all_then_admin(tmp_path: Path, monkeypatch: pytest.Monkey
             "app.services.setup.get_min_password_length", lambda _db: 8
         )
         monkeypatch.setattr(
-            "app.services.setup.create_access_token", lambda _u, **_kw: "tok"
+            "app.services.setup.create_user_access_token", lambda _u: "tok"
         )
         user, token = complete_initial_admin(
             db,
