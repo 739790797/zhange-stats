@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
@@ -22,6 +22,10 @@ from app.core.deps import require_admin
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.user import User
+from app.services.checkin.adapter import CheckinPlatformAdapter
+from app.services.checkin.orchestrator import run_checkin_for_bind
+from app.services.checkin.registry import get_checkin_adapters
+from app.services.platform_features import PLATFORM_SHORT_NAMES
 from app.services.scheduler_config import JOB_IDS
 from app.services.scheduler_runtime import (
     CHECKIN_JOB_IDS,
@@ -34,6 +38,13 @@ router = APIRouter()
 logger = logging.getLogger("zhange.jobs")
 
 _CHECKIN_JOB_SET = frozenset(CHECKIN_JOB_IDS)
+
+
+def _checkin_adapter_for_job(job_id: str) -> CheckinPlatformAdapter | None:
+    return next(
+        (a for a in get_checkin_adapters().values() if a.job_key == job_id),
+        None,
+    )
 
 
 def _run_sync_role_checkin(
@@ -49,48 +60,18 @@ def _run_sync_role_checkin(
     if member is None:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    role_keys = {(game_code, role_uid)}
-    runners: dict[str, Callable[..., dict[str, Any]]] = {}
-    error_types: dict[str, type[Exception]] = {}
-
-    if job_id == "skland_checkin":
-        from app.services.skland.checkin import run_checkin_for_member
-        from app.services.skland.client import SklandApiError
-
-        runners[job_id] = run_checkin_for_member
-        error_types[job_id] = SklandApiError
-    elif job_id == "taygedo_checkin":
-        from app.services.taygedo.checkin import run_checkin_for_member
-        from app.services.taygedo.client import TaygedoApiError
-
-        runners[job_id] = run_checkin_for_member
-        error_types[job_id] = TaygedoApiError
-    elif job_id == "exilium_checkin":
-        from app.services.exilium.checkin import run_checkin_for_member
-        from app.services.exilium.client import ExiliumApiError
-
-        runners[job_id] = run_checkin_for_member
-        error_types[job_id] = ExiliumApiError
-    elif job_id == "kujiequ_checkin":
-        from app.services.kujiequ.checkin import run_checkin_for_member
-        from app.services.kujiequ.client import KujiequApiError
-
-        runners[job_id] = run_checkin_for_member
-        error_types[job_id] = KujiequApiError
-    elif job_id == "mihoyo_checkin":
-        from app.services.mihoyo.checkin import run_checkin_for_member
-        from app.services.mihoyo.client import MihoyoApiError
-
-        runners[job_id] = run_checkin_for_member
-        error_types[job_id] = MihoyoApiError
-    else:
+    adapter = _checkin_adapter_for_job(job_id)
+    if adapter is None:
         raise HTTPException(status_code=400, detail="该任务不支持角色级同步执行")
-
-    runner = runners[job_id]
-    err_cls = error_types[job_id]
+    bind = adapter.get_bind(db, member.id)
+    if bind is None:
+        name = PLATFORM_SHORT_NAMES.get(adapter.platform, adapter.platform)
+        raise HTTPException(status_code=400, detail=f"该用户尚未绑定{name}")
     try:
-        return runner(db, member, force=True, role_keys=role_keys)
-    except err_cls as exc:  # noqa: BLE001
+        return run_checkin_for_bind(
+            adapter, db, bind, force=True, role_keys={(game_code, role_uid)}
+        )
+    except adapter.api_error_cls as exc:
         msg = getattr(exc, "message", None) or str(exc)
         raise HTTPException(status_code=400, detail=msg) from exc
 
