@@ -72,6 +72,15 @@ def _day_bounds(d: date) -> tuple[datetime, datetime]:
     return day_bounds(d)
 
 
+def _overlapping_rows(q, model, ws: datetime) -> list:
+    """与窗口有交集 = 窗口内结束或仍在进行。
+
+    拆成两条查询而不写 OR，各自能走 (member_id, ended_at) 索引；收尾时 last_seen_at 与
+    ended_at 同时写，last_seen_at 不会晚于 ended_at，不必再按它筛。
+    """
+    return q.filter(model.ended_at >= ws).all() + q.filter(model.ended_at.is_(None)).all()
+
+
 def _sessions_in_window(
     db: Session,
     window_start: datetime,
@@ -98,9 +107,6 @@ def _sessions_in_window(
         .filter(
             PlaySession.source == "steam",
             PlaySession.started_at < we,
-            (PlaySession.ended_at.is_(None))
-            | (PlaySession.ended_at >= ws)
-            | (PlaySession.last_seen_at >= ws),
         )
     )
     if member_id is not None:
@@ -109,7 +115,8 @@ def _sessions_in_window(
         if not member_ids:
             return []
         q = q.filter(PlaySession.member_id.in_(member_ids))
-    return q.order_by(PlaySession.started_at.desc()).all()
+    rows = _overlapping_rows(q, PlaySession, ws)
+    return sorted(rows, key=lambda s: _to_aware(s.started_at), reverse=True)
 
 
 def build_calendar(
@@ -308,25 +315,29 @@ def build_range_detail(
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
 
     presence_rows = (
-        db.query(PresenceSegment)
-        .options(joinedload(PresenceSegment.member))
-        .filter(
-            PresenceSegment.source == "steam",
-            PresenceSegment.member_id.in_(visible_ids),
-            PresenceSegment.started_at < _to_db_naive(window_end),
-            (PresenceSegment.ended_at.is_(None))
-            | (PresenceSegment.ended_at >= _to_db_naive(window_start))
-            | (PresenceSegment.last_seen_at >= _to_db_naive(window_start)),
+        sorted(
+            _overlapping_rows(
+                db.query(PresenceSegment)
+                .options(joinedload(PresenceSegment.member))
+                .filter(
+                    PresenceSegment.source == "steam",
+                    PresenceSegment.member_id.in_(visible_ids),
+                    PresenceSegment.started_at < _to_db_naive(window_end),
+                ),
+                PresenceSegment,
+                _to_db_naive(window_start),
+            ),
+            key=lambda seg: _to_aware(seg.started_at),
         )
-        .order_by(PresenceSegment.started_at.asc())
-        .all()
         if visible_ids
         else []
     )
+    # 读路径只用库内缓存；商店名由轮询补全，不在请求里打 Steam 商店
     name_map = resolve_app_names(
         db,
         [s.steam_app_id for s in sessions]
         + [seg.steam_app_id for seg in presence_rows],
+        fetch_missing=False,
     )
     # 热路径只用库内缓存；client icon 由前端异步 /apps/{id}/icon 补全
     icon_map = resolve_app_icons(
@@ -533,7 +544,9 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
         .all()
     )
     now_dt = now()
-    name_map = resolve_app_names(db, [s.steam_app_id for s in sessions])
+    name_map = resolve_app_names(
+        db, [s.steam_app_id for s in sessions], fetch_missing=False
+    )
     icon_map = resolve_app_icons(
         db, [s.steam_app_id for s in sessions], fetch_missing=False
     )
@@ -601,7 +614,9 @@ def build_overview(db: Session, viewer: User) -> dict:
     recent = recent_q.order_by(PlaySession.started_at.desc()).limit(20).all()
     recent_sessions = []
     now_dt = now()
-    name_map = resolve_app_names(db, [s.steam_app_id for s in recent])
+    name_map = resolve_app_names(
+        db, [s.steam_app_id for s in recent], fetch_missing=False
+    )
     for s in recent:
         end = _session_end(s)
         start = _to_aware(s.started_at)
