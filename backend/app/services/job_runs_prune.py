@@ -29,6 +29,27 @@ _CHECKIN_LOG_MODELS: tuple[tuple[str, str], ...] = (
 )
 
 
+INTERRUPTED_MESSAGE = "进程重启，任务中断"
+
+
+def mark_interrupted_job_runs(db: Session) -> int:
+    """启动时把上个进程遗留的 running 记录收尾为 error（单副本部署：此刻不可能有任务在跑）。"""
+    n = (
+        db.query(JobRun)
+        .filter(JobRun.status == "running")
+        .update(
+            {
+                JobRun.status: "error",
+                JobRun.finished_at: now_naive(),
+                JobRun.message: INTERRUPTED_MESSAGE,
+            },
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    return int(n or 0)
+
+
 def _retention_days(db: Session) -> int:
     cfg = load_scheduler_config(db)
     raw = (cfg.get(JOB_KEY) or {}).get("retention_days", DEFAULT_RETENTION_DAYS)

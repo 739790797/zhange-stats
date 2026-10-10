@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
 import logging
-import threading
 import time
 from pathlib import Path
 
@@ -21,10 +20,9 @@ from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
 from app.core.http_headers import SecurityHeadersMiddleware
-from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_origin_regex
-from app.core.database import SessionLocal, engine, get_engine
+from app.core.database import engine
 from app.core.file_config import database_is_configured, ensure_config_dir
 from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
@@ -39,6 +37,7 @@ from app.core.runtime_cache import pin_library_cache_env
 from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
+from app.core.startup import run_post_database_startup, start_background_services
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
@@ -59,9 +58,6 @@ from app.models import user as _user  # noqa: F401
 from app.models import articles as _articles  # noqa: F401
 from app.models import user_files as _user_files  # noqa: F401
 from app.models import rum as _rum  # noqa: F401
-from app.services.seed import seed_data
-from app.services.scheduler_runtime import register_scheduler_jobs
-from app.services.member_sync import sync_users_and_members
 
 logger = logging.getLogger("zhange.startup")
 scheduler = BackgroundScheduler()
@@ -117,7 +113,7 @@ def _cleanup_legacy_after_hydrate(install: Path) -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_config_dir()
-    from app.services.config_import import import_legacy_dotenv, import_legacy_system_configs
+    from app.services.config_import import import_legacy_dotenv
 
     import_legacy_dotenv()
     migrate_runtime_layout(resolve_install_dir())
@@ -143,6 +139,10 @@ async def lifespan(_: FastAPI):
             install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
         )
         _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
+        from app.services.tarkov.goon_tracker_hub import hub as goon_hub
+
+        # 向导完成后在工作线程里补跑启动步骤，三狗推送需要先绑定事件循环
+        goon_hub.bind_loop(asyncio.get_running_loop())
         logger.info(
             "startup waiting for setup version=%s upload_root=%s",
             cfg.APP_VERSION,
@@ -150,7 +150,7 @@ async def lifespan(_: FastAPI):
         )
         yield
         logger.info("shutdown begin")
-        close_http_client()
+        _shutdown_background()
         logger.info("shutdown complete")
         return
 
@@ -173,40 +173,7 @@ async def lifespan(_: FastAPI):
     _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
     logger.info("startup step 2/9 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
 
-    db = SessionLocal()
-    try:
-        logger.info("startup step 3/9: beijing time storage check")
-        ensure_beijing_time_storage(db, get_engine())
-
-        logger.info("startup step 3b: import legacy system_configs into config/")
-        import_legacy_system_configs(db)
-
-        logger.info("startup step 4/9: seed data")
-        seed_data(db)
-
-        from app.services.security_bootstrap import (
-            check_admin_password_health,
-            check_email_code_log_policy,
-        )
-
-        logger.info("startup step 5/9: email code log policy")
-        check_email_code_log_policy()
-
-        logger.info("startup step 6/9: admin password health")
-        check_admin_password_health(db)
-
-        logger.info("startup step 7/9: sync users and members")
-        sync_users_and_members(db)
-
-        logger.info("startup step 8/9: user files backfill")
-        from app.services.user_files.backfill import ensure_user_files_registered
-
-        ensure_user_files_registered(db)
-
-        logger.info("startup step 9/9: register scheduler jobs (run_steam_once=true)")
-        register_scheduler_jobs(scheduler, db, run_steam_once=True)
-    finally:
-        db.close()
+    run_post_database_startup(scheduler, run_steam_once=True, enforce_security_checks=True)
 
     logger.info(
         "startup complete version=%s scheduler_running=%s static_dir=%s",
@@ -214,27 +181,20 @@ async def lifespan(_: FastAPI):
         scheduler.running,
         (cfg.STATIC_DIR or "").strip() or "(unset)",
     )
-    from app.services.articles.texteller import ensure_texteller_models
-
-    def _ensure_texteller() -> None:
-        try:
-            ensure_texteller_models()
-        except Exception:
-            logger.exception("texteller model ensure failed")
-
-    threading.Thread(
-        target=_ensure_texteller,
-        name="texteller-ensure",
-        daemon=True,
-    ).start()
-    from app.services.tarkov import goon_tracker as goon_tracker_svc
     from app.services.tarkov.goon_tracker_hub import hub as goon_hub
 
     goon_hub.bind_loop(asyncio.get_running_loop())
-    goon_tracker_svc.start_poller()
+    start_background_services()
     yield
 
     logger.info("shutdown begin")
+    _shutdown_background()
+    logger.info("shutdown complete")
+
+
+def _shutdown_background() -> None:
+    from app.services.tarkov import goon_tracker as goon_tracker_svc
+
     goon_tracker_svc.stop_poller()
     try:
         from app.services.tarkov.workbench_image_pw import shutdown_patchright
@@ -246,7 +206,6 @@ async def lifespan(_: FastAPI):
     if scheduler.running:
         logger.info("shutdown: stopping scheduler")
         scheduler.shutdown(wait=False)
-    logger.info("shutdown complete")
 
 
 settings = get_settings()
