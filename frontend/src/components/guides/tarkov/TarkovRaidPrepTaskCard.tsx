@@ -138,6 +138,7 @@ function TarkovRaidPrepTaskCardInner({
       } ${compact ? styles.taskRowCompact : ""}`}
       data-raid-prep-task={row.id}
     >
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 只拦冒泡：勾选别清列表高亮；键盘由原生复选框处理 */}
       <label
         className={styles.checkWrap}
         onClick={(event) => event.stopPropagation()}
@@ -193,6 +194,7 @@ function TarkovRaidPrepTaskCardInner({
           </TarkovRaidPrepObjectiveHint>
         </div>
         {meta.length ? (
+          // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 只是扩大鼠标点击区，键盘走标题按钮
           <div
             className={styles.meta}
             onClick={
