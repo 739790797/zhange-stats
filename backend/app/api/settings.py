@@ -17,6 +17,7 @@ from app.services.auth_config import (
 from app.services.email import send_verification_email
 from app.services.email_config import (
     load_email_config,
+    plaintext_auth_error,
     public_email_config,
     save_email_config,
 )
@@ -51,6 +52,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 class EmailSettingsOut(BaseModel):
+    """smtp_password 只写：响应恒为空串，是否已设置看 smtp_password_set。"""
+
     enabled: bool
     smtp_user: str
     smtp_from: str
@@ -65,10 +68,13 @@ class EmailSettingsOut(BaseModel):
 
 
 class EmailSettingsUpdate(BaseModel):
+    """smtp_password 空或缺省保留原口令；clear_smtp_password=true 才清空（优先于新值）。"""
+
     enabled: bool = False
     smtp_user: str = ""
     smtp_from: str = ""
     smtp_password: str | None = None
+    clear_smtp_password: bool = False
     display_name: str = ""
     smtp_host: str = ""
     smtp_port: int = Field(default=465, ge=1, le=65535)
@@ -81,22 +87,29 @@ class EmailTestRequest(BaseModel):
 
 
 class IntegrationsOut(BaseModel):
+    """密钥字段只写：响应恒为空串，看 `*_set`；长 token 另给末 4 位 `*_hint`（不足 16 位为空）。"""
+
     steam_api_key: str = ""
     steam_api_key_set: bool
+    steam_api_key_hint: str = ""
     qq_app_id: str
     qq_app_key: str = ""
     qq_app_key_set: bool
+    qq_app_key_hint: str = ""
     qq_configured: bool
     steam_configured: bool
     qq_callback_url: str = ""
     github_token: str = ""
     github_token_set: bool = False
+    github_token_hint: str = ""
     github_configured: bool = False
     pelican_base_url: str = ""
     pelican_client_token: str = ""
     pelican_client_token_set: bool = False
+    pelican_client_token_hint: str = ""
     pelican_application_token: str = ""
     pelican_application_token_set: bool = False
+    pelican_application_token_hint: str = ""
     pelican_server_uuid: str = ""
     pelican_configured: bool = False
     minecraft_rcon_host: str = ""
@@ -110,6 +123,8 @@ class IntegrationsOut(BaseModel):
 
 
 class IntegrationsUpdate(BaseModel):
+    """密钥字段空或缺省保留原值；`clear_<字段>`=true 才清空（优先于新值）。"""
+
     steam_api_key: str | None = None
     qq_app_id: str | None = None
     qq_app_key: str | None = None
@@ -204,12 +219,15 @@ def update_email_settings(
             raise HTTPException(status_code=400, detail="请填写 SMTP 服务器地址")
         if not body.smtp_port:
             raise HTTPException(status_code=400, detail="请填写端口号")
-        has_pwd = bool(
+        has_pwd = not body.clear_smtp_password and bool(
             (body.smtp_password and body.smtp_password.strip())
             or current.get("smtp_password")
         )
         if not has_pwd:
             raise HTTPException(status_code=400, detail="请填写密码")
+        refused = plaintext_auth_error(body.smtp_host, body.encryption)
+        if refused:
+            raise HTTPException(status_code=400, detail=refused)
 
     saved = save_email_config(db, body.model_dump())
     return public_email_config(saved)
@@ -224,6 +242,9 @@ def test_email_settings(
     cfg = load_email_config(db)
     if not cfg.get("enabled"):
         return {"ok": False, "message": "请先启用邮件通知器并保存配置"}
+    refused = plaintext_auth_error(cfg["smtp_host"], cfg["encryption"])
+    if refused:
+        return {"ok": False, "message": refused}
     result = send_verification_email(str(body.to_email), "000000", db=db)
     if result["mode"] == "smtp" and result["sent"]:
         return {"ok": True, "message": "测试邮件已发送"}
@@ -392,7 +413,10 @@ def test_pelican_connection(
 
     saved_url, saved_token, saved_uuid = get_pelican_credentials(db)
     base = normalize_pelican_base_url(body.base_url) or saved_url
-    token = (body.token or "").strip() or saved_token
+    token = (body.token or "").strip()
+    # 已存 token 只发往已存面板：换地址必须重填，否则只写密钥能被测试接口带去任意主机
+    if not token and base == saved_url:
+        token = saved_token
     server_uuid = (body.server_uuid or "").strip() or saved_uuid
     if not pelican_configured(base, token, server_uuid):
         return PelicanTestResponse(ok=False, message="请填写 Panel 地址、Client Token 与 Server UUID")
@@ -442,7 +466,9 @@ def test_minecraft_rcon_connection(
         port = saved_port
     if port < 1 or port > 65535:
         port = 25575
-    password = (body.password or "").strip() or saved_password
+    password = (body.password or "").strip()
+    if not password and host == saved_host:
+        password = saved_password
     if not host or not password:
         return MinecraftRconTestResponse(ok=False, message="请填写 RCON 地址和密码")
     try:
@@ -621,10 +647,13 @@ class RuntimeEnvOut(BaseModel):
     cors_origin_regex: str = ""
     csp_enforce: bool = False
     trust_x_forwarded_for: bool = False
+    rate_limit_enabled: bool = True
     db_engine: str = "sqlite"
     db_path: str = ""
     db_url: str = ""
     restart_required: bool = False
+    # 由进程环境变量设定的字段名（如 app_env、db_url）：界面只读，PUT 改值返回 409
+    env_locked: list[str] = Field(default_factory=list)
 
 
 class RuntimeEnvUpdate(BaseModel):
@@ -634,9 +663,46 @@ class RuntimeEnvUpdate(BaseModel):
     cors_origin_regex: str | None = Field(default=None, max_length=2000)
     csp_enforce: bool | None = None
     trust_x_forwarded_for: bool | None = None
+    rate_limit_enabled: bool | None = None
     db_engine: str | None = Field(default=None, max_length=16)
     db_path: str | None = Field(default=None, max_length=512)
     db_url: str | None = Field(default=None, max_length=2000)
+
+
+_RUNTIME_ENV_FIELDS = {
+    "app_env": "APP_ENV",
+    "redis_url": "REDIS_URL",
+    "cors_origins": "CORS_ORIGINS",
+    "cors_origin_regex": "CORS_ORIGIN_REGEX",
+    "csp_enforce": "CSP_ENFORCE",
+    "trust_x_forwarded_for": "TRUST_X_FORWARDED_FOR",
+    "rate_limit_enabled": "RATE_LIMIT_ENABLED",
+}
+_RUNTIME_DB_FIELDS = ("db_engine", "db_path", "db_url")
+
+
+def _runtime_env_locked() -> list[str]:
+    """环境变量优先于 config/*.json（见 config._apply_app_json / resolve_database_url），写文件也不会生效。"""
+    import os
+
+    def _set(name: str) -> bool:
+        return str(os.environ.get(name) or "").strip() != ""
+
+    locked = [field for field, env in _RUNTIME_ENV_FIELDS.items() if _set(env)]
+    if _set("DATABASE_URL"):
+        locked.extend(_RUNTIME_DB_FIELDS)
+    return locked
+
+
+def _runtime_env_unchanged(field: str, value: Any, effective: dict[str, Any]) -> bool:
+    current = effective.get(field)
+    if isinstance(current, bool):
+        return bool(value) == current
+    a = str(value or "").strip()
+    b = str(current or "").strip()
+    if field == "app_env":
+        return a.lower() == b.lower()
+    return a == b
 
 
 def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
@@ -653,10 +719,12 @@ def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
         "cors_origin_regex": s.CORS_ORIGIN_REGEX or "",
         "csp_enforce": bool(s.CSP_ENFORCE),
         "trust_x_forwarded_for": bool(s.TRUST_X_FORWARDED_FOR),
+        "rate_limit_enabled": bool(s.RATE_LIMIT_ENABLED),
         "db_engine": db["db_engine"],
         "db_path": db["db_path"],
         "db_url": db["db_url"],
         "restart_required": restart_required,
+        "env_locked": _runtime_env_locked(),
     }
 
 
@@ -681,14 +749,25 @@ def update_runtime_env(
 
     current = read_json("app") or {}
     payload = body.model_dump(exclude_unset=True)
-    mapping = {
-        "app_env": "APP_ENV",
-        "redis_url": "REDIS_URL",
-        "cors_origins": "CORS_ORIGINS",
-        "cors_origin_regex": "CORS_ORIGIN_REGEX",
-        "csp_enforce": "CSP_ENFORCE",
-        "trust_x_forwarded_for": "TRUST_X_FORWARDED_FOR",
-    }
+    locked = set(_runtime_env_locked())
+    if locked:
+        effective = _runtime_env_out()
+        blocked = sorted(
+            {
+                _RUNTIME_ENV_FIELDS.get(field, "DATABASE_URL")
+                for field, value in payload.items()
+                if field in locked
+                and not _runtime_env_unchanged(field, value, effective)
+            }
+        )
+        if blocked:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{'、'.join(blocked)} 由服务器环境变量设定，请在服务器上修改后重启",
+            )
+        # 表单整页提交时锁定项原样带回，跳过即可
+        payload = {k: v for k, v in payload.items() if k not in locked}
+    mapping = _RUNTIME_ENV_FIELDS
     restart = False
     for field, json_key in mapping.items():
         if field not in payload:
