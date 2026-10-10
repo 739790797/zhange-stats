@@ -518,8 +518,11 @@ def _community_result(
 
 def query_today_all(
     creds: MihoyoCredentials,
+    *,
+    session_checked: bool = False,
 ) -> tuple[MihoyoCredentials, list[CheckinResult]]:
-    working = ensure_session(creds)
+    """session_checked：调用方刚 ensure_session 过（编排层 load_session）。"""
+    working = creds if session_checked else ensure_session(creds)
     results: list[CheckinResult] = []
     # 状态查询不跑米游币任务；社区失败（含鉴权）不把整次 status 打成 token 失效
     try:
@@ -599,8 +602,9 @@ def run_all_checkins(
     creds: MihoyoCredentials,
     *,
     role_keys: set[RoleKey] | None = None,
+    session_checked: bool = False,
 ) -> tuple[MihoyoCredentials, list[CheckinResult]]:
-    working = ensure_session(creds)
+    working = creds if session_checked else ensure_session(creds)
     results: list[CheckinResult] = []
 
     community_key = (GAME_CODE, _bbs_uid(working))

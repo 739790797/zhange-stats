@@ -260,7 +260,6 @@ def test_bbs_headers_use_okhttp_and_stoken_cookie():
 
 def test_call_with_cookie_refresh_retries_once(monkeypatch):
     from app.services.mihoyo.client import (
-        MihoyoApiError,
         MihoyoCredentials,
         call_with_cookie_refresh,
     )
@@ -410,3 +409,25 @@ def test_exchange_goods_uid_is_game_role(monkeypatch):
     assert captured["body"]["region"] == "cn_gf01"
     assert "game_uid" not in captured["body"]
     assert captured["headers"]["Origin"] == "https://webstatic.miyoushe.com"
+
+
+def test_ensure_session_fetches_profile_only_while_nickname_missing(monkeypatch):
+    from app.services.mihoyo import client
+    from app.services.mihoyo.client import MihoyoCredentials, ensure_session
+
+    fetched: list[str] = []
+
+    def enrich(creds):
+        fetched.append(creds.stuid)
+        creds.nickname = "旅行者"
+        return creds
+
+    monkeypatch.setattr(client, "refresh_cookie_token", lambda creds, **_kw: creds)
+    monkeypatch.setattr(client, "enrich_user_info", enrich)
+    creds = MihoyoCredentials(cookie="stuid=1; stoken=s; cookie_token=c")
+
+    ensure_session(creds)
+    ensure_session(creds)
+
+    assert fetched == ["1"]
+    assert creds.nickname == "旅行者"

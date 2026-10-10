@@ -326,8 +326,11 @@ def _already_result(creds: ExiliumCredentials) -> CheckinResult:
     )
 
 
-def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[CheckinResult]]:
-    working = ensure_session(creds)
+def query_today(
+    creds: ExiliumCredentials, *, session_checked: bool = False
+) -> tuple[ExiliumCredentials, list[CheckinResult]]:
+    """session_checked：调用方刚 ensure_session 过（编排层 load_session）。"""
+    working = creds if session_checked else ensure_session(creds)
     signed = get_sign_in_status(working)
     if signed:
         result = _already_result(working)
@@ -348,10 +351,10 @@ def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[Che
 
 
 def checkin(
-    creds: ExiliumCredentials, *, force: bool = False
+    creds: ExiliumCredentials, *, force: bool = False, session_checked: bool = False
 ) -> tuple[ExiliumCredentials, list[CheckinResult]]:
     _ = force
-    working = ensure_session(creds)
+    working = creds if session_checked else ensure_session(creds)
     signed = get_sign_in_status(working)
     if signed:
         result = _already_result(working)

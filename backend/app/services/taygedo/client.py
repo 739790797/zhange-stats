@@ -13,7 +13,7 @@ import urllib.parse
 
 from app.core.http_client import HttpRequestError, http_request
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
