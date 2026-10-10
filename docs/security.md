@@ -3,9 +3,14 @@
 产品介绍见根 [`README.md`](../README.md)。部署形态与 Redis 多实例约束见 [`deploy.md`](deploy.md)「部署形态」。
 
 - 登录以邮箱为主，也支持 QQ 登录一键开号（回调只带一次性 `ticket`，前端再换会话 Cookie）；无邮箱时可稍后完善
-- 默认 JWT 有效期 **24 小时**（管理端「安全」可调，写入 `config/auth.json`）。到期需重新登录，没有 refresh token
-- 签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username`
-- 浏览器会话：登录 / 注册 / QQ 换票 / 安装向导 `Set-Cookie` `zhange_access`（HttpOnly、`SameSite=Lax`、生产 `Secure`、`Path=/`）。前端 **不** 把 JWT 写入 localStorage，axios **不** 塞 `Authorization`。可变方法须带 `X-CSRF-Token`（与可读 Cookie `zhange_csrf` Double Submit）。脚本 / OpenAPI 仍可用 `Authorization: Bearer`（此时免 CSRF）。`POST /api/auth/logout` 清 Cookie。QQ 回调仍只带 ticket
+- 默认 JWT 有效期 **24 小时**（管理端「安全」可调，写入 `config/auth.json`），最长 **30 天**：配置写得更长也按 30 天签发。到期需重新登录，没有 refresh token
+- 签发的 JWT：`sub` 为 **user_id**（数字字符串），另带 `username` 与 `ver`。签名密钥是 `SECRET_KEY` 的 HKDF 子密钥（`key_derivation.PURPOSE_JWT`）。升级前直接用 `SECRET_KEY` 签、不带 `ver` 的令牌只在剩余有效期不超过 30 天时还认，最迟 30 天后全部失效
+- 会话撤销：`ver` 须等于 `users.token_version`，否则按未登录处理。改密、找回重置、管理员改口令、降为普通用户（含「只留一名管理员」自动降级）、注销账号、`POST /api/auth/logout-all`（退出所有设备）都会把 `token_version` 加 1，该账号已签发的令牌全部失效。自己改密时当前浏览器随响应换发新 Cookie，不掉线
+- 浏览器会话：登录 / 注册 / QQ 换票 / 安装向导 `Set-Cookie` `zhange_access`（HttpOnly、`SameSite=Lax`、`Path=/`）。`Secure`：请求是 HTTPS（含反代首段 `X-Forwarded-Proto: https`）一律带；`APP_ENV=production` 下 HTTP 也带，只有安装向导建管理员那次响应例外（否则纯 HTTP 内网装完即掉线）。前端 **不** 把 JWT 写入 localStorage，axios **不** 塞 `Authorization`。可变方法须带 `X-CSRF-Token`（与可读 Cookie `zhange_csrf` Double Submit）；可选登录的公开接口带着会话 Cookie 发可变请求同样校验，对不上就 403，不会悄悄降成访客。脚本 / OpenAPI 仍可用 `Authorization: Bearer`（此时免 CSRF）。`POST /api/auth/logout` 清 Cookie。QQ 回调仍只带 ticket
+- OAuth 回跳：QQ 登录、QQ 绑定、Steam 绑定的回跳前端只在白名单里选：`PUBLIC_FRONTEND_URL`、后端同源地址、`CORS_ORIGINS`，以及当前生效的 CORS 正则（非生产默认放行本机 Vite 任意端口，生产只认显式 `CORS_ORIGIN_REGEX`）。`Origin` / `Referer` 只用来在白名单内挑一项；回调时按本次请求重算，state 里记的地址不在白名单就退回默认站点
+- QQ 授权绑定浏览器：发起时写 HttpOnly Cookie `zhange_qq_nonce`（`Path=/api/auth/qq`、`SameSite=Lax`、15 分钟），state 只存其 SHA-256，并用 HKDF 子密钥 `PURPOSE_OAUTH_STATE` 签名。回调对不上（换了浏览器、清了 Cookie、授权链接被转发）就回「QQ 授权校验失败，请在本浏览器重新发起」，成败都清掉该 Cookie。QQ 回调地址须与用户浏览的站点同主机才带得上这个 Cookie（同域部署天然满足；开发时别混用 `localhost` 与 `127.0.0.1`）。Steam 回调按 OpenID 2.0 核对断言里签名的 `openid.return_to` 必须正是本次回调地址
+- 口令：直接用 `bcrypt` 库（不经 passlib），只取前 72 字节，与旧 passlib 哈希互认。注册 / 改密 / 重置 / 管理员设口令都按原样存（不去首尾空白），不能含空字符。旧版改密 / 重置会去掉首尾空白再存，所以登录与「当前密码」先按原样比，不中再试去空白后的值
+- 显示名不收 `<` `>`（安装向导、个人资料、管理员建号 / 改资料回 400「显示名不能包含 < 或 >」）；QQ 昵称写库前去掉这两个字符。显示名会进 Leaflet tooltip 等按 innerHTML 渲染的地方，前端转义之外后端再挡一层。存量显示名不自动改
 - 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用默认 localhost/Tauri 正则
 
 ## 战鸽助手
@@ -22,14 +27,22 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 改这些行为时对照 [`.cursor/rules/zhange-assistant.mdc`](../.cursor/rules/zhange-assistant.mdc)。
 
-- 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧发码限流 10/IP、5/账号、5/邮箱 / 10 分钟；校验失败再限 12/账号、12/邮箱 / 10 分钟
-- 注销账号：个人中心邮箱验证码；**anonymize** 保留 `users.id`（联机房间历史外键不炸），清空邮箱/口令/显示名，解绑平台与头像（`user_files` 标 `deleted` 并清盘），删酒馆草稿。管理员代删同一套 service，写 `job_runs`
+- 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧验证码是 6 位数字，有效期取「邮箱设置」但最长 30 分钟；同一码输错 5 次即作废，须重新获取（重发会清零计数，`register_challenges.attempts`）。发码与校验的次数见下方「账号相关限流」
+- 注销账号：个人中心邮箱验证码；**anonymize** 保留 `users.id`（联机房间历史外键不炸），清空邮箱/口令/显示名，解绑平台与头像（`user_files` 标 `deleted` 并清盘），删酒馆草稿，删掉该账号在全部 `tarkov_user_*` 表里的行（任务进度、钥匙、收集、资料、地图筛选、藏身处、战局摘要、raid-prep；新增此类表须加进 `PERSONAL_TARKOV_MODELS`，有测试兜底）。联机房间的成员 / 标点 / 钥匙行留作房间历史，但入座时抄下的显示名（`tarkov_raid_room_members.display_name`、`tarkov_raid_rooms.host_display_name`）换成「已注销用户」。同时 `token_version` 加 1，所有设备立即登出。注销或降级管理员时先锁住管理员行、改完再复核，并发操作也至少留一名管理员。管理员代删同一套 service，写 `job_runs`
 - 平台凭证 Fernet 加密存库。QQ 回调不要把 JWT 放进 URL
+- 凭证密钥：新密文用 `SECRET_KEY` 的 HKDF 子密钥（`key_derivation.PURPOSE_FERNET`），旧版 `sha256(SECRET_KEY)` 密文仍能解，前缀都是 `enc:v1:`。解不开（`SECRET_KEY` 换过或密文坏了）按空凭证处理，并在故障状态变化时打一条 WARNING，不打密文内容。管理端「集成密钥」「邮箱设置」的密钥只写：响应里恒为空串，另给 `*_set`（长 token 再给末 4 位 `*_hint`，口令不给）；保存时留空保留原值，`clear_<字段>: true` 才清空。Pelican / RCON「测试连接」只在地址与已存地址相同时才带上已存密钥，改了地址须重填
 - 请求 ID：中间件生成或转发 `X-Request-ID`，写入日志上下文并回写响应头。何时打 logger 见 [`logging.md`](logging.md)
-- CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce
-- 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员，接口按侧栏业务分类。样本 14 天后由 `job_runs_prune` 删除
+- CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce。`/api/csp-report` 公开：请求体 ≤64KB（超限 413）；不逐条打日志，按「指令 + 被拦来源（只留 scheme://host）」进程内计数，首条立即、之后至多每分钟一条 WARNING 汇总（前 10 项 + 其余条数），不记完整 URL 与 query。`/uploads/*` 不论 `CSP_ENFORCE` 都带强制 `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox`：上传文件即使被当成顶层文档打开也跑不了脚本，`<img>` 引用与浏览器的图片 / PDF / 纯文本查看不受影响；响应自带强制 CSP 时中间件不再叠站点策略（Report-Only 也不叠）
+- 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条，请求体 ≤256KB，一批一条批量 INSERT；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员，接口按侧栏业务分类。样本 14 天后由 `job_runs_prune` 删除
+- 请求体上限：`BodyLimitMiddleware`（栈最内层，在 SetupRequired 之后）对 `/api/*` 默认 8MB；上传接口按各自业务上限另留 1MB 表单余量（文件管理 256MB、Minecraft 文件 64MB、头像 5MB、酒馆附件 10MB、公式识别 2MB、塔科夫截图识别 8MB），`/api/client-errors` 64KB。`Content-Length` 超限直接 413，不读 body；无长度的分块请求边读边数，超限即 413。反代 `client_max_body_size` 应不小于最大上传
+- 安装向导：未配库，或库里没有管理员且从未完成过初始化时，服务在 `DATA_DIR`（默认 `data/runtime/`）写一次性令牌文件 `setup-token`（启动或首次打开向导时生成，权限 600），日志只用 WARNING 打文件路径，不打令牌。`POST /api/setup/database`、`POST /api/setup/admin` 须带请求头 `X-Setup-Token`（该文件内容），缺失或不对回 403；`GET /api/setup/status` 的 `token_required` 告诉前端要不要填。建好首位管理员即删令牌文件，并在进程内补跑库就绪后的启动步骤（调度等），不必重启。已有管理员或写过完成标记（`system_configs` 的 `setup_completed`）一律 409。连库失败只回「无法连接数据库，请检查主机、端口、库名与账号密码」，驱动原文去掉口令后只进服务端日志
+- 完成过初始化后管理员全没了（例如手工改库）：向导不再开放，启动打 WARNING。恢复二选一：在库里删掉 `system_configs` 中 `key='setup_completed'` 的行后重启，再走向导（令牌文件路径见日志）；或临时设进程环境变量 `ALLOW_ENV_ADMIN_SEED=true` 与 `ADMIN_*` 重启播种管理员（同名用户已存在则只提为管理员、不改口令），恢复后去掉
 - 生产在管理端「运行环境」或 `config/app.json` 设置 `APP_ENV=production`（安装脚本**不会**代写）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖
-- 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。`RateLimiter.hit` 当前直接返回，不计数、不返回 429；下面各接口的次数是重新打开时沿用的额度。短时 KV 仍走 Redis。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`
+- 运行环境（`APP_ENV`、`REDIS_URL`、CORS、`CSP_ENFORCE`、`TRUST_X_FORWARDED_FOR`、`RATE_LIMIT_ENABLED`、`DATABASE_URL`）：进程环境变量优先于 `config/*.json`。由环境变量设定的项在管理端「运行环境」只读（`GET /api/settings/runtime-env` 的 `env_locked` 列出字段名），`PUT` 改这些值回 409（原样带回不算改），须在服务器上改环境变量后重启
+- 限流与短时 KV（扫码会话、森空岛 cred 缓存、塔科夫联机 join/大厅）：生产建议在运行环境设 `REDIS_URL`；本地无 Redis 时进程内降级。多 `app` 实例须共享同一 Redis。滑动窗口限流受 `RATE_LIMIT_ENABLED` 控制（默认开，超限 429；只在排障或压测时临时关）。默认**不**信任 `X-Forwarded-For`（防伪造绕过）；置于受信反代后可在运行环境打开 `TRUST_X_FORWARDED_FOR`，此时取该头**最右一段**（紧邻反代看到的对端），客户端自己塞进去的前几段不算数
+- 账号相关限流（`auth_limiter`，窗口都是 10 分钟）：登录 20/IP、10/账号；QQ 登录发起 20/IP，换票 30/IP；QQ 绑定发起 20/IP、10/账号；注册发码与注销发码共用 10/IP、5/邮箱（注销另限 5/账号），重发、找回发码同样 10/IP、5/邮箱；绑定邮箱发码 10/IP、5/账号、5/邮箱；注册 10/IP、10/邮箱；邮箱验证 20/IP、10/邮箱；重置口令 10/IP、10/邮箱；绑定邮箱、关联已有账号 20/IP、10/账号、10/邮箱；注销 10/IP、10/账号；改密、改用户名各 10/账号
+- 登录失败退避（不受 `RATE_LIMIT_ENABLED` 影响）：按登录框填的账号计（邮箱、用户名各算各的，不分大小写），连错 4 次后，每再错一次锁 1、2、4、8 分钟…封顶 15 分钟；锁定期内直接 429，不再校验口令。登录成功或找回重置后清零，最后一次输错 1 小时后自动归零。计数在短时 KV，键是账号的哈希
+- Redis 客户端：连接与读写超时 2s，`health_check_interval` 30s，超时重试一次；连不上时调用方回落进程内，30s 后再试连（不会因一次失败永久降级），等锁超过 0.5s 也先回落，不卡请求线程。故障只在状态变化时打一条 WARNING（URL 里的口令脱敏），恢复后打 INFO
 - 本地无 SMTP 时需设 `ALLOW_EMAIL_CODE_LOG=true` 才能用日志收验证码；`APP_ENV=production` 时启动会硬拒绝该开关
 - 勿提交 `config/`、`data/`、`var/`、`uploads/`。站点设置权威源是安装根 `config/*.json`（目录 700 / 文件 600）。模板在 `scripts/config.example/`；`install` / `run` / `restart` / `update` 与启动按文件 `_version` 补缺失键，不覆盖已有值（含密钥），也不会用模板新建 `database.json`。存量根 `.env` 只作一次性迁入，迁完可删。绑定凭证继续 Fernet 加密入库。`SECRET_KEY` 仍自动写 `data/runtime/.secret_key`
 
@@ -72,7 +85,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 ## 文件管理
 
-管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`、`.env`（不含 `.env.example`）、密钥类后缀、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、重命名或删除；也不能新建同名敏感项。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停）。删除普通目录时跳过其中的敏感子项。文本编辑 ≤2MB，上传 ≤256MB。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
+管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`（含写入中途的 `.secret_key.*` 临时文件）、`.env`（不含 `.env.example`）、密钥类后缀、明文带口令/密钥的 `config/database.json` / `config/integrations.json` / `config/email.json`（含 `write_json` 的 `.<名>.*.tmp`）、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、上传覆盖、重命名或删除；也不能新建同名敏感项。判定同时看请求路径和 `resolve` 之后的真实路径。符号链接与 Windows 目录联接（junction）在 `resolve` 之前逐级判定：列表里不列出；请求路径上任一级是链接一律 400（浏览、下载、读写、上传、新建、重命名、删除，含链接本身），在链接的名字上新建、上传或改名过去回 409，删除目录时其中的链接原样留下、不跟进，所以链接不能把 `config/`、MariaDB 数据目录或备份换个名字绕过去。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停；其中的 `app.json` 等普通设置可编辑）。删除普通目录时跳过其中的敏感子项（删 `config/` 会留下上面三份）。文本编辑 ≤2MB，上传 ≤256MB：上传接口在工作线程里把表单临时文件按块流式写到目标目录的 `.zhange-write-*.part`，边写边计数，超限 413，写完 fsync 再 `os.replace` 落位（覆盖时保留原权限位）；超限或出错不留半截文件，也不动原文件。编辑保存与新建文件走同一套原子写。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
 
 ## 塔科夫钥匙截图识别
 
