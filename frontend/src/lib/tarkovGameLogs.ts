@@ -1238,8 +1238,30 @@ function parseOutputLogStopping(text: string): TarkovLogEvent[] {
   return events;
 }
 
+type TarkovLogPart = { name: string; text: string };
+
+/** 实时轮询按文件对象记住上次的解析；同一个对象、文本没变就不再整份重扫。 */
+export type TarkovLogBundleMemo = WeakMap<
+  TarkovLogPart,
+  { name: string; text: string; parsed: TarkovLogParseResult }
+>;
+
+function parseLogPart(
+  part: TarkovLogPart,
+  memo?: TarkovLogBundleMemo,
+): TarkovLogParseResult {
+  const hit = memo?.get(part);
+  if (hit && hit.name === part.name && hit.text === part.text) return hit.parsed;
+  const parsed = isOutputLogFileName(part.name)
+    ? { events: parseOutputLogStopping(part.text), raids: [] }
+    : parseTarkovLogText(part.text);
+  memo?.set(part, { name: part.name, text: part.text, parsed });
+  return parsed;
+}
+
 export function parseTarkovLogBundle(
-  parts: Array<{ name: string; text: string }>,
+  parts: TarkovLogPart[],
+  memo?: TarkovLogBundleMemo,
 ): TarkovLogParseResult {
   const events: TarkovLogEvent[] = [];
   const quests: TarkovLogQuestEvent[] = [];
@@ -1248,11 +1270,7 @@ export function parseTarkovLogBundle(
     a.name.localeCompare(b.name, undefined, { numeric: true }),
   );
   for (const part of ordered) {
-    if (isOutputLogFileName(part.name)) {
-      events.push(...parseOutputLogStopping(part.text));
-      continue;
-    }
-    const parsed = parseTarkovLogText(part.text);
+    const parsed = parseLogPart(part, memo);
     events.push(...parsed.events);
     quests.push(...(parsed.quests ?? []));
     drops.push(...(parsed.drops ?? []));

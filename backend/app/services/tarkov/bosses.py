@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovMapsRaw
+from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     cache_key,
@@ -22,6 +22,7 @@ from app.services.tarkov.game_mode import (
     run_for_modes,
 )
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
@@ -394,8 +395,7 @@ BOSS_I18N: dict[str, dict[str, str]] = {
     },
 }
 
-_parsed_lock = threading.Lock()
-_parsed_cache: tuple[str, list[dict[str, Any]]] | None = None
+_parsed_cache: ModeCache[list[dict[str, Any]]] = ModeCache()
 
 
 class TarkovBossesError(Exception):
@@ -1829,17 +1829,16 @@ def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
         return {}
     try:
         from app.services.tarkov import catalog as catalog_svc
-        from app.services.tarkov import items as items_svc
 
-        source, payload, _synced, _note = catalog_svc._load_payload(db)
-        if not catalog_svc.payload_has_full_items(source, payload):
+        index = catalog_svc.load_items_index(db)
+        if not index.full:
             return {}
-        locale = items_svc._locale_map(payload)
         out: dict[str, dict[str, Any]] = {}
-        for ident, raw in catalog_svc.iter_raw_items(source, payload):
-            if ident not in item_ids:
+        for ident in item_ids:
+            raw = index.get(ident)
+            if raw is None:
                 continue
-            row = catalog_svc._row_from_raw(ident, raw, locale)
+            row = catalog_svc._row_from_raw(ident, raw, index.locale)
             if row:
                 out[ident] = row
         return out
@@ -1857,7 +1856,6 @@ def get_maps_raw(db: Session) -> TarkovMapsRaw | None:
 def persist_maps_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, Any]:
     from app.services.tarkov import upstream as upstream_svc
 
-    global _parsed_cache
     rows = parse_boss_rows(bundle.payload)
     if not rows:
         raise TarkovBossesError("未解析到 BOSS 数据")
@@ -1889,8 +1887,7 @@ def persist_maps_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, 
         note=bundle.note,
     )
     db.commit()
-    with _parsed_lock:
-        _parsed_cache = None
+    _parsed_cache.clear()
     return {
         "boss_count": len(rows),
         "source": bundle.source,
@@ -1926,25 +1923,27 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 
 
 def load_parsed_bosses(db: Session) -> tuple[str, list[dict[str, Any]], str | None, str | None]:
-    global _parsed_cache
+    """地图表头 synced_at 未变则直接用进程缓存，不再读地图 raw。"""
+    from app.services.tarkov import upstream as upstream_svc
+
     row = get_maps_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = cache_key(synced or "")
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            source, _payload, synced_at, note = _load_payload(db)
-            return source, cached[1], synced_at, note
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _parsed_cache.get(cache_key(synced or ""))
+        if hit is not None:
+            return source or "", hit, synced, note
     source, payload, synced_at, note = _load_payload(db)
     rows = parse_boss_rows(payload)
-    with _parsed_lock:
-        _parsed_cache = (key, rows)
+    _parsed_cache.put(cache_key(synced_at or ""), rows)
     return source, rows, synced_at, note
 
 
 def ensure_maps(db: Session) -> None:
-    if get_maps_raw(db) is None:
-        sync_from_upstream(db, game_mode=parse_game_mode())
+    sync_lock.fill_once(
+        db,
+        lambda: get_maps_raw(db) is None,
+        lambda: sync_from_upstream(db, game_mode=parse_game_mode()),
+    )
 
 
 def _public_summary(row: dict[str, Any]) -> dict[str, Any]:

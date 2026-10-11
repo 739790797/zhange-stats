@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -11,10 +10,10 @@ from pydantic import BaseModel, Field
 from app.core.deps import get_current_user
 from app.core.rate_limit import auth_limiter, client_ip
 from app.models.user import User
+from app.services.csp_report import record_csp_report
 
 router = APIRouter(tags=["observability"])
 logger = logging.getLogger("zhange.client")
-csp_logger = logging.getLogger("zhange.csp")
 
 
 class ClientErrorIn(BaseModel):
@@ -54,18 +53,6 @@ def post_client_error(
 async def post_csp_report(request: Request) -> dict:
     ip = client_ip(request)
     auth_limiter.hit(f"csp-report:ip:{ip}", limit=30, window_sec=600)
-    report: Any = {}
-    try:
-        raw = await request.json()
-        if isinstance(raw, dict):
-            report = raw
-    except Exception:
-        report = {}
-    csp = report.get("csp-report") if isinstance(report, dict) else None
-    blocked = ""
-    directive = ""
-    if isinstance(csp, dict):
-        blocked = str(csp.get("blocked-uri") or "")[:256]
-        directive = str(csp.get("effective-directive") or csp.get("violated-directive") or "")[:64]
-    csp_logger.warning("csp_report blocked=%s directive=%s", blocked, directive)
+    # 体积上限由 BodyLimitMiddleware 卡（64KB），超限在读 body 时直接 413
+    record_csp_report(await request.body())
     return {"ok": True}

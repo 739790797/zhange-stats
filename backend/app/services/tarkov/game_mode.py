@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import TypeVar
 
+from app.services.tarkov import sync_lock
+
 logger = logging.getLogger(__name__)
 
 GAME_MODES = ("pvp", "pve")
@@ -93,16 +95,20 @@ def run_for_modes(
     error_cls: type[E],
     label: str,
 ) -> T:
-    """按模式执行回源。未指定则 PVP、PVE 各跑一遍；全部失败才抛。"""
+    """按模式执行单栏目回源。未指定则 PVP、PVE 各跑一遍；全部失败才抛。
+
+    持回源单飞锁：别处在回源时抛 sync_lock.TarkovSyncBusy；冷启动 ensure_* 已持锁则直接进。
+    """
     last: T | None = None
     errors: list[str] = []
-    for mode in sync_modes(game_mode):
-        with game_mode_scope(mode):
-            try:
-                last = fn()
-            except error_cls as exc:
-                errors.append(f"{mode}: {exc}")
-                logger.warning("tarkov %s sync failed for %s: %s", label, mode, exc)
+    with sync_lock.exclusive():
+        for mode in sync_modes(game_mode):
+            with game_mode_scope(mode):
+                try:
+                    last = fn()
+                except error_cls as exc:
+                    errors.append(f"{mode}: {exc}")
+                    logger.warning("tarkov %s sync failed for %s: %s", label, mode, exc)
     if last is None:
         detail = "；".join(errors) if errors else "无结果"
         raise error_cls(f"{label}同步失败：{detail}")

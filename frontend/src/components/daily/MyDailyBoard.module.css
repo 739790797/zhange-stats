@@ -75,13 +75,6 @@
   min-width: 0;
 }
 
-.sectionAction {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .credRow {
   display: flex;
   align-items: center;

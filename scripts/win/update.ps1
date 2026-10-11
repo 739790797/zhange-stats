@@ -1,11 +1,14 @@
 #Requires -Version 5.1
-# Apply GitHub Release (add/update/delete whitelist + frontend sync + static + pip + migrate), then restart.
+# Apply a GitHub Release (sha256 check, staging, pip, whitelist add/update/delete + frontend sync,
+# migrate, static swap), then restart.
+# -StaticOnly: only fetch the prebuilt static of the local VERSION (fresh install; no restart).
 
 param(
   [string]$Version = "latest",
   [switch]$Check,
   [switch]$NoRestart,
   [switch]$Force,
+  [switch]$StaticOnly,
   [string]$Proxy = ""
 )
 
@@ -19,6 +22,7 @@ if (-not (Test-Path $updatePy)) {
 }
 
 $pyArgs = @($updatePy)
+if ($StaticOnly) { $pyArgs += "--static-only" }
 if ($Check) { $pyArgs += "--check" }
 if ($Force) { $pyArgs += "--force" }
 if ($NoRestart) { $pyArgs += "--no-restart" }
@@ -29,7 +33,7 @@ if ($Proxy) { $pyArgs += @("--proxy", $Proxy) }
 & $PythonExe @pyArgs
 $rc = $LASTEXITCODE
 
-if ($Check -or $NoRestart) {
+if ($Check -or $NoRestart -or $StaticOnly) {
   exit $rc
 }
 if ($rc -eq 2) {

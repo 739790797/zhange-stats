@@ -1,6 +1,8 @@
 name: CI and release
 
-# PR：质量门。main 推送：同门全绿才按 VERSION 发 GitHub Release（预构建 static）；门红不改 Release。
+# PR：质量门。main 推送：同门全绿才按 VERSION 发 GitHub Release（预构建 static + 源码包 + SHA256SUMS）；
+# 门红不改 Release。已存在的 tag 不覆盖、不补传：要发版先改 VERSION。
+# 第三方 action 钉 commit SHA，行尾注释是对应版本；升级时连注释一起改。
 on:
   push:
     branches:
@@ -11,17 +13,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # PR 新推送取消旧跑；main 不取消，免得发版做到一半
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   frontend-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: npm
@@ -30,41 +40,63 @@ jobs:
       - name: Install & lint & test & build
         working-directory: frontend
         run: |
-          npm ci --legacy-peer-deps
+          npm ci
           npm run lint
           npm run test
           npm run build
 
       - name: Upload frontend dist (main only)
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v6
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: frontend-dist
           path: frontend/dist
           retention-days: 3
 
+  # Python 依赖与生产同法安装：先 CPU torch，再 -c constraints.txt + 已装 torch 版本
   backend-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements*.txt
+            backend/constraints.txt
 
-      - name: Install & test
+      - name: Install backend deps (CPU torch + constraints)
         working-directory: backend
         run: |
-          python -m pip install -r requirements.txt -r requirements-dev.txt
-          python -m pytest -q
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
+          python -m pip install -r requirements.txt -r requirements-dev.txt \
+            -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
+
+      - name: Ruff
+        working-directory: backend
+        run: python -m ruff check app tests
+
+      - name: Test
+        working-directory: backend
+        run: python -m pytest -q
 
   # 生产是 MariaDB：用同引擎跑 alembic，拦住 CAST(... AS JSON) 等方言坑
   backend-migrate-mariadb:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: "mysql+pymysql://zhange:zhange@127.0.0.1:3306/zhange_ci"
+      SECRET_KEY: "ci-mariadb-migrate-check-not-for-prod"
+      APP_ENV: "development"
+      ALLOW_ENV_ADMIN_SEED: "false"
     services:
       mariadb:
         image: mariadb:11.4
@@ -82,26 +114,29 @@ jobs:
           --health-retries=30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements*.txt
+            backend/constraints.txt
 
-      - name: Install backend deps
+      - name: Install backend deps (CPU torch + constraints)
         working-directory: backend
-        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+        run: |
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
+          python -m pip install -r requirements.txt -r requirements-dev.txt \
+            -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
 
       - name: Alembic upgrade head (twice for idempotency)
         working-directory: backend
-        env:
-          DATABASE_URL: "mysql+pymysql://zhange:zhange@127.0.0.1:3306/zhange_ci"
-          SECRET_KEY: "ci-mariadb-migrate-check-not-for-prod"
-          APP_ENV: "development"
-          ALLOW_ENV_ADMIN_SEED: "false"
         run: |
           python <<'PY'
           from sqlalchemy import create_engine, text
@@ -121,25 +156,48 @@ jobs:
           assert rev, "alembic_version empty"
           PY
 
+      - name: Alembic check (migrations match models)
+        working-directory: backend
+        run: python -m alembic check
+
+      # 会清空 zhange_ci 的全部表，放在最后
+      - name: MariaDB migration tests
+        working-directory: backend
+        env:
+          ZHANGE_TEST_MYSQL_URL: "mysql+pymysql://zhange:zhange@127.0.0.1:3306/zhange_ci"
+        run: python -m pytest -q tests/test_mariadb_migrations.py
+
   openapi-drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements*.txt
+            backend/constraints.txt
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend deps (CPU torch + constraints)
+        working-directory: backend
+        run: |
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
+          python -m pip install -r requirements.txt -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
 
       - name: Export OpenAPI & check drift
         env:
@@ -147,22 +205,25 @@ jobs:
           SECRET_KEY: "ci-openapi-drift-check-not-for-prod-use-only"
           ADMIN_PASSWORD: "ci-strong-password-9"
         run: |
-          python -m pip install -r backend/requirements.txt
-          cd frontend && npm ci --legacy-peer-deps && cd ..
-          python backend/scripts/export_openapi.py
-          cd frontend && npm run gen:api
-          git diff --exit-code -- frontend/src/api/generated/openapi.json frontend/src/api/generated/schema.d.ts
+          cd frontend
+          npm ci
+          npm run export:openapi
+          npm run gen:api
+          git diff --exit-code -- src/api/generated/openapi.json src/api/generated/schema.d.ts
 
   # 附件 B：可失败为 warning，不卡 PR / 不挡发版
   dependency-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
 
@@ -172,60 +233,88 @@ jobs:
 
       - name: Setup Python
         if: always()
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
-      - name: pip-audit
+      # 审计实际安装的锁定版本；torch 及其直接依赖不在锁里（见 constraints.txt 头注释）
+      - name: pip-audit (constraints.txt)
         if: always()
         working-directory: backend
         run: |
           python -m pip install pip-audit
-          pip-audit -r requirements.txt
+          pip-audit -r constraints.txt --no-deps --disable-pip --progress-spinner off
 
   publish-release:
     # needs 任一失败则本 job 跳过：不新建、不覆盖 tag，与没发一样。
     needs: [frontend-quality, backend-tests, backend-migrate-mariadb, openapi-drift]
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
+      # tag 已存在（含上次发到一半）一律跳过：Release 资产不可变，改 VERSION 才发新版
       - name: Resolve version
         id: meta
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$(tr -d '[:space:]' < VERSION)"
-          if [[ -z "${VERSION}" ]]; then
-            echo "VERSION file is empty" >&2
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "VERSION is empty or not a version: '${VERSION}'" >&2
             exit 1
           fi
+          TAG="v${VERSION}"
+          refs="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${TAG}" --jq '.[].ref')"
+          if grep -Fxq "refs/tags/${TAG}" <<< "${refs}"; then
+            echo "::notice title=Release skipped::${TAG} already exists; bump VERSION to release"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved version=${VERSION}"
 
       - name: Download frontend dist
-        uses: actions/download-artifact@v7
+        if: steps.meta.outputs.exists == 'false'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: frontend-dist
           path: frontend/dist
 
-      - name: Pack static asset
+      # 源码包与管理端 / update 脚本约定一致：单一顶层目录 zhange-stats-<ver>/；SHA256SUMS 供更新器校验
+      - name: Pack release assets
+        if: steps.meta.outputs.exists == 'false'
         shell: bash
         run: |
           VERSION="${{ steps.meta.outputs.version }}"
           tar -C frontend/dist -czf "zhange-stats-${VERSION}-static.tar.gz" .
-          ls -lh "zhange-stats-${VERSION}-static.tar.gz"
+          git archive --format=tar.gz --prefix="zhange-stats-${VERSION}/" \
+            -o "zhange-stats-${VERSION}-source.tar.gz" "${GITHUB_SHA}"
+          sha256sum "zhange-stats-${VERSION}-static.tar.gz" "zhange-stats-${VERSION}-source.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+          ls -lh "zhange-stats-${VERSION}-static.tar.gz" "zhange-stats-${VERSION}-source.tar.gz"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        if: steps.meta.outputs.exists == 'false'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: v${{ steps.meta.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           make_latest: true
+          overwrite_files: false
+          fail_on_unmatched_files: true
           files: |
             zhange-stats-${{ steps.meta.outputs.version }}-static.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            zhange-stats-${{ steps.meta.outputs.version }}-source.tar.gz
+            SHA256SUMS

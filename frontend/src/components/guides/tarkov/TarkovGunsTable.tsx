@@ -231,6 +231,7 @@ export function TarkovGunsTable({
         const hd = hdPreviewUrl(src) || thumb;
         const size = pickColumns ? { width: 128, height: 56 } : { width: 36, height: 36 };
         return thumb ? (
+          // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 只拦冒泡：缩略图和预览层（portal 也沿 React 树冒泡）的点击别触发整行；键盘走名称列
           <span
             className={pickColumns ? tableStyles.pickThumb : undefined}
             onClick={(e) => e.stopPropagation()}

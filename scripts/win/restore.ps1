@@ -1,5 +1,6 @@
 #Requires -Version 5.1
-# Restore from backup.ps1 tar.gz. Requires:
+# Restore from a backup.ps1 tar.gz: check version -> stop app -> optional DB import -> replace config/ and data/ -> start.
+# Requires:
 #   $env:ZHANGE_RESTORE_CONFIRM = "YES"
 #   $env:ZHANGE_RESTORE_ARCHIVE = "C:\path\zhange-YYYYMMDD-HHMMSS.tar.gz"
 
@@ -13,18 +14,24 @@ if (-not $archive -or -not (Test-Path $archive)) {
 if ($env:ZHANGE_RESTORE_CONFIRM -ne "YES") {
   throw "This overwrites the current DB, config/, and data/. Confirm with ZHANGE_RESTORE_CONFIRM=YES"
 }
+$archive = (Resolve-Path $archive).Path
 
-$tar = Get-Command tar -ErrorAction SilentlyContinue
-if (-not $tar) { throw "tar not found" }
-
+$util = Join-Path $RepoRoot "scripts\common\backup_util.py"
+$spec = Get-ProvisionPython
 New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
 $work = Join-Path $TmpDir ("zhange-restore-" + [guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
-  & $tar.Source -xzf $archive -C $work
+  Invoke-Python $spec @($util, "unpack", "--archive", $archive, "--dest", $work)
+  Invoke-Python $spec @($util, "inspect", "--root", "$RepoRoot", "--dir", $work)
 
   Write-Host "[restore] stopping app"
   Invoke-Stop
+
+  & $spec.File @($spec.Prefix + @($util, "load-db", "--root", "$RepoRoot", "--dir", $work))
+  if ($LASTEXITCODE -ne 0) {
+    throw "[restore] DB import failed: config/ and data/ are untouched and the app stays stopped; fix it and re-run restore"
+  }
 
   $configSrc = Join-Path $work "config"
   if (Test-Path $configSrc) {
@@ -34,42 +41,6 @@ try {
   }
   if (Test-Path (Join-Path $work ".env")) {
     Copy-Item (Join-Path $work ".env") (Join-Path $RepoRoot ".env") -Force
-  }
-
-  $sqlPath = Join-Path $work "zhange.sql"
-  if (Test-Path $sqlPath) {
-    $code = @'
-import json, os, sys
-from pathlib import Path
-root = Path(sys.argv[1])
-url = (os.environ.get("DATABASE_URL") or "").strip()
-cfg = root / "config" / "database.json"
-if cfg.is_file():
-    try:
-        data = json.loads(cfg.read_text(encoding="utf-8") or "{}")
-    except json.JSONDecodeError:
-        data = {}
-    url = url or str(data.get("url") or "").strip()
-print(url)
-'@
-    $spec = Get-ProvisionPython
-    $dbUrl = (& $spec.File @($spec.Prefix + @("-c", $code, "$RepoRoot"))).Trim()
-    if (-not $dbUrl) { throw "Archive has zhange.sql but no MySQL URL" }
-    $tmpEnv = Join-Path $work "url.env"
-    Set-Content -Path $tmpEnv -Value "DATABASE_URL=$dbUrl" -Encoding ascii
-    $db = Get-DatabaseUrlParts $tmpEnv
-    $mysqlExe = Get-MysqlTool "mysql"
-    Write-Host "[restore] import $($db.Name)"
-    $env:MYSQL_PWD = $db.Password
-    try {
-      $p = Start-Process -FilePath $mysqlExe -ArgumentList @(
-        "--default-character-set=utf8mb4",
-        "-h", $db.Host, "-P", $db.Port, "-u", $db.User, $db.Name
-      ) -RedirectStandardInput $sqlPath -Wait -PassThru -NoNewWindow
-      if ($p.ExitCode -ne 0) { throw "mysql import failed" }
-    } finally {
-      Remove-Item Env:MYSQL_PWD -ErrorAction SilentlyContinue
-    }
   }
 
   function Copy-Tree([string]$Src, [string]$Dest) {

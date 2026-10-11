@@ -36,9 +36,35 @@ SQLite 首次安装走 `create_all` + `stamp head`，之后与 MySQL **同一套
 2. **禁止 MySQL 专属 DDL**：不要 `CAST(... AS JSON)`、不要 `MODIFY COLUMN` 专供 MySQL。JSON 用 `sa.JSON()`；超 64KB 文本用 `LongText`（`app.core.sqltypes`）。JSON 空值用 `'{}'` 字符串赋值即可。
 3. **JSON / 复杂类型改 NULL**：优先可移植 `op.alter_column`，不要写死 MariaDB `MODIFY COLUMN ... JSON`。
 4. **修订号唯一**：用日期前缀（如 `20260825_0064`），禁止复用短序号。
+5. **SQLite 迁移连接不开外键**：`env.py` 用 `prepare_migration_engine` 让迁移连接保持 `foreign_keys=OFF`（应用引擎是 ON）。batch 模式重建表会 `DROP TABLE`，开着外键会把子表级联删掉；迁移里不要自己打开外键。
+6. **时间列默认值**：模型里用 `default=now_naive`（更新时间加 `onupdate=now_naive`），不要 `server_default=func.now()`（SQLite 的 `CURRENT_TIMESTAMP` 是 UTC）。迁移给 NOT NULL 列加库端默认只为回填旧行（`sa.text("CURRENT_TIMESTAMP")` 或常量）。`env.py` 的 `compare_server_default` 钩子：模型已有 Python 默认时不把这类库端默认算漂移，除非它和模型的常量默认矛盾（如回填用的 `DEFAULT 1` 对 `default=False`：手写 SQL 漏列就会写进应用从不写的值）；模型声明了库端默认而库里没有，照样报。
+7. **SQLite 的 AUTOINCREMENT**：`users` / `members` / `articles` 在 SQLite 新建库上是 `AUTOINCREMENT`（id 不复用）。batch 模式重建表按反射结果建新表，反射不带 AUTOINCREMENT，所以对这三张表要写 `op.batch_alter_table("users", table_kwargs={"sqlite_autoincrement": True})`；`tests/test_sqlite_autoincrement.py` 检查 `20261010_0121` 之后的迁移。
 
-## 从旧版 create_all 库升级
+改完模型后在 MariaDB 空库上 `alembic upgrade head` 再 `alembic check`，应输出 `No new upgrade operations detected.`。`tests/test_mariadb_migrations.py` 做同样的检查（空库跑两遍、对照模型、北京时间标记含命令行升级、Alembic 之前的旧库、baseline 保留同名的别家表、开关列库端默认、0119 修补），只在设置 `ZHANGE_TEST_MYSQL_URL` 时运行，并会清空该库的全部表，只能指向临时库。
 
-若库里已有业务表但没有 `alembic_version`，首次启动会先用 `create_all` + `ensure_schema` 补齐缺表/缺列，再 `stamp` 到当前 head（不会重复执行 baseline 建表）。
+应用内跑迁移（`app.core.migrate`）不按 `alembic.ini` 重配日志，沿用应用自己的 handler；只有命令行 `alembic` 才用 `alembic.ini` 的日志配置。`alembic.ini` 用 `path_separator = os`（Alembic 1.16+ 的键名），`version_locations` 等多路径按系统路径分隔符切分。
 
-**正常已有 alembic_version 的库**：只跑 `upgrade head`，不再执行 `create_all` / `ensure_schema`。新表与列变更必须新增 `versions/` 迁移，并同步 [`docs/database.md`](../../docs/database.md)。
+## Alembic 之前的旧库
+
+MySQL/MariaDB 库里有 `users` 表却没有 `alembic_version` 时，启动报错退出（`app.core.migrate.UnversionedSchemaError`），不建表、不改列、不 stamp：这可能是 v0.1.4 之前（还没有 Alembic）建的库，也可能是同一个库里别的应用的表。没有 `users`、只有其他应用表残留时同样拒绝，并列出残留表。
+
+v0.1.1–v0.1.3 建的库，表结构就是基线 `20260731_0001`：
+
+1. 先备份；
+2. 在 `backend/`（用 `.venv` 里的 `alembic`）执行 `alembic stamp 20260731_0001`；
+3. 重启。启动会从基线升级到最新。这类库的时间还是 UTC 口径，升级途中会记 `time_storage=utc_pending`，启动时平移成北京墙钟（见 [`docs/database.md`](../../docs/database.md)「时间与默认值」）。
+
+v0.1.0 的库多两张 CS2 表和几列，stamp 前先删掉：
+
+```sql
+DROP TABLE cs2_match_players;
+DROP TABLE cs2_matches;
+ALTER TABLE members DROP COLUMN cs2_auth_code, DROP COLUMN cs2_known_code, DROP COLUMN cs2_sync_cursor;
+ALTER TABLE users DROP COLUMN verify_code, DROP COLUMN verify_code_expires_at;
+```
+
+别的应用在用的库：给战鸽数据单独建一个库。
+
+旧版每次 MySQL 启动后跑的修补（`register_challenges` 主键、`minecraft_server_profiles.public_*`）和废弃表 DROP 已不在启动路径上：修补在迁移 `20261010_0119` 里只跑一次；废弃表由 baseline 删除，只删列名与旧表完全一致、且没有别的表外键引用的，同名的别家表原样保留并打一条 WARNING。
+
+**正常已有 alembic_version 的库**：只跑 `upgrade head`。新表与列变更必须新增 `versions/` 迁移，并同步 [`docs/database.md`](../../docs/database.md)。命令行直接 `alembic upgrade head` 与启动时的 `run_migrations` 效果相同：从 UTC 时代修订出发的升级由 `env.py` 的 `on_version_apply` 钩子记 `utc_pending`，不依赖 `run_migrations`。

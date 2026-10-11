@@ -215,3 +215,100 @@ def test_rcon_wrong_password(rcon_session):
         assert session_connected() is False
     finally:
         server.close()
+
+
+class VanillaRcon(FakeRcon):
+    """Like the vanilla server: one packet per read(1460), 4096-char reply slices, unknown types answered."""
+
+    def __init__(self, *args, **kwargs):
+        self.trailing: dict[str, bytes] = {}
+        self.garbled: set[str] = set()
+        super().__init__(*args, **kwargs)
+
+    def _client(self, conn: socket.socket) -> None:
+        conn.settimeout(2)
+        try:
+            while not self._stop.is_set():
+                try:
+                    raw = conn.recv(1460)
+                except OSError:
+                    return
+                if len(raw) < 14 or struct.unpack_from("<i", raw)[0] != len(raw) - 4:
+                    return
+                req_id, ptype = struct.unpack_from("<ii", raw, 4)
+                body = raw[12:-2].decode("utf-8")
+                if ptype == TYPE_AUTH:
+                    ok = body == self.password
+                    conn.sendall(pack_packet(req_id if ok else -1, TYPE_EXEC, ""))
+                    continue
+                if ptype == TYPE_EXEC:
+                    with self._lock:
+                        self.commands.append(body)
+                    reply = self.replies.get(body, body)
+                else:
+                    reply = f"Unknown request {ptype:x}"
+                if body in self.garbled:
+                    conn.sendall(b"\xff\xff\xff\x7fjunk")
+                    continue
+                slices = [reply[i : i + 4096] for i in range(0, len(reply), 4096)] or [""]
+                out = b"".join(pack_packet(req_id, TYPE_RESPONSE, part) for part in slices)
+                conn.sendall(out + self.trailing.get(body, b""))
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass
+
+
+def test_unpack_accepts_largest_vanilla_fragment():
+    left, right = socket.socketpair()
+    try:
+        left.sendall(pack_packet(5, TYPE_RESPONSE, "a" * 4096))
+        assert unpack_packet(right)[2] == "a" * 4096
+        left.sendall(pack_packet(6, TYPE_RESPONSE, "实" * 4096))
+        assert unpack_packet(right)[2] == "实" * 4096
+        left.sendall(pack_packet(7, TYPE_RESPONSE, "实" * 4096 + "a"))
+        with pytest.raises(MinecraftRconError, match="长度"):
+            unpack_packet(right)
+    finally:
+        left.close()
+        right.close()
+
+
+def test_rcon_reads_every_fragment_until_marker(rcon_session):
+    cjk = "实体" * 3000
+    exact = "a" * 8192
+    server = VanillaRcon(
+        replies={
+            "forge entity list": cjk,
+            "exact": exact,
+            "list": "There are 1 of a max of 20 players online: BaiYi",
+        }
+    )
+    try:
+        assert rcon_exec("127.0.0.1", server.port, "secret", "forge entity list") == cjk
+        assert rcon_exec("127.0.0.1", server.port, "secret", "exact") == exact
+        assert query_list("127.0.0.1", server.port, "secret") == ["BaiYi"]
+        assert server.connections == 1
+        assert server.commands == ["forge entity list", "exact", "list"]
+    finally:
+        server.close()
+
+
+def test_rcon_never_reuses_socket_after_bad_packet(rcon_session):
+    server = VanillaRcon(replies={"list": "There are 0 of a max of 20 players online:"})
+    server.trailing = {"desync": b"\xff\xff\xff\x7fjunk"}
+    server.garbled = {"garbled"}
+    try:
+        assert rcon_exec("127.0.0.1", server.port, "secret", "desync") == "desync"
+        assert session_connected() is False
+        assert query_list("127.0.0.1", server.port, "secret") == []
+        assert server.connections == 2
+
+        with pytest.raises(MinecraftRconError, match="长度"):
+            rcon_exec("127.0.0.1", server.port, "secret", "garbled")
+        assert session_connected() is False
+        assert query_list("127.0.0.1", server.port, "secret") == []
+        assert server.connections == 3
+    finally:
+        server.close()

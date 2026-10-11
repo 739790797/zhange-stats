@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovHideoutRaw
+from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     json_api_prefix,
@@ -21,6 +21,7 @@ from app.services.tarkov.game_mode import (
 )
 from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.http import download_bytes
+from app.services.tarkov.parse_cache import ModeCache
 from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,7 @@ TARKOV_JSON_HIDEOUT_LOCALE_URL = "https://json.tarkov.dev/regular/hideout_{lang}
 TARKOV_JSON_BARTERS_URL = "https://json.tarkov.dev/regular/barters"
 TARKOV_JSON_CRAFTS_URL = "https://json.tarkov.dev/regular/crafts"
 
-_parsed_lock = threading.Lock()
-_parsed_cache: tuple[str, dict[str, Any]] | None = None
+_parsed_cache: ModeCache[dict[str, Any]] = ModeCache()
 
 
 class TarkovGuidesError(Exception):
@@ -429,7 +429,6 @@ def assemble_guides_envelope(
 def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str, Any]:
     from app.services.tarkov import upstream as upstream_svc
 
-    global _parsed_cache
     stations = parse_hideout_stations(bundle.payload)
     barters = parse_barters(bundle.payload)
     crafts = parse_crafts(bundle.payload)
@@ -495,8 +494,7 @@ def persist_guides_bundle(db: Session, bundle: GuidesUpstreamBundle) -> dict[str
         note=bundle.note,
     )
     db.commit()
-    with _parsed_lock:
-        _parsed_cache = None
+    _parsed_cache.clear()
     return {
         "station_count": len(stations),
         "barter_count": len(barters),
@@ -556,29 +554,31 @@ def _load_payload(db: Session) -> tuple[str, dict[str, Any], str | None, str | N
 
 
 def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, str | None]:
-    global _parsed_cache
+    """hideout 表头键未变则直接用进程缓存，不再读三份 raw。"""
+    from app.services.tarkov import upstream as upstream_svc
+
     row = get_hideout_raw(db)
-    synced = row.synced_at.isoformat() if row and row.synced_at else None
-    key = parsed_cache_key(db, synced)
-    with _parsed_lock:
-        cached = _parsed_cache
-        if cached is not None and cached[0] == key:
-            source, _payload, synced_at, note = _load_payload(db)
-            return source, cached[1], synced_at, note
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _parsed_cache.get(parsed_cache_key(db, synced))
+        if hit is not None:
+            return source or "", hit, synced, note
     source, payload, synced_at, note = _load_payload(db)
     parsed = {
         "stations": parse_hideout_stations(payload),
         "barters": parse_barters(payload),
         "crafts": parse_crafts(payload),
     }
-    with _parsed_lock:
-        _parsed_cache = (key, parsed)
+    _parsed_cache.put(parsed_cache_key(db, synced_at), parsed)
     return source, parsed, synced_at, note
 
 
 def ensure_guides(db: Session) -> None:
-    if get_hideout_raw(db) is None:
-        sync_from_upstream(db, game_mode=parse_game_mode())
+    sync_lock.fill_once(
+        db,
+        lambda: get_hideout_raw(db) is None,
+        lambda: sync_from_upstream(db, game_mode=parse_game_mode()),
+    )
 
 
 def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
@@ -586,17 +586,16 @@ def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
         return {}
     try:
         from app.services.tarkov import catalog as catalog_svc
-        from app.services.tarkov import items as items_svc
 
-        source, payload, _synced, _note = catalog_svc._load_payload(db)
-        if not catalog_svc.payload_has_full_items(source, payload):
+        index = catalog_svc.load_items_index(db)
+        if not index.full:
             return {}
-        locale = items_svc._locale_map(payload)
         out: dict[str, dict[str, Any]] = {}
-        for ident, raw in catalog_svc.iter_raw_items(source, payload):
-            if ident not in item_ids:
+        for ident in item_ids:
+            raw = index.get(ident)
+            if raw is None:
                 continue
-            row = catalog_svc._row_from_raw(ident, raw, locale)
+            row = catalog_svc._row_from_raw(ident, raw, index.locale)
             if row:
                 out[ident] = row
         return out

@@ -62,24 +62,36 @@ export function ExiliumBindPanel({
                 onChange={(e) => setGraphCode(e.target.value)}
                 style={{ flex: 1 }}
               />
-              <img
-                src={asImageSrc(graphImage)}
-                alt="图形验证码"
+              <button
+                type="button"
+                aria-label="刷新图形验证码"
                 title="点击可刷新：清空后重新获取短信"
                 onClick={() => {
                   setGraphImage(null);
                   setGraphCode("");
                 }}
                 style={{
-                  height: 40,
-                  width: 108,
-                  objectFit: "contain",
+                  display: "block",
+                  padding: 0,
+                  border: "none",
+                  background: "none",
                   cursor: "pointer",
-                  background: "#f5f5f5",
-                  border: "1px solid #d9d9d9",
-                  borderLeft: "none",
                 }}
-              />
+              >
+                <img
+                  src={asImageSrc(graphImage)}
+                  alt="图形验证码"
+                  style={{
+                    display: "block",
+                    height: 40,
+                    width: 108,
+                    objectFit: "contain",
+                    background: "#f5f5f5",
+                    border: "1px solid #d9d9d9",
+                    borderLeft: "none",
+                  }}
+                />
+              </button>
             </Space.Compact>
           ) : null
         }

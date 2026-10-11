@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.file_config import read_json, write_json
+from app.core.security import MAX_ACCESS_TOKEN_MINUTES, bump_token_version
 from app.models.user import User, UserRole
 
 AUTH_CONFIG_KEY = "auth_session"
 _DEFAULT_EXPIRE_MINUTES = 60 * 24
 _MIN_EXPIRE = 5
-_MAX_EXPIRE = 60 * 24 * 365
+_MAX_EXPIRE = MAX_ACCESS_TOKEN_MINUTES
 _DEFAULT_MIN_PASSWORD_LENGTH = 8
 _MIN_PASSWORD_LENGTH = 6
 _MAX_PASSWORD_LENGTH = 72
@@ -135,7 +136,12 @@ def save_auth_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, 
     return data
 
 
-def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> bool:
+def effective_reject_weak_admin_password(
+    cfg: dict[str, Any] | None = None,
+    *,
+    production: bool | None = None,
+) -> bool:
+    """production 缺省按当前 APP_ENV；切换环境前的预检传 True，按生产口径算默认值。"""
     settings = get_settings()
     if cfg is None:
         reject = None
@@ -145,7 +151,7 @@ def effective_reject_weak_admin_password(cfg: dict[str, Any] | None = None) -> b
         return reject
     if settings.REJECT_WEAK_ADMIN_PASSWORD is not None:
         return bool(settings.REJECT_WEAK_ADMIN_PASSWORD)
-    return settings.is_production
+    return settings.is_production if production is None else production
 
 
 def public_auth_config(
@@ -208,6 +214,32 @@ def get_min_password_length(_db: Session | None = None) -> int:
     )
 
 
+def lock_admin_ids(db: Session) -> list[int]:
+    """锁住全部管理员行再返回其 id（SELECT … FOR UPDATE）。
+
+    降级 / 注销管理员前调用：两笔并发的「各降对方」第二笔会等第一笔提交后读到新状态，
+    不会都看到「还有别的管理员」而把管理员清零。SQLite 无行锁，但写事务本就串行。
+    """
+    rows = (
+        db.query(User.id)
+        .filter(User.role == UserRole.admin, User.anonymized_at.is_(None))
+        .order_by(User.id.asc())
+        .with_for_update()
+        .all()
+    )
+    return [int(row[0]) for row in rows]
+
+
+def admins_remaining(db: Session) -> int:
+    """本事务内（含未提交改动）还剩几名管理员；改完角色后复核用。"""
+    db.flush()
+    return (
+        db.query(User)
+        .filter(User.role == UserRole.admin, User.anonymized_at.is_(None))
+        .count()
+    )
+
+
 def enforce_single_admin_if_needed(
     db: Session,
     *,
@@ -230,3 +262,4 @@ def enforce_single_admin_if_needed(
     for user in admins:
         if user.id != keeper_id:
             user.apply_role(UserRole.user)
+            bump_token_version(user)

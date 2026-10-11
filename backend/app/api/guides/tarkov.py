@@ -1,11 +1,10 @@
-import asyncio
 import json
-import logging
-import queue
-import threading
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
 
 from app.api.guides import tarkov_goons, tarkov_raid_rooms
@@ -30,7 +29,7 @@ from app.api.guides.schemas import (
     TarkovWorkbenchGunOut,
     TarkovItemDetailOut,
     TarkovItemsSyncOut,
-    TarkovFullSyncOut,
+    TarkovFullSyncStartOut,
     TarkovTaskCatalogOut,
     TarkovTaskDetailOut,
     TarkovTasksSyncOut,
@@ -98,6 +97,7 @@ from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
 from app.services.tarkov import key_ocr as key_ocr_svc
+from app.services.tarkov import key_ocr_stream as key_ocr_stream_svc
 from app.services.tarkov import raid_prep_ocr as raid_prep_ocr_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
@@ -117,6 +117,7 @@ from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import search as search_svc
 from app.services.tarkov import sync as full_sync_svc
+from app.services.tarkov import sync_lock
 from app.services.tarkov.game_mode import (
     parse_game_mode,
     reset_game_mode,
@@ -124,8 +125,32 @@ from app.services.tarkov.game_mode import (
 )
 from app.services.tarkov.upstream import raw_row_header
 
-router = APIRouter(prefix="/tarkov")
-_log = logging.getLogger(__name__)
+SYNC_BUSY_RETRY_AFTER_SEC = 30
+
+
+class _TarkovRoute(APIRoute):
+    """冷启动 ensure_* 等不到回源单飞锁时统一 503，各路由不必逐个 except。
+
+    只管本 router 直接声明的路由；include 进来的子 router 保留自己的路由类。
+    """
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def route_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except sync_lock.TarkovSyncBusy as exc:
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": exc.message},
+                    headers={"Retry-After": str(SYNC_BUSY_RETRY_AFTER_SEC)},
+                )
+
+        return route_handler
+
+
+router = APIRouter(prefix="/tarkov", route_class=_TarkovRoute)
 
 
 async def tarkov_game_mode(
@@ -199,28 +224,36 @@ def _hit_ip(
     )
 
 
+def _sync_conflict(exc: sync_lock.TarkovSyncBusy) -> HTTPException:
+    return HTTPException(status_code=409, detail=exc.message)
+
+
 def _sync_items(db: Session) -> dict:
     try:
         return items_svc.sync_from_upstream(db)
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
     except items_svc.TarkovItemsError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post(
     "/sync",
-    response_model=TarkovFullSyncOut,
+    status_code=202,
+    response_model=TarkovFullSyncStartOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-def guides_tarkov_full_sync(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    """管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。"""
+def guides_tarkov_full_sync(_: User = Depends(require_admin)):
+    """管理员：后台回源 json.tarkov.dev 全文件再投影各栏目，立即返回执行记录；已有回源在跑时 409。"""
     try:
-        result = full_sync_svc.sync_all_from_upstream(db)
-    except full_sync_svc.TarkovFullSyncError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return TarkovFullSyncOut.model_validate(result)
+        run_id = full_sync_svc.start_full_sync()
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
+    return TarkovFullSyncStartOut(
+        job_id=full_sync_svc.FULL_SYNC_JOB_KEY,
+        run_id=run_id,
+        message=full_sync_svc.FULL_SYNC_STARTED_MESSAGE,
+    )
 
 
 @router.post(
@@ -329,35 +362,49 @@ def guides_tarkov_site_search(
 )
 def guides_tarkov_item_detail(
     item_id: str,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
-    """通用物品详情：从 items raw 返回完整 item / properties。"""
+    """通用物品详情：从 items raw 返回完整 item / properties；相关 raw 表头未变时 304。"""
     try:
+        etag, hit = _catalog_fresh(
+            request,
+            "item-detail",
+            item_id,
+            *catalog_svc.item_detail_cache_parts(db),
+        )
+        if hit is not None:
+            return hit
         detail = catalog_svc.get_item_detail(db, item_id)
     except items_svc.TarkovItemsError as exc:
         msg = str(exc)
         if msg.startswith("未找到物品") or msg.startswith("物品 id"):
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return TarkovItemDetailOut(
-        id=str(detail.get("id") or item_id),
-        name=str(detail.get("name") or item_id),
-        short_name=str(detail.get("short_name") or ""),
-        description=str(detail.get("description") or ""),
-        source=detail.get("source"),
-        item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
-        properties=(
-            detail.get("properties")
-            if isinstance(detail.get("properties"), dict)
-            else {}
+    return _catalog_ok(
+        response,
+        etag,
+        TarkovItemDetailOut(
+            id=str(detail.get("id") or item_id),
+            name=str(detail.get("name") or item_id),
+            short_name=str(detail.get("short_name") or ""),
+            description=str(detail.get("description") or ""),
+            source=detail.get("source"),
+            item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
+            properties=(
+                detail.get("properties")
+                if isinstance(detail.get("properties"), dict)
+                else {}
+            ),
+            locks=detail.get("locks") if isinstance(detail.get("locks"), list) else [],
+            sources=(
+                detail.get("sources")
+                if isinstance(detail.get("sources"), dict)
+                else {}
+            ),
+            uses=detail.get("uses") if isinstance(detail.get("uses"), dict) else {},
         ),
-        locks=detail.get("locks") if isinstance(detail.get("locks"), list) else [],
-        sources=(
-            detail.get("sources")
-            if isinstance(detail.get("sources"), dict)
-            else {}
-        ),
-        uses=detail.get("uses") if isinstance(detail.get("uses"), dict) else {},
     )
 
 
@@ -380,32 +427,7 @@ def guides_tarkov_ammo(
     etag, hit = _catalog_fresh(request, "ammo", synced_at)
     if hit is not None:
         return hit
-    packs = catalog_svc.list_ammo_pack_index(db)
-    items = [
-        TarkovAmmoItemOut(
-            id=row.item_id,
-            name=row.name,
-            short_name=row.short_name,
-            caliber=row.caliber,
-            ammo_type=row.ammo_type,
-            damage=row.damage,
-            penetration=row.penetration,
-            armor_damage=row.armor_damage,
-            initial_speed=row.initial_speed,
-            accuracy_modifier=row.accuracy_modifier,
-            recoil_modifier=row.recoil_modifier,
-            light_bleed_modifier=row.light_bleed_modifier,
-            heavy_bleed_modifier=row.heavy_bleed_modifier,
-            tracer=bool(row.tracer),
-            tracer_color=row.tracer_color or "",
-            fragmentation_chance=row.fragmentation_chance,
-            ricochet_chance=row.ricochet_chance,
-            icon_link=row.icon_link,
-            pack_icon_link=str((packs.get(row.item_id) or {}).get("pack_icon_link") or ""),
-            pack_item_id=str((packs.get(row.item_id) or {}).get("pack_item_id") or ""),
-        )
-        for row in ammo_svc.list_ammo(db)
-    ]
+    items = [TarkovAmmoItemOut(**row) for row in ammo_svc.ammo_catalog_rows(db)]
     return _catalog_ok(
         response,
         etag,
@@ -426,27 +448,44 @@ def guides_tarkov_ammo(
 )
 def guides_tarkov_ammo_detail(
     item_id: str,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
-    """弹药详情：从 items raw 返回完整 item / properties。"""
+    """弹药详情：从 items raw 返回完整 item / properties；items / overlay 表头未变时 304。"""
     try:
+        items_svc.ensure_items(db)
+        _source, synced_at, _note = items_svc.items_raw_header(db)
+        etag, hit = _catalog_fresh(
+            request,
+            "ammo-detail",
+            item_id,
+            synced_at,
+            overlay_svc.overlay_cache_token(db),
+        )
+        if hit is not None:
+            return hit
         detail = items_svc.get_ammo_item_detail(db, item_id)
     except items_svc.TarkovItemsError as exc:
         msg = str(exc)
         if msg.startswith("未找到弹药"):
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return TarkovAmmoDetailOut(
-        id=str(detail.get("id") or item_id),
-        name=str(detail.get("name") or item_id),
-        short_name=str(detail.get("short_name") or ""),
-        description=str(detail.get("description") or ""),
-        source=detail.get("source"),
-        item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
-        properties=(
-            detail.get("properties")
-            if isinstance(detail.get("properties"), dict)
-            else {}
+    return _catalog_ok(
+        response,
+        etag,
+        TarkovAmmoDetailOut(
+            id=str(detail.get("id") or item_id),
+            name=str(detail.get("name") or item_id),
+            short_name=str(detail.get("short_name") or ""),
+            description=str(detail.get("description") or ""),
+            source=detail.get("source"),
+            item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
+            properties=(
+                detail.get("properties")
+                if isinstance(detail.get("properties"), dict)
+                else {}
+            ),
         ),
     )
 
@@ -671,6 +710,8 @@ def guides_tarkov_workbench_gunsmith_solve(
 def _sync_tasks(db: Session) -> dict:
     try:
         return tasks_svc.sync_from_upstream(db)
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
     except tasks_svc.TarkovTasksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -810,12 +851,16 @@ def guides_tarkov_raid_prep(
     )
 
 
+def _ocr_busy() -> HTTPException:
+    return HTTPException(status_code=429, detail="已有识别任务在运行，请稍后再试")
+
+
 @router.post(
     "/raid-prep/recognize",
     response_model=TarkovRaidPrepOcrOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-async def guides_tarkov_raid_prep_recognize(
+def guides_tarkov_raid_prep_recognize(
     request: Request,
     map_slug: str = Query(..., alias="map", max_length=64),
     file: UploadFile = File(...),
@@ -828,42 +873,37 @@ async def guides_tarkov_raid_prep_recognize(
     platform_limiter.hit(
         f"tarkov-raid-prep-ocr:uid:{user.id}", limit=6, window_sec=600
     )
-    raw = await file.read(raid_prep_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
-    try:
-        tasks_svc.ensure_tasks(db)
-        prep = tasks_svc.list_raid_prep(db, map_slug)
-    except tasks_svc.TarkovTasksError as exc:
-        msg = str(exc)
-        if msg.startswith("地图无效"):
-            raise HTTPException(status_code=400, detail=msg) from exc
-        raise HTTPException(status_code=502, detail=msg) from exc
-    catalog = raid_prep_ocr_svc.catalog_from_raid_prep(prep.get("items") or [])
-    try:
-        image = raid_prep_ocr_svc.load_image(raw)
-    except OcrError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    if not raid_prep_ocr_svc.is_near_widescreen(image.width, image.height):
-        return TarkovRaidPrepOcrOut.model_validate(
-            raid_prep_ocr_svc.empty_result(width=image.width, height=image.height)
-        )
-    try:
-        recognizers = raid_prep_ocr_svc.resolve_recognizers(db=db)
-    except OcrError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    raw = file.file.read(raid_prep_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
     if not raid_prep_ocr_svc.try_begin_recognize():
-        raise HTTPException(
-            status_code=429,
-            detail="已有识别任务在运行，请稍后再试",
-        )
+        raise _ocr_busy()
     try:
-        result = raid_prep_ocr_svc.recognize_image(
-            image, catalog, recognizers=recognizers, db=db
-        )
-    except OcrError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        try:
+            tasks_svc.ensure_tasks(db)
+            prep = tasks_svc.list_raid_prep(db, map_slug)
+        except tasks_svc.TarkovTasksError as exc:
+            msg = str(exc)
+            if msg.startswith("地图无效"):
+                raise HTTPException(status_code=400, detail=msg) from exc
+            raise HTTPException(status_code=502, detail=msg) from exc
+        catalog = raid_prep_ocr_svc.catalog_from_raid_prep(prep.get("items") or [])
+        try:
+            image = raid_prep_ocr_svc.load_image(raw)
+        except OcrError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        if not raid_prep_ocr_svc.is_near_widescreen(image.width, image.height):
+            return TarkovRaidPrepOcrOut.model_validate(
+                raid_prep_ocr_svc.empty_result(width=image.width, height=image.height)
+            )
+        try:
+            recognizers = raid_prep_ocr_svc.resolve_recognizers(db=db)
+            result = raid_prep_ocr_svc.recognize_image(
+                image, catalog, recognizers=recognizers, db=db
+            )
+        except OcrError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        return TarkovRaidPrepOcrOut.model_validate(result)
     finally:
         raid_prep_ocr_svc.end_recognize()
-    return TarkovRaidPrepOcrOut.model_validate(result)
 
 
 @router.get(
@@ -934,6 +974,8 @@ def guides_tarkov_task_detail(
 def _sync_traders(db: Session) -> dict:
     try:
         return traders_svc.sync_from_upstream(db)
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
     except traders_svc.TarkovTradersError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1024,6 +1066,8 @@ def guides_tarkov_trader_detail(
 def _sync_bosses(db: Session) -> dict:
     try:
         return bosses_svc.sync_from_upstream(db)
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1099,6 +1143,8 @@ def guides_tarkov_boss_detail(
 def _sync_guides(db: Session) -> dict:
     try:
         return guides_svc.sync_from_upstream(db)
+    except sync_lock.TarkovSyncBusy as exc:
+        raise _sync_conflict(exc) from exc
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1663,6 +1709,13 @@ def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
+def _hit_owns_write(user: User, kind: str, *, limit: int, window_sec: int) -> None:
+    """勾选写入按账号限速：每次都要改库，坐在房间里还会给全房推一帧。"""
+    platform_limiter.hit(
+        f"tarkov-{kind}:uid:{user.id}", limit=limit, window_sec=window_sec
+    )
+
+
 @router.get(
     "/key-owns",
     response_model=TarkovKeyOwnsOut,
@@ -1687,87 +1740,27 @@ def guides_tarkov_key_owns_merge(
     user: User = Depends(get_current_user),
 ):
     """合并写入一批「我有」（本机勾选迁到账号）。"""
-    ids = key_owns_svc.merge_owns(db, user, body.item_ids)
+    _hit_owns_write(user, "key-owns-merge", limit=20, window_sec=600)
+    try:
+        ids = key_owns_svc.merge_owns(db, user, body.item_ids)
+    except key_owns_svc.TarkovKeyOwnsError as exc:
+        raise _key_owns_error(exc) from exc
     db.commit()
     rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
 
 
 def _key_ocr_ndjson_response(request: Request, image, catalog, recognizers) -> StreamingResponse:
-    """识别在工作线程跑；请求线程只读队列，避免 Session 进线程。"""
-    events: queue.Queue[dict | None] = queue.Queue()
-    cancel = threading.Event()
-    empty = object()
-
-    def on_progress(message: str, stats: dict) -> None:
-        events.put(key_ocr_svc.progress_payload(message, stats))
-
-    def work() -> None:
-        try:
-            result = key_ocr_svc.recognize_image(
-                image,
-                catalog,
-                recognizers=recognizers,
-                progress=on_progress,
-                cancel=cancel,
-            )
-            events.put(
-                {
-                    "event": "done",
-                    "result": TarkovKeyOcrOut.model_validate(result).model_dump(
-                        mode="json"
-                    ),
-                }
-            )
-        except key_ocr_svc.RecognizeCancelled:
-            pass
-        except OcrError as exc:
-            events.put(
-                {
-                    "event": "error",
-                    "status_code": exc.status_code,
-                    "detail": exc.message,
-                }
-            )
-        except Exception:
-            _log.exception("tarkov key ocr stream failed")
-            events.put(
-                {
-                    "event": "error",
-                    "status_code": 500,
-                    "detail": "识别失败，请重试",
-                }
-            )
-        finally:
-            key_ocr_svc.end_recognize()
-            events.put(None)
-
-    def pull():
-        try:
-            return events.get(timeout=0.35)
-        except queue.Empty:
-            return empty
-
-    threading.Thread(target=work, name="tarkov-key-ocr", daemon=True).start()
-
-    async def agen():
-        try:
-            while True:
-                if await request.is_disconnected():
-                    cancel.set()
-                    break
-                item = await asyncio.to_thread(pull)
-                if item is empty:
-                    continue
-                if item is None:
-                    break
-                yield json.dumps(item, ensure_ascii=False) + "\n"
-        except asyncio.CancelledError:
-            cancel.set()
-            raise
-
+    """接管识别槽：工作线程跑完或客户端断开后归还。"""
+    lines = key_ocr_stream_svc.start_recognize_stream(
+        image,
+        catalog,
+        recognizers,
+        serialize=lambda result: TarkovKeyOcrOut.model_validate(result).model_dump(mode="json"),
+        is_disconnected=request.is_disconnected,
+    )
     return StreamingResponse(
-        agen(),
+        lines,
         media_type="application/x-ndjson",
         headers={
             "Cache-Control": "no-cache",
@@ -1781,7 +1774,7 @@ def _key_ocr_ndjson_response(request: Request, image, catalog, recognizers) -> S
     response_model=TarkovKeyOcrOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
-async def guides_tarkov_key_owns_recognize(
+def guides_tarkov_key_owns_recognize(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -1791,37 +1784,40 @@ async def guides_tarkov_key_owns_recognize(
     ip = client_ip(request)
     platform_limiter.hit(f"tarkov-key-ocr:ip:{ip}", limit=8, window_sec=600)
     platform_limiter.hit(f"tarkov-key-ocr:uid:{user.id}", limit=6, window_sec=600)
-    raw = await file.read(key_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
-    try:
-        packs = key_packs_svc.list_key_packs(db)
-    except key_packs_svc.TarkovKeyPacksError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    catalog = key_ocr_svc.flatten_key_catalog(packs)
-    try:
-        image = key_ocr_svc.load_image(raw)
-        recognizers = key_ocr_svc.resolve_recognizers(db=db)
-    except OcrError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    raw = file.file.read(key_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
+    # 先占槽再解图：并发请求不能各自把一张大图解进内存。
     if not key_ocr_svc.try_begin_recognize():
-        raise HTTPException(
-            status_code=429,
-            detail="已有识别任务在运行，请稍后再试",
+        raise _ocr_busy()
+    handed_off = False
+    try:
+        try:
+            packs = key_packs_svc.list_key_packs(db)
+        except key_packs_svc.TarkovKeyPacksError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        catalog = key_ocr_svc.flatten_key_catalog(packs)
+        try:
+            image = key_ocr_svc.load_image(raw)
+            recognizers = key_ocr_svc.resolve_recognizers(db=db)
+        except OcrError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        streaming = key_ocr_svc.wants_progress_stream(
+            request.headers.get("accept") or "",
+            request.headers.get("x-recognize-progress") or "",
         )
-    streaming = key_ocr_svc.wants_progress_stream(
-        request.headers.get("accept") or "",
-        request.headers.get("x-recognize-progress") or "",
-    )
-    if not streaming:
+        if streaming:
+            response = _key_ocr_ndjson_response(request, image, catalog, recognizers)
+            handed_off = True
+            return response
         try:
             result = key_ocr_svc.recognize_image(
                 image, catalog, recognizers=recognizers
             )
         except OcrError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-        finally:
-            key_ocr_svc.end_recognize()
         return TarkovKeyOcrOut.model_validate(result)
-    return _key_ocr_ndjson_response(request, image, catalog, recognizers)
+    finally:
+        if not handed_off:
+            key_ocr_svc.end_recognize()
 
 
 @router.put(
@@ -1834,6 +1830,7 @@ def guides_tarkov_key_owns_add(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "key-owns", limit=120, window_sec=60)
     try:
         ids, _added = key_owns_svc.add_own(db, user, item_id)
     except key_owns_svc.TarkovKeyOwnsError as exc:
@@ -1853,6 +1850,7 @@ def guides_tarkov_key_owns_remove(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "key-owns", limit=120, window_sec=60)
     try:
         ids, _removed = key_owns_svc.remove_own(db, user, item_id)
     except key_owns_svc.TarkovKeyOwnsError as exc:
@@ -1925,6 +1923,7 @@ def guides_tarkov_collection_owns_merge(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns-merge", limit=20, window_sec=600)
     ids = collection_owns_svc.merge_owns(db, user, body.item_ids)
     db.commit()
     return TarkovCollectionOwnsOut(item_ids=ids)
@@ -1940,6 +1939,7 @@ def guides_tarkov_collection_owns_add(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns", limit=120, window_sec=60)
     try:
         ids, _added = collection_owns_svc.add_own(db, user, item_id)
     except collection_owns_svc.TarkovCollectionOwnsError as exc:
@@ -1958,6 +1958,7 @@ def guides_tarkov_collection_owns_remove(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns", limit=120, window_sec=60)
     try:
         ids, _removed = collection_owns_svc.remove_own(db, user, item_id)
     except collection_owns_svc.TarkovCollectionOwnsError as exc:
@@ -2148,6 +2149,7 @@ def guides_tarkov_raid_logs_import(
     user: User = Depends(get_current_user),
 ):
     """本机解析后的战局摘要落库；不接收日志原文。"""
+    _hit_owns_write(user, "raid-logs", limit=30, window_sec=600)
     result = raid_logs_svc.upsert_raids(
         db,
         user,

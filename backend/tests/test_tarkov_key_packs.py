@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.tarkov.bosses import MAP_ZH
+from app.services.tarkov.bosses import MAP_ZH, TarkovBossesError
 from app.services.tarkov.maps import FACTORY_EXIT_KEY_ID
 from app.services.tarkov.key_packs import (
     COMMUNITY_KEY_MAPS,
     SOURCE_JSON,
-    SOURCE_STALE,
     TarkovKeyPacksError,
     UNAVAILABLE_MSG,
     attach_key_sources,
@@ -516,70 +515,58 @@ def test_group_accepts_json_string_key_ids() -> None:
     assert out["maps"][0]["keys"][0]["lock_count"] == 1
 
 
-def test_fetch_json_maps_locks(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_persisted_maps(monkeypatch: pytest.MonkeyPatch, payload: dict) -> None:
     from app.services.tarkov import key_packs as kp
+    from app.services.tarkov import upstream as upstream_svc
 
-    kp._lock_cache.clear()
+    kp._locks_cache.clear()
+    monkeypatch.setattr(kp, "ensure_maps", lambda _db: None)
+    monkeypatch.setattr(kp, "get_maps_raw", lambda _db: object())
+    monkeypatch.setattr(upstream_svc, "raw_row_header", lambda _row: ("maps", "synced"))
+    monkeypatch.setattr(upstream_svc, "load_raw", lambda *_a, **_k: payload)
 
-    def fake_http(_url: str, **_kwargs):
-        return (
-            b'{"data":{"maps":{"1":{"name":"Customs","normalizedName":"customs",'
-            b'"locks":[{"key":"dorm-114"}],"accessKeys":[]}}}}'
-        )
 
-    monkeypatch.setattr(kp, "_http_request", fake_http)
-    maps, source = fetch_map_locks()
+def test_fetch_reads_locks_from_persisted_maps(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_persisted_maps(
+        monkeypatch,
+        {
+            "data": {
+                "maps": {
+                    "1": {
+                        "name": "Customs",
+                        "normalizedName": "customs",
+                        "locks": [{"key": "dorm-114"}],
+                        "accessKeys": [],
+                    }
+                }
+            }
+        },
+    )
+    maps, source = fetch_map_locks(db=object())  # type: ignore[arg-type]
     assert source == SOURCE_JSON
     assert maps[0]["normalizedName"] == "customs"
     assert maps[0]["locks"][0]["key"] == "dorm-114"
 
 
-def test_fetch_uses_stale_cache_when_json_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_failure_hides_upstream_detail(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.services.tarkov import key_packs as kp
 
-    kp._lock_cache.clear()
-    kp._lock_cache[kp._cache_key("pvp")] = {
-        "at": 0.0,
-        "maps": [{"normalizedName": "woods", "locks": [], "accessKeys": []}],
-        "source": SOURCE_JSON,
-    }
+    kp._locks_cache.clear()
 
-    def fake_http(_url: str, **_kwargs):
-        raise TarkovKeyPacksError("下载失败 HTTP 422: boom")
+    def boom(_db: object) -> None:
+        raise TarkovBossesError("下载失败 HTTP 422: boom")
 
-    monkeypatch.setattr(kp, "_http_request", fake_http)
-    maps, source = fetch_map_locks()
-    assert source == SOURCE_STALE
-    assert maps[0]["normalizedName"] == "woods"
-
-
-def test_fetch_fail_without_cache_is_friendly(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.services.tarkov import key_packs as kp
-
-    kp._lock_cache.clear()
-
-    def fake_http(_url: str, **_kwargs):
-        raise TarkovKeyPacksError("下载失败 HTTP 422: boom")
-
-    monkeypatch.setattr(kp, "_http_request", fake_http)
+    monkeypatch.setattr(kp, "ensure_maps", boom)
     with pytest.raises(TarkovKeyPacksError, match="暂时拉不到") as exc:
-        fetch_map_locks()
+        fetch_map_locks(db=object())  # type: ignore[arg-type]
     assert "422" not in str(exc.value)
     assert str(exc.value) == UNAVAILABLE_MSG
 
 
-def test_fetch_ignores_persisted_slim_maps(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.services.tarkov import key_packs as kp
-    from app.services.tarkov import upstream as upstream_svc
-
-    kp._lock_cache.clear()
-
-    monkeypatch.setattr(
-        upstream_svc,
-        "load_raw",
-        lambda *_a, **_k: {
+def test_fetch_rejects_persisted_maps_without_locks(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_persisted_maps(
+        monkeypatch,
+        {
             "maps": {
                 "1": {
                     "normalizedName": "customs",
@@ -589,14 +576,5 @@ def test_fetch_ignores_persisted_slim_maps(monkeypatch: pytest.MonkeyPatch) -> N
             }
         },
     )
-
-    def fake_http(_url: str, **_kwargs):
-        return (
-            b'{"data":{"maps":{"1":{"normalizedName":"customs",'
-            b'"locks":[{"key":"dorm-114"}],"accessKeys":[]}}}}'
-        )
-
-    monkeypatch.setattr(kp, "_http_request", fake_http)
-    maps, source = fetch_map_locks(db=object())
-    assert source == SOURCE_JSON
-    assert maps[0]["locks"][0]["key"] == "dorm-114"
+    with pytest.raises(TarkovKeyPacksError, match="暂时拉不到"):
+        fetch_map_locks(db=object())  # type: ignore[arg-type]

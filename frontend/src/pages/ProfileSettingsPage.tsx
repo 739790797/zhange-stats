@@ -76,8 +76,6 @@ export default function ProfileSettingsPage() {
     setSearchParams,
     profileQueryKey,
     isAdminEdit,
-    authUser,
-    setUser,
   });
 
   const saveProfilePatch = (payload: ProfilePayload) =>

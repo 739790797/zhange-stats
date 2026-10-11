@@ -1,13 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class Member(Base):
     __tablename__ = "members"
+    # 同 users：成员 id 在 URL 与缓存键里，SQLite 新建库不复用已删 id
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -32,7 +35,10 @@ class Member(Base):
         nullable=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
     )
 
     user = relationship("User", back_populates="member")

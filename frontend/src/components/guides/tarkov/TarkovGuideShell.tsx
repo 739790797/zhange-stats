@@ -29,6 +29,7 @@ import {
   TarkovLiveWatchProvider,
 } from "@/lib/tarkovLiveWatchContext";
 import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
+import { useTarkovGuestProgressImport } from "@/lib/useTarkovGuestProgressImport";
 import { TarkovGoonTrackerProvider } from "@/lib/tarkovGoonTrackerLive";
 import {
   formatLiveWatchLogLine,
@@ -158,11 +159,7 @@ function TarkovLiveWatchStatus() {
       </button>
     );
   }
-  return (
-    <div className={styles.pollClock} aria-live="polite">
-      {body}
-    </div>
-  );
+  return <div className={styles.pollClock}>{body}</div>;
 }
 
 function TarkovGameModeSwitch() {
@@ -196,6 +193,8 @@ export function TarkovGuideShell({ children }: Props) {
   const [searchParams] = useSearchParams();
   const me = useAuthStore((s) => s.user);
   const isAdmin = isAdminUser(me);
+  const [progressGen, setProgressGen] = useState(0);
+  useTarkovGuestProgressImport(me?.id, () => setProgressGen((n) => n + 1));
   const maintainMode = parseTarkovMaintainMode(searchParams.get("maintain"));
   const adminActive = isTarkovAdminPath(pathname, searchParams.toString());
   const qParam = (searchParams.get("q") || "").trim();
@@ -266,7 +265,8 @@ export function TarkovGuideShell({ children }: Props) {
   const fills = tarkovGuideShellFills(pathname, searchParams.get("tab"));
   return (
     <TarkovThemed>
-    <TarkovLiveWatchProvider>
+    {/* 换人或导入访客进度后整棵重挂：各面板的 state 是从本机进度初始化的，不能沿用上一位的 */}
+    <TarkovLiveWatchProvider key={`${me?.id ?? "guest"}:${progressGen}`}>
     <TarkovGoonTrackerProvider>
     <div className={styles.shell}>
       <a className={styles.skipLink} href="#tarkov-main">

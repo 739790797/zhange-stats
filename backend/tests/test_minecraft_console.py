@@ -138,3 +138,45 @@ def test_parse_server_meta_reads_panel_resource_limits():
     assert meta["cpu_limit"] == 400
     assert meta["disk_limit_mb"] == 20480
     assert meta["docker_image"] == "ghcr.io/pelican-eggs/yolks:java_21"
+
+
+def _console_client():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.guides import minecraft as minecraft_api
+
+    app = FastAPI()
+    app.include_router(minecraft_api.router)
+    return TestClient(app)
+
+
+def test_console_ws_rejects_cross_site_origin(monkeypatch):
+    from fastapi import WebSocketDisconnect
+
+    from app.services.minecraft import console as console_svc
+
+    calls: list[str] = []
+    monkeypatch.setattr(console_svc, "_load_console_session", lambda jwt: calls.append(jwt))
+    with _console_client().websocket_connect(
+        "/minecraft/console", headers={"origin": "https://evil.example"}
+    ) as ws:
+        with pytest.raises(WebSocketDisconnect) as caught:
+            ws.receive_json()
+    assert caught.value.code == 4403
+    assert calls == []
+
+
+def test_console_ws_closes_oversized_auth_frame(monkeypatch):
+    from fastapi import WebSocketDisconnect
+
+    from app.services.minecraft import console as console_svc
+
+    calls: list[str] = []
+    monkeypatch.setattr(console_svc, "_load_console_session", lambda jwt: calls.append(jwt))
+    with _console_client().websocket_connect("/minecraft/console") as ws:
+        ws.send_text("x" * (console_svc.MAX_CLIENT_FRAME_CHARS + 1))
+        with pytest.raises(WebSocketDisconnect) as caught:
+            ws.receive_json()
+    assert caught.value.code == console_svc.CLOSE_TOO_LARGE
+    assert calls == []

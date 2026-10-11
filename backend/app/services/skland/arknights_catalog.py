@@ -27,6 +27,8 @@ VERSION_URL = (
 OPERATOR_PROFESSIONS = set(PROFESSION_CN.keys())
 META_ROW_ID = 1
 DOWNLOAD_TIMEOUT = 120
+# 全量角色表在 8 MiB 上下且随版本增长，不套 http_client 的默认上限
+DOWNLOAD_MAX_BYTES = 64 * 1024 * 1024
 
 
 class ArknightsCatalogError(Exception):
@@ -42,6 +44,7 @@ def _http_get_bytes(url: str, *, timeout: int = DOWNLOAD_TIMEOUT) -> bytes:
             url,
             headers={"User-Agent": "zhange-stats/1.0"},
             timeout=timeout,
+            max_bytes=DOWNLOAD_MAX_BYTES,
         )
     except HttpRequestError as exc:
         raise ArknightsCatalogError(f"无法连接资源站: {exc}") from exc
@@ -199,11 +202,13 @@ def catalog_sync_job_wrapper() -> None:
     """定时从 ArknightsGameResource 同步干员图鉴。"""
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
+    from app.services.job_runs_prune import fail_job_run
 
     db = SessionLocal()
-    job = JobRun(job_key=CATALOG_JOB_KEY, status="running")
+    job = JobRun(job_key=CATALOG_JOB_KEY, status="running", started_at=now_naive())
     db.add(job)
     db.commit()
+    run_id = job.id
     try:
         result = sync_from_upstream(db)
         job.status = "ok"
@@ -218,9 +223,6 @@ def catalog_sync_job_wrapper() -> None:
         db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("arknights catalog sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        fail_job_run(db, run_id, str(exc))
     finally:
         db.close()

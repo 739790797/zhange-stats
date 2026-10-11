@@ -95,7 +95,7 @@ def test_exilium_sign_in_structured(monkeypatch) -> None:
     creds = ExiliumCredentials(
         token="t",
         account_name="u",
-        password="p",
+        password_md5="83878c91171338902e0fe0fb97a8c47a",
         user_id="1",
         nickname="n",
     )

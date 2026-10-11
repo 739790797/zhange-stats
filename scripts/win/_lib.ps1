@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Shared by scripts/win/install.ps1, run.ps1, restart.ps1, update.ps1. Not a public command.
+# Shared by the scripts/win/*.ps1 entry points. Not a public command.
 
 $ErrorActionPreference = "Stop"
 
@@ -252,15 +252,58 @@ function Ensure-InstallPaths {
   New-Item -ItemType Directory -Force -Path $DataDir, $UploadDir, $ModelsDir, $StaticDir, $DevDir, (Join-Path $RepoRoot "data\backups"), $CacheDir, $TmpDir, $env:PYTHONPYCACHEPREFIX, $env:HF_HOME, $env:TORCH_HOME, $env:PIP_CACHE_DIR, $configDir | Out-Null
 }
 
+# Same format as app_updator.requirements_stamp (sha256sum output): the admin updater and the scripts share one stamp.
+function Get-RequirementsStamp {
+  $lines = @()
+  foreach ($name in @("requirements.txt", "constraints.txt")) {
+    $path = Join-Path $BackendDir $name
+    if (Test-Path $path) {
+      $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLowerInvariant()
+      $lines += "$hash  $name"
+    }
+  }
+  return $lines
+}
+
+function Test-PipStamp {
+  if (-not (Test-Path $PipStamp)) { return $false }
+  $want = @(Get-RequirementsStamp) -join " "
+  $have = Get-Content -Path $PipStamp -Raw -ErrorAction SilentlyContinue
+  if (-not $want.Trim() -or -not $have) { return $false }
+  $wantWords = @($want -split '\s+' | Where-Object { $_ }) -join " "
+  $haveWords = @("$have" -split '\s+' | Where-Object { $_ }) -join " "
+  return ($wantWords -eq $haveWords)
+}
+
+function Write-PipStamp {
+  try {
+    Set-Content -Path $PipStamp -Value @(Get-RequirementsStamp) -Encoding ascii
+  } catch {
+    Write-Host "[pip] WARN: could not write $PipStamp"
+  }
+}
+
+function Test-PipOutdated {
+  $raw = & $PythonExe -m pip --version
+  if ($LASTEXITCODE -ne 0 -or -not $raw) { return $true }
+  if ("$raw" -match '^pip (\d+)\.') { return ([int]$Matches[1] -lt 23) }
+  return $true
+}
+
 function Install-PythonDeps {
   $req = Join-Path $BackendDir "requirements.txt"
   if (-not (Test-Path $req)) {
     throw "Missing $req"
   }
+  $lock = Join-Path $BackendDir "constraints.txt"
+  $lockArgs = @()
+  if (Test-Path $lock) { $lockArgs = @("-c", $lock) }
   New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
   Write-Host "[pip] installing CPU torch + requirements..."
-  & $PythonExe -m pip install -U pip
-  if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
+  if (Test-PipOutdated) {
+    & $PythonExe -m pip install -U pip
+    if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
+  }
   & $PythonExe -m pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
   if ($LASTEXITCODE -ne 0) { throw "CPU torch install failed" }
   $constraint = Join-Path $TmpDir ("zhange-torch-" + [guid]::NewGuid().ToString() + ".txt")
@@ -268,22 +311,27 @@ function Install-PythonDeps {
     $pinned = & $PythonExe -m pip freeze | Select-String -Pattern '^(torch|torchvision)=='
     $pinned | ForEach-Object { $_.Line } | Set-Content -Path $constraint -Encoding ascii
     if ((Get-Item $constraint).Length -gt 0) {
-      & $PythonExe -m pip install -r $req -c $constraint
+      & $PythonExe -m pip install -r $req -c $constraint @lockArgs
     } else {
-      & $PythonExe -m pip install -r $req
+      & $PythonExe -m pip install -r $req @lockArgs
     }
     if ($LASTEXITCODE -ne 0) { throw "pip install -r requirements.txt failed" }
   } finally {
     Remove-Item $constraint -ErrorAction SilentlyContinue
   }
   & $PythonExe -m pip uninstall -y opencv-python | Out-Null
-  & $PythonExe -m pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0"
+  & $PythonExe -m pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0" @lockArgs
   if ($LASTEXITCODE -ne 0) { throw "opencv-python-headless install failed" }
-  Set-Content -Path $PipStamp -Value ([DateTime]::UtcNow.ToString("o")) -Encoding ascii
 }
 
 function Ensure-Venv {
-  if (Test-Path $PythonExe) { return }
+  if (Test-Path $PythonExe) {
+    & $PythonExe -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+    if ($LASTEXITCODE -ne 0) {
+      throw "backend\.venv is broken or older than Python 3.11: delete backend\.venv and re-run install.ps1 with Python 3.11+"
+    }
+    return
+  }
   Write-Host "[venv] creating..."
   $sysPy = Get-SystemPython
   $verText = (& $sysPy.File @($sysPy.Prefix + @("-c", "import sys; print('%d.%d' % (sys.version_info[0], sys.version_info[1]))"))).Trim()
@@ -297,17 +345,10 @@ function Ensure-Venv {
 function Ensure-PythonDeps {
   param([switch]$ForcePip)
   Ensure-Venv
-  $req = Join-Path $BackendDir "requirements.txt"
-  $need = [bool]$ForcePip -or ($env:ZHANGE_FORCE_PIP -eq "1")
-  if (-not $need) {
-    if (-not (Test-Path $PipStamp) -or -not (Test-Path $req)) {
-      $need = $true
-    } elseif ((Get-Item $req).LastWriteTimeUtc -gt (Get-Item $PipStamp).LastWriteTimeUtc) {
-      $need = $true
-    }
-  }
-  if (-not $need) { return }
+  $force = [bool]$ForcePip -or ($env:ZHANGE_FORCE_PIP -eq "1")
+  if (-not $force -and (Test-PipStamp)) { return }
   Install-PythonDeps
+  Write-PipStamp
 }
 
 function Ensure-FrontendDeps {
@@ -320,8 +361,8 @@ function Ensure-FrontendDeps {
   Write-Host "[npm] installing frontend deps..."
   Push-Location $FrontendDir
   try {
-    & $npmCmd.Source install --legacy-peer-deps
-    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+    & $npmCmd.Source ci
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
   } finally {
     Pop-Location
   }
@@ -351,52 +392,33 @@ function Ensure-ZhangeDeps {
   Sync-SiteConfig
 }
 
-function Get-MysqlTool([string]$Name) {
-  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-  if ($cmd) { return $cmd.Source }
-  $dist = Join-Path $RepoRoot "data\mariadb\dist"
-  if (-not (Test-Path $dist)) { $dist = Join-Path $RepoRoot "var\mariadb\dist" }
-  if (Test-Path $dist) {
-    $hit = Get-ChildItem $dist -Recurse -Filter "$Name.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($hit) { return $hit.FullName }
+# A git clone has no static/: fetch the checksum-verified prebuilt static of the local VERSION.
+# Not fatal: the dev stack (run.ps1) serves the frontend through Vite; static/ is only served when STATIC_DIR is set.
+function Ensure-StaticAssets {
+  if (Test-Path (Join-Path $StaticDir "index.html")) { return }
+  if (-not (Test-Path $PythonExe)) { return }
+  Write-Host "[static] static\ has no frontend; fetching the prebuilt static of the local VERSION..."
+  & $PythonExe (Join-Path $RepoRoot "scripts\common\update.py") --static-only
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "[static] WARN: prebuilt static not installed (options above). run.ps1 still works through Vite."
   }
-  throw "Missing $Name.exe. Run scripts\win\install.ps1 or add MariaDB client to PATH."
 }
 
-function Get-DatabaseUrlParts([string]$EnvPath) {
-  $code = @'
-from pathlib import Path
-from urllib.parse import urlparse, unquote
-import sys
-url = ""
-for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
-    s = line.strip()
-    if s.startswith("DATABASE_URL="):
-        url = s.split("=", 1)[1].strip().strip('"').strip("'")
-        break
-url = url.replace("mysql+pymysql://", "mysql://", 1)
-u = urlparse(url)
-parts = [
-    unquote(u.username or ""),
-    unquote(u.password or ""),
-    u.hostname or "127.0.0.1",
-    str(u.port or 3306),
-    (u.path or "").lstrip("/").split("?")[0],
-]
-print("\t".join(parts))
-'@
-  $spec = Get-ProvisionPython
-  $raw = & $spec.File @($spec.Prefix + @("-c", $code, $EnvPath))
-  if ($LASTEXITCODE -ne 0) { throw "Failed to parse DATABASE_URL" }
-  $fields = ("$raw").Trim().Split("`t")
-  if ($fields.Count -lt 5 -or -not $fields[4]) { throw "Cannot parse DATABASE_URL" }
-  return @{
-    User = $fields[0]
-    Password = $fields[1]
-    Host = $fields[2]
-    Port = $fields[3]
-    Name = $fields[4]
+# The app writes a one-time token to data\runtime\setup-token until the setup wizard is done;
+# with no database chosen yet it is created on the first wizard request.
+function Show-SetupToken {
+  $tokenFile = Join-Path $DataDir "setup-token"
+  if (-not (Test-Path (Join-Path $RepoRoot "config\database.json")) -and -not (Test-Path $tokenFile)) {
+    Wait-HttpReady -Url "http://${BackendHost}:${BackendPort}/api/setup/status" -OkCodes @(200) -TimeoutSeconds 30 | Out-Null
   }
+  if (-not (Test-Path $tokenFile)) { return }
+  $token = "$(Get-Content -Path $tokenFile -Raw -ErrorAction SilentlyContinue)".Trim()
+  if ($token) {
+    Write-Host "[setup] install token: $token"
+  } else {
+    Write-Host "[setup] install token file: $tokenFile"
+  }
+  Write-Host "[setup] Enter it in the setup wizard in the browser; it is deleted once setup completes."
 }
 
 function Start-Backend {
@@ -421,7 +443,8 @@ function Start-Backend {
     "--reload",
     "--reload-dir", "app",
     "--host", $BackendHost,
-    "--port", "$BackendPort"
+    "--port", "$BackendPort",
+    "--ws-max-size", "4194304"
   )
 
   $proc = Start-Process `

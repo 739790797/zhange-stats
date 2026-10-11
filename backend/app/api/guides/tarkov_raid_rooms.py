@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TypeVar
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, WebSocket
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.guides.schemas import (
@@ -24,6 +28,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_optional_user
 from app.core.platform_deps import require_feature
 from app.core.rate_limit import client_ip, platform_limiter
+from app.core.ws_origin import CLOSE_ORIGIN_FORBIDDEN, websocket_origin_allowed
 from app.models.user import User
 from app.services.tarkov import raid_room_ws as room_ws_svc
 from app.services.tarkov import raid_rooms as rooms_svc
@@ -31,15 +36,25 @@ from app.services.tarkov.raid_room_hub import hub
 
 router = APIRouter()
 _FEATURE = Depends(require_feature("guides.tarkov"))
+_T = TypeVar("_T")
 
 
 def _raise(exc: rooms_svc.RaidRoomError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
-_SNAPSHOT_WS_EVENTS = frozenset(
-    {"member_join", "member_leave", "reset", "snapshot"}
-)
+def room_action(db: Session, run: Callable[[], _T]) -> _T:
+    """房间事务统一出口：失败回滚；commit 后才踢离座者的 socket / 关解散的房，调用方随后再 publish。"""
+    try:
+        return rooms_svc.run_in_room_tx(db, run)
+    except rooms_svc.RaidRoomError as exc:
+        _raise(exc)
+        raise
+    except IntegrityError as exc:
+        raise HTTPException(status_code=409, detail="房间状态刚变过，请刷新后重试") from exc
+
+
+_SNAPSHOT_WS_EVENTS = frozenset({"member_join", "member_leave", "snapshot"})
 _PATCH_WS_FIELDS: dict[str, tuple[str, ...]] = {
     "claim_add": ("claims",),
     "claim_remove": ("claims",),
@@ -90,6 +105,13 @@ def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = No
     )
 
 
+def _publish_vacated(vacated: list[dict], user_id: int) -> None:
+    for snap in vacated:
+        vacated_id = str(snap.get("public_id") or "").strip()
+        if vacated_id:
+            _publish(vacated_id, "member_leave", snap, extra={"user_id": user_id})
+
+
 @router.get(
     "/raid-rooms",
     response_model=TarkovRaidRoomLobbyOut,
@@ -122,14 +144,16 @@ def list_tarkov_raid_rooms(
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
-    data = rooms_svc.list_live_rooms(
+    data = room_action(
         db,
-        viewer=user,
-        online_by_public_id=online_by_public_id,
-        page=page,
-        page_size=page_size,
+        lambda: rooms_svc.list_live_rooms(
+            db,
+            viewer=user,
+            online_by_public_id=online_by_public_id,
+            page=page,
+            page_size=page_size,
+        ),
     )
-    db.commit()
     return TarkovRaidRoomLobbyOut.model_validate(data)
 
 
@@ -145,10 +169,10 @@ def get_my_tarkov_raid_room(
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
-    item = rooms_svc.get_my_live_room(
-        db, user, online_by_public_id=online_by_public_id
+    item = room_action(
+        db,
+        lambda: rooms_svc.get_my_live_room(db, user, online_by_public_id=online_by_public_id),
     )
-    db.commit()
     return TarkovRaidRoomMineOut(item=item)
 
 
@@ -166,29 +190,18 @@ def create_tarkov_raid_room(
     ip = client_ip(request)
     platform_limiter.hit(f"tarkov-raid-create:ip:{ip}", limit=20, window_sec=600)
     platform_limiter.hit(f"tarkov-raid-create:uid:{user.id}", limit=10, window_sec=600)
-    try:
-        data, _joined_now, vacated = rooms_svc.create_room(
+    data, _joined_now, vacated = room_action(
+        db,
+        lambda: rooms_svc.create_room(
             db,
             user,
             title=body.title,
             password=body.password,
             listed=body.listed,
             game_mode=body.game_mode,
-        )
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
-    for snap in vacated:
-        vacated_id = str(snap.get("public_id") or "").strip()
-        if vacated_id:
-            _publish(
-                vacated_id,
-                "member_leave",
-                snap,
-                extra={"user_id": user.id},
-            )
+        ),
+    )
+    _publish_vacated(vacated, user.id)
     _publish(
         data["public_id"],
         "member_join",
@@ -209,20 +222,17 @@ def set_tarkov_raid_room_map(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.set_room_map(
+    data = room_action(
+        db,
+        lambda: rooms_svc.set_room_map(
             db,
             public_id,
             user,
             body.map,
             online_user_ids=hub.online_user_ids(public_id),
             log_phases=hub.log_phases(public_id),
-        )
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+        ),
+    )
     _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -238,18 +248,15 @@ def get_tarkov_raid_room(
     user: User | None = Depends(get_optional_user),
 ) -> TarkovRaidRoomDetailOut:
     """取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。"""
-    try:
-        data = rooms_svc.get_room(
+    data = room_action(
+        db,
+        lambda: rooms_svc.get_room(
             db,
             public_id,
             user,
             online_user_ids=hub.online_user_ids(public_id),
-        )
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -281,29 +288,17 @@ def join_tarkov_raid_room(
         limit=rooms_svc.JOIN_RATE_LIMIT,
         window_sec=rooms_svc.JOIN_RATE_WINDOW_SEC,
     )
-    payload = body
-    try:
-        data, joined_now, vacated = rooms_svc.join_room(
+    data, joined_now, vacated = room_action(
+        db,
+        lambda: rooms_svc.join_room(
             db,
             public_id,
             user,
-            game_mode=payload.game_mode,
-            password=payload.password,
-        )
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
-    for snap in vacated:
-        vacated_id = str(snap.get("public_id") or "").strip()
-        if vacated_id:
-            _publish(
-                vacated_id,
-                "member_leave",
-                snap,
-                extra={"user_id": user.id},
-            )
+            game_mode=body.game_mode,
+            password=body.password,
+        ),
+    )
+    _publish_vacated(vacated, user.id)
     if joined_now:
         _publish(
             public_id,
@@ -325,13 +320,9 @@ def set_tarkov_raid_room_game_mode(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.set_room_game_mode(db, public_id, user, body.game_mode)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data = room_action(
+        db, lambda: rooms_svc.set_room_game_mode(db, public_id, user, body.game_mode)
+    )
     _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -346,14 +337,9 @@ def leave_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.leave_room(db, public_id, user)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
-    _publish(public_id, "member_leave", data, extra={"user_id": user.id})
+    data, broadcast = room_action(db, lambda: rooms_svc.leave_room(db, public_id, user))
+    if broadcast is not None:
+        _publish(public_id, "member_leave", broadcast, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -367,14 +353,7 @@ def reset_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.reset_room(db, public_id, user)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
-    _publish(public_id, "reset", data)
+    data = room_action(db, lambda: rooms_svc.reset_room(db, public_id, user))
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -389,13 +368,7 @@ def remove_tarkov_raid_room_member(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.remove_member(db, public_id, user, user_id)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+    data = room_action(db, lambda: rooms_svc.remove_member(db, public_id, user, user_id))
     _publish(public_id, "member_leave", data, extra={"user_id": user_id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -412,13 +385,7 @@ def transfer_tarkov_raid_room_host(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     """房主把房主转让给在座成员。"""
-    try:
-        data = rooms_svc.transfer_host(db, public_id, user, body.user_id)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+    data = room_action(db, lambda: rooms_svc.transfer_host(db, public_id, user, body.user_id))
     _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -434,19 +401,16 @@ def put_tarkov_raid_room_task_progress(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.set_member_task_progress(
+    data = room_action(
+        db,
+        lambda: rooms_svc.set_member_task_progress(
             db,
             public_id,
             user,
             body.started_ids,
             body.done_ids,
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+        ),
+    )
     _publish(public_id, "task_progress", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -462,13 +426,7 @@ def claim_tarkov_raid_room_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, added = rooms_svc.claim_task(db, public_id, user, task_id)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+    data, added = room_action(db, lambda: rooms_svc.claim_task(db, public_id, user, task_id))
     if added:
         _publish(
             public_id,
@@ -489,13 +447,9 @@ def seed_tarkov_raid_room_claims_from_progress(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, added = rooms_svc.seed_claims_from_progress(db, public_id, user)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, added = room_action(
+        db, lambda: rooms_svc.seed_claims_from_progress(db, public_id, user)
+    )
     if added:
         _publish(public_id, "claim_add", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
@@ -512,15 +466,9 @@ def claim_tarkov_raid_room_tasks(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, added = rooms_svc.claim_tasks(
-            db, public_id, user, body.task_ids[:40]
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, added = room_action(
+        db, lambda: rooms_svc.claim_tasks(db, public_id, user, body.task_ids[:40])
+    )
     if added:
         _publish(public_id, "claim_add", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
@@ -537,13 +485,9 @@ def unclaim_tarkov_raid_room_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, removed = rooms_svc.unclaim_task(db, public_id, user, task_id)
-    except rooms_svc.RaidRoomError as exc:
-        db.rollback()
-        _raise(exc)
-        raise
-    db.commit()
+    data, removed = room_action(
+        db, lambda: rooms_svc.unclaim_task(db, public_id, user, task_id)
+    )
     if removed:
         _publish(
             public_id,
@@ -565,13 +509,7 @@ def bring_tarkov_raid_room_key(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, added = rooms_svc.bring_key(db, public_id, user, item_id)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, added = room_action(db, lambda: rooms_svc.bring_key(db, public_id, user, item_id))
     if added:
         _publish(
             public_id,
@@ -593,13 +531,9 @@ def unbring_tarkov_raid_room_key(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, removed = rooms_svc.unbring_key(db, public_id, user, item_id)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, removed = room_action(
+        db, lambda: rooms_svc.unbring_key(db, public_id, user, item_id)
+    )
     if removed:
         _publish(
             public_id,
@@ -622,13 +556,9 @@ def mark_tarkov_raid_room_objectives_done(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     pairs = [(item.task_id, item.objective_id) for item in body.items]
-    try:
-        data, added = rooms_svc.mark_objectives_done(db, public_id, user, pairs)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, added = room_action(
+        db, lambda: rooms_svc.mark_objectives_done(db, public_id, user, pairs)
+    )
     if added:
         _publish(
             public_id,
@@ -651,15 +581,10 @@ def mark_tarkov_raid_room_objective_done(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, added = rooms_svc.mark_objective_done(
-            db, public_id, user, task_id, objective_id
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, added = room_action(
+        db,
+        lambda: rooms_svc.mark_objective_done(db, public_id, user, task_id, objective_id),
+    )
     if added:
         _publish(
             public_id,
@@ -686,15 +611,10 @@ def unmark_tarkov_raid_room_objective_done(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, removed = rooms_svc.unmark_objective_done(
-            db, public_id, user, task_id, objective_id
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, removed = room_action(
+        db,
+        lambda: rooms_svc.unmark_objective_done(db, public_id, user, task_id, objective_id),
+    )
     if removed:
         _publish(
             public_id,
@@ -720,8 +640,9 @@ def add_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, mark = rooms_svc.add_mark(
+    data, mark = room_action(
+        db,
+        lambda: rooms_svc.add_mark(
             db,
             public_id,
             user,
@@ -733,12 +654,8 @@ def add_tarkov_raid_room_mark(
             z2=body.z2,
             points=body.points,
             label=body.label,
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+        ),
+    )
     _publish(public_id, "mark_add", data, extra={"mark": mark})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -755,15 +672,9 @@ def move_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, mark = rooms_svc.move_text_mark(
-            db, public_id, user, mark_id, x=body.x, z=body.z
-        )
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, mark = room_action(
+        db, lambda: rooms_svc.move_text_mark(db, public_id, user, mark_id, x=body.x, z=body.z)
+    )
     if mark is not None:
         _publish(public_id, "mark_move", data, extra={"mark": mark})
     return TarkovRaidRoomDetailOut.model_validate(data)
@@ -779,13 +690,7 @@ def undo_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, mark_id = rooms_svc.undo_own_mark(db, public_id, user)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, mark_id = room_action(db, lambda: rooms_svc.undo_own_mark(db, public_id, user))
     if mark_id is not None:
         _publish(public_id, "mark_remove", data, extra={"mark_id": mark_id})
     return TarkovRaidRoomDetailOut.model_validate(data)
@@ -802,13 +707,9 @@ def remove_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data, removed = rooms_svc.remove_mark(db, public_id, user, mark_id)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data, removed = room_action(
+        db, lambda: rooms_svc.remove_mark(db, public_id, user, mark_id)
+    )
     if removed:
         _publish(public_id, "mark_remove", data, extra={"mark_id": mark_id})
     return TarkovRaidRoomDetailOut.model_validate(data)
@@ -824,13 +725,7 @@ def clear_tarkov_raid_room_marks(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    try:
-        data = rooms_svc.clear_marks(db, public_id, user)
-    except rooms_svc.RaidRoomError as extra_exc:
-        db.rollback()
-        _raise(extra_exc)
-        raise
-    db.commit()
+    data = room_action(db, lambda: rooms_svc.clear_marks(db, public_id, user))
     _publish(
         public_id,
         "board_clear",
@@ -842,5 +737,9 @@ def clear_tarkov_raid_room_marks(
 
 @router.websocket("/raid-rooms/{public_id}/ws")
 async def tarkov_raid_room_ws(websocket: WebSocket, public_id: str) -> None:
+    allowed = websocket_origin_allowed(websocket)
     await websocket.accept()
+    if not allowed:
+        await websocket.close(code=CLOSE_ORIGIN_FORBIDDEN)
+        return
     await room_ws_svc.run_room_session(websocket, public_id)

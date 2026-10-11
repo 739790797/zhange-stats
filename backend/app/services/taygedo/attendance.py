@@ -18,10 +18,7 @@ from app.services.taygedo.client import (
     GAME_APP,
     GAME_APP_NAME,
     GAME_HT,
-    GAME_HT_NAME,
     GAME_NTE,
-    GAME_NTE_NAME,
-    GAME_SIGN_IDS,
     H5_ORIGIN,
     TAYGEDO_BASE,
     TaygedoApiError,
@@ -1030,18 +1027,27 @@ def sort_taygedo_results(results: list[CheckinResult]) -> list[CheckinResult]:
     )
 
 
-def query_today_all(
+def query_targets_today(
     creds: TaygedoCredentials,
-) -> tuple[TaygedoCredentials, list[CheckinResult]]:
-    """社区签到优先，再查异环 / 幻塔游戏签到。"""
-    working, targets = list_checkin_targets(creds)
+    targets: list[tuple[str, TaygedoRole | None]],
+) -> list[CheckinResult]:
     results: list[CheckinResult] = []
     for game_code, role in targets:
         if game_code == GAME_APP:
-            results.append(query_app_today(working))
+            results.append(query_app_today(creds))
         elif role is not None:
-            results.append(query_game_today(working, role))
-    return working, sort_taygedo_results(results)
+            results.append(query_game_today(creds, role))
+    return sort_taygedo_results(results)
+
+
+def query_today_all(
+    creds: TaygedoCredentials,
+    *,
+    session_checked: bool = False,
+) -> tuple[TaygedoCredentials, list[CheckinResult]]:
+    """社区签到优先，再查异环 / 幻塔游戏签到。"""
+    working, targets = list_checkin_targets(creds, session_checked=session_checked)
+    return working, query_targets_today(working, targets)
 
 
 def _post_app_signin(
@@ -1240,9 +1246,14 @@ def checkin_target(
 
 def list_checkin_targets(
     creds: TaygedoCredentials,
+    *,
+    session_checked: bool = False,
 ) -> tuple[TaygedoCredentials, list[tuple[str, TaygedoRole | None]]]:
-    """返回凭证 + 签到目标：社区 APP 优先，再异环 / 幻塔角色。"""
-    working = ensure_session(creds)
+    """返回凭证 + 签到目标：社区 APP 优先，再异环 / 幻塔角色。
+
+    session_checked：调用方刚 ensure_session 过，不再多探测一次登录态。
+    """
+    working = creds if session_checked else ensure_session(creds)
     try:
         roles = list_all_game_roles(working)
     except TaygedoApiError as exc:

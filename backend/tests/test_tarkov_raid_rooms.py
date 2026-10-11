@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
 from app.core.timeutil import now_naive
-from app.models.tarkov import TarkovRaidRoom
+from app.models.tarkov import (
+    TarkovRaidRoom,
+    TarkovRaidRoomKeyBring,
+    TarkovRaidRoomMark,
+    TarkovRaidRoomMember,
+    TarkovRaidRoomTaskClaim,
+)
 from app.models.user import User, UserRole
 from app.services.tarkov import raid_rooms as rooms
 
@@ -916,9 +924,18 @@ def test_host_can_remove_member_and_their_claims() -> None:
     from app.services.tarkov.raid_room_hub import hub
 
     hub.set_log_phase(pid, guest.id, {"kind": "raid_started", "map_id": "customs"})
-    snap = rooms.remove_member(db, pid, host, guest.id, now=now)
+    rooms.add_mark(db, pid, guest, kind="pin", floor="", x=1, z=2, now=now)
+
+    def remove() -> dict:
+        out = rooms.remove_member(db, pid, host, guest.id, now=now)
+        assert hub.view_map_of(pid, guest.id) == "customs"
+        assert out["view_maps"] == [{"user_id": host.id, "map_slug": "customs"}]
+        return out
+
+    snap = rooms.run_in_room_tx(db, remove)
     assert hub.view_map_of(pid, guest.id) == ""
     assert hub.log_phases(pid) == []
+    assert snap["marks"] == []
     assert snap["member_count"] == 1
     assert snap["host_user_id"] == host.id
     assert [row["user_id"] for row in snap["members"]] == [host.id]
@@ -1557,3 +1574,221 @@ def test_room_ws_payload_omits_snapshot_for_marks() -> None:
     assert "snapshot" not in own_change
     assert own_change["event"] == "key_own_change"
     assert own_change["key_owns"] == owns
+
+
+def _board(db: Session, user_id: int) -> dict[str, int]:
+    return {
+        "claims": db.query(TarkovRaidRoomTaskClaim).filter_by(user_id=user_id).count(),
+        "keys": db.query(TarkovRaidRoomKeyBring).filter_by(user_id=user_id).count(),
+        "marks": db.query(TarkovRaidRoomMark).filter_by(author_user_id=user_id).count(),
+    }
+
+
+def _contribute(db: Session, pid: str, user: User, now) -> None:
+    rooms.set_room_map(db, pid, user, "customs", now=now)
+    rooms.claim_task(db, pid, user, f"t-{user.id}", now=now)
+    rooms.bring_key(db, pid, user, f"key-{user.id}", now=now)
+    rooms.add_mark(db, pid, user, kind="pin", floor="", x=1, z=2, now=now)
+
+
+def test_leave_broadcasts_member_view_not_leaver_preview() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    rooms.claim_task(db, pid, host, "t-host", now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    rooms.take_room_effects(db)
+    mine, broadcast = rooms.leave_room(db, pid, guest, now=now)
+    assert mine["is_member"] is False
+    assert mine["members"] == [] and mine["claims"] == []
+    assert broadcast is not None
+    assert [row["user_id"] for row in broadcast["members"]] == [host.id]
+    assert [row["task_id"] for row in broadcast["claims"]] == ["t-host"]
+    assert rooms.take_room_effects(db) == {"evict": [(pid, guest.id)], "close": []}
+
+
+def test_last_leave_dissolves_without_broadcast_snapshot() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.take_room_effects(db)
+    snap, broadcast = rooms.leave_room(db, pid, host, now=now)
+    assert broadcast is None
+    assert snap["members"] == []
+    assert rooms.take_room_effects(db) == {"evict": [(pid, host.id)], "close": [(pid, None)]}
+
+
+def test_reset_closes_room_with_minimal_final_event() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.take_room_effects(db)
+    rooms.reset_room(db, pid, host, now=now)
+    assert rooms.take_room_effects(db) == {"evict": [], "close": [(pid, {"event": "reset"})]}
+
+
+def test_join_elsewhere_drops_old_room_board_and_queues_evict() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    _contribute(db, pid, guest, now)
+    assert _board(db, guest.id) == {"claims": 1, "keys": 1, "marks": 1}
+    rooms.take_room_effects(db)
+    _created, _joined, vacated = rooms.create_room(db, guest, now=now)
+    assert [row["public_id"] for row in vacated] == [pid]
+    assert [row["user_id"] for row in vacated[0]["members"]] == [host.id]
+    assert _board(db, guest.id) == {"claims": 0, "keys": 0, "marks": 0}
+    assert (pid, guest.id) in rooms.take_room_effects(db)["evict"]
+
+
+def test_prune_drops_stale_member_board_and_hands_over_host() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now - timedelta(minutes=10))
+    _contribute(db, pid, host, now - timedelta(minutes=10))
+    rooms.join_room(db, pid, guest, now=now)
+    rooms.take_room_effects(db)
+    snap = rooms.get_room(db, pid, guest, now=now)
+    assert snap["host_user_id"] == guest.id
+    assert [row["user_id"] for row in snap["members"]] == [guest.id]
+    assert _board(db, host.id) == {"claims": 0, "keys": 0, "marks": 0}
+    assert rooms.take_room_effects(db)["evict"] == [(pid, host.id)]
+
+
+def test_room_tx_applies_hub_effects_only_after_commit() -> None:
+    from app.services.tarkov.raid_room_hub import hub
+
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "woods", now=now)
+    db.commit()
+    rooms.take_room_effects(db)
+    try:
+
+        def fail_after_remove() -> None:
+            rooms.remove_member(db, pid, host, guest.id, now=now)
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            rooms.run_in_room_tx(db, fail_after_remove)
+        assert hub.view_map_of(pid, guest.id) == "woods"
+        assert rooms.take_room_effects(db) == {"evict": [], "close": []}
+        assert rooms.is_room_member(db, pid, guest)
+
+        rooms.run_in_room_tx(db, lambda: rooms.remove_member(db, pid, host, guest.id, now=now))
+        assert hub.view_map_of(pid, guest.id) == ""
+        assert not rooms.is_room_member(db, pid, guest)
+    finally:
+        hub.close_room(pid)
+
+
+def test_private_room_password_needs_four_chars() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    with pytest.raises(rooms.RaidRoomError) as caught:
+        rooms.create_room(db, host, now=now, listed=False, password="abc")
+    assert caught.value.status_code == 400
+    assert "至少 4" in caught.value.message
+    created, _joined, _vacated = rooms.create_room(
+        db, host, now=now, listed=False, password="abcd"
+    )
+    assert created["has_password"] is True
+
+
+def test_duplicate_seat_insert_retries_as_already_seated(monkeypatch) -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    db.commit()
+    real_member = rooms._member
+    stale = {"on": True}
+
+    def racing_member(session, room_id, user_id):
+        if stale["on"] and user_id == guest.id:
+            return None
+        return real_member(session, room_id, user_id)
+
+    monkeypatch.setattr(rooms, "_member", racing_member)
+
+    def join() -> tuple:
+        try:
+            return rooms.join_room(db, pid, guest, now=now)
+        finally:
+            stale["on"] = False
+
+    snap, joined_now, _vacated = rooms.run_in_room_tx(db, join)
+    assert joined_now is False
+    assert snap["is_member"] is True
+    assert snap["member_count"] == 2
+    assert db.query(TarkovRaidRoomMember).filter_by(user_id=guest.id).count() == 1
+
+
+def test_room_action_maps_service_and_integrity_errors() -> None:
+    from fastapi import HTTPException
+
+    from app.api.guides.tarkov_raid_rooms import room_action
+
+    db = _session()
+    calls: list[int] = []
+
+    def missing() -> None:
+        raise rooms.RaidRoomError("房间不存在", 404)
+
+    def always_duplicate() -> None:
+        calls.append(1)
+        raise IntegrityError("INSERT", {}, Exception("duplicate"))
+
+    with pytest.raises(HTTPException) as caught:
+        room_action(db, missing)
+    assert caught.value.status_code == 404
+    with pytest.raises(HTTPException) as caught:
+        room_action(db, always_duplicate)
+    assert caught.value.status_code == 409
+    assert len(calls) == 2
+
+
+def test_claims_resolve_view_map_catalog_once_per_request(monkeypatch) -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    lookups: list[str] = []
+    serialized: list[int] = []
+    real_serialize = rooms.serialize_room
+
+    def catalog(session, slug):
+        lookups.append(slug)
+        return {"t1", "t2", "t3"}
+
+    def counting_serialize(*args, **kwargs):
+        serialized.append(1)
+        return real_serialize(*args, **kwargs)
+
+    monkeypatch.setattr(rooms, "_tasks_on_view_map", catalog)
+    monkeypatch.setattr(rooms, "serialize_room", counting_serialize)
+    snap, added = rooms.claim_tasks(db, pid, host, ["t1", "t2", "t3", "t1"], now=now)
+    assert added == 3
+    assert {row["task_id"] for row in snap["claims"]} == {"t1", "t2", "t3"}
+    assert lookups == ["customs"]
+    assert len(serialized) == 1
+    with pytest.raises(rooms.RaidRoomError) as caught:
+        rooms.claim_task(db, pid, host, "elsewhere", now=now)
+    assert "本地图" in caught.value.message
+    assert lookups == ["customs", "customs"]

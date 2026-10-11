@@ -15,7 +15,7 @@ import {
   Tag,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   runMinecraftChunkyCommand,
   type MinecraftChunkyAction,
@@ -62,6 +62,7 @@ export function MinecraftChunkyWorkspace({
   feature?: MinecraftModFeature;
 }) {
   const queryClient = useQueryClient();
+  const fieldId = useId();
   const status = data.chunky;
   const [world, setWorld] = useState(status?.world || "world");
   const [shape, setShape] = useState(status?.shape || "square");
@@ -145,8 +146,9 @@ export function MinecraftChunkyWorkspace({
           </p>
           <div className={styles.grid}>
             <div className={styles.field}>
-              <label>世界</label>
+              <label htmlFor={`${fieldId}-world`}>世界</label>
               <Select
+                id={`${fieldId}-world`}
                 showSearch
                 value={world}
                 onChange={setWorld}
@@ -155,8 +157,9 @@ export function MinecraftChunkyWorkspace({
               />
             </div>
             <div className={styles.field}>
-              <label>形状</label>
+              <label htmlFor={`${fieldId}-shape`}>形状</label>
               <Select
+                id={`${fieldId}-shape`}
                 value={shape}
                 onChange={setShape}
                 options={SHAPE_OPTIONS}
@@ -164,8 +167,9 @@ export function MinecraftChunkyWorkspace({
               />
             </div>
             <div className={styles.field}>
-              <label>模式</label>
+              <label htmlFor={`${fieldId}-pattern`}>模式</label>
               <Select
+                id={`${fieldId}-pattern`}
                 value={pattern}
                 onChange={setPattern}
                 options={PATTERN_OPTIONS}
@@ -173,24 +177,27 @@ export function MinecraftChunkyWorkspace({
               />
             </div>
             <div className={styles.field}>
-              <label>中心 X</label>
+              <label htmlFor={`${fieldId}-x`}>中心 X</label>
               <InputNumber
+                id={`${fieldId}-x`}
                 value={centerX}
                 onChange={setCenterX}
                 style={{ width: "100%" }}
               />
             </div>
             <div className={styles.field}>
-              <label>中心 Z</label>
+              <label htmlFor={`${fieldId}-z`}>中心 Z</label>
               <InputNumber
+                id={`${fieldId}-z`}
                 value={centerZ}
                 onChange={setCenterZ}
                 style={{ width: "100%" }}
               />
             </div>
             <div className={styles.field}>
-              <label>半径（方块）</label>
+              <label htmlFor={`${fieldId}-radius`}>半径（方块）</label>
               <InputNumber
+                id={`${fieldId}-radius`}
                 min={1}
                 max={1_000_000}
                 value={radius}

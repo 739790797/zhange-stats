@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.timeutil import now_naive
 
 
 class SteamApp(Base):
@@ -28,9 +29,19 @@ class SteamApp(Base):
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     details_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    # 上游查无（appdetails 失败 / client icon 各渠道都没补到）的时间；重试窗口内不再回源
+    details_missed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    icon_missed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

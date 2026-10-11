@@ -4,25 +4,37 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.core.public_url import resolve_backend_base, resolve_frontend_base
+from app.core.public_url import (
+    allowed_frontend_base,
+    resolve_backend_base,
+    resolve_frontend_base,
+)
+from app.core.security import (
+    DISPLAY_NAME_MARKUP_ERROR,
+    has_markup_chars,
+    strip_markup_chars,
+)
 from app.models.member import Member
 from app.models.user import User, UserRole
-from app.schemas import MemberProfileOut, MemberProfileUpdate, UserBrief
+from app.schemas import MemberProfileOut, UserBrief
 
 
-def _frontend_from_state(state_data: dict, request: Request) -> str:
-    stored = str(state_data.get("frontend") or "").rstrip("/")
-    if stored:
-        return stored
-    backend = str(state_data.get("backend") or "").rstrip("/")
-    if backend:
-        return backend
-    settings = get_settings()
-    override = (settings.PUBLIC_FRONTEND_URL or "").rstrip("/")
-    if override:
-        return override
-    return resolve_frontend_base(request) or resolve_backend_base(request)
+class BindError(HTTPException):
+    """绑定失败：detail 给接口调用方看；reason 是 OAuth 回调跳回前端时用的固定码（不把文案放进 URL）。"""
+
+    def __init__(self, status_code: int, detail: str, *, reason: str) -> None:
+        super().__init__(status_code=status_code, detail=detail)
+        self.reason = reason
+
+
+def _frontend_from_state(state_data: dict | None, request: Request) -> str:
+    """回调时按本次请求重算白名单：state 里记的地址不在其中就退回默认，绝不跳去发起方自报的站点。"""
+    stored = str((state_data or {}).get("frontend") or "")
+    return (
+        allowed_frontend_base(stored, request)
+        or resolve_frontend_base(request)
+        or resolve_backend_base(request)
+    )
 
 
 def _set_qq_profile(
@@ -49,13 +61,22 @@ def _set_qq_profile(
         .first()
     )
     if conflict:
-        raise HTTPException(status_code=400, detail="该 QQ 已绑定其他账号")
+        raise BindError(400, "该 QQ 已绑定其他账号", reason="already_bound")
 
     member.qq_openid = value
     member.qq_unionid = (unionid or "").strip() or None
-    member.qq_nickname = (nickname or "").strip() or None
+    member.qq_nickname = strip_markup_chars(nickname).strip() or None
     member.qq_avatar_url = (avatar_url or "").strip() or None
     return member.qq_nickname
+
+
+def _can_view_private_profile(member: Member, viewer: User | None) -> bool:
+    """viewer 为 None 表示路由已按本人 / 管理员鉴权过。"""
+    if viewer is None:
+        return True
+    return _is_admin_user(viewer) or (
+        member.user_id is not None and member.user_id == viewer.id
+    )
 
 
 def _profile_from_member(
@@ -63,17 +84,12 @@ def _profile_from_member(
     steam_persona_name: str | None = None,
     *,
     viewer: User | None = None,
-    include_email: bool | None = None,
 ) -> MemberProfileOut:
+    """本人 / 管理员看全量；其他登录用户只看显示名、头像、各平台是否已绑与 Steam 公开昵称头像。
+
+    登录名、邮箱、QQ 资料、SteamID、手机号掩码、自动签到开关都不给旁人。
+    """
     user = member.user
-    show_email = include_email
-    if show_email is None:
-        if viewer is None:
-            show_email = True
-        else:
-            show_email = _is_admin_user(viewer) or (
-                user is not None and user.id == viewer.id
-            )
     persona = (
         steam_persona_name
         if steam_persona_name is not None
@@ -84,35 +100,42 @@ def _profile_from_member(
     exilium = getattr(member, "exilium_bind", None)
     kujiequ = getattr(member, "kujiequ_bind", None)
     mihoyo = getattr(member, "mihoyo_bind", None)
-    return MemberProfileOut(
+    public = MemberProfileOut(
         member_id=member.id,
         nickname=member.nickname,
         avatar_url=member.avatar_url,
-        steam_id=member.steam_id,
+        steam_id=None,
         steam_persona_name=persona,
         steam_avatar_url=member.steam_avatar_url,
         skland_bound=skland is not None,
-        skland_auto_checkin=bool(skland.auto_checkin) if skland is not None else None,
         taygedo_bound=taygedo is not None,
-        taygedo_auto_checkin=bool(taygedo.auto_checkin) if taygedo is not None else None,
-        taygedo_phone_mask=taygedo.phone_mask if taygedo is not None else None,
         exilium_bound=exilium is not None,
-        exilium_auto_checkin=bool(exilium.auto_checkin) if exilium is not None else None,
-        exilium_phone_mask=exilium.phone_mask if exilium is not None else None,
         kujiequ_bound=kujiequ is not None,
-        kujiequ_auto_checkin=bool(kujiequ.auto_checkin) if kujiequ is not None else None,
-        kujiequ_phone_mask=kujiequ.phone_mask if kujiequ is not None else None,
         mihoyo_bound=mihoyo is not None,
-        mihoyo_auto_checkin=bool(mihoyo.auto_checkin) if mihoyo is not None else None,
-        mihoyo_phone_mask=mihoyo.phone_mask if mihoyo is not None else None,
         qq_bound=bool(member.qq_openid),
-        qq_nickname=member.qq_nickname,
-        qq_avatar_url=member.qq_avatar_url,
-        user_id=member.user_id,
-        username=user.username if user else None,
-        email=(user.email if user else None) if show_email else None,
         display_name=user.display_name if user else None,
         joined_at=member.joined_at,
+    )
+    if not _can_view_private_profile(member, viewer):
+        return public
+    return public.model_copy(
+        update={
+            "steam_id": member.steam_id,
+            "skland_auto_checkin": bool(skland.auto_checkin) if skland is not None else None,
+            "taygedo_auto_checkin": bool(taygedo.auto_checkin) if taygedo is not None else None,
+            "taygedo_phone_mask": taygedo.phone_mask if taygedo is not None else None,
+            "exilium_auto_checkin": bool(exilium.auto_checkin) if exilium is not None else None,
+            "exilium_phone_mask": exilium.phone_mask if exilium is not None else None,
+            "kujiequ_auto_checkin": bool(kujiequ.auto_checkin) if kujiequ is not None else None,
+            "kujiequ_phone_mask": kujiequ.phone_mask if kujiequ is not None else None,
+            "mihoyo_auto_checkin": bool(mihoyo.auto_checkin) if mihoyo is not None else None,
+            "mihoyo_phone_mask": mihoyo.phone_mask if mihoyo is not None else None,
+            "qq_nickname": member.qq_nickname,
+            "qq_avatar_url": member.qq_avatar_url,
+            "user_id": member.user_id,
+            "username": user.username if user else None,
+            "email": user.email if user else None,
+        }
     )
 
 
@@ -155,12 +178,12 @@ def _require_steam_feature(db: Session) -> None:
     from app.services.platform_features import is_feature_enabled
 
     if not is_feature_enabled(db, "steam"):
-        raise HTTPException(status_code=403, detail="该功能未启用")
+        raise BindError(403, "该功能未启用", reason="feature_disabled")
 
 
 def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | None:
     """绑定或解绑 Steam；仅同步 Steam 专用昵称/头像，不改站内身份。"""
-    from app.services.steam.bind import require_public_steam_profile
+    from app.services.steam.bind import PRIVACY_HINT, lookup_steam_profile
     from app.services.steam.persona import force_set_steam_persona_name
 
     value = (steam_id or "").strip() or None
@@ -174,11 +197,17 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
     _require_steam_feature(db)
 
     try:
-        profile = require_public_steam_profile(value)
+        profile = lookup_steam_profile(value)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise BindError(400, str(exc), reason="steam_not_found") from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise BindError(400, str(exc), reason="upstream_error") from exc
+    if not profile.is_public:
+        raise BindError(
+            400,
+            "该 Steam 个人资料未公开，无法获取游戏与在线信息。" + PRIVACY_HINT,
+            reason="steam_private",
+        )
 
     taken = (
         db.query(Member)
@@ -186,7 +215,7 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
         .first()
     )
     if taken:
-        raise HTTPException(status_code=400, detail="该 Steam 账号已被其他成员绑定")
+        raise BindError(400, "该 Steam 账号已被其他成员绑定", reason="already_bound")
 
     member.steam_id = profile.steam_id
     user = member.user
@@ -212,6 +241,8 @@ def _apply_profile_fields(
         name = str(data["display_name"]).strip()
         if not name:
             raise HTTPException(status_code=400, detail="显示名称不能为空")
+        if has_markup_chars(name):
+            raise HTTPException(status_code=400, detail=DISPLAY_NAME_MARKUP_ERROR)
         name = name[:64]
         user.display_name = name
         member.nickname = name

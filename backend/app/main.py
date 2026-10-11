@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
 import asyncio
 import logging
-import threading
 import time
+from mimetypes import guess_type
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -20,11 +20,12 @@ from app.api import files as files_api
 from app.api import runtime_health as runtime_health_api
 from app.api import runtime_logs as runtime_logs_api
 from app.api import settings as settings_api
+from app.core.body_limit import MULTIPART_SLACK_BYTES, BodyLimitMiddleware
 from app.core.http_headers import SecurityHeadersMiddleware
-from app.core.beijing_time_migrate import ensure_beijing_time_storage
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_origin_regex
-from app.core.database import SessionLocal, engine, get_engine
+from app.core.error_handlers import install_error_handlers
+from app.core.database import engine
 from app.core.file_config import database_is_configured, ensure_config_dir
 from app.core.http_client import close_http_client
 from app.core.migrate import run_migrations
@@ -39,6 +40,13 @@ from app.core.runtime_cache import pin_library_cache_env
 from app.core.request_log_middleware import RequestLogMiddleware
 from app.core.runtime_log_buffer import install_runtime_log_buffer
 from app.core.setup_middleware import SetupRequiredMiddleware
+from app.core.startup import run_post_database_startup, start_background_services
+from app.services import avatar_store
+from app.services import file_manager as file_manager_svc
+from app.services.articles import store as article_store
+from app.services.articles.texteller import MAX_RECOGNIZE_BYTES as MATH_RECOGNIZE_MAX_BYTES
+from app.services.minecraft import files as minecraft_files_svc
+from app.services.tarkov.key_ocr import MAX_RECOGNIZE_BYTES as TARKOV_OCR_MAX_BYTES
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
@@ -59,9 +67,6 @@ from app.models import user as _user  # noqa: F401
 from app.models import articles as _articles  # noqa: F401
 from app.models import user_files as _user_files  # noqa: F401
 from app.models import rum as _rum  # noqa: F401
-from app.services.seed import seed_data
-from app.services.scheduler_runtime import register_scheduler_jobs
-from app.services.member_sync import sync_users_and_members
 
 logger = logging.getLogger("zhange.startup")
 scheduler = BackgroundScheduler()
@@ -77,6 +82,66 @@ class ImmutableStaticFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
+
+
+_ACTIVE_UPLOAD_TYPES = frozenset({"text/xml", "text/xsl", "application/xml"})
+# 只在上传文件被当作顶层文档打开时生效（<img> 引用不受影响）；浏览器图片 / PDF / 纯文本查看器靠 img-src 与内联样式照常显示
+UPLOAD_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
+
+
+def _is_active_media_type(media_type: str) -> bool:
+    mt = media_type.lower()
+    return (
+        mt in _ACTIVE_UPLOAD_TYPES
+        or mt.endswith("+xml")
+        or "html" in mt
+        or "javascript" in mt
+        or "ecmascript" in mt
+    )
+
+
+class UploadStaticFiles(StaticFiles):
+    """用户上传目录：目录由 lifespan 创建（import 不落盘）；HTML/SVG/XML/JS 一律 404，其余带沙箱 CSP，不从站点源跑脚本。"""
+
+    def __init__(self, directory: Path, *, cache_control: str) -> None:
+        super().__init__(directory=str(directory), check_dir=False)
+        self._cache_control = cache_control
+
+    async def check_config(self) -> None:
+        # 目录缺失（未跑 lifespan）按 404 处理，不抛 500
+        return None
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):  # type: ignore[override]
+        media_type = guess_type(str(full_path))[0] or "application/octet-stream"
+        if _is_active_media_type(media_type):
+            raise HTTPException(status_code=404, detail="Not Found")
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = self._cache_control
+        response.headers["Content-Security-Policy"] = UPLOAD_CSP
+        return response
+
+
+def _body_limit_rules() -> list[tuple[str, int]]:
+    def upload(max_file_bytes: int) -> int:
+        return max_file_bytes + MULTIPART_SLACK_BYTES
+
+    article_max = max(article_store.MAX_UPLOAD_BYTES, article_store.MAX_ATTACHMENT_BYTES)
+    return [
+        ("/api/settings/files/upload", upload(file_manager_svc.MAX_UPLOAD_BYTES)),
+        ("/api/guides/minecraft/files/upload", upload(minecraft_files_svc.MAX_UPLOAD_BYTES)),
+        ("/api/articles/assets", upload(article_max)),
+        ("/api/articles/math/recognize", upload(MATH_RECOGNIZE_MAX_BYTES)),
+        ("/api/profile/me/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
+        ("/api/members/{member_id}/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
+        ("/api/guides/tarkov/raid-prep/recognize", upload(TARKOV_OCR_MAX_BYTES)),
+        ("/api/guides/tarkov/key-owns/recognize", upload(TARKOV_OCR_MAX_BYTES)),
+        ("/api/csp-report", 64 * 1024),
+        ("/api/client-errors", 64 * 1024),
+        ("/api/client-rum", 256 * 1024),
+    ]
+
+
+BODY_LIMIT_RULES = _body_limit_rules()
 
 
 def _ping_database() -> bool:
@@ -117,7 +182,7 @@ def _cleanup_legacy_after_hydrate(install: Path) -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_config_dir()
-    from app.services.config_import import import_legacy_dotenv, import_legacy_system_configs
+    from app.services.config_import import import_legacy_dotenv
 
     import_legacy_dotenv()
     migrate_runtime_layout(resolve_install_dir())
@@ -127,6 +192,8 @@ async def lifespan(_: FastAPI):
     sync_site_config()
     get_settings.cache_clear()
     cfg = get_settings()
+    # 布局迁移之后再解析密钥；DATA_DIR 不可写时在这里启动失败，而不是拖到第一次登录
+    _ = cfg.SECRET_KEY
     logger.info(
         "startup begin version=%s env=%s install_dir=%s",
         cfg.APP_VERSION,
@@ -143,6 +210,16 @@ async def lifespan(_: FastAPI):
             install=resolve_install_dir(configured=cfg.APP_INSTALL_DIR),
         )
         _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
+        from app.services.setup import ensure_setup_token
+
+        try:
+            ensure_setup_token()
+        except OSError:
+            logger.warning("setup token could not be written", exc_info=True)
+        from app.services.tarkov.goon_tracker_hub import hub as goon_hub
+
+        # 向导完成后在工作线程里补跑启动步骤，三狗推送需要先绑定事件循环
+        goon_hub.bind_loop(asyncio.get_running_loop())
         logger.info(
             "startup waiting for setup version=%s upload_root=%s",
             cfg.APP_VERSION,
@@ -150,7 +227,7 @@ async def lifespan(_: FastAPI):
         )
         yield
         logger.info("shutdown begin")
-        close_http_client()
+        _shutdown_background()
         logger.info("shutdown complete")
         return
 
@@ -173,40 +250,7 @@ async def lifespan(_: FastAPI):
     _cleanup_legacy_after_hydrate(resolve_install_dir(configured=cfg.APP_INSTALL_DIR))
     logger.info("startup step 2/9 done: upload_root=%s data_root=%s", upload_path, cfg.data_dir_path)
 
-    db = SessionLocal()
-    try:
-        logger.info("startup step 3/9: beijing time storage check")
-        ensure_beijing_time_storage(db, get_engine())
-
-        logger.info("startup step 3b: import legacy system_configs into config/")
-        import_legacy_system_configs(db)
-
-        logger.info("startup step 4/9: seed data")
-        seed_data(db)
-
-        from app.services.security_bootstrap import (
-            check_admin_password_health,
-            check_email_code_log_policy,
-        )
-
-        logger.info("startup step 5/9: email code log policy")
-        check_email_code_log_policy()
-
-        logger.info("startup step 6/9: admin password health")
-        check_admin_password_health(db)
-
-        logger.info("startup step 7/9: sync users and members")
-        sync_users_and_members(db)
-
-        logger.info("startup step 8/9: user files backfill")
-        from app.services.user_files.backfill import ensure_user_files_registered
-
-        ensure_user_files_registered(db)
-
-        logger.info("startup step 9/9: register scheduler jobs (run_steam_once=true)")
-        register_scheduler_jobs(scheduler, db, run_steam_once=True)
-    finally:
-        db.close()
+    run_post_database_startup(scheduler, run_steam_once=True, enforce_security_checks=True)
 
     logger.info(
         "startup complete version=%s scheduler_running=%s static_dir=%s",
@@ -214,27 +258,20 @@ async def lifespan(_: FastAPI):
         scheduler.running,
         (cfg.STATIC_DIR or "").strip() or "(unset)",
     )
-    from app.services.articles.texteller import ensure_texteller_models
-
-    def _ensure_texteller() -> None:
-        try:
-            ensure_texteller_models()
-        except Exception:
-            logger.exception("texteller model ensure failed")
-
-    threading.Thread(
-        target=_ensure_texteller,
-        name="texteller-ensure",
-        daemon=True,
-    ).start()
-    from app.services.tarkov import goon_tracker as goon_tracker_svc
     from app.services.tarkov.goon_tracker_hub import hub as goon_hub
 
     goon_hub.bind_loop(asyncio.get_running_loop())
-    goon_tracker_svc.start_poller()
+    start_background_services()
     yield
 
     logger.info("shutdown begin")
+    _shutdown_background()
+    logger.info("shutdown complete")
+
+
+def _shutdown_background() -> None:
+    from app.services.tarkov import goon_tracker as goon_tracker_svc
+
     goon_tracker_svc.stop_poller()
     try:
         from app.services.tarkov.workbench_image_pw import shutdown_patchright
@@ -246,7 +283,6 @@ async def lifespan(_: FastAPI):
     if scheduler.running:
         logger.info("shutdown: stopping scheduler")
         scheduler.shutdown(wait=False)
-    logger.info("shutdown complete")
 
 
 settings = get_settings()
@@ -259,6 +295,7 @@ app = FastAPI(
     redoc_url=None if _disable_docs else "/redoc",
     openapi_url=None if _disable_docs else "/openapi.json",
 )
+install_error_handlers(app)
 
 _cors_origins = settings.cors_origin_list
 _cors_kwargs: dict = {
@@ -277,11 +314,14 @@ else:
     if _cors_regex:
         _cors_kwargs["allow_origin_regex"] = _cors_regex
 
-app.add_middleware(RequestLogMiddleware)
-app.add_middleware(CORSMiddleware, **_cors_kwargs)
+# 最后 add = 最外层。外→内：SecurityHeaders → RequestLog → GZip → CORS → SetupRequired → BodyLimit。
+# RequestLog 在外才记得到 503 向导拦截与预检；CORS 在 SetupRequired 外，503 也带 CORS 头。
+# GZip：无反代时也能压 JSON；nginx 见到 Content-Encoding 通常不再压。
+app.add_middleware(BodyLimitMiddleware, rules=BODY_LIMIT_RULES)
 app.add_middleware(SetupRequiredMiddleware)
-# 最后 add = 最外层：无反代时也能压 JSON；nginx 见到 Content-Encoding 通常不再压。
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 api = APIRouter(prefix="/api")
@@ -307,18 +347,17 @@ api.include_router(client_errors_api.router)
 api.include_router(rum_api.router)
 app.include_router(api)
 
-# 只挂载头像子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问
-upload_root = _ensure_upload_root()
-avatars_root = upload_root / "avatars"
+# 只挂载头像/文章子目录，避免 DATA_DIR / 上传根目录下的私密文件被公开访问
+_upload_root = settings.upload_dir_path
+# 头像 URL 带 ?v= 版本；文章附件是 UUID 路径，可缓存更久
 app.mount(
     "/uploads/avatars",
-    StaticFiles(directory=str(avatars_root)),
+    UploadStaticFiles(_upload_root / "avatars", cache_control="public, max-age=86400"),
     name="uploads_avatars",
 )
-articles_root = upload_root / "articles"
 app.mount(
     "/uploads/articles",
-    StaticFiles(directory=str(articles_root)),
+    UploadStaticFiles(_upload_root / "articles", cache_control="public, max-age=604800"),
     name="uploads_articles",
 )
 

@@ -14,15 +14,18 @@ import {
   message,
   theme,
 } from "antd";
-import { useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   fetchIntegrationsSettings,
   updateIntegrationsSettings,
 } from "@/api/client";
-import type { IntegrationsUpdate } from "@/api/settingsApi";
+import type { IntegrationsSettings, IntegrationsUpdate } from "@/api/settingsApi";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { SecretFormItem } from "@/components/SecretFormItem";
+import { hydrateForm, useHydrateUntouchedForm } from "@/hooks/useFormHydration";
 import { apiError } from "@/lib/apiError";
+import { secretPayloadValue } from "@/lib/secretInput";
 
 type FormValues = {
   steam_api_key?: string;
@@ -31,6 +34,40 @@ type FormValues = {
   github_token?: string;
   // Minecraft 页面已停用，面板 / RCON / 公开地址不再出现在表单里。
 };
+
+type SecretKey = "steam_api_key" | "qq_app_key" | "github_token";
+type ClearFlags = Record<SecretKey, boolean>;
+
+const NO_CLEAR: ClearFlags = {
+  steam_api_key: false,
+  qq_app_key: false,
+  github_token: false,
+};
+
+function formValuesOf(data: IntegrationsSettings): FormValues {
+  return {
+    steam_api_key: "",
+    qq_app_id: data.qq_app_id || "",
+    qq_app_key: "",
+    github_token: "",
+  };
+}
+
+function toPayload(values: FormValues, clearing: ClearFlags): IntegrationsUpdate {
+  return {
+    steam_api_key: secretPayloadValue(values.steam_api_key, clearing.steam_api_key),
+    qq_app_id: values.qq_app_id ?? "",
+    qq_app_key: secretPayloadValue(values.qq_app_key, clearing.qq_app_key),
+    github_token: secretPayloadValue(values.github_token, clearing.github_token),
+    clear_steam_api_key: clearing.steam_api_key,
+    clear_qq_app_key: clearing.qq_app_key,
+    clear_github_token: clearing.github_token,
+    // 不回写 Minecraft 面板 / RCON / 公开地址，避免保存其它密钥时清空已有值。
+    clear_pelican_client_token: false,
+    clear_pelican_application_token: false,
+    clear_minecraft_rcon_password: false,
+  };
+}
 
 function IntegrationMark({ children }: { children: ReactNode }) {
   const { token } = theme.useToken();
@@ -103,28 +140,28 @@ function IntegrationBlock({
 export default function IntegrationsSettingsPage() {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<FormValues>();
+  const [clearing, setClearing] = useState<ClearFlags>(NO_CLEAR);
 
   const { data, isLoading } = useQuery({
     queryKey: ["integrations-settings"],
     queryFn: fetchIntegrationsSettings,
   });
 
-  useEffect(() => {
-    if (!data) return;
-    form.setFieldsValue({
-      steam_api_key: data.steam_api_key || "",
-      qq_app_id: data.qq_app_id || "",
-      qq_app_key: data.qq_app_key || "",
-      github_token: data.github_token || "",
-    });
-  }, [data, form]);
+  useHydrateUntouchedForm(form, data, formValuesOf);
+
+  const clearProps = (key: SecretKey) => ({
+    clearing: clearing[key],
+    onClearingChange: (next: boolean) => setClearing((prev) => ({ ...prev, [key]: next })),
+  });
 
   const save = useMutation({
     mutationFn: (payload: IntegrationsUpdate) =>
       updateIntegrationsSettings(payload),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       message.success("集成密钥已保存");
-      queryClient.invalidateQueries({ queryKey: ["integrations-settings"] });
+      queryClient.setQueryData(["integrations-settings"], saved);
+      hydrateForm(form, formValuesOf(saved));
+      setClearing(NO_CLEAR);
       queryClient.invalidateQueries({ queryKey: ["integrations-status"] });
       queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["app-update-status"] });
@@ -145,24 +182,8 @@ export default function IntegrationsSettingsPage() {
         layout="vertical"
         disabled={isLoading}
         onFinish={(values) => {
-        const steam = values.steam_api_key?.trim() || "";
-        const qqKey = values.qq_app_key?.trim() || "";
-        const githubToken = values.github_token?.trim() || "";
-        const payload: IntegrationsUpdate = {
-          steam_api_key: steam || null,
-          qq_app_id: values.qq_app_id ?? "",
-          qq_app_key: qqKey || null,
-          clear_steam_api_key: !steam,
-          clear_qq_app_key: !qqKey,
-          github_token: githubToken || null,
-          clear_github_token: !githubToken,
-          // 不回写 Minecraft 面板 / RCON / 公开地址，避免保存其它密钥时清空已有值。
-          clear_pelican_client_token: false,
-          clear_pelican_application_token: false,
-          clear_minecraft_rcon_password: false,
-        };
-        save.mutate(payload);
-      }}
+          save.mutate(toPayload(values, clearing));
+        }}
     >
       <PageHeader
         title="集成密钥"
@@ -178,7 +199,7 @@ export default function IntegrationsSettingsPage() {
         title="Steam"
         configured={data?.steam_configured}
       >
-        <Form.Item
+        <SecretFormItem
           name="steam_api_key"
           label="Web API Key"
           extra={
@@ -191,12 +212,11 @@ export default function IntegrationsSettingsPage() {
             </Typography.Link>
           }
           style={{ marginBottom: 0 }}
-        >
-          <Input.Password
-            placeholder="请输入 Steam Web API Key"
-            autoComplete="new-password"
-          />
-        </Form.Item>
+          set={Boolean(data?.steam_api_key_set)}
+          hint={data?.steam_api_key_hint}
+          emptyPlaceholder="请输入 Steam Web API Key"
+          {...clearProps("steam_api_key")}
+        />
       </IntegrationBlock>
 
       <IntegrationBlock
@@ -219,16 +239,15 @@ export default function IntegrationsSettingsPage() {
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item
+            <SecretFormItem
               name="qq_app_key"
               label="App Key"
               style={{ marginBottom: 0 }}
-            >
-              <Input.Password
-                placeholder="请输入 QQ App Key"
-                autoComplete="new-password"
-              />
-            </Form.Item>
+              set={Boolean(data?.qq_app_key_set)}
+              hint={data?.qq_app_key_hint}
+              emptyPlaceholder="请输入 QQ App Key"
+              {...clearProps("qq_app_key")}
+            />
           </Col>
         </Row>
       </IntegrationBlock>
@@ -361,16 +380,15 @@ export default function IntegrationsSettingsPage() {
         configured={data?.github_configured}
         divider={false}
       >
-        <Form.Item
+        <SecretFormItem
           name="github_token"
           label="Personal Access Token"
           style={{ marginBottom: 0 }}
-        >
-          <Input.Password
-            placeholder="github_pat_… 或 ghp_…"
-            autoComplete="new-password"
-          />
-        </Form.Item>
+          set={Boolean(data?.github_token_set)}
+          hint={data?.github_token_hint}
+          emptyPlaceholder="github_pat_… 或 ghp_…"
+          {...clearProps("github_token")}
+        />
       </IntegrationBlock>
     </Form>
     </ConfigProvider>

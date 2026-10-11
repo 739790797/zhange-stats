@@ -89,8 +89,9 @@ _NAMED_COLORS = {
     "grey": (128, 128, 128),
     "yellow": (255, 255, 0),
 }
+# 属性段不能跨过 `<`：否则一串没闭合的 `<b ` 每个起点都要扫到文末再回溯（平方级）。
 _OPEN_TAG = re.compile(
-    r"<(span|mark|font|p|h[1-6]|blockquote|li|strong|b|em|i|u|s|del|td|th|div)(\s[^>]*)?>",
+    r"<(span|mark|font|p|h[1-6]|blockquote|li|strong|b|em|i|u|s|del|td|th|div)(\s[^<>]*)?>",
     re.IGNORECASE,
 )
 _FONT_CLOSE = re.compile(r"</font>", re.IGNORECASE)
@@ -98,8 +99,9 @@ _ATTR = re.compile(
     r"""(?:^|\s)([^\s=/>]+)\s*=\s*(?:(['"])(.*?)\2|([^\s>]+))""",
     re.IGNORECASE | re.DOTALL,
 )
+# 分隔符写成「逗号」或「纯空白」两支：`\s*[, ]\s*` 在长空白上有多种切法，三段嵌套回溯是立方级。
 _RGB = re.compile(
-    r"^rgba?\(\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)"
+    r"^rgba?\(\s*([0-9.]+)(%?)(?:\s*,\s*|\s+)([0-9.]+)(%?)(?:\s*,\s*|\s+)([0-9.]+)(%?)"
     r"(?:\s*[,/]\s*([0-9.]+))?\s*\)$"
 )
 _HEX = re.compile(r"^#([0-9a-f]{3}|[0-9a-f]{6})$")

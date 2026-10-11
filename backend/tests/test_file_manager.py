@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import os
+import stat
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -483,3 +487,439 @@ def test_create_conflict_and_binary_text(tmp_path: Path) -> None:
     with pytest.raises(fm.FileManagerError) as missing:
         fm.delete_entries("install", "data/runtime", ["nope.txt"], ctx=ctx)
     assert missing.value.status_code == 404
+
+
+def _site_config(ctx: fm.FileManagerContext) -> Path:
+    cfg = ctx.install_dir / "config"
+    cfg.mkdir()
+    (cfg / "app.json").write_text("{}\n", encoding="utf-8")
+    (cfg / "database.json").write_text('{"url": "mysql+pymysql://u:pw@db/z"}\n', encoding="utf-8")
+    (cfg / "integrations.json").write_text('{"steam_api_key": "k"}\n', encoding="utf-8")
+    (cfg / "email.json").write_text('{"smtp_password": "p"}\n', encoding="utf-8")
+    return cfg
+
+
+def test_secret_config_files_are_sensitive() -> None:
+    for rel in (
+        "config/database.json",
+        "config/integrations.json",
+        "config/email.json",
+        "CONFIG/Database.JSON",
+        "config/.database.k3j2_x.tmp",
+        "config/.email.abc.tmp",
+        "data/tmp/restore/config/integrations.json",
+    ):
+        assert fm.rel_is_sensitive(rel), rel
+    for rel in (
+        "config",
+        "config/app.json",
+        "config/auth.json",
+        "config/ocr.json",
+        "config/.app.x.tmp",
+        "config.example/database.json",
+        "scripts/config.example/email.json",
+        "config/database.json.bak/readme.txt",
+        "database.json",
+    ):
+        assert not fm.rel_is_sensitive(rel), rel
+    assert fm.is_sensitive_name(".secret_key.0f3a9c.tmp")
+
+
+def test_secret_config_files_locked(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    cfg = _site_config(ctx)
+    locked = ("database.json", "integrations.json", "email.json")
+
+    listing = fm.list_directory("install", "config", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    for name in locked:
+        assert names[name].sensitive is True
+        assert names[name].downloadable is False
+        assert names[name].editable is False
+    assert names["app.json"].sensitive is False
+    assert names["app.json"].editable is True
+
+    for name in locked:
+        rel = f"config/{name}"
+        attempts: list[tuple[object, tuple[object, ...]]] = [
+            (fm.resolve_download, ("install", rel)),
+            (fm.read_text, ("install", rel)),
+            (fm.write_text, ("install", rel, "{}")),
+            (fm.upload_file, ("install", "config", name, b"{}")),
+            (fm.rename_entry, ("install", "config", name, "x.json")),
+            (fm.rename_entry, ("install", "config", "app.json", name)),
+            (fm.delete_entries, ("install", "config", [name])),
+        ]
+        for func, args in attempts:
+            with pytest.raises(fm.FileManagerError) as blocked:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert blocked.value.status_code == 403, (func, args)
+    (cfg / "email.json").unlink()
+    with pytest.raises(fm.FileManagerError) as recreate:
+        fm.create_file("install", "config", "email.json", "{}", ctx=ctx)
+    assert recreate.value.status_code == 403
+    with pytest.raises(fm.FileManagerError) as rename_dir:
+        fm.rename_entry("install", "", "config", "config-old", ctx=ctx)
+    assert rename_dir.value.status_code == 403
+
+    deleted = fm.delete_entries("install", "", ["config"], ctx=ctx)
+    assert deleted.kept_sensitive is True
+    assert not (cfg / "app.json").exists()
+    assert sorted(p.name for p in cfg.iterdir()) == ["database.json", "integrations.json"]
+    assert "pw@db" in (cfg / "database.json").read_text(encoding="utf-8")
+
+
+def _sqlite_url(path: Path) -> str:
+    return "sqlite:///" + path.resolve().as_posix()
+
+
+def test_live_sqlite_rels_cover_database_and_sidecars(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    (install / "data" / "runtime").mkdir(parents=True)
+    db = install / "data" / "runtime" / "Zhange.sqlite"
+    assert fm.live_sqlite_rels(install, _sqlite_url(db)) == {
+        "data/runtime/zhange.sqlite",
+        "data/runtime/zhange.sqlite-wal",
+        "data/runtime/zhange.sqlite-shm",
+        "data/runtime/zhange.sqlite-journal",
+    }
+    assert fm.live_sqlite_rels(install, _sqlite_url(tmp_path / "elsewhere.sqlite")) == frozenset()
+    assert fm.live_sqlite_rels(install, "sqlite:///:memory:") == frozenset()
+    assert fm.live_sqlite_rels(install, "mysql+pymysql://u:p@127.0.0.1/zhange") == frozenset()
+    assert fm.live_sqlite_rels(install, "") == frozenset()
+
+
+def test_context_locks_the_configured_sqlite_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import get_settings
+    from app.core.file_config import write_json
+
+    install = tmp_path / "zhange-stats"
+    install.mkdir()
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    write_json("database", {"engine": "sqlite", "path": "data/runtime/site.sqlite"})
+    get_settings.cache_clear()
+    assert "data/runtime/site.sqlite-wal" in fm.context_from_settings().locked_rels
+
+    write_json("database", {"engine": "mysql", "url": "mysql+pymysql://u:p@127.0.0.1/zhange"})
+    get_settings.cache_clear()
+    assert fm.context_from_settings().locked_rels == frozenset()
+
+
+def test_live_sqlite_database_files_locked(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    base = _ctx(tmp_path)
+    runtime = base.data_dir
+    db = runtime / "zhange.sqlite"
+    ctx = fm.FileManagerContext(
+        **{**base.__dict__, "locked_rels": fm.live_sqlite_rels(base.install_dir, _sqlite_url(db))}
+    )
+    content = {
+        "zhange.sqlite": b"SQLite format 3\x00main",
+        "zhange.sqlite-wal": b"recent commits",
+        "zhange.sqlite-shm": b"\x00" * 16,
+    }
+    for name, data in content.items():
+        (runtime / name).write_bytes(data)
+    (runtime / "notes.txt").write_text("hi\n", encoding="utf-8")
+    (base.data_root / "zhange.sqlite").write_bytes(b"not the live database")
+
+    listing = fm.list_directory("install", "data/runtime", ctx=ctx)
+    names = {row.name: row for row in listing.entries}
+    for name in content:
+        assert (names[name].sensitive, names[name].downloadable, names[name].editable) == (
+            True,
+            False,
+            False,
+        )
+    assert names["notes.txt"].sensitive is False
+    assert fm.resolve_download("install", "data/zhange.sqlite", ctx=ctx).is_file()
+
+    for name in (*content, "zhange.sqlite-journal"):
+        rel = f"data/runtime/{name}"
+        attempts: list[tuple[object, tuple[object, ...]]] = [
+            (fm.resolve_download, ("install", rel)),
+            (fm.read_text, ("install", rel)),
+            (fm.write_text, ("install", rel, "x")),
+            (fm.upload_file, ("install", "data/runtime", name, b"x")),
+            (fm.create_file, ("install", "data/runtime", name, "x")),
+            (fm.create_folder, ("install", "data/runtime", name)),
+            (fm.rename_entry, ("install", "data/runtime", "notes.txt", name)),
+            (fm.delete_entries, ("install", "data/runtime", [name])),
+        ]
+        if name in content:
+            attempts.append((fm.rename_entry, ("install", "data/runtime", name, "old.sqlite")))
+        for func, args in attempts:
+            with pytest.raises(fm.FileManagerError) as blocked:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert blocked.value.status_code == 403, (func, args)
+            assert "数据库" in blocked.value.message, (func, args)
+
+    with pytest.raises(fm.FileManagerError) as rename_dir:
+        fm.rename_entry("install", "data", "runtime", "runtime-old", ctx=ctx)
+    assert rename_dir.value.status_code == 403
+    deleted = fm.delete_entries("install", "data", ["runtime"], ctx=ctx)
+    assert deleted.kept_sensitive is True
+    assert not (runtime / "notes.txt").exists()
+    assert {p.name: p.read_bytes() for p in runtime.iterdir()} == content
+    assert not (runtime / "zhange.sqlite-journal").exists()
+
+    unlocked = fm.list_directory("install", "data/runtime", ctx=base)
+    assert {row.name: row.downloadable for row in unlocked.entries}["zhange.sqlite"] is True
+
+
+def _snapshot(root: Path) -> dict[str, bytes | str]:
+    out: dict[str, bytes | str] = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        for name in (*dirnames, *filenames):
+            path = Path(dirpath) / name
+            rel = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                out[rel] = f"-> {os.readlink(path)}"
+            elif path.is_file():
+                out[rel] = path.read_bytes()
+            else:
+                out[rel] = "<dir>"
+    return out
+
+
+def test_symlinks_refused_before_resolve_for_every_operation(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    cfg = _site_config(ctx)
+    mdb_data = ctx.data_root / "mariadb" / "data"
+    mdb_data.mkdir(parents=True)
+    (mdb_data / "ibdata1").write_bytes(b"x" * 8)
+    backups = ctx.data_root / "backups"
+    backups.mkdir()
+    backup = backups / "zhange-20261010-010101.tar.gz"
+    backup.write_bytes(b"\x1f\x8bbackup")
+    docs = ctx.install_dir / "docs"
+    docs.mkdir()
+    (docs / "readme.md").write_text("plain\n", encoding="utf-8")
+    (ctx.data_dir / "note.txt").write_text("n\n", encoding="utf-8")
+    dir_links = {
+        "data/dblink": (mdb_data, "ibdata1"),
+        "cfglink": (cfg, "app.json"),
+        "docslink": (docs, "readme.md"),
+    }
+    file_links = {
+        "data/latest.tar.gz": backup,
+        "dbjson": cfg / "database.json",
+        "data/runtime/dangling": ctx.data_root / "nowhere",
+    }
+    try:
+        for rel, (target, _) in dir_links.items():
+            (ctx.install_dir / rel).symlink_to(target, target_is_directory=True)
+        for rel, target in file_links.items():
+            (ctx.install_dir / rel).symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+    before = _snapshot(ctx.install_dir)
+
+    root_names = {row.name for row in fm.list_directory("install", "", ctx=ctx).entries}
+    data_names = {row.name for row in fm.list_directory("install", "data", ctx=ctx).entries}
+    assert {"docs", "config"} <= root_names
+    assert root_names.isdisjoint({"cfglink", "dbjson", "docslink"})
+    assert {"backups", "mariadb"} <= data_names
+    assert data_names.isdisjoint({"dblink", "latest.tar.gz"})
+
+    traversals: list[tuple[object, tuple[object, ...]]] = []
+    for link, (_, inner) in dir_links.items():
+        traversals += [
+            (fm.list_directory, ("install", link)),
+            (fm.resolve_download, ("install", f"{link}/{inner}")),
+            (fm.read_text, ("install", f"{link}/{inner}")),
+            (fm.write_text, ("install", f"{link}/{inner}", "{}")),
+            (fm.upload_file, ("install", link, "new.bin", b"x")),
+            (fm.create_folder, ("install", link, "sub")),
+            (fm.create_file, ("install", link, "new.txt", "x")),
+            (fm.rename_entry, ("install", link, inner, "renamed")),
+            (fm.delete_entries, ("install", link, [inner])),
+        ]
+    for link in file_links:
+        traversals += [
+            (fm.resolve_download, ("install", link)),
+            (fm.read_text, ("install", link)),
+            (fm.write_text, ("install", link, "{}")),
+        ]
+    for link in (*dir_links, *file_links):
+        parent, _, name = link.rpartition("/")
+        traversals += [
+            (fm.delete_entries, ("install", parent, [name])),
+            (fm.rename_entry, ("install", parent, name, "renamed")),
+        ]
+    for func, args in traversals:
+        with pytest.raises(fm.FileManagerError) as refused:
+            func(*args, ctx=ctx)  # type: ignore[operator]
+        assert refused.value.status_code == 400, (func, args)
+        assert "符号链接" in refused.value.message, (func, args)
+
+    for link in (*dir_links, *file_links):
+        parent, _, name = link.rpartition("/")
+        source = "note.txt" if parent == "data/runtime" else ("docs" if not parent else "mariadb")
+        for func, args in (
+            (fm.upload_file, ("install", parent, name, b"x")),
+            (fm.create_folder, ("install", parent, name)),
+            (fm.create_file, ("install", parent, name, "x")),
+            (fm.rename_entry, ("install", parent, source, name)),
+        ):
+            with pytest.raises(fm.FileManagerError) as taken:
+                func(*args, ctx=ctx)  # type: ignore[operator]
+            assert taken.value.status_code == 409, (func, args)
+
+    assert _snapshot(ctx.install_dir) == before
+
+
+def test_walk_size_never_counts_links_below_the_bucket(tmp_path: Path) -> None:
+    real = tmp_path / "real"
+    (real / "sub").mkdir(parents=True)
+    (real / "a.bin").write_bytes(b"x" * 3)
+    (real / "sub" / "b.bin").write_bytes(b"y" * 4)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "big.bin").write_bytes(b"z" * 100)
+    try:
+        (real / "dirlink").symlink_to(outside, target_is_directory=True)
+        (real / "sub" / "filelink").symlink_to(outside / "big.bin")
+        (tmp_path / "bucketlink").symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+    assert fm.walk_size(real) == (7, 2)
+    assert fm.walk_size(tmp_path / "bucketlink") == (7, 2)
+
+
+def test_junction_reparse_tag_counts_as_link() -> None:
+    directory = stat.S_IFDIR | 0o755
+    assert fm._lstat_is_link(SimpleNamespace(st_mode=directory, st_reparse_tag=0xA0000003))  # type: ignore[arg-type]
+    assert fm._lstat_is_link(SimpleNamespace(st_mode=stat.S_IFLNK | 0o777))  # type: ignore[arg-type]
+    assert not fm._lstat_is_link(SimpleNamespace(st_mode=directory, st_reparse_tag=0))  # type: ignore[arg-type]
+    assert not fm._lstat_is_link(SimpleNamespace(st_mode=directory))  # type: ignore[arg-type]
+
+
+def _leftovers(path: Path) -> list[str]:
+    return sorted(p.name for p in path.iterdir() if p.name.endswith(".part"))
+
+
+def test_upload_stream_caps_without_partial_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(fm, "MAX_UPLOAD_BYTES", 10)
+    monkeypatch.setattr(fm, "_WRITE_CHUNK", 4)
+    runtime = ctx.data_dir
+
+    exact = fm.upload_stream("install", "data/runtime", "pack.bin", io.BytesIO(b"0123456789"), ctx=ctx)
+    assert exact.name == "pack.bin"
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+
+    with pytest.raises(fm.FileManagerError) as too_big:
+        fm.upload_stream("install", "data/runtime", "big.bin", io.BytesIO(b"x" * 11), ctx=ctx)
+    assert too_big.value.status_code == 413
+    assert not (runtime / "big.bin").exists()
+    with pytest.raises(fm.FileManagerError) as overwrite_big:
+        fm.upload_stream("install", "data/runtime", "pack.bin", io.BytesIO(b"y" * 64), ctx=ctx)
+    assert overwrite_big.value.status_code == 413
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+    with pytest.raises(fm.FileManagerError) as bytes_big:
+        fm.upload_file("install", "data/runtime", "pack.bin", b"z" * 11, ctx=ctx)
+    assert bytes_big.value.status_code == 413
+
+    class _Broken(io.RawIOBase):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def readable(self) -> bool:
+            return True
+
+        def read(self, size: int = -1) -> bytes:
+            self.calls += 1
+            if self.calls > 1:
+                raise OSError("disk gone")
+            return b"new!"
+
+    with pytest.raises(fm.FileManagerError) as broken:
+        fm.upload_stream("install", "data/runtime", "pack.bin", _Broken(), ctx=ctx)
+    assert broken.value.status_code == 500
+    assert (runtime / "pack.bin").read_bytes() == b"0123456789"
+    assert _leftovers(runtime) == []
+
+    (runtime / "sub").mkdir()
+    with pytest.raises(fm.FileManagerError) as onto_dir:
+        fm.upload_stream("install", "data/runtime", "sub", io.BytesIO(b"x"), ctx=ctx)
+    assert onto_dir.value.status_code == 409
+    assert _leftovers(runtime) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_overwrite_keeps_file_mode(tmp_path: Path) -> None:
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    target = ctx.data_dir / "run.sh"
+    target.write_text("echo old\n", encoding="utf-8")
+    target.chmod(0o750)
+    fm.upload_file("install", "data/runtime", "run.sh", b"echo new\n", ctx=ctx)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    fm.write_text("install", "data/runtime/run.sh", "echo edited\n", ctx=ctx)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    assert target.read_text(encoding="utf-8") == "echo edited\n"
+    assert _leftovers(ctx.data_dir) == []
+
+
+def test_upload_endpoint_streams_in_worker_thread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import anyio
+    import httpx
+    from fastapi import FastAPI
+
+    from app.api import files as files_api
+    from app.core.deps import require_admin
+
+    fm.clear_size_cache()
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(fm, "context_from_settings", lambda: ctx)
+    monkeypatch.setattr(fm, "MAX_UPLOAD_BYTES", 2 * 1024 * 1024)
+    seen: list[tuple[bool, bool]] = []
+    real_stream = fm.upload_stream
+
+    def _spy(root_id: str, dir_rel: str, filename: str, source: object, **kwargs: object) -> fm.MutateResult:
+        seen.append((threading.current_thread() is threading.main_thread(), isinstance(source, bytes)))
+        return real_stream(root_id, dir_rel, filename, source, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(fm, "upload_stream", _spy)
+    app = FastAPI()
+    app.include_router(files_api.router, prefix="/api")
+    app.dependency_overrides[require_admin] = lambda: object()
+    payload = os.urandom(1024 * 1024 + 7)
+
+    async def _run() -> tuple[httpx.Response, httpx.Response]:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            ok = await client.post(
+                "/api/settings/files/upload",
+                data={"root_id": "install", "path": "data/runtime"},
+                files={"file": ("blob.bin", payload, "application/octet-stream")},
+            )
+            big = await client.post(
+                "/api/settings/files/upload",
+                data={"root_id": "install", "path": "data/runtime"},
+                files={"file": ("huge.bin", b"h" * (2 * 1024 * 1024 + 1), "application/octet-stream")},
+            )
+        return ok, big
+
+    ok, big = anyio.run(_run)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["name"] == "blob.bin"
+    assert (ctx.data_dir / "blob.bin").read_bytes() == payload
+    assert big.status_code == 413
+    assert big.json()["detail"] == "上传不能超过 2MB"
+    assert not (ctx.data_dir / "huge.bin").exists()
+    assert _leftovers(ctx.data_dir) == []
+    assert seen == [(False, False), (False, False)]

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   localMapFileMatchesRemote,
+  mapFileEvictionEntries,
   mapFileKeysToEvict,
 } from "./tarkovMapFileCache";
 
@@ -26,5 +27,26 @@ describe("mapFileKeysToEvict", () => {
       ),
     ).toEqual(["old"]);
     expect(mapFileKeysToEvict([{ key: "a", savedAt: 1 }], 2)).toEqual([]);
+  });
+});
+
+describe("mapFileEvictionEntries", () => {
+  it("dates body keys from the etag store and evicts orphans first", () => {
+    const entries = mapFileEvictionEntries(
+      ["orphan", "old", "fresh", 7],
+      ["old", "fresh", "gone"],
+      [
+        { etag: 'W/"1"', savedAt: 10 },
+        { etag: 'W/"2"', savedAt: 5 },
+        { etag: 'W/"3"', savedAt: 1 },
+      ],
+      { key: "fresh", savedAt: 99 },
+    );
+    expect(entries).toEqual([
+      { key: "orphan", savedAt: 0 },
+      { key: "old", savedAt: 10 },
+      { key: "fresh", savedAt: 99 },
+    ]);
+    expect(mapFileKeysToEvict(entries, 2)).toEqual(["orphan"]);
   });
 });

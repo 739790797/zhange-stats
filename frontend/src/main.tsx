@@ -20,10 +20,16 @@ import "@/lib/time";
 import { rememberAssistantEmbed } from "@/lib/assistantShell";
 import { startRum } from "@/lib/rumCollect";
 import {
+  claimQueryPersistOwner,
   QUERY_PERSIST_KEY,
   QUERY_PERSIST_MAX_AGE_MS,
   shouldDehydratePersistedQuery,
 } from "@/lib/queryCache";
+import {
+  browserLocalStorage,
+  claimTarkovProgressOwner,
+} from "@/lib/tarkovProgressOwner";
+import { useAuthStore } from "@/stores/authStore";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -56,6 +62,7 @@ function sessionStorageOrNull(): Storage | null {
 }
 
 const persistStorage = sessionStorageOrNull();
+const progressStorage = browserLocalStorage();
 const queryPersister = persistStorage
   ? createSyncStoragePersister({
       storage: persistStorage,
@@ -63,12 +70,32 @@ const queryPersister = persistStorage
     })
   : null;
 
+/* 查询键不带用户：换人（含登出）时整份内存与 sessionStorage 缓存都要丢，免得下一位先看到上一位的数据 */
+let cachedUserId = useAuthStore.getState().user?.id ?? null;
+if (persistStorage && claimQueryPersistOwner(persistStorage, cachedUserId)) {
+  void queryPersister?.removeClient();
+}
+if (progressStorage) claimTarkovProgressOwner(progressStorage, cachedUserId);
+useAuthStore.subscribe((state) => {
+  const nextUserId = state.user?.id ?? null;
+  if (nextUserId === cachedUserId) return;
+  const prevUserId = cachedUserId;
+  cachedUserId = nextUserId;
+  if (progressStorage) {
+    claimTarkovProgressOwner(progressStorage, nextUserId, prevUserId);
+  }
+  queryClient.clear();
+  if (persistStorage) claimQueryPersistOwner(persistStorage, nextUserId);
+  void queryPersister?.removeClient();
+});
+
 const appTree = queryPersister ? (
   <PersistQueryClientProvider
     client={queryClient}
     persistOptions={{
       persister: queryPersister,
       maxAge: QUERY_PERSIST_MAX_AGE_MS,
+      buster: __APP_VERSION__,
       dehydrateOptions: {
         shouldDehydrateQuery: (query) => shouldDehydratePersistedQuery(query),
       },

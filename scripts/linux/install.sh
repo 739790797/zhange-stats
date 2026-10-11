@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 安装本机依赖（系统包、venv）。不写入 APP_ENV；不自动装 MariaDB。
-# 生产机请在管理端「运行环境」或 config/app.json 设 APP_ENV=production。
+# 安装本机依赖（系统包、venv、预构建 static）并写入 systemd 单元。不自动装 MariaDB。
+# 单元自带 APP_ENV=production；监听地址等进程级变量在 config/systemd.env 覆盖（见 docs/deploy.md）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,6 +12,7 @@ source "${SCRIPT_DIR}/_lib.sh"
 if [[ "${EUID}" -ne 0 ]]; then
   die "请用 root 执行: sudo bash ${SCRIPT_DIR}/install.sh"
 fi
+trap fix_tree_owner EXIT
 
 log "仓库: ${REPO_ROOT}"
 need_cmd apt-get
@@ -34,8 +35,9 @@ if [[ -f "${SERVICE_SRC}" && -e "${REPO_ROOT}/deploy" ]]; then
 fi
 
 ensure_deps
+ensure_static_assets
 
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "${REPO_ROOT}"
+fix_tree_owner
 chmod 750 "${REPO_ROOT}"
 chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
 chmod 700 "${DATA_DIR}" "${UPLOAD_DIR}"

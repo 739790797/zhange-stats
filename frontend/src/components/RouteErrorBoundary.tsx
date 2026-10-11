@@ -1,6 +1,12 @@
 import { Button, Result, Space, Typography } from "antd";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { RouteFallback } from "@/components/RouteFallback";
+import {
+  chunkReloadPending,
+  isChunkLoadError,
+  reloadOnceForChunkError,
+} from "@/lib/chunkReload";
 import { reportClientError } from "@/lib/reportClientError";
 
 type Props = {
@@ -33,6 +39,10 @@ export class RouteErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    if (chunkReloadPending() || isChunkLoadError(error)) {
+      reloadOnceForChunkError();
+      return;
+    }
     console.error("route render", error, info.componentStack);
     const requestId = crypto.randomUUID?.() || String(Date.now());
     this.setState({ requestId });
@@ -41,10 +51,28 @@ export class RouteErrorBoundary extends Component<Props, State> {
       componentStack: info.componentStack || "",
       pathname: this.props.resetKey,
       requestId,
+      appVersion: __APP_VERSION__,
     });
   }
 
   render() {
+    if (this.state.error && chunkReloadPending()) {
+      return <RouteFallback />;
+    }
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      return (
+        <Result
+          status="info"
+          title="站点刚更新过"
+          subTitle="这一页的文件已换成新版本，刷新页面后即可继续。"
+          extra={
+            <Button type="primary" onClick={() => window.location.reload()}>
+              刷新页面
+            </Button>
+          }
+        />
+      );
+    }
     if (this.state.error) {
       return (
         <Result

@@ -91,6 +91,8 @@ def poll_qr_bind(db: Session, *, user_id: int, member: Member, scan_id: str) -> 
         return {"status": "expired", "message": "二维码已过期，请刷新"}
 
     device_id = str(pending.get("device_id") or "")
+    # 前端每隔几秒轮询一次：交还连接再问上游
+    db.commit()
     try:
         result = query_qr_login(device_id=device_id, ticket=scan_id)
     except MihoyoApiError as exc:

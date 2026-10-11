@@ -185,76 +185,6 @@ export function TarkovRaidPrepPanel() {
       resolveAccountTaskProgress(taskDonesQuery.data, gameMode).objectives,
     );
   }, [gameMode, objDone, progressTick, taskDonesQuery.data]);
-  const toggleObjDone = useCallback(
-    (taskId: string, objectiveId: string) => {
-      const seq = ++objToggleSeqRef.current;
-      const plan = planRaidPrepObjectiveToggle({
-        localHas: raidPrepSkippedIds(objDone, taskId).has(objectiveId),
-        viewHas: raidPrepSkippedIds(objDoneView, taskId).has(objectiveId),
-        taskDone: doneTaskIds.includes(taskId),
-      });
-      if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
-      const pairs = commitTaskObjective(
-        gameMode,
-        taskId,
-        objectiveId,
-        plan.nextChecked,
-      );
-      const progress = plan.reopenTask
-        ? commitTaskStatus(gameMode, taskId, "active", undefined, undefined, catalogRich)
-        : {
-            done: loadTaskDoneIds(gameMode),
-            started: loadTaskStartedIds(gameMode),
-            failed: loadTaskFailedIds(gameMode),
-            objectives: pairs,
-          };
-      queryClient.setQueryData(
-        ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(
-          progress.done,
-          progress.started,
-          progress.objectives,
-          progress.failed,
-        ),
-      );
-      const applyServer = (data: {
-        task_ids?: string[];
-        started_ids?: string[];
-        failed_ids?: string[];
-        objective_dones?: typeof pairs;
-      }) => {
-        if (seq !== objToggleSeqRef.current) return;
-        queryClient.setQueryData(
-          ["guides-tarkov-task-dones", gameMode],
-          taskProgressQueryData(
-            data.task_ids || loadTaskDoneIds(gameMode),
-            data.started_ids || loadTaskStartedIds(gameMode),
-            data.objective_dones || pairs,
-            data.failed_ids || loadTaskFailedIds(gameMode),
-          ),
-        );
-      };
-      void (
-        plan.reopenTask
-          ? removeTarkovTaskDone(taskId)
-              .catch(() => null)
-              .then(() => removeTarkovTaskObjectiveDone(taskId, objectiveId))
-              .then(applyServer)
-          : (plan.nextChecked
-              ? addTarkovTaskObjectiveDone(taskId, objectiveId)
-              : removeTarkovTaskObjectiveDone(taskId, objectiveId)
-            ).then(applyServer)
-      ).catch(() => {});
-    },
-    [
-      doneTaskIds,
-      gameMode,
-      objDone,
-      objDoneView,
-      queryClient,
-      toggleObjDoneLocal,
-    ],
-  );
   const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
   const keyOwns = useMemo(
     () =>
@@ -352,6 +282,78 @@ export function TarkovRaidPrepPanel() {
   const catalogRich = useMemo(
     () => hydrateRaidPrepCatalogRows(catalog, geometry.byId),
     [catalog, geometry.byId],
+  );
+
+  const toggleObjDone = useCallback(
+    (taskId: string, objectiveId: string) => {
+      const seq = ++objToggleSeqRef.current;
+      const plan = planRaidPrepObjectiveToggle({
+        localHas: raidPrepSkippedIds(objDone, taskId).has(objectiveId),
+        viewHas: raidPrepSkippedIds(objDoneView, taskId).has(objectiveId),
+        taskDone: doneTaskIds.includes(taskId),
+      });
+      if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
+      const pairs = commitTaskObjective(
+        gameMode,
+        taskId,
+        objectiveId,
+        plan.nextChecked,
+      );
+      const progress = plan.reopenTask
+        ? commitTaskStatus(gameMode, taskId, "active", undefined, undefined, catalogRich)
+        : {
+            done: loadTaskDoneIds(gameMode),
+            started: loadTaskStartedIds(gameMode),
+            failed: loadTaskFailedIds(gameMode),
+            objectives: pairs,
+          };
+      queryClient.setQueryData(
+        ["guides-tarkov-task-dones", gameMode],
+        taskProgressQueryData(
+          progress.done,
+          progress.started,
+          progress.objectives,
+          progress.failed,
+        ),
+      );
+      const applyServer = (data: {
+        task_ids?: string[];
+        started_ids?: string[];
+        failed_ids?: string[];
+        objective_dones?: typeof pairs;
+      }) => {
+        if (seq !== objToggleSeqRef.current) return;
+        queryClient.setQueryData(
+          ["guides-tarkov-task-dones", gameMode],
+          taskProgressQueryData(
+            data.task_ids || loadTaskDoneIds(gameMode),
+            data.started_ids || loadTaskStartedIds(gameMode),
+            data.objective_dones || pairs,
+            data.failed_ids || loadTaskFailedIds(gameMode),
+          ),
+        );
+      };
+      void (
+        plan.reopenTask
+          ? removeTarkovTaskDone(taskId)
+              .catch(() => null)
+              .then(() => removeTarkovTaskObjectiveDone(taskId, objectiveId))
+              .then(applyServer)
+          : (plan.nextChecked
+              ? addTarkovTaskObjectiveDone(taskId, objectiveId)
+              : removeTarkovTaskObjectiveDone(taskId, objectiveId)
+            ).then(applyServer)
+      ).catch(() => {});
+    },
+    [
+      catalogRich,
+      doneTaskIds,
+      gameMode,
+      objDone,
+      objDoneView,
+      queryClient,
+      toggleObjDoneLocal,
+    ],
   );
 
   useEffect(() => {
@@ -986,6 +988,7 @@ export function TarkovRaidPrepPanel() {
               </div>
             }
           />
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 点列表空白处清高亮只是鼠标便捷操作，行内控件各自可键盘操作 */}
           <div
             className={styles.taskList}
             onClick={() => setHighlightTaskId("")}

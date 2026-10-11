@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.tarkov import guns as svc
-from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
+from app.services.tarkov.ammo import SOURCE_JSON_API
 
 
 def test_parse_graphql_guns():

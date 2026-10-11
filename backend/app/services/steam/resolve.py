@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import urllib.parse
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
+
+logger = logging.getLogger(__name__)
 
 STEAMID64_BASE = 76561197960265728
 # s.team/p/ 短邀请码字符表（与 Valve 编码一致）
@@ -49,16 +53,24 @@ def resolve_vanity(api_key: str, vanity: str) -> str:
     except HttpRequestError as exc:
         raise RuntimeError(f"Steam 网络错误: {exc}") from exc
     if resp.status_code >= 400:
-        raise RuntimeError(
-            f"Steam 解析失败 HTTP {resp.status_code}: {resp.text}"
+        log_until_change(
+            logger,
+            "steam-resolve-vanity",
+            "Steam ResolveVanityURL HTTP %s: %s",
+            resp.status_code,
+            resp.text[:200],
         )
+        raise RuntimeError(f"Steam 自定义主页名解析失败（HTTP {resp.status_code}）")
     try:
         payload = resp.json()
     except ValueError as exc:
         raise RuntimeError("Steam 解析失败：返回无法解析") from exc
+    clear_log_until_change("steam-resolve-vanity")
 
-    response = (payload or {}).get("response") or {}
-    if int(response.get("success") or 0) != 1 or not response.get("steamid"):
+    response = payload.get("response") if isinstance(payload, dict) else None
+    if not isinstance(response, dict):
+        raise RuntimeError("Steam 解析失败：返回格式无效")
+    if str(response.get("success") or "") != "1" or not response.get("steamid"):
         raise ValueError("未找到该 Steam 自定义主页名")
     return str(response["steamid"])
 

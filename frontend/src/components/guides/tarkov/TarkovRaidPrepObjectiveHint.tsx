@@ -278,6 +278,7 @@ export function TarkovRaidPrepObjectiveProgress({
     );
   };
   return (
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 只拦冒泡：浮层（portal）里的点击别沿 React 树冒到任务行
     <div
       className={styles.taskObjHint}
       onClick={(event) => event.stopPropagation()}

@@ -90,15 +90,38 @@ export function assistantSearchPaneFromLocation(search: string): boolean {
   return params.get("pane") === ASSISTANT_PANE_SEARCH;
 }
 
+/** 会话标记只写不删，确认过一次就不会再变；记在内存里，存储不可用时换页也不丢。 */
+let embedSeen = false;
+let bodyPaneSeen = false;
+
+/** 站点数据被禁用时，连读 `window.sessionStorage` 这个属性都会抛 SecurityError。 */
+function readSessionMark(key: string): string | null {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionMark(key: string, value: string): void {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    /* 写不进去时只靠内存标记 */
+  }
+}
+
 export function isAssistantEmbed(): boolean {
   if (typeof window === "undefined") return false;
+  if (embedSeen) return true;
   const embedded = assistantEmbedFromLocation(
     window.location.search,
     assistantHost(),
-    window.sessionStorage.getItem(ASSISTANT_EMBED_STORAGE_KEY),
+    readSessionMark(ASSISTANT_EMBED_STORAGE_KEY),
   );
   if (embedded) {
-    window.sessionStorage.setItem(ASSISTANT_EMBED_STORAGE_KEY, "1");
+    embedSeen = true;
+    writeSessionMark(ASSISTANT_EMBED_STORAGE_KEY, "1");
   }
   return embedded;
 }
@@ -111,13 +134,15 @@ export function rememberAssistantEmbed(): void {
 export function isAssistantBodyPane(): boolean {
   if (!isAssistantEmbed()) return false;
   if (typeof window === "undefined") return false;
+  if (bodyPaneSeen) return true;
   const pane = assistantBodyPaneFromLocation(
     window.location.search,
     assistantHost(),
-    window.sessionStorage.getItem(ASSISTANT_PANE_STORAGE_KEY),
+    readSessionMark(ASSISTANT_PANE_STORAGE_KEY),
   );
   if (pane) {
-    window.sessionStorage.setItem(ASSISTANT_PANE_STORAGE_KEY, ASSISTANT_PANE_BODY);
+    bodyPaneSeen = true;
+    writeSessionMark(ASSISTANT_PANE_STORAGE_KEY, ASSISTANT_PANE_BODY);
   }
   return pane;
 }

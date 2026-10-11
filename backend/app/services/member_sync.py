@@ -36,6 +36,8 @@ def delete_user_with_member(db: Session, user: User) -> None:
     member = db.query(Member).filter(Member.user_id == user.id).first()
     if member:
         delete_member_cascade(db, member)
+        # 已加载的 user.member 还指着这行：不过期的话 delete(user) 会沿级联再删一遍（0 行匹配 → SAWarning）
+        db.expire(user, ["member"])
     db.delete(user)
     db.flush()
 
@@ -56,10 +58,12 @@ def sync_users_and_members(db: Session) -> dict[str, int]:
         if user.anonymized_at is not None:
             continue
         before = db.query(Member).filter(Member.user_id == user.id).first()
+        # ensure 拿到的是同一个对象、原地改昵称：先记下旧值
+        old_nickname = before.nickname if before is not None else None
         member = ensure_user_member(db, user)
         if before is None:
             created += 1
-        elif before.nickname != member.nickname:
+        elif old_nickname != member.nickname:
             synced += 1
 
     orphans = db.query(Member).filter(Member.user_id.is_(None)).all()

@@ -8,8 +8,16 @@ import {
   fetchSetupStatus,
 } from "@/api/client";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
-import { apiError } from "@/lib/apiError";
+import { apiError, apiStatus, isApiForbidden } from "@/lib/apiError";
+import { displayNameRules } from "@/lib/displayName";
 import { useAuthStore } from "@/stores/authStore";
+
+const TOKEN_FILE_HINT =
+  "在服务器 data/runtime/setup-token 文件里；run / install 脚本启动时会打印“安装令牌：…”。安装完成后自动作废。";
+const TOKEN_REJECTED =
+  "安装令牌缺失或不正确：请到服务器上查看 data/runtime/setup-token（或 run / install 输出的“安装令牌：…”），完整粘贴后重试。";
+
+type TokenFormValues = { token: string };
 
 type AdminFormValues = {
   display_name: string;
@@ -32,14 +40,38 @@ export default function SetupPage() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const [needsDatabase, setNeedsDatabase] = useState(true);
   const [sqlitePath, setSqlitePath] = useState("var/data/zhange.sqlite");
+  const [tokenRequired, setTokenRequired] = useState(false);
+  const [tokenForm] = Form.useForm<TokenFormValues>();
 
   const refreshStatus = async () => {
     const status = await fetchSetupStatus();
     setNeedsSetup(status.needs_setup);
     setNeedsDatabase(Boolean(status.needs_database));
     setMinLen(status.min_password_length || 8);
+    setTokenRequired(Boolean(status.token_required));
     if (status.sqlite_path) setSqlitePath(status.sqlite_path);
     return status;
+  };
+
+  /** null：令牌栏校验未过（错误已标在栏上）。 */
+  const readSetupToken = async (): Promise<string | null> => {
+    if (!tokenRequired) return "";
+    try {
+      const { token } = await tokenForm.validateFields();
+      return token.trim();
+    } catch {
+      return null;
+    }
+  };
+
+  const showSetupError = (e: unknown, fallback: string) => {
+    if (isApiForbidden(e)) {
+      if (tokenRequired) tokenForm.setFields([{ name: "token", errors: ["令牌不正确"] }]);
+      else setTokenRequired(true);
+      setError(TOKEN_REJECTED);
+      return;
+    }
+    setError(apiError(e, fallback));
   };
 
   useEffect(() => {
@@ -63,17 +95,27 @@ export default function SetupPage() {
   }
 
   const onDatabase = async (values: DbFormValues) => {
+    const token = await readSetupToken();
+    if (token === null) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await completeSetupDatabase({
-        engine: values.engine,
-        url: values.engine === "mysql" ? values.url : undefined,
-      });
+      const res = await completeSetupDatabase(
+        {
+          engine: values.engine,
+          url: values.engine === "mysql" ? values.url : undefined,
+        },
+        token,
+      );
       message.success(res.message);
       await refreshStatus();
     } catch (e: unknown) {
-      setError(apiError(e, "配置数据库失败"));
+      if (apiStatus(e) === 409) {
+        message.info("数据库已配置，继续创建管理员");
+        await refreshStatus().catch(() => undefined);
+      } else {
+        showSetupError(e, "配置数据库失败");
+      }
     } finally {
       setLoading(false);
     }
@@ -84,20 +126,30 @@ export default function SetupPage() {
       setError("两次输入的密码不一致");
       return;
     }
+    const token = await readSetupToken();
+    if (token === null) return;
     setLoading(true);
     setError(null);
     try {
-      await completeSetupAdmin({
-        email: values.email,
-        display_name: values.display_name,
-        password: values.password,
-      });
+      await completeSetupAdmin(
+        {
+          email: values.email,
+          display_name: values.display_name,
+          password: values.password,
+        },
+        token,
+      );
       const user = await fetchMe();
       setUser(user);
       message.success("初始化完成");
       navigate("/", { replace: true });
     } catch (e: unknown) {
-      setError(apiError(e, "初始化失败"));
+      if (apiStatus(e) === 409) {
+        message.info("系统已完成初始化，请直接登录");
+        navigate("/login", { replace: true });
+      } else {
+        showSetupError(e, "初始化失败");
+      }
     } finally {
       setLoading(false);
     }
@@ -123,6 +175,24 @@ export default function SetupPage() {
           showIcon
           style={{ marginBottom: 16 }}
         />
+      ) : null}
+
+      {tokenRequired ? (
+        <Form form={tokenForm} layout="vertical" requiredMark={false}>
+          <Form.Item
+            name="token"
+            label="安装令牌"
+            rules={[{ required: true, whitespace: true, message: "请填写安装令牌" }]}
+            extra={TOKEN_FILE_HINT}
+          >
+            <Input
+              size="large"
+              placeholder="粘贴 setup-token 文件内容"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Form.Item>
+        </Form>
       ) : null}
 
       {needsDatabase ? (
@@ -172,7 +242,7 @@ export default function SetupPage() {
           <Form.Item
             name="display_name"
             label="显示名"
-            rules={[{ required: true, message: "请输入显示名" }]}
+            rules={[{ required: true, message: "请输入显示名" }, ...displayNameRules]}
           >
             <Input size="large" placeholder="例如：管理员" autoComplete="nickname" />
           </Form.Item>

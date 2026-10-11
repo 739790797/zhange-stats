@@ -11,11 +11,13 @@ from app.services.integrations_config import get_pelican_application_token
 from app.services.minecraft import pelican
 from app.services.minecraft import startup_cmd as cmd
 from app.services.minecraft.files import require_pelican
+from app.services.minecraft.jar_manifest import JarManifestError, verify_jar_archive
 
 _BOOT = "minecraft:startup:booted"
 _HOLD = "minecraft:startup:hold"
 _TTL = 30 * 86400
 _ARGS_FILE = "user_jvm_args.txt"
+MAX_CORE_JAR_BYTES = 128 * 1024 * 1024
 
 
 class StartupError(Exception):
@@ -23,6 +25,14 @@ class StartupError(Exception):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+
+
+def _verify_core_jar(data: bytes) -> None:
+    """Arclight 构建站不给校验值：至少确认拉下来的是完整、可启动的 jar，再改启动指令。"""
+    try:
+        verify_jar_archive(data)
+    except JarManifestError as exc:
+        raise pelican.PelicanError(f"核心下载校验失败：{exc.message}") from exc
 
 
 def _names(rows: list[dict[str, Any]]) -> list[str]:
@@ -556,13 +566,15 @@ def sync_startup_command(
             )
         except CoreBuildError as exc:
             raise StartupError(exc.message, status_code=exc.status_code) from exc
-        pelican.pull_file(
+        pelican.pull_file_verified(
             base,
             token,
             uuid,
             url=download,
             directory="/",
             filename=filename,
+            verify=_verify_core_jar,
+            max_bytes=MAX_CORE_JAR_BYTES,
         )
     elif not preview.get("complete"):
         raise StartupError(preview.get("message") or "指令还不完整")

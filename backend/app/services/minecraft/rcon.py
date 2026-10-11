@@ -15,7 +15,9 @@ from app.services.minecraft.status import strip_section_codes
 TYPE_RESPONSE = 0
 TYPE_EXEC = 2
 TYPE_AUTH = 3
-_MAX_PACKET = 4096
+# 原版按 4096 个 UTF-16 字符切片回包；UTF-8 下一片正文最多 3 倍字节，再加 id/type 与两个 0。
+_FRAGMENT_CHARS = 4096
+_MAX_PACKET = _FRAGMENT_CHARS * 3 + 10
 _COMMANDS = ("spark tps", "tick query", "tps")
 _CHUNK_COMMANDS = ("gc", "essentials:gc")
 _DEAD_HINTS = ("关闭", "超时", "连接", "Reset", "refused", "timed out")
@@ -43,15 +45,19 @@ def _recvall(sock: socket.socket, n: int) -> bytes:
     return bytes(buf)
 
 
-def unpack_packet(sock: socket.socket) -> tuple[int, int, str]:
+def _read_packet(sock: socket.socket) -> tuple[int, int, bytes]:
     header = _recvall(sock, 4)
     length = struct.unpack("<i", header)[0]
     if length < 10 or length > _MAX_PACKET:
         raise MinecraftRconError("RCON 包长度异常")
     data = _recvall(sock, length)
     req_id, ptype = struct.unpack("<ii", data[:8])
-    body = data[8:-2].decode("utf-8", errors="replace") if length >= 10 else ""
-    return req_id, ptype, body
+    return req_id, ptype, data[8:-2]
+
+
+def unpack_packet(sock: socket.socket) -> tuple[int, int, str]:
+    req_id, ptype, body = _read_packet(sock)
+    return req_id, ptype, body.decode("utf-8", errors="replace")
 
 
 def _enable_keepalive(sock: socket.socket) -> None:
@@ -280,11 +286,9 @@ class RconSession:
             readable, _, _ = select.select([sock], [], [], 0)
             if not readable:
                 return True
-            peek = sock.recv(1, socket.MSG_PEEK)
-            if peek:
-                return True
         except (OSError, ValueError):
             pass
+        # 空闲连接可读：要么对端已关，要么还留着没读完的包，读位置都不可信。
         self._drop()
         return False
 
@@ -331,31 +335,25 @@ class RconSession:
         sock.settimeout(timeout)
         sock.sendall(pack_packet(req_id, TYPE_EXEC, command.strip()))
         deadline = time.monotonic() + timeout
-        bodies: list[str] = []
+        body = bytearray()
+        marker_id: int | None = None
         while time.monotonic() < deadline:
-            got_id, ptype, body = unpack_packet(sock)
+            got_id, ptype, chunk = _read_packet(sock)
             if got_id == -1:
                 raise MinecraftRconError("RCON 密码错误")
-            if got_id != req_id:
+            if got_id == marker_id:
+                return body.decode("utf-8", errors="replace").strip()
+            if got_id != req_id or ptype != TYPE_RESPONSE:
                 continue
-            bodies.append(body)
-            if ptype != TYPE_RESPONSE:
+            body.extend(chunk)
+            if marker_id is not None:
                 continue
-            sock.settimeout(0.2)
-            try:
-                extra_id, _ptype, extra = unpack_packet(sock)
-                if extra_id == req_id:
-                    bodies.append(extra)
-            except (TimeoutError, socket.timeout):
-                pass
-            except MinecraftRconError as exc:
-                if "关闭" in exc.message:
-                    self._drop()
-            except OSError:
-                self._drop()
-            if self._sock is sock:
-                sock.settimeout(timeout)
-            return "".join(bodies).strip()
+            # 字节数不到 4096 时字符数也不到，必是末片。
+            if len(chunk) < _FRAGMENT_CHARS:
+                return body.decode("utf-8", errors="replace").strip()
+            # 原版一次只读一个包：首片到了才发哨兵（未知类型），它的回包排在剩余分片之后。
+            marker_id = self._next_id()
+            sock.sendall(pack_packet(marker_id, TYPE_RESPONSE, ""))
         raise MinecraftRconError("RCON 执行超时")
 
 

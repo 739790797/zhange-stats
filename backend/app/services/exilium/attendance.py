@@ -30,14 +30,14 @@ from app.services.exilium.client import (
 logger = logging.getLogger(__name__)
 
 def ensure_session(creds: ExiliumCredentials) -> ExiliumCredentials:
-    """探活；失败且有密码则重登。"""
+    """探活；失败且存了口令摘要则重登。"""
     try:
         enrich_user_info(creds)
         return creds
     except ExiliumApiError as exc:
-        if creds.account_name and creds.password:
-            logger.info("exilium token invalid, re-login with password")
-            return login_with_password(creds.account_name, creds.password)
+        if creds.account_name and creds.password_md5:
+            logger.info("exilium token invalid, re-login with saved password")
+            return login_with_password(creds.account_name, password_md5=creds.password_md5)
         raise ExiliumApiError(
             friendly_error_message(exc.message) or "登录已失效，请重新绑定",
             code=exc.code,
@@ -326,8 +326,11 @@ def _already_result(creds: ExiliumCredentials) -> CheckinResult:
     )
 
 
-def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[CheckinResult]]:
-    working = ensure_session(creds)
+def query_today(
+    creds: ExiliumCredentials, *, session_checked: bool = False
+) -> tuple[ExiliumCredentials, list[CheckinResult]]:
+    """session_checked：调用方刚 ensure_session 过（编排层 load_session）。"""
+    working = creds if session_checked else ensure_session(creds)
     signed = get_sign_in_status(working)
     if signed:
         result = _already_result(working)
@@ -348,10 +351,10 @@ def query_today(creds: ExiliumCredentials) -> tuple[ExiliumCredentials, list[Che
 
 
 def checkin(
-    creds: ExiliumCredentials, *, force: bool = False
+    creds: ExiliumCredentials, *, force: bool = False, session_checked: bool = False
 ) -> tuple[ExiliumCredentials, list[CheckinResult]]:
     _ = force
-    working = ensure_session(creds)
+    working = creds if session_checked else ensure_session(creds)
     signed = get_sign_in_status(working)
     if signed:
         result = _already_result(working)

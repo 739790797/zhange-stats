@@ -9,6 +9,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTarkovTasks, importTarkovRaidLogs, writeTaskProgressLedger, type TarkovTaskListItem } from "@/api/guidesApi";
 import {
+  createTarkovLogReadCache,
+  forgetTarkovLogDirs,
   isFileSystemAccessSupported,
   isPickerAbort,
   loadStoredLogsDir,
@@ -28,11 +30,14 @@ import {
   readLogsIndex,
   readSessionApplicationLogs,
   readSessionLogs,
+  readStattedSessionLogs,
   requestLogsDirPermission,
   requestScreenshotsDirPermission,
+  retainTarkovLogFolders,
   saveLogsDir,
   saveScreenshotsDir,
   screenshotsDirCanWrite,
+  statSessionLogs,
   type ReadableDir,
 } from "@/lib/tarkovGameLogAccess";
 import {
@@ -49,6 +54,7 @@ import {
   takeSessionStubs,
   toRaidLogImportRows,
   identitiesFromParsed,
+  type TarkovLogBundleMemo,
   type TarkovLogIdentity,
   type TarkovLogPhasePayload,
   type TarkovLogQuestDrop,
@@ -255,11 +261,14 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     enabled: supported && logPerm === "granted",
     retry: 1,
   });
-  catalogRef.current = catalogQuery.data?.items
-    ? buildQuestLogCatalog(catalogQuery.data.items)
-    : emptyQuestLogCatalog();
-  if (catalogQuery.data?.items) {
-    catalogItemsRef.current = catalogQuery.data.items;
+  const catalogItems = catalogQuery.data?.items;
+  const queryCatalog = useMemo(
+    () => (catalogItems ? buildQuestLogCatalog(catalogItems) : emptyQuestLogCatalog()),
+    [catalogItems],
+  );
+  catalogRef.current = queryCatalog;
+  if (catalogItems) {
+    catalogItemsRef.current = catalogItems;
   }
 
   const loadQuestBase = useCallback(() => {
@@ -692,18 +701,21 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     if (!supported || logPerm !== "granted") return;
     logCursorRef.current = null;
     let cancelled = false;
+    const readCache = createTarkovLogReadCache();
+    const parseMemo: TarkovLogBundleMemo = new WeakMap();
     const tick = async () => {
       if (cancelled || document.hidden || logTickBusyRef.current) return;
       const handle = logRef.current;
       if (!handle) return;
       logTickBusyRef.current = true;
       try {
-        const { sessions } = await readLogsIndex(handle);
+        const { sessions } = await readLogsIndex(handle, readCache);
         if (cancelled) return;
         const newest = sessions[0] || null;
         if (!newest) return;
-        const fingerprint = await peekSessionFingerprint(handle, newest.folder);
+        const newestStat = await statSessionLogs(handle, newest.folder, readCache);
         if (cancelled) return;
+        const { fingerprint } = newestStat;
         const plan = planLogSessionReads(
           newest.folder,
           fingerprint,
@@ -713,11 +725,16 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         if (plan.skip) return;
         const parsedSessions = [];
         for (const folder of plan.folders) {
-          const read = await readSessionLogs(handle, folder);
+          const stat =
+            folder === newest.folder
+              ? newestStat
+              : await statSessionLogs(handle, folder, readCache);
+          const read = await readStattedSessionLogs(stat, readCache);
           if (cancelled) return;
-          const parsed = parseTarkovLogBundle(read.files);
+          const parsed = parseTarkovLogBundle(read.files, parseMemo);
           parsedSessions.push({ parsed, read });
         }
+        retainTarkovLogFolders(readCache, plan.folders);
         const newestRead =
           parsedSessions.find((row) => row.read.folder === newest.folder) ||
           parsedSessions[parsedSessions.length - 1];
@@ -804,7 +821,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             });
         }
       } catch {
-        /* 保留上一次任务进度 */
+        // 保留上一次任务进度；目录句柄可能已失效，下一轮重新解析。
+        forgetTarkovLogDirs(readCache);
       } finally {
         logTickBusyRef.current = false;
       }

@@ -1,12 +1,16 @@
+import urllib.parse
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
+from app.core.security import MAX_ACCESS_TOKEN_MINUTES
 from app.models.user import User
 from app.services.auth_config import (
     enforce_single_admin_if_needed,
@@ -16,7 +20,9 @@ from app.services.auth_config import (
 )
 from app.services.email import send_verification_email
 from app.services.email_config import (
+    MAX_CODE_EXPIRE_MINUTES,
     load_email_config,
+    plaintext_auth_error,
     public_email_config,
     save_email_config,
 )
@@ -51,6 +57,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 class EmailSettingsOut(BaseModel):
+    """smtp_password 只写：响应恒为空串，是否已设置看 smtp_password_set。"""
+
     enabled: bool
     smtp_user: str
     smtp_from: str
@@ -65,15 +73,18 @@ class EmailSettingsOut(BaseModel):
 
 
 class EmailSettingsUpdate(BaseModel):
+    """smtp_password 空或缺省保留原口令；clear_smtp_password=true 才清空（优先于新值）。"""
+
     enabled: bool = False
-    smtp_user: str = ""
-    smtp_from: str = ""
-    smtp_password: str | None = None
-    display_name: str = ""
-    smtp_host: str = ""
+    smtp_user: str = Field(default="", max_length=128)
+    smtp_from: str = Field(default="", max_length=256)
+    smtp_password: str | None = Field(default=None, max_length=256)
+    clear_smtp_password: bool = False
+    display_name: str = Field(default="", max_length=64)
+    smtp_host: str = Field(default="", max_length=255)
     smtp_port: int = Field(default=465, ge=1, le=65535)
     encryption: str = Field(default="SSL", pattern="^(SSL|STARTTLS|NONE)$")
-    code_expire_minutes: int = Field(default=15, ge=1, le=1440)
+    code_expire_minutes: int = Field(default=15, ge=1, le=MAX_CODE_EXPIRE_MINUTES)
 
 
 class EmailTestRequest(BaseModel):
@@ -81,22 +92,29 @@ class EmailTestRequest(BaseModel):
 
 
 class IntegrationsOut(BaseModel):
+    """密钥字段只写：响应恒为空串，看 `*_set`；长 token 另给末 4 位 `*_hint`（不足 16 位为空）。"""
+
     steam_api_key: str = ""
     steam_api_key_set: bool
+    steam_api_key_hint: str = ""
     qq_app_id: str
     qq_app_key: str = ""
     qq_app_key_set: bool
+    qq_app_key_hint: str = ""
     qq_configured: bool
     steam_configured: bool
     qq_callback_url: str = ""
     github_token: str = ""
     github_token_set: bool = False
+    github_token_hint: str = ""
     github_configured: bool = False
     pelican_base_url: str = ""
     pelican_client_token: str = ""
     pelican_client_token_set: bool = False
+    pelican_client_token_hint: str = ""
     pelican_application_token: str = ""
     pelican_application_token_set: bool = False
+    pelican_application_token_hint: str = ""
     pelican_server_uuid: str = ""
     pelican_configured: bool = False
     minecraft_rcon_host: str = ""
@@ -110,6 +128,8 @@ class IntegrationsOut(BaseModel):
 
 
 class IntegrationsUpdate(BaseModel):
+    """密钥字段空或缺省保留原值；`clear_<字段>`=true 才清空（优先于新值）。"""
+
     steam_api_key: str | None = None
     qq_app_id: str | None = None
     qq_app_key: str | None = None
@@ -154,7 +174,7 @@ class AuthSettingsOut(BaseModel):
 
 class AuthSettingsUpdate(BaseModel):
     access_token_expire_minutes: int | None = Field(
-        default=None, ge=5, le=60 * 24 * 365
+        default=None, ge=5, le=MAX_ACCESS_TOKEN_MINUTES
     )
     min_password_length: int | None = Field(default=None, ge=6, le=72)
     reject_weak_admin_password: bool | None = None
@@ -204,12 +224,15 @@ def update_email_settings(
             raise HTTPException(status_code=400, detail="请填写 SMTP 服务器地址")
         if not body.smtp_port:
             raise HTTPException(status_code=400, detail="请填写端口号")
-        has_pwd = bool(
+        has_pwd = not body.clear_smtp_password and bool(
             (body.smtp_password and body.smtp_password.strip())
             or current.get("smtp_password")
         )
         if not has_pwd:
             raise HTTPException(status_code=400, detail="请填写密码")
+        refused = plaintext_auth_error(body.smtp_host, body.encryption)
+        if refused:
+            raise HTTPException(status_code=400, detail=refused)
 
     saved = save_email_config(db, body.model_dump())
     return public_email_config(saved)
@@ -224,6 +247,9 @@ def test_email_settings(
     cfg = load_email_config(db)
     if not cfg.get("enabled"):
         return {"ok": False, "message": "请先启用邮件通知器并保存配置"}
+    refused = plaintext_auth_error(cfg["smtp_host"], cfg["encryption"])
+    if refused:
+        return {"ok": False, "message": refused}
     result = send_verification_email(str(body.to_email), "000000", db=db)
     if result["mode"] == "smtp" and result["sent"]:
         return {"ok": True, "message": "测试邮件已发送"}
@@ -392,7 +418,10 @@ def test_pelican_connection(
 
     saved_url, saved_token, saved_uuid = get_pelican_credentials(db)
     base = normalize_pelican_base_url(body.base_url) or saved_url
-    token = (body.token or "").strip() or saved_token
+    token = (body.token or "").strip()
+    # 已存 token 只发往已存面板：换地址必须重填，否则只写密钥能被测试接口带去任意主机
+    if not token and base == saved_url:
+        token = saved_token
     server_uuid = (body.server_uuid or "").strip() or saved_uuid
     if not pelican_configured(base, token, server_uuid):
         return PelicanTestResponse(ok=False, message="请填写 Panel 地址、Client Token 与 Server UUID")
@@ -442,7 +471,9 @@ def test_minecraft_rcon_connection(
         port = saved_port
     if port < 1 or port > 65535:
         port = 25575
-    password = (body.password or "").strip() or saved_password
+    password = (body.password or "").strip()
+    if not password and host == saved_host:
+        password = saved_password
     if not host or not password:
         return MinecraftRconTestResponse(ok=False, message="请填写 RCON 地址和密码")
     try:
@@ -614,29 +645,237 @@ def update_platform_features(
 
 
 class RuntimeEnvOut(BaseModel):
+    """redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。
+
+    db_url 只回 scheme://账号@主机:端口/库名（不含口令、查询串）；是否带口令看 db_password_set。
+    """
+
     app_env: str
     is_production: bool
     redis_url: str = ""
+    redis_url_set: bool = False
+    redis_password_set: bool = False
     cors_origins: str = ""
     cors_origin_regex: str = ""
     csp_enforce: bool = False
     trust_x_forwarded_for: bool = False
+    rate_limit_enabled: bool = True
     db_engine: str = "sqlite"
     db_path: str = ""
     db_url: str = ""
+    db_password_set: bool = False
     restart_required: bool = False
+    # 由进程环境变量设定的字段名（如 app_env、db_url）：界面只读，PUT 改值返回 409
+    env_locked: list[str] = Field(default_factory=list)
 
 
 class RuntimeEnvUpdate(BaseModel):
+    """redis_url 空或缺省保留原值；clear_redis_url=true 才清空（优先于新值）。
+
+    回传的脱敏地址（不带账号口令）若与已存的主机、端口一致，沿用已存账号口令与查询串。
+    db_url 空或缺省同样保留原值；回传的脱敏连接串（不带口令与查询串）若与已存的主机、端口、账号一致，
+    沿用已存口令与查询串。
+    """
+
     app_env: str | None = Field(default=None, max_length=32)
     redis_url: str | None = Field(default=None, max_length=512)
+    clear_redis_url: bool = False
     cors_origins: str | None = Field(default=None, max_length=2000)
     cors_origin_regex: str | None = Field(default=None, max_length=2000)
     csp_enforce: bool | None = None
     trust_x_forwarded_for: bool | None = None
+    rate_limit_enabled: bool | None = None
     db_engine: str | None = Field(default=None, max_length=16)
     db_path: str | None = Field(default=None, max_length=512)
     db_url: str | None = Field(default=None, max_length=2000)
+
+
+_RUNTIME_ENV_FIELDS = {
+    "app_env": "APP_ENV",
+    "redis_url": "REDIS_URL",
+    "cors_origins": "CORS_ORIGINS",
+    "cors_origin_regex": "CORS_ORIGIN_REGEX",
+    "csp_enforce": "CSP_ENFORCE",
+    "trust_x_forwarded_for": "TRUST_X_FORWARDED_FOR",
+    "rate_limit_enabled": "RATE_LIMIT_ENABLED",
+}
+_RUNTIME_DB_FIELDS = ("db_engine", "db_path", "db_url")
+_REDIS_DEFAULT_PORT = 6379
+_MYSQL_DEFAULT_PORT = 3306
+_PRODUCTION_ENV_NAMES = ("production", "prod")
+
+
+def _redis_target(url: str) -> tuple[urllib.parse.SplitResult, str, int] | None:
+    """解析出 (parts, 主机, 端口)；没有主机（含 unix socket）或端口非法时返回 None。"""
+    try:
+        parts = urllib.parse.urlsplit((url or "").strip())
+        port = parts.port or _REDIS_DEFAULT_PORT
+    except ValueError:
+        return None
+    host = parts.hostname or ""
+    if not host:
+        return None
+    return parts, host, port
+
+
+def _redis_password_set(url: str) -> bool:
+    try:
+        parts = urllib.parse.urlsplit((url or "").strip())
+    except ValueError:
+        return False
+    query = urllib.parse.parse_qs(parts.query)
+    return bool(parts.password or query.get("password"))
+
+
+def _mask_redis_url(url: str) -> str:
+    """redis-py 也从查询串读 password=，所以查询串和账号口令一起去掉。"""
+    target = _redis_target(url)
+    if target is None:
+        return ""
+    parts, host, port = target
+    netloc = f"[{host}]" if ":" in host else host
+    return f"{parts.scheme}://{netloc}:{port}{parts.path}"
+
+
+def _merge_redis_url(submitted: str, stored: str) -> str:
+    """表单回传脱敏地址时补回已存账号口令与查询串；换了主机或端口则原样保存，已存口令不跟去别的服务器。"""
+    text = (submitted or "").strip()
+    new = _redis_target(text)
+    old = _redis_target(stored)
+    if new is None or old is None:
+        return text
+    new_parts, new_host, new_port = new
+    old_parts, old_host, old_port = old
+    if (new_host, new_port) != (old_host, old_port):
+        return text
+    if new_parts.username or new_parts.password or new_parts.query:
+        return text
+    userinfo = old_parts.netloc.rpartition("@")[0]
+    netloc = f"{userinfo}@{new_parts.netloc}" if userinfo else new_parts.netloc
+    return urllib.parse.urlunsplit(
+        (new_parts.scheme, netloc, new_parts.path, old_parts.query, "")
+    )
+
+
+def _redis_canonical(url: str) -> str:
+    target = _redis_target(url)
+    if target is None:
+        return (url or "").strip()
+    parts, host, port = target
+    db = parts.path.strip("/") or "0"
+    return "|".join(
+        (
+            parts.scheme.lower(),
+            parts.username or "",
+            parts.password or "",
+            host,
+            str(port),
+            db,
+            parts.query,
+        )
+    )
+
+
+def _parse_db_url(url: str) -> URL | None:
+    text = (url or "").strip()
+    if not text:
+        return None
+    try:
+        return make_url(text)
+    except (ArgumentError, ValueError):
+        return None
+
+
+def _db_target(parsed: URL) -> tuple[str, int | None, str]:
+    """(主机, 端口, 账号)；MySQL 没写端口按 3306。"""
+    port = parsed.port
+    if port is None and parsed.host and parsed.get_backend_name() in ("mysql", "mariadb"):
+        port = _MYSQL_DEFAULT_PORT
+    return (parsed.host or "").lower(), port, parsed.username or ""
+
+
+def _db_password_set(url: str) -> bool:
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return False
+    return bool(parsed.password) or any(key in parsed.query for key in ("password", "passwd"))
+
+
+def _mask_db_url(url: str) -> str:
+    """只回 scheme://账号@主机:端口/库名：PyMySQL 也从查询串读 password=，查询串和口令一起去掉。"""
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return ""
+    _host, port, _user = _db_target(parsed)
+    masked = URL.create(
+        parsed.drivername,
+        username=parsed.username,
+        host=parsed.host,
+        port=port,
+        database=parsed.database,
+    )
+    return masked.render_as_string(hide_password=False)
+
+
+def _merge_db_url(submitted: str, stored: str) -> str:
+    """表单回传脱敏连接串时补回已存口令与查询串；换了主机、端口或账号就原样保存，已存口令不跟去别处。"""
+    text = (submitted or "").strip()
+    new = _parse_db_url(text)
+    old = _parse_db_url(stored)
+    if new is None or old is None:
+        return text
+    if new.password or new.query or _db_target(new) != _db_target(old):
+        return text
+    merged = new.set(query=old.query)
+    if old.password:
+        merged = merged.set(password=old.password)
+    return merged.render_as_string(hide_password=False)
+
+
+def _db_canonical(url: str) -> str:
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return (url or "").strip()
+    host, port, user = _db_target(parsed)
+    return "|".join(
+        (
+            parsed.drivername,
+            user,
+            parsed.password or "",
+            host,
+            str(port or ""),
+            parsed.database or "",
+            repr(sorted(parsed.query.items())),
+        )
+    )
+
+
+def _runtime_env_locked() -> list[str]:
+    """环境变量优先于 config/*.json（见 config._apply_app_json / resolve_database_url），写文件也不会生效。"""
+    import os
+
+    def _set(name: str) -> bool:
+        return str(os.environ.get(name) or "").strip() != ""
+
+    locked = [field for field, env in _RUNTIME_ENV_FIELDS.items() if _set(env)]
+    if _set("DATABASE_URL"):
+        locked.extend(_RUNTIME_DB_FIELDS)
+    return locked
+
+
+def _runtime_env_unchanged(field: str, value: Any, effective: dict[str, Any]) -> bool:
+    current = effective.get(field)
+    if isinstance(current, bool):
+        return bool(value) == current
+    a = str(value or "").strip()
+    b = str(current or "").strip()
+    if field == "app_env":
+        return a.lower() == b.lower()
+    if field == "redis_url":
+        return _redis_canonical(a) == _redis_canonical(b)
+    if field == "db_url":
+        return _db_canonical(a) == _db_canonical(b)
+    return a == b
 
 
 def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
@@ -645,18 +884,24 @@ def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
 
     s = get_settings()
     db = load_database_settings()
+    redis_url = s.REDIS_URL or ""
     return {
         "app_env": s.APP_ENV,
         "is_production": s.is_production,
-        "redis_url": s.REDIS_URL or "",
+        "redis_url": _mask_redis_url(redis_url),
+        "redis_url_set": bool(redis_url.strip()),
+        "redis_password_set": _redis_password_set(redis_url),
         "cors_origins": s.CORS_ORIGINS or "",
         "cors_origin_regex": s.CORS_ORIGIN_REGEX or "",
         "csp_enforce": bool(s.CSP_ENFORCE),
         "trust_x_forwarded_for": bool(s.TRUST_X_FORWARDED_FOR),
+        "rate_limit_enabled": bool(s.RATE_LIMIT_ENABLED),
         "db_engine": db["db_engine"],
         "db_path": db["db_path"],
-        "db_url": db["db_url"],
+        "db_url": _mask_db_url(db["db_url"]),
+        "db_password_set": _db_password_set(db["db_url"]),
         "restart_required": restart_required,
+        "env_locked": _runtime_env_locked(),
     }
 
 
@@ -669,6 +914,7 @@ def get_runtime_env(_: User = Depends(require_admin)) -> dict[str, Any]:
 def update_runtime_env(
     body: RuntimeEnvUpdate,
     _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     from app.core.config import get_settings
     from app.core.file_config import (
@@ -681,14 +927,51 @@ def update_runtime_env(
 
     current = read_json("app") or {}
     payload = body.model_dump(exclude_unset=True)
-    mapping = {
-        "app_env": "APP_ENV",
-        "redis_url": "REDIS_URL",
-        "cors_origins": "CORS_ORIGINS",
-        "cors_origin_regex": "CORS_ORIGIN_REGEX",
-        "csp_enforce": "CSP_ENFORCE",
-        "trust_x_forwarded_for": "TRUST_X_FORWARDED_FOR",
-    }
+    stored_redis = get_settings().REDIS_URL or ""
+    if payload.pop("clear_redis_url", False):
+        payload["redis_url"] = ""
+    elif "redis_url" in payload:
+        submitted = str(payload["redis_url"] or "").strip()
+        if submitted:
+            payload["redis_url"] = _merge_redis_url(submitted, stored_redis)
+        else:
+            payload.pop("redis_url")
+    stored_db_url = load_database_settings()["db_url"]
+    if "db_url" in payload:
+        submitted_db = str(payload["db_url"] or "").strip()
+        if submitted_db:
+            payload["db_url"] = _merge_db_url(submitted_db, stored_db_url)
+        else:
+            payload.pop("db_url")
+    locked = set(_runtime_env_locked())
+    if locked:
+        effective = {**_runtime_env_out(), "redis_url": stored_redis, "db_url": stored_db_url}
+        blocked = sorted(
+            {
+                _RUNTIME_ENV_FIELDS.get(field, "DATABASE_URL")
+                for field, value in payload.items()
+                if field in locked
+                and not _runtime_env_unchanged(field, value, effective)
+            }
+        )
+        if blocked:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{'、'.join(blocked)} 由服务器环境变量设定，请在服务器上修改后重启",
+            )
+        # 表单整页提交时锁定项原样带回，跳过即可
+        payload = {k: v for k, v in payload.items() if k not in locked}
+    if str(payload.get("app_env") or "").strip().lower() in _PRODUCTION_ENV_NAMES:
+        from app.services.security_bootstrap import production_preflight_problems
+
+        # 启动体检在 production 下会拒绝启动；先在这里拦住，免得重启后进不了管理端
+        problems = production_preflight_problems(db)
+        if problems:
+            raise HTTPException(
+                status_code=400,
+                detail="生产环境启动体检未通过（保存后重启会拒绝启动）：" + " ".join(problems),
+            )
+    mapping = _RUNTIME_ENV_FIELDS
     restart = False
     for field, json_key in mapping.items():
         if field not in payload:
@@ -737,12 +1020,15 @@ def test_runtime_database(
     body: RuntimeDatabaseTestIn,
     _: User = Depends(require_admin),
 ) -> RuntimeConnTestOut:
+    from app.core.file_config import load_database_settings
     from app.services.runtime_health import probe_database_settings
 
+    stored = load_database_settings()["db_url"]
+    submitted = (body.db_url or "").strip()
     result = probe_database_settings(
         engine=body.db_engine,
         path=body.db_path,
-        url=body.db_url,
+        url=_merge_db_url(submitted, stored) if submitted else stored,
     )
     return RuntimeConnTestOut(
         ok=result.ok,
@@ -756,9 +1042,12 @@ def test_runtime_redis(
     body: RuntimeRedisTestIn,
     _: User = Depends(require_admin),
 ) -> RuntimeConnTestOut:
+    from app.core.config import get_settings
     from app.services.runtime_health import probe_redis_url
 
-    result = probe_redis_url(body.redis_url)
+    stored = get_settings().REDIS_URL or ""
+    submitted = (body.redis_url or "").strip()
+    result = probe_redis_url(_merge_redis_url(submitted, stored) if submitted else stored)
     return RuntimeConnTestOut(
         ok=result.ok,
         message=result.message,

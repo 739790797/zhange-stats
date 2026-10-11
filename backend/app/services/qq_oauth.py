@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import re
+import secrets
 import urllib.parse
 from dataclasses import dataclass
 from datetime import timedelta
@@ -14,6 +17,7 @@ from jwt import InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.http_client import HttpRequestError, http_request
+from app.core.key_derivation import PURPOSE_OAUTH_STATE, derive_key
 from app.core.security import ALGORITHM
 from app.core.timeutil import utc_now
 
@@ -52,22 +56,47 @@ def qq_redirect_uri(backend: str | None = None) -> str:
 
 PURPOSE_BIND = "qq_oauth_bind"
 PURPOSE_LOGIN = "qq_oauth_login"
+STATE_TTL_MINUTES = 15
+
+
+def _state_key() -> bytes:
+    return derive_key(get_settings().SECRET_KEY, PURPOSE_OAUTH_STATE)
+
+
+def _nonce_hash(nonce: str) -> str:
+    return hashlib.sha256(nonce.encode("utf-8")).hexdigest()
+
+
+def new_oauth_nonce() -> str:
+    """发起时写进浏览器 Cookie，state 里只存其哈希：回调必须回到发起授权的那个浏览器。"""
+    return secrets.token_urlsafe(24)
+
+
+def oauth_nonce_matches(state_data: dict, cookie_value: str | None) -> bool:
+    expected = str(state_data.get("nh") or "")
+    given = (cookie_value or "").strip()
+    if not expected or not given:
+        return False
+    return hmac.compare_digest(expected, _nonce_hash(given))
 
 
 def create_qq_oauth_state(
     *,
+    nonce: str,
     purpose: str = PURPOSE_BIND,
     user_id: int | None = None,
     member_id: int | None = None,
     frontend: str | None = None,
     backend: str | None = None,
-    expires_minutes: int = 15,
+    expires_minutes: int = STATE_TTL_MINUTES,
 ) -> str:
-    settings = get_settings()
     if purpose not in (PURPOSE_BIND, PURPOSE_LOGIN):
         raise QqOAuthError("无效的 QQ 登录用途")
+    if not nonce:
+        raise QqOAuthError("无效的 QQ 登录状态")
     payload: dict = {
         "purpose": purpose,
+        "nh": _nonce_hash(nonce),
         "exp": utc_now() + timedelta(minutes=expires_minutes),
     }
     if purpose == PURPOSE_BIND:
@@ -79,19 +108,20 @@ def create_qq_oauth_state(
         payload["frontend"] = frontend.rstrip("/")
     if backend:
         payload["backend"] = backend.rstrip("/")
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, _state_key(), algorithm=ALGORITHM)
 
 
 def decode_qq_oauth_state(token: str) -> dict:
-    settings = get_settings()
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _state_key(), algorithms=[ALGORITHM])
     except InvalidTokenError as exc:
         raise QqOAuthError("QQ 登录状态已过期，请重试") from exc
     purpose = payload.get("purpose")
     if purpose not in (PURPOSE_BIND, PURPOSE_LOGIN):
         raise QqOAuthError("无效的 QQ 登录状态")
     if purpose == PURPOSE_BIND and not payload.get("uid"):
+        raise QqOAuthError("无效的 QQ 登录状态")
+    if not payload.get("nh"):
         raise QqOAuthError("无效的 QQ 登录状态")
     return payload
 

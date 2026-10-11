@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -20,6 +21,7 @@ from app.models.register_challenge import RegisterChallenge
 from app.models.system_config import SystemConfig  # noqa: F401
 from app.models.user import User, UserRole
 from app.services.auth_config import get_min_password_length
+from app.services.email import NOTICE_NO_ACCOUNT_RESET
 from app.services.password_policy import (
     PasswordPolicyError,
     invalidate_weak_password_cache,
@@ -49,24 +51,48 @@ def _make_user(db, *, email: str, password: str, verified: bool = True) -> User:
     return user
 
 
-def test_send_skips_unknown_email(monkeypatch) -> None:
+def test_notice_stores_a_code_but_mails_only_the_notice(monkeypatch) -> None:
     db = _session()
-    called = {"n": 0}
-
-    def _no_send(*_a, **_k):
-        called["n"] += 1
-        return {"sent": True, "mode": "smtp"}
-
+    codes: list[str] = []
+    notices: list[tuple] = []
     monkeypatch.setattr(
-        "app.api.auth.helpers.send_verification_email", _no_send
+        "app.api.auth.helpers.send_verification_email",
+        lambda _to, code, **_k: codes.append(code) or {"sent": True, "mode": "smtp"},
     )
-    user = (
-        db.query(User)
-        .filter(User.email == "nobody@example.com", User.email_verified.is_(True))
-        .first()
+    monkeypatch.setattr(
+        "app.api.auth.helpers.send_notice_email",
+        lambda to, kind, **_k: notices.append((to, kind)) or {"sent": True, "mode": "smtp"},
     )
-    assert user is None
-    assert called["n"] == 0
+    monkeypatch.setattr(
+        "app.services.email_config.load_email_config",
+        lambda _db: {"code_expire_minutes": 15},
+    )
+    code, delivery = _upsert_register_challenge(
+        db, "nobody@example.com", purpose=PURPOSE_RESET, notice=NOTICE_NO_ACCOUNT_RESET
+    )
+    assert delivery == {"sent": True, "mode": "smtp"}
+    assert codes == []
+    assert notices == [("nobody@example.com", NOTICE_NO_ACCOUNT_RESET)]
+    row = db.query(RegisterChallenge).one()
+    assert (row.email, row.purpose, row.code) == ("nobody@example.com", PURPOSE_RESET, code)
+    db.close()
+
+
+def test_undeliverable_notice_drops_the_challenge(monkeypatch) -> None:
+    db = _session()
+    monkeypatch.setattr(
+        "app.api.auth.helpers.send_notice_email",
+        lambda *_a, **_k: {"sent": False, "mode": "smtp_error"},
+    )
+    monkeypatch.setattr(
+        "app.services.email_config.load_email_config",
+        lambda _db: {"code_expire_minutes": 15},
+    )
+    with pytest.raises(HTTPException) as exc:
+        _upsert_register_challenge(
+            db, "nobody@example.com", purpose=PURPOSE_RESET, notice=NOTICE_NO_ACCOUNT_RESET
+        )
+    assert exc.value.status_code == 503
     assert db.query(RegisterChallenge).count() == 0
     db.close()
 

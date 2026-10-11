@@ -37,7 +37,7 @@
 
 ```bash
 # 前端（frontend/）
-npm ci --legacy-peer-deps
+npm ci
 npm run dev
 npm run lint && npm run test && npm run build
 npm run export:openapi && npm run gen:api   # 改后端 API 后必做
@@ -54,7 +54,7 @@ alembic upgrade head
 
 ## 禁止清单
 
-- 无 Alembic 改表；往 `schema_ensure.py` 堆新 `ALTER`
+- 无 Alembic 改表；启动时在 Alembic 之外 `create_all` / `ALTER`（无 `alembic_version` 的服务端旧库直接拒绝，见 `backend/alembic/README.md`「Alembic 之前的旧库」）
 - 签到 status 写 `bind.last_checkin_*`；签到展示打开页不 force 回源；用户侧展示执行记录
 - 新签到平台复制整份 `*_checkin` 编排（应实现 Adapter + 注册表）
 - 新平台签到/兑换页不套 `CheckinPageTemplate` / `ExchangePageTemplate` / `PlatformFeatureTabsPage`
@@ -70,7 +70,7 @@ alembic upgrade head
 - 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
 - 去掉 CSRF / 登出清 Cookie / 生产 CORS 收紧，却只把 JWT 改成可读 Cookie 或继续 persist JWT
 - 生产开启 `ALLOW_EMAIL_CODE_LOG`（启动硬拒绝）；生产使用默认弱 `ADMIN_PASSWORD`
-- 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / 备份 `zhange-*.tar.gz` 当普通文件下发、修改或删除
+- 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / `config/{database,integrations,email}.json` / 在用的 SQLite 库及 `-wal`/`-shm`/`-journal` / 备份 `zhange-*.tar.gz` 当普通文件下发、修改或删除；跟随符号链接绕过敏感判定
 - 新业务用户上传直写 `UPLOAD_DIR`（应走 `services/user_files` + namespace；头像覆盖写也要登记）
 - 应用进程内 apt / winget 装 MariaDB（走 `scripts/common/provision_mariadb.py`；Windows 便携包在 `data/mariadb/`）
 - 把 Hugging Face / Torch / EasyOCR / pip 缓存写到家目录（启动与脚本应 pin 到 `data/cache`，tempfile 到 `data/tmp`）
@@ -90,7 +90,7 @@ alembic upgrade head
 - [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
 - [ ] 改塔科夫联机：未登录可看大厅与房间预览；非成员 GET 仅为预览；访客不能占座；限流与 `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」一致
 - [ ] 改战鸽助手嵌入 / 本机目录：对照 `zhange-assistant.mdc`（同源 WebView、侧栏、文件桥不收原文）
-- [ ] 改文件管理：只扫安装根；密钥 / MariaDB 数据 / 备份不可下/改/删；相关 `test_file_manager` 通过
+- [ ] 改文件管理：只扫安装根；密钥 / 含口令的 `config/*.json` / 在用 SQLite 库 / MariaDB 数据 / 备份不可下/改/删，符号链接一律拒绝；相关 `test_file_manager` 通过
 - [ ] 改用户附件：走 `user_files`；OpenAPI `serial`；相关 `test_user_files` 通过
 - [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）
 - [ ] 改前端请求/报错：走 `*Api` + `apiError`；status 显式传 `force`
@@ -100,5 +100,5 @@ alembic upgrade head
 
 ## CI
 
-PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（pytest）· `backend-migrate-mariadb`（MariaDB 上 alembic）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR。`main` 仅在质量门绿后发 GitHub Release（static）；门红不改 Release，与没发一样。详见 [`docs/deploy.md`](docs/deploy.md)「发版」。  
+PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（ruff + pytest）· `backend-migrate-mariadb`（MariaDB 上 alembic）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR。`main` 仅在质量门绿后发 GitHub Release（static）；门红不改 Release，与没发一样。详见 [`docs/deploy.md`](docs/deploy.md)「发版」。  
 提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。

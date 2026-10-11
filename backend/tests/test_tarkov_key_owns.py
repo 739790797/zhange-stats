@@ -31,7 +31,13 @@ def _user(db: Session, username: str, display: str) -> User:
     return row
 
 
-def test_add_remove_and_reject_blank() -> None:
+def _allow(monkeypatch: pytest.MonkeyPatch, *item_ids: str) -> None:
+    known = frozenset(item_ids)
+    monkeypatch.setattr(owns, "_known_key_ids", lambda _db: known)
+
+
+def test_add_remove_and_reject_blank(monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow(monkeypatch, "key-1")
     db = _session()
     user = _user(db, "a", "甲")
     ids, added = owns.add_own(db, user, "key-1")
@@ -47,7 +53,8 @@ def test_add_remove_and_reject_blank() -> None:
         owns.add_own(db, user, "  ")
 
 
-def test_merge_skips_dupes_and_junk() -> None:
+def test_merge_skips_dupes_and_junk(monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow(monkeypatch, "keep", "new")
     db = _session()
     user = _user(db, "a", "甲")
     owns.add_own(db, user, "keep")
@@ -55,7 +62,32 @@ def test_merge_skips_dupes_and_junk() -> None:
     assert ids == ["keep", "new"]
 
 
-def test_room_snapshot_lists_seated_owns() -> None:
+def test_add_rejects_unknown_and_missing_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _session()
+    user = _user(db, "a", "甲")
+    _allow(monkeypatch, "known")
+    with pytest.raises(owns.TarkovKeyOwnsError, match="不在钥匙目录"):
+        owns.add_own(db, user, "other")
+    ids = owns.merge_owns(db, user, ["known", "other"])
+    assert ids == ["known"]
+
+
+def test_empty_catalog_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.tarkov.key_packs.known_key_ids",
+        lambda _db: frozenset(),
+    )
+    with pytest.raises(owns.TarkovKeyOwnsError, match="钥匙目录暂时不可用") as caught:
+        owns._known_key_ids(_session())
+    assert caught.value.status_code == 503
+
+
+def test_room_snapshot_lists_seated_owns(monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow(monkeypatch, "key-a", "key-b")
+    monkeypatch.setattr(
+        "app.services.tarkov.key_packs.map_key_ids",
+        lambda _db, _slug: frozenset({"key-a", "key-b"}),
+    )
     db = _session()
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")

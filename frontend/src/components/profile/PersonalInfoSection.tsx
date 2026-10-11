@@ -15,17 +15,20 @@ import {
 } from "antd";
 import type { UploadProps } from "antd";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   changeOwnPassword,
   changeOwnUsername,
   deleteOwnAccount,
   fetchMe,
   fetchPasswordPolicy,
+  logoutAllRequest,
   sendDeleteAccountCode,
 } from "@/api/client";
 import type { MemberProfile } from "@/api/types";
 import { apiError } from "@/lib/apiError";
 import { useAuthStore } from "@/stores/authStore";
+import { BRAND_NAVY } from "@/theme/antdApp";
 
 /** 注册时自动生成的登录名，不在界面展示 */
 function isAutoUsername(username: string | null | undefined) {
@@ -126,6 +129,31 @@ export function PersonalInfoSection({
     onError: (e: unknown) => message.error(apiError(e, "注销失败")),
   });
 
+  const navigate = useNavigate();
+  const logoutAll = useMutation({
+    mutationFn: logoutAllRequest,
+    onSuccess: () => {
+      message.success("已退出所有设备，请重新登录");
+      logout();
+      navigate("/login", { replace: true });
+    },
+    onError: (e: unknown) => message.error(apiError(e, "退出失败")),
+  });
+
+  const confirmLogoutAll = () => {
+    Modal.confirm({
+      title: "退出所有设备？",
+      content:
+        "所有设备（包括这台）上的登录都会立即失效，需要重新登录。怀疑账号被他人使用时，建议同时修改密码。",
+      okText: "全部退出",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: () => {
+        logoutAll.mutate();
+      },
+    });
+  };
+
   const me = useAuthStore((s) => s.user);
   const canDelete = Boolean(me?.email && me?.email_verified);
 
@@ -161,7 +189,7 @@ export function PersonalInfoSection({
                 width: 24,
                 height: 24,
                 borderRadius: "50%",
-                background: "#1a2332",
+                background: BRAND_NAVY,
                 color: "#fff",
                 display: "flex",
                 alignItems: "center",
@@ -206,6 +234,9 @@ export function PersonalInfoSection({
                 }}
               >
                 修改密码
+              </Button>
+              <Button loading={logoutAll.isPending} onClick={confirmLogoutAll}>
+                退出所有设备
               </Button>
               <Button
                 danger

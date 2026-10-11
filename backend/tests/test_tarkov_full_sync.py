@@ -5,14 +5,10 @@ from __future__ import annotations
 import json
 
 from app.services import scheduler_config as scheduler_config_svc
-from app.services.tarkov import bosses as bosses_svc
-from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import items as items_svc
-from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import overlay as overlay_svc
 from app.services.tarkov import sync as full_sync
 from app.services.tarkov import tasks as tasks_svc
-from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import upstream as upstream_svc
 
 
@@ -124,7 +120,6 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
         lambda *_a, **_k: calls.append("items") or _ok(),
     )
     _stub_overlay_sync(monkeypatch)
-    key_packs_svc._lock_cache.clear()
 
     out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
     assert out["failed_count"] == 0
@@ -137,7 +132,6 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
     assert "locks" in ids
     assert "overlay" in ids
     assert "extras" in ids
-    assert key_packs_svc._lock_cache
 
 
 def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
@@ -226,6 +220,9 @@ class _RawQuery:
         self.session = session
         self.model = model
         self._rows = list(session.store.get(model, []))
+
+    def options(self, *_a, **_k):  # noqa: ANN001
+        return self
 
     def filter(self, *args, **_k):  # noqa: ANN001
         for expr in args:

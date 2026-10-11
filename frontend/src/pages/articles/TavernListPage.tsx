@@ -272,7 +272,16 @@ export default function TavernListPage() {
                           <Tag
                             className={styles.cardCat}
                             color={articleCategoryChipColor(cat)}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`只看分类：${cat.name}`}
                             onClick={() => setCategory(cat.slug)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setCategory(cat.slug);
+                              }
+                            }}
                           >
                             {cat.name}
                           </Tag>

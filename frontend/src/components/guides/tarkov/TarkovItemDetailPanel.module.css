@@ -219,13 +219,6 @@
   text-align: center;
 }
 
-.desc {
-  margin: 8px 0 0;
-  color: #c8c4a8;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
 .contentBox {
   padding: 16px;
   border: 1px solid var(--hb-border, #3a3d30);

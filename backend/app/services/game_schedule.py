@@ -12,7 +12,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Any, Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from sqlalchemy.orm import Session
 
@@ -41,6 +41,8 @@ _TITLE_ORDINAL_RE = re.compile(
 _LOOSE_TIME_RE = re.compile(
     r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$"
 )
+_LINK_URL_MAX_LEN = 2048
+_LINK_HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*")
 
 _PATH_BY_GAME: dict[GameCode, str] = {
     "arknights": "/ak",
@@ -101,6 +103,33 @@ def _strip_title_ordinal(title: str) -> str:
     return _TITLE_ORDINAL_RE.sub("", title).strip() or title
 
 
+def _safe_link_url(raw: Any) -> str | None:
+    """活动链接前端渲染成 <a href>：只放行有正常主机名的 http(s) 绝对地址，其余（javascript: / data: …）丢掉。
+
+    浏览器会删掉 URL 里的空白、把 \\ 当 /，与 urlsplit 的理解不一致，这类字符一律不收。
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text or len(text) > _LINK_URL_MAX_LEN:
+        return None
+    if "\\" in text or any(ch.isspace() or not ch.isprintable() for ch in text):
+        return None
+    try:
+        parts = urlsplit(text)
+        host = parts.hostname
+        _ = parts.port
+    except ValueError:
+        return None
+    if parts.scheme.lower() not in ("http", "https") or not host:
+        return None
+    if parts.username is not None or parts.password is not None:
+        return None
+    if not _LINK_HOST_RE.fullmatch(host):
+        return None
+    return text
+
+
 def _normalize_event(raw: dict[str, Any], *, game: GameCode) -> dict[str, Any] | None:
     title = _strip_title_ordinal(str(raw.get("title") or "").strip())
     if not title:
@@ -123,7 +152,7 @@ def _normalize_event(raw: dict[str, Any], *, game: GameCode) -> dict[str, Any] |
             end_dt.strftime("%Y-%m-%d %H:%M") if end_dt else str(end_raw or "")
         ),
         "banner": str(banner).strip() if banner else None,
-        "link_url": str(link).strip() if link else None,
+        "link_url": _safe_link_url(link),
         "event_type": str(event_type).strip() if event_type else None,
     }
 
@@ -530,12 +559,14 @@ def get_game_events(
 def _game_schedule_sync_job(game: GameCode) -> None:
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
+    from app.services.job_runs_prune import fail_job_run
 
     job_key = SCHEDULE_JOB_KEYS[game]
     db = SessionLocal()
-    job = JobRun(job_key=job_key, status="running")
+    job = JobRun(job_key=job_key, status="running", started_at=now_naive())
     db.add(job)
     db.commit()
+    run_id = job.id
     try:
         result = sync_game_schedule(db, game)
         job.status = "ok"
@@ -544,10 +575,7 @@ def _game_schedule_sync_job(game: GameCode) -> None:
         db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("game_schedule sync job failed game=%s", game)
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        fail_job_run(db, run_id, str(exc))
     finally:
         db.close()
 

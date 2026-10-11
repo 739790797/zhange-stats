@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import zipfile
 
 import pytest
 
-from app.services.minecraft.jar_manifest import JarManifestError, parse_jar_bytes
+from app.services.minecraft.jar_manifest import (
+    JarManifestError,
+    parse_jar_bytes,
+    verify_jar_archive,
+    verify_sha512,
+)
 
 
 def _jar(**files: str | bytes) -> bytes:
@@ -68,3 +74,31 @@ def test_parse_empty_metadata():
 def test_parse_corrupt_zip():
     with pytest.raises(JarManifestError):
         parse_jar_bytes(b"not-a-jar")
+
+
+def test_verify_sha512_compares_hex_case_insensitively():
+    data = b"jar-bytes"
+    verify_sha512(data, hashlib.sha512(data).hexdigest().upper())
+    with pytest.raises(JarManifestError):
+        verify_sha512(data, hashlib.sha512(b"other").hexdigest())
+    with pytest.raises(JarManifestError):
+        verify_sha512(data, "")
+
+
+def test_verify_jar_archive_accepts_complete_bootable_jar():
+    verify_jar_archive(_jar(**{"META-INF/MANIFEST.MF": "Main-Class: a.B\n", "a/B.class": b"\xca\xfe"}))
+    verify_jar_archive(_jar(**{"fabric.mod.json": "{}"}), require_manifest=False)
+
+
+def test_verify_jar_archive_rejects_error_pages_truncation_and_bad_crc():
+    good = _jar(**{"META-INF/MANIFEST.MF": "Main-Class: a.B\n", "payload.bin": b"A" * 200})
+    with pytest.raises(JarManifestError):
+        verify_jar_archive(b"<html>502 Bad Gateway</html>")
+    with pytest.raises(JarManifestError):
+        verify_jar_archive(good[: len(good) // 2])
+    with pytest.raises(JarManifestError, match="payload.bin"):
+        verify_jar_archive(good.replace(b"A" * 200, b"A" * 199 + b"B"))
+    with pytest.raises(JarManifestError, match="MANIFEST"):
+        verify_jar_archive(_jar(**{"fabric.mod.json": "{}"}))
+    with pytest.raises(JarManifestError, match="过大"):
+        verify_jar_archive(good, max_uncompressed=100)

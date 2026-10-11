@@ -41,7 +41,7 @@ describe("tarkov map images", () => {
     expect(floorLabel("Infirmary")).toBe("医务室");
     expect(floorLabel("Officers' Deck")).toBe("军官甲板");
     expect(svgFallbackUrl("https://assets.tarkov.dev/maps/svg/Woods.svg")).toBe(
-      "https://raw.githubusercontent.com/the-hideout/tarkov-dev-svg-maps/refs/heads/main/Woods.svg",
+      "https://raw.githubusercontent.com/the-hideout/tarkov-dev-svg-maps/5a8b6115d1c0cf56f2ebaac1a96fa5ae3074d178/Woods.svg",
     );
   });
 

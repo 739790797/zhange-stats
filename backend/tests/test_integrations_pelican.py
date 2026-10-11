@@ -36,9 +36,11 @@ def test_pelican_application_token_roundtrip() -> None:
             "pelican_application_token": "papp_secret",
         },
     )
+    assert ic.get_pelican_application_token() == "papp_secret"
     pub = ic.public_integrations(ic.load_integrations())
-    assert pub["pelican_application_token"] == "papp_secret"
+    assert pub["pelican_application_token"] == ""
     assert pub["pelican_application_token_set"] is True
+    assert pub["pelican_application_token_hint"] == ""
     ic.save_integrations(None, {"clear_pelican_application_token": True})
     cleared = ic.public_integrations(ic.load_integrations())
     assert cleared["pelican_application_token"] == ""

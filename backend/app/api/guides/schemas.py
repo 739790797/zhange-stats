@@ -54,19 +54,14 @@ class TarkovItemsSyncOut(BaseModel):
     message: str = Field(default="ok")
 
 
-class TarkovFullSyncDomainOut(BaseModel):
-    id: str
-    ok: bool
-    error: str | None = None
-    source: str | None = None
-    synced_at: str | None = None
+class TarkovFullSyncStartOut(BaseModel):
+    """整站同步已转后台；进度与各栏目结果见任务管理里 run_id 这条执行记录。"""
 
-
-class TarkovFullSyncOut(BaseModel):
-    ok_count: int
-    failed_count: int
-    domains: list[TarkovFullSyncDomainOut] = Field(default_factory=list)
-    message: str = Field(default="ok")
+    accepted: bool = True
+    job_id: str
+    run_id: int
+    status: str = "running"
+    message: str = ""
 
 
 class TarkovGunItemOut(BaseModel):
@@ -1743,15 +1738,15 @@ class TarkovTaskDonesIn(BaseModel):
 
 
 class TarkovRaidLogIn(BaseModel):
-    folder: str = ""
-    raid_id: str = ""
-    location: str = ""
-    map_id: str = ""
-    map_label: str = ""
-    raid_mode: str = ""
-    session_mode: str = ""
-    started_at: str = ""
-    ended_at: str = ""
+    folder: str = Field(default="", max_length=256)
+    raid_id: str = Field(default="", max_length=64)
+    location: str = Field(default="", max_length=128)
+    map_id: str = Field(default="", max_length=64)
+    map_label: str = Field(default="", max_length=64)
+    raid_mode: str = Field(default="", max_length=32)
+    session_mode: str = Field(default="", max_length=32)
+    started_at: str = Field(default="", max_length=64)
+    ended_at: str = Field(default="", max_length=64)
     reconnected: bool = False
     aborted: bool = False
 

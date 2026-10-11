@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import date
-from types import SimpleNamespace
 
 from app.services.checkin.common import (
     LOG_SOURCE_ACTION,
@@ -49,6 +49,12 @@ class _FakeDb:
 
     def add(self, row):
         self.added.append(row)
+
+    def flush(self):
+        pass
+
+    def begin_nested(self):
+        return nullcontext()
 
 
 def _result() -> CheckinResult:

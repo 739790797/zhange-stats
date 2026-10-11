@@ -14,12 +14,23 @@ from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import goon_tracker as goon_svc
-from app.services.tarkov.goon_tracker_hub import hub
+from app.services.tarkov.goon_tracker_hub import CLOSE_SLOW_CONSUMER, hub
+from app.services.tarkov.ws_limits import (
+    CLOSE_TOO_LARGE,
+    FrameTooLarge,
+    TokenBucket,
+    close_quietly,
+    receive_json_bounded,
+    send_json_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
+CLOSE_INTERNAL = 1011
+# 客户端只发 auth / ping。
+MAX_FRAME_CHARS = 16 * 1024
 
 
 def _load_user(token: str) -> User:
@@ -38,11 +49,16 @@ def _load_user(token: str) -> User:
 
 async def run_goon_session(client: WebSocket) -> None:
     try:
-        first = await asyncio.wait_for(client.receive_json(), timeout=10)
+        first = await asyncio.wait_for(
+            receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10
+        )
     except TimeoutError:
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
     except WebSocketDisconnect:
+        return
+    except FrameTooLarge:
+        await client.close(code=CLOSE_TOO_LARGE)
         return
     except Exception:  # noqa: BLE001
         await client.close(code=CLOSE_UNAUTHORIZED)
@@ -52,24 +68,30 @@ async def run_goon_session(client: WebSocket) -> None:
         return
     token = access_token_from_websocket(client, first)
     try:
-        _load_user(token)
+        await asyncio.to_thread(_load_user, token)
     except PermissionError as exc:
         code = CLOSE_FORBIDDEN if str(exc) == "feature" else CLOSE_UNAUTHORIZED
         await client.close(code=code)
         return
 
     await hub.join(client)
+    pings = TokenBucket(0.5, 4)
     try:
-        await client.send_json(goon_svc.snapshot_payload())
+        if not await send_json_timeout(client, goon_svc.snapshot_payload()):
+            await close_quietly(client, CLOSE_SLOW_CONSUMER)
+            return
         while True:
-            raw = await client.receive_json()
+            raw = await receive_json_bounded(client, max_chars=MAX_FRAME_CHARS)
             if not isinstance(raw, dict):
                 continue
-            if str(raw.get("event") or "") == "ping":
-                await client.send_json({"event": "pong"})
+            if str(raw.get("event") or "") == "ping" and pings.take():
+                await send_json_timeout(client, {"event": "pong"})
     except WebSocketDisconnect:
         pass
+    except FrameTooLarge:
+        await close_quietly(client, CLOSE_TOO_LARGE)
     except Exception:  # noqa: BLE001
         logger.debug("goon tracker ws ended", exc_info=True)
+        await close_quietly(client, CLOSE_INTERNAL)
     finally:
         await hub.leave(client)

@@ -271,6 +271,7 @@ export function useTarkovMapPlaceEditor({
       destroyOnClose
     >
       <Input.TextArea
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- 弹窗由用户新建/编辑地点打开，唯一字段直接可输入
         autoFocus
         maxLength={64}
         rows={3}

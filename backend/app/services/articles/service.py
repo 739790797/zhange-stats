@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, defer, joinedload, load_only, selectinload
 
 from app.core.timeutil import now_naive
 from app.models.articles import (
@@ -93,17 +93,18 @@ def _version_payload(row: Article) -> dict[str, str | None]:
 
 
 def _prune_versions(db: Session, article_id: int) -> None:
-    rows = (
-        db.query(ArticleVersion)
+    newest = (
+        db.query(func.max(ArticleVersion.version_no))
         .filter(ArticleVersion.article_id == article_id)
-        .order_by(ArticleVersion.version_no.asc())
-        .all()
+        .scalar()
     )
-    extra = len(rows) - MAX_VERSIONS
-    if extra <= 0:
+    if newest is None or newest <= MAX_VERSIONS:
         return
-    for old in rows[:extra]:
-        db.delete(old)
+    # 版本号按篇连续递增（只从最旧端裁剪），保留最近 MAX_VERSIONS 个号即保留最近 MAX_VERSIONS 版。
+    db.query(ArticleVersion).filter(
+        ArticleVersion.article_id == article_id,
+        ArticleVersion.version_no <= newest - MAX_VERSIONS,
+    ).delete()
 
 
 def append_version_if_changed(
@@ -256,8 +257,10 @@ def article_to_list_item(row: Article, *, comment_count: int = 0) -> dict:
     }
 
 
-def article_to_detail(row: Article) -> dict:
-    item = article_to_list_item(row, comment_count=len(row.comments))
+def article_to_detail(db: Session, row: Article) -> dict:
+    item = article_to_list_item(
+        row, comment_count=_comment_counts(db, [row.id]).get(row.id, 0)
+    )
     item["body"] = row.body or ""
     item["body_format"] = row.body_format
     item["updated_at"] = row.updated_at
@@ -368,6 +371,7 @@ def list_published(
         query = query.order_by(Article.published_at.desc(), Article.id.desc())
     rows = (
         query.options(
+            defer(Article.body),
             joinedload(Article.author).joinedload(User.member),
             selectinload(Article.categories),
             selectinload(Article.tags),
@@ -396,6 +400,7 @@ def list_admin(
     total = q.count()
     rows = (
         q.options(
+            defer(Article.body),
             joinedload(Article.author).joinedload(User.member),
             selectinload(Article.categories),
             selectinload(Article.tags),
@@ -581,6 +586,7 @@ def list_mine(
     total = q.count()
     rows = (
         q.options(
+            defer(Article.body),
             joinedload(Article.author).joinedload(User.member),
             selectinload(Article.categories),
             selectinload(Article.tags),
@@ -623,7 +629,18 @@ def list_versions(db: Session, article_id: int, actor: User) -> list[dict]:
     article = get_for_editor(db, article_id, actor)
     rows = (
         db.query(ArticleVersion)
-        .options(joinedload(ArticleVersion.created_by).joinedload(User.member))
+        .options(
+            load_only(
+                ArticleVersion.id,
+                ArticleVersion.version_no,
+                ArticleVersion.title,
+                ArticleVersion.summary,
+                ArticleVersion.note,
+                ArticleVersion.created_at,
+                ArticleVersion.created_by_user_id,
+            ),
+            joinedload(ArticleVersion.created_by).joinedload(User.member),
+        )
         .filter(ArticleVersion.article_id == article.id)
         .order_by(ArticleVersion.version_no.desc())
         .all()
@@ -806,7 +823,7 @@ def upsert_tag(
     if q.first():
         _raise(400, "标签短链已存在")
     if tag_id is None:
-        row = ArticleTag(name=name, slug=base)
+        row = ArticleTag(name=name, slug=base, created_at=now_naive())
         db.add(row)
     else:
         row = db.query(ArticleTag).filter(ArticleTag.id == tag_id).first()

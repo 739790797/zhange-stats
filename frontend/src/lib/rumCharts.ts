@@ -1,4 +1,5 @@
 import type { RumBizSummary, RumSummaryRow } from "@/api/rumApi";
+import { escapeHtml } from "@/lib/escapeHtml";
 
 export const RUM_BAR_LIMIT = 12;
 
@@ -83,6 +84,11 @@ export type RumBarPoint = {
   metric: string;
   ms: number;
 };
+
+/** G2 默认 tooltip 把标题写进 innerHTML；url_key 来自公开的 RUM 上报，必须转义。 */
+export function rumBarTooltipTitle(point: Pick<RumBarPoint, "label">): string {
+  return escapeHtml(point.label);
+}
 
 function uniqueLabel(urlKey: string, used: Set<string>): string {
   const base = rumChartLabel(urlKey);

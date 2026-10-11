@@ -153,3 +153,54 @@ def test_day_timeline_member_filter() -> None:
     assert quiet["timeline"][0]["segments"] == []
 
     assert stats.build_range_detail(db, day, day, viewer, member_id=99999) is None
+
+
+def test_sessions_in_window_keeps_overlapping_and_open_rows() -> None:
+    db = _session()
+    viewer = _user(db, "alice")
+    alice = _member(db, viewer, steam_id="76561198000000001", persona="Alice")
+    _play(db, alice, "1", "before", _wall(2026, 9, 2, 20), _wall(2026, 9, 2, 22))
+    _play(db, alice, "2", "spans", _wall(2026, 9, 2, 23), _wall(2026, 9, 3, 1))
+    _play(db, alice, "3", "inside", _wall(2026, 9, 3, 10), _wall(2026, 9, 3, 11))
+    _play(db, alice, "4", "after", _wall(2026, 9, 4, 1), _wall(2026, 9, 4, 2))
+    db.add(
+        PlaySession(
+            member_id=alice.id,
+            steam_app_id="5",
+            game_name="open",
+            started_at=_wall(2026, 9, 3, 12),
+            last_seen_at=_wall(2026, 9, 3, 13),
+            ended_at=None,
+            source="steam",
+        )
+    )
+    db.commit()
+
+    start, end = stats._day_bounds(date(2026, 9, 3))
+    rows = stats._sessions_in_window(db, start, end, member_id=alice.id)
+    assert [r.game_name for r in rows] == ["open", "inside", "spans"]
+
+
+def test_range_detail_never_fetches_store_on_read(monkeypatch) -> None:
+    from app.core.http_client import HttpRequestError
+
+    calls: list[object] = []
+
+    def no_network(*args, **_k):
+        calls.append(args)
+        raise HttpRequestError("blocked in test")
+
+    monkeypatch.setattr("app.services.steam.game_names.http_request", no_network)
+    db = _session()
+    viewer = _user(db, "alice")
+    alice = _member(db, viewer, steam_id="76561198000000001", persona="Alice")
+    _play(db, alice, "999", "Uncached Game", _wall(2026, 9, 3, 10), _wall(2026, 9, 3, 11))
+    db.commit()
+
+    day = date(2026, 9, 3)
+    detail = stats.build_range_detail(db, day, day, viewer)
+    assert detail is not None
+    assert [s["steam_app_id"] for s in detail["sessions"]] == ["999"]
+    stats.build_overview(db, viewer)
+    stats.list_now_playing(db, viewer)
+    assert calls == []

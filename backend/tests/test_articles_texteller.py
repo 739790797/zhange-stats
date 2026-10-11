@@ -270,3 +270,101 @@ def test_hf_get_json_maps_http_status(monkeypatch: pytest.MonkeyPatch) -> None:
         texteller_svc.hf_get_json("https://example.test/api")
     assert exc.value.status_code == 502
     assert "HTTP 502" in exc.value.message
+
+
+def test_download_progress_never_double_counts_finished_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import contextmanager
+
+    bodies = {"a.bin": [b"ab", b"cd"], "b.bin": [b"efg", b"hij"]}
+
+    class _Resp:
+        status_code = 200
+
+        def __init__(self, chunks):
+            self._chunks = chunks
+
+        def iter_bytes(self, _size):
+            yield from self._chunks
+
+    @contextmanager
+    def fake_stream(_method, url, **_kwargs):
+        yield _Resp(bodies[url.rsplit("/", 1)[-1]])
+
+    monkeypatch.setattr(texteller_svc, "apply_hf_endpoint", lambda: "https://hf.test")
+    monkeypatch.setattr(
+        texteller_svc, "fetch_remote_meta", lambda _rev: ("sha", [("a.bin", 4), ("b.bin", 6)])
+    )
+    monkeypatch.setattr(texteller_svc, "hf_file_url", lambda _ep, _rev, name: f"https://hf.test/{name}")
+    monkeypatch.setattr(texteller_svc, "http_stream", fake_stream)
+    seen: list[int] = []
+    texteller_svc.download_models(
+        "sha", tmp_path, progress=lambda _msg, stats: seen.append(int(stats["bytes"]))
+    )
+    assert (tmp_path / "b.bin").read_bytes() == b"efghij"
+    assert max(seen) == 10
+    assert seen == sorted(seen)
+
+
+def test_recognize_takes_single_slot_before_decoding(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(texteller_svc, "models_ready", lambda: True)
+    decoded: list[bytes] = []
+    monkeypatch.setattr(texteller_svc, "_open_rgb_image", lambda raw: decoded.append(raw))
+    assert texteller_svc._RECOGNIZE_SLOTS.acquire(blocking=False)
+    try:
+        with pytest.raises(ArticleError) as busy:
+            texteller_svc.recognize_image_bytes(b"\x89PNG")
+    finally:
+        texteller_svc._RECOGNIZE_SLOTS.release()
+    assert busy.value.status_code == 429
+    assert busy.value.message == "已有识别任务在运行，请稍后再试"
+    assert decoded == []
+    with pytest.raises(ArticleError):
+        texteller_svc.recognize_image_bytes(b"")
+    assert texteller_svc._RECOGNIZE_SLOTS.acquire(blocking=False)
+    texteller_svc._RECOGNIZE_SLOTS.release()
+
+
+def test_onnx_runtime_builds_once_under_concurrency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+    import time
+
+    from app.services.articles import texteller_onnx as onnx
+
+    built: list[Path] = []
+
+    class _FakeRuntime:
+        def __init__(self, root: Path) -> None:
+            time.sleep(0.05)
+            built.append(root)
+            self.root = root
+            self.tokenizer = object()
+
+    monkeypatch.setattr(onnx, "_OnnxRuntime", _FakeRuntime)
+    onnx.reset_onnx_runtime()
+    got: list[object] = []
+    threads = [threading.Thread(target=lambda: got.append(onnx._runtime(tmp_path))) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(built) == 1
+    assert len({id(runtime) for runtime in got}) == 1
+    onnx.reset_onnx_runtime()
+    assert onnx._runtime(tmp_path) is not got[0]
+    assert len(built) == 2
+    onnx.reset_onnx_runtime()
+
+
+def test_decode_token_ids_uses_cached_tokenizer() -> None:
+    from app.services.articles.texteller_onnx import decode_token_ids
+
+    class _Tok:
+        def decode(self, ids, skip_special_tokens=True):
+            assert skip_special_tokens is True
+            return f" {'-'.join(str(i) for i in ids)} "
+
+    assert decode_token_ids(_Tok(), [2, 5, 2]) == "2-5-2"

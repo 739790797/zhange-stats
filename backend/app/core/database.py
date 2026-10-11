@@ -1,13 +1,21 @@
+import logging
+import sqlite3
 from collections.abc import Generator
 
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.config import get_settings
 from app.core.file_config import database_is_configured, resolve_database_url
+
+logger = logging.getLogger("zhange.db")
+
+SQLITE_BUSY_TIMEOUT_MS = 10_000
+_WAL_LOG_KEY = "db.sqlite_wal"
 
 _engine: Engine | None = None
 _SessionLocal: sessionmaker | None = None
@@ -21,6 +29,62 @@ class DatabaseNotConfigured(RuntimeError):
     """No config/database.json and no DATABASE_URL in the environment."""
 
 
+def _sqlite_is_file(url: str) -> bool:
+    parsed = make_url(url)
+    database = (parsed.database or "").strip()
+    if not database or database == ":memory:" or database.startswith("file::memory:"):
+        return False
+    return parsed.query.get("mode") != "memory"
+
+
+def _install_sqlite_pragmas(engine: Engine, *, file_db: bool) -> None:
+    """Per-engine on purpose: Alembic builds its own engine and must keep foreign keys off."""
+
+    def _on_connect(dbapi_conn, connection_record) -> None:
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+            if file_db:
+                mode = ""
+                try:
+                    row = cursor.execute("PRAGMA journal_mode = WAL").fetchone()
+                    mode = str(row[0] if row else "").lower()
+                except sqlite3.Error as exc:
+                    mode = f"error: {exc}"
+                if mode == "wal":
+                    # NORMAL is only crash-safe with WAL; rollback-journal mode keeps FULL.
+                    cursor.execute("PRAGMA synchronous = NORMAL")
+                    clear_log_until_change(_WAL_LOG_KEY)
+                else:
+                    log_until_change(
+                        logger,
+                        _WAL_LOG_KEY,
+                        "SQLite WAL unavailable (journal_mode=%s); keeping rollback journal",
+                        mode or "unknown",
+                    )
+            cursor.execute("PRAGMA foreign_keys = ON")
+        finally:
+            cursor.close()
+
+    event.listen(engine, "connect", _on_connect)
+
+
+def prepare_migration_engine(engine: Engine) -> None:
+    """Alembic engine: SQLite batch mode rebuilds tables via DROP TABLE, which would cascade with FKs on."""
+    if engine.dialect.name != "sqlite":
+        return
+
+    def _on_connect(dbapi_conn, connection_record) -> None:
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
+            cursor.execute("PRAGMA foreign_keys = OFF")
+        finally:
+            cursor.close()
+
+    event.listen(engine, "connect", _on_connect)
+
+
 def _build_engine(url: str) -> Engine:
     settings = get_settings()
     kwargs: dict = {
@@ -30,9 +94,7 @@ def _build_engine(url: str) -> Engine:
         connect_args = {"check_same_thread": False}
         if ":memory:" in url:
             kwargs["poolclass"] = StaticPool
-            kwargs["connect_args"] = connect_args
-        else:
-            kwargs["connect_args"] = connect_args
+        kwargs["connect_args"] = connect_args
     elif url.startswith("mysql"):
         kwargs.update(
             pool_recycle=3600,
@@ -43,7 +105,10 @@ def _build_engine(url: str) -> Engine:
         )
     else:
         kwargs["pool_recycle"] = 3600
-    return create_engine(url, **kwargs)
+    built = create_engine(url, **kwargs)
+    if url.startswith("sqlite"):
+        _install_sqlite_pragmas(built, file_db=_sqlite_is_file(url))
+    return built
 
 
 @event.listens_for(Engine, "connect")

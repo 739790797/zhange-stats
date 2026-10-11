@@ -34,6 +34,7 @@ from app.services.skland.client import (
     _signed_headers,
     localize_arknights_channel_name,
     localize_endfield_server_name,
+    response_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ def fetch_binding_list(session: SklandSession) -> list[dict[str, Any]]:
             resp.get("message") or "获取绑定角色失败",
             code=resp.get("code"),
         )
-    return list((resp.get("data") or {}).get("list") or [])
+    items = response_data(resp).get("list")
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
 def _endfield_role_fields(item: dict[str, Any]) -> tuple[str | None, str | None, str, str]:

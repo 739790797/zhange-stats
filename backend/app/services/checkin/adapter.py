@@ -21,7 +21,7 @@ class SkipPolicy(str, Enum):
 
 @dataclass
 class CheckinRunOutcome:
-    """run_checkins 出口；early_response 非空时编排层直接返回、不落库。"""
+    """run_checkins 出口；early_response 非空时编排层只写回 session 就返回，不落签到记录。"""
 
     session: Any
     results: list[CheckinResult] = field(default_factory=list)
@@ -34,6 +34,7 @@ class CheckinPlatformAdapter(Protocol):
     job_key: str
     bind_model: type
     log_model: type
+    member_raw_models: tuple[type, ...]
     api_error_cls: type[Exception]
     empty_message: str
     skip_policy: SkipPolicy
@@ -44,7 +45,7 @@ class CheckinPlatformAdapter(Protocol):
         """解密/登录得到可喂给 attendance 的 session/creds。"""
 
     def save_session(self, db: Session, bind: Any, session: Any) -> None:
-        """刷新后的凭证回写；无刷新则 no-op。"""
+        """刷新后的凭证回写；无刷新则 no-op。须容忍期间被重新绑定（不得覆盖新凭证）。"""
 
     def query_today_all(self, session: Any) -> tuple[Any, list[CheckinResult]]:
         """统一出口：(session, results)。"""
@@ -88,13 +89,20 @@ class CheckinPlatformAdapter(Protocol):
         """ALWAYS_RUN 等：是否把本次响应标为 skipped（仍已执行上游）。"""
 
     def reraise_api_error(self, exc: Exception) -> None:
-        """把上游异常转成带友好文案的 api_error_cls 并 raise。"""
+        """换上友好文案后原样 raise（子类型与 code / data 都保留）。"""
+
+    def renew_session_after_auth_error(
+        self, db: Session, bind: Any, exc: Exception
+    ) -> bool:
+        """上游鉴权失败：作废缓存凭证并返回 True 时，编排层重新 load_session 再试一次。"""
 
 
 class CheckinAdapterBase:
     """可选基类：为钩子提供默认实现。"""
 
     skip_policy: SkipPolicy = SkipPolicy.LOGS_AUTHORITY
+    # 只按 member_id 存的读库优先 raw（盒子 / 日历等）：解绑时一并删除，换号后不能还展示旧账号
+    member_raw_models: tuple[type, ...] = ()
 
     def save_session(self, db: Session, bind: Any, session: Any) -> None:
         return None
@@ -127,14 +135,17 @@ class CheckinAdapterBase:
     ) -> bool:
         return False
 
+    def renew_session_after_auth_error(
+        self, db: Session, bind: Any, exc: Exception
+    ) -> bool:
+        return False
+
     def reraise_api_error(self, exc: Exception) -> None:
         msg = getattr(exc, "message", None) or str(exc)
         friendly = self.friendly_error(msg)
-        code = getattr(exc, "code", None)
-        cls = self.api_error_cls
-        try:
-            if code is not None:
-                raise cls(friendly, code=code) from exc
-        except TypeError:
-            pass
-        raise cls(friendly) from exc
+        if isinstance(exc, self.api_error_cls):
+            # 不新建异常：图形验证码 / 极验等子类带的 data 路由层还要用
+            exc.message = friendly  # type: ignore[attr-defined]
+            exc.args = (friendly, *exc.args[1:])
+            raise exc
+        raise self.api_error_cls(friendly) from exc

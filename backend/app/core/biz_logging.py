@@ -28,7 +28,7 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
     "qq",
 )
 
-_LOG_CONTEXT: ContextVar[dict[str, str]] = ContextVar("zhange_log_context", default={})
+_LOG_CONTEXT: ContextVar[dict[str, str] | None] = ContextVar("zhange_log_context", default=None)
 _CONFIGURED = False
 _REPEAT_LOCK = threading.Lock()
 _REPEAT_LAST: dict[str, str] = {}
@@ -103,7 +103,7 @@ def log_context(**fields: str | int | None) -> Iterator[None]:
     if not normalized:
         yield
         return
-    token = _LOG_CONTEXT.set({**_LOG_CONTEXT.get(), **normalized})
+    token = _LOG_CONTEXT.set({**(_LOG_CONTEXT.get() or {}), **normalized})
     try:
         yield
     finally:
@@ -111,7 +111,7 @@ def log_context(**fields: str | int | None) -> Iterator[None]:
 
 
 def current_log_context() -> dict[str, str]:
-    return dict(_LOG_CONTEXT.get())
+    return dict(_LOG_CONTEXT.get() or {})
 
 
 class BizTagFilter(logging.Filter):
@@ -154,21 +154,36 @@ def clear_log_until_change(key: str | None = None) -> None:
             _REPEAT_LAST.pop(key, None)
 
 
-def wrap_scheduled_job(job_id: str, func: Callable[[], None]) -> Callable[[], None]:
-    """为 APScheduler 任务统一打 job 标记与 begin/done 日志。"""
+def wrap_scheduled_job(
+    job_id: str,
+    func: Callable[[], object],
+    *,
+    quiet: bool = False,
+) -> Callable[[], None]:
+    """为 APScheduler 任务统一打 job 标记与 begin/done 日志。
+
+    quiet 给高频巡检（每分钟签到、Steam 轮询）：begin 打 DEBUG，func 返回真（这轮干了活）
+    时 done 才打 INFO；抛异常照常打 failed。
+    """
 
     sched_logger = logging.getLogger("zhange.scheduler")
 
     def _wrapped() -> None:
         with log_context(job=job_id):
-            sched_logger.info("scheduled job begin id=%s", job_id)
+            sched_logger.log(
+                logging.DEBUG if quiet else logging.INFO, "scheduled job begin id=%s", job_id
+            )
             try:
-                func()
+                did_work = func()
             except Exception:
                 sched_logger.exception("scheduled job failed id=%s", job_id)
                 raise
             else:
-                sched_logger.info("scheduled job done id=%s", job_id)
+                sched_logger.log(
+                    logging.INFO if did_work or not quiet else logging.DEBUG,
+                    "scheduled job done id=%s",
+                    job_id,
+                )
 
     return _wrapped
 

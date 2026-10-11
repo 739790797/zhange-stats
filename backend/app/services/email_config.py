@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,17 @@ from sqlalchemy.orm import Session
 from app.core.file_config import read_json, write_json
 
 EMAIL_CONFIG_KEY = "email_smtp"
+
+# 6 位数字码：有效期与可试次数共同决定猜中概率，配置里写多大都按这个封顶
+MAX_CODE_EXPIRE_MINUTES = 30
+
+
+def code_expire_minutes(cfg: dict[str, Any]) -> int:
+    try:
+        minutes = int(cfg.get("code_expire_minutes") or 15)
+    except (TypeError, ValueError):
+        minutes = 15
+    return min(MAX_CODE_EXPIRE_MINUTES, max(1, minutes))
 
 
 def _encryption_from_legacy(use_ssl: bool, starttls: bool) -> str:
@@ -51,7 +63,7 @@ def _normalize(cfg: dict[str, Any]) -> dict[str, Any]:
     out["smtp_host"] = str(out.get("smtp_host") or "")
     out["smtp_port"] = int(out.get("smtp_port") or 465)
     out["smtp_password"] = str(out.get("smtp_password") or "")
-    out["code_expire_minutes"] = max(1, int(out.get("code_expire_minutes") or 15))
+    out["code_expire_minutes"] = code_expire_minutes(out)
     return out
 
 
@@ -63,9 +75,12 @@ def load_email_config(_db: Session | None = None) -> dict[str, Any]:
 
 
 def save_email_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, Any]:
+    """smtp_password 只写：空/缺省保留原口令，`clear_smtp_password: true` 才清空（优先于新值）。"""
     current = load_email_config(_db)
     password = payload.get("smtp_password")
-    if password is None or str(password).strip() == "":
+    if payload.get("clear_smtp_password"):
+        password = ""
+    elif password is None or str(password).strip() == "":
         password = current.get("smtp_password") or ""
 
     enc = str(payload.get("encryption") or "SSL").upper()
@@ -100,6 +115,31 @@ def resolve_mail_from(cfg: dict[str, Any]) -> str:
     return (cfg.get("smtp_user") or "").strip()
 
 
+def is_loopback_host(host: str) -> bool:
+    """只认字面量 localhost 与回环 IP，不查 DNS：域名可能被 hosts / 解析指向别处。"""
+    name = (host or "").strip().lower()
+    if name.startswith("[") and name.endswith("]"):
+        name = name[1:-1]
+    if name == "localhost":
+        return True
+    try:
+        ip = ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return ip.is_loopback or bool(mapped and mapped.is_loopback)
+
+
+def plaintext_auth_error(host: str, encryption: str) -> str | None:
+    """不加密时 SMTP AUTH 会把口令明文发出去，只放行本机中继。"""
+    if str(encryption or "").upper() in {"SSL", "STARTTLS"} or is_loopback_host(host):
+        return None
+    return (
+        "加密方式为「无」时只能连接本机 SMTP（localhost / 127.0.0.1 / ::1）；"
+        "远程服务器请改用 SSL 或 STARTTLS，避免口令明文传输"
+    )
+
+
 def public_email_config(cfg: dict[str, Any]) -> dict[str, Any]:
     cfg = _normalize(cfg)
     pwd = str(cfg.get("smtp_password") or "")
@@ -108,7 +148,7 @@ def public_email_config(cfg: dict[str, Any]) -> dict[str, Any]:
         "enabled": bool(cfg.get("enabled")),
         "smtp_user": cfg.get("smtp_user") or "",
         "smtp_from": cfg.get("smtp_from") or "",
-        "smtp_password": pwd,
+        "smtp_password": "",
         "smtp_password_set": bool(pwd),
         "display_name": cfg.get("display_name") or "",
         "smtp_host": cfg.get("smtp_host") or "",
@@ -116,6 +156,10 @@ def public_email_config(cfg: dict[str, Any]) -> dict[str, Any]:
         "encryption": cfg.get("encryption") or "SSL",
         "code_expire_minutes": int(cfg.get("code_expire_minutes") or 15),
         "configured": bool(
-            cfg.get("enabled") and cfg.get("smtp_host") and mail_from and pwd
+            cfg.get("enabled")
+            and cfg.get("smtp_host")
+            and mail_from
+            and pwd
+            and not plaintext_auth_error(cfg["smtp_host"], cfg["encryption"])
         ),
     }

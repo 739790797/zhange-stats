@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,6 +18,7 @@ from app.services.tarkov import catalog as catalog_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov.items import TarkovItemsError
 from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
@@ -246,8 +246,7 @@ class WorkbenchIndex:
     by_category: dict[str, list[str]]
 
 
-_index_lock = threading.Lock()
-_index_cache: tuple[str, WorkbenchIndex] | None = None
+_index_cache: ModeCache[WorkbenchIndex] = ModeCache()
 
 
 def _parse_slots(
@@ -381,26 +380,21 @@ def build_index(source: str, payload: dict[str, Any]) -> WorkbenchIndex:
 
 
 def load_index(db: Session) -> WorkbenchIndex:
-    global _index_cache
-    items_svc.ensure_items(db)
+    """表头键未变则直接用进程缓存，不再读 items raw。"""
     try:
         catalog_svc.ensure_full_item_catalog(db)
     except TarkovItemsError as exc:
         raise TarkovWorkbenchError(str(exc)) from exc
     _source, synced, _note = items_svc.items_raw_header(db)
-    key = parsed_cache_key(db, synced)
-    with _index_lock:
-        cached = _index_cache
-        if cached is not None and cached[0] == key:
-            return cached[1]
+    hit = _index_cache.get(parsed_cache_key(db, synced))
+    if hit is not None:
+        return hit
     try:
         source, payload, synced_at, _note = catalog_svc._load_payload(db)
     except TarkovItemsError as exc:
         raise TarkovWorkbenchError(str(exc)) from exc
     index = build_index(source, payload)
-    key = parsed_cache_key(db, synced_at)
-    with _index_lock:
-        _index_cache = (key, index)
+    _index_cache.put(parsed_cache_key(db, synced_at), index)
     return index
 
 

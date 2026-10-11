@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
 CLOSE_NOT_CONFIGURED = 4000
+CLOSE_TOO_LARGE = 1009
 MAX_COMMAND_LEN = 1024
+# 浏览器只发 auth 和单条命令（≤ MAX_COMMAND_LEN）。
+MAX_CLIENT_FRAME_CHARS = 16 * 1024
 FORWARD_EVENTS = {
     "console output",
     "install output",
@@ -141,13 +144,36 @@ def _load_console_session(token: str) -> tuple[str, str, str]:
         db.close()
 
 
+class ClientFrameTooLarge(Exception):
+    pass
+
+
+async def receive_client_json(client: WebSocket) -> Any:
+    """读浏览器一帧 JSON；超长帧不解析直接拒绝。"""
+    message = await client.receive()
+    if message["type"] == "websocket.disconnect":
+        raise WebSocketDisconnect(message.get("code", 1000), message.get("reason"))
+    text = message.get("text")
+    if text is None:
+        data = message.get("bytes") or b""
+        if len(data) > MAX_CLIENT_FRAME_CHARS:
+            raise ClientFrameTooLarge
+        text = data.decode("utf-8")
+    elif len(text) > MAX_CLIENT_FRAME_CHARS:
+        raise ClientFrameTooLarge
+    return json.loads(text)
+
+
 async def run_console_session(client: WebSocket) -> None:
     try:
-        first = await asyncio.wait_for(client.receive_json(), timeout=10)
+        first = await asyncio.wait_for(receive_client_json(client), timeout=10)
     except TimeoutError:
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
     except WebSocketDisconnect:
+        return
+    except ClientFrameTooLarge:
+        await client.close(code=CLOSE_TOO_LARGE)
         return
     except Exception:  # noqa: BLE001
         await client.close(code=CLOSE_UNAUTHORIZED)
@@ -281,7 +307,11 @@ async def _bridge(
 
     async def from_client() -> None:
         while True:
-            incoming = await client.receive_json()
+            try:
+                incoming = await receive_client_json(client)
+            except ClientFrameTooLarge:
+                await client.close(code=CLOSE_TOO_LARGE)
+                return
             if not isinstance(incoming, dict):
                 continue
             wings_msg = client_command_to_wings(incoming)

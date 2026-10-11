@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import re
 import unicodedata
@@ -15,8 +14,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
+from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.ocr.types import NamedEngine, OcrError
 from app.services.tarkov.key_ocr import (
     MAX_RECOGNIZE_BYTES,
@@ -24,8 +24,6 @@ from app.services.tarkov.key_ocr import (
     end_recognize,
     try_begin_recognize,
 )
-
-Image.MAX_IMAGE_PIXELS = 20_000_000
 
 logger = logging.getLogger("zhange.ocr")
 
@@ -294,11 +292,10 @@ def load_image(raw: bytes) -> Image.Image:
     if len(raw) > MAX_RECOGNIZE_BYTES:
         raise TarkovRaidPrepOcrError("图片过大，请裁切任务页后再试")
     try:
-        image = Image.open(io.BytesIO(raw))
-        image.load()
-    except UnidentifiedImageError as exc:
-        raise TarkovRaidPrepOcrError("无法读取截图") from exc
-    except OSError as exc:
+        image = open_bounded_image(raw)
+    except ImageTooLarge as exc:
+        raise TarkovRaidPrepOcrError("图片尺寸过大，请裁切任务页后再试") from exc
+    except ImageDecodeError as exc:
         raise TarkovRaidPrepOcrError("无法读取截图") from exc
     image = image.convert("RGB")
     width, height = image.size

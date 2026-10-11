@@ -92,6 +92,39 @@ def ephemeral_delete(key: str) -> None:
         _memory.pop(key, None)
 
 
+def ephemeral_incr(key: str, *, ttl_sec: int) -> int:
+    """原子 +1 并把过期时间续成 ttl_sec，返回新值；键不存在或已过期时从 0 起算。"""
+    if ttl_sec <= 0:
+        raise ValueError("ttl_sec must be positive")
+    r = _get_redis()
+    if r is not None:
+        try:
+            pipe = r.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, int(ttl_sec))
+            value, _ = pipe.execute()
+            clear_log_until_change("ephemeral_kv.incr")
+            return int(value)
+        except Exception as exc:  # noqa: BLE001
+            log_until_change(
+                logger,
+                "ephemeral_kv.incr",
+                "ephemeral_kv incr Redis failed (%s), fallback memory",
+                exc,
+            )
+    now = time.time()
+    with _lock:
+        _purge_memory_locked(now)
+        row = _memory.get(key)
+        try:
+            current = int(row[0]) if row is not None else 0
+        except ValueError:
+            current = 0
+        current += 1
+        _memory[key] = (str(current), now + float(ttl_sec))
+        return current
+
+
 def _purge_memory_locked(now: float) -> None:
     dead = [k for k, (_, exp) in _memory.items() if exp <= now]
     for k in dead:

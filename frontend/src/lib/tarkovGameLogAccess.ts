@@ -21,6 +21,7 @@ import {
 } from "@/lib/assistantShell";
 import { assistantBoundToDir, assistantDirWatch } from "@/lib/assistantTarkovDir";
 import { notifyTarkovLiveDirsChanged } from "@/lib/tarkovLiveWatch";
+import { readTarkovLogText, type TarkovLogTextEntry } from "@/lib/tarkovLogTextCache";
 
 const DB_NAME = "zhange-tarkov-game-logs";
 const DB_VERSION = 1;
@@ -72,6 +73,22 @@ export type TarkovLogSessionRead = {
   folder: string;
   files: TarkovLogFileRead[];
   fingerprint: string;
+};
+
+/** 只取了文件快照（名字、大小、修改时间），还没读正文。 */
+export type TarkovLogSessionStat = {
+  folder: string;
+  files: Array<{ handle: ReadableFile; file: File }>;
+  fingerprint: string;
+};
+
+/** 实时轮询跨轮复用：解析出的日志根、启动记录目录句柄、各文件上次读到的文本。 */
+export type TarkovLogReadCache = {
+  picked: ReadableDir | null;
+  root: ResolvedTarkovDir | null;
+  rootIsSession: boolean;
+  sessionDirs: Map<string, ReadableDir>;
+  texts: Map<string, Map<string, TarkovLogTextEntry>>;
 };
 
 type PickerWindow = Window & {
@@ -508,13 +525,75 @@ export async function resolveScreenshotsDirDetailed(
   );
 }
 
-export async function readLogsIndex(handle: ReadableDir): Promise<{
+export function createTarkovLogReadCache(): TarkovLogReadCache {
+  return {
+    picked: null,
+    root: null,
+    rootIsSession: false,
+    sessionDirs: new Map(),
+    texts: new Map(),
+  };
+}
+
+/** 目录句柄失效（被删、改名、授权变了）时只丢目录；文本缓存按大小与修改时间自校验。 */
+export function forgetTarkovLogDirs(cache: TarkovLogReadCache): void {
+  cache.root = null;
+  cache.sessionDirs.clear();
+}
+
+/** 只留这几个启动记录的句柄与文本，其余放掉。 */
+export function retainTarkovLogFolders(
+  cache: TarkovLogReadCache,
+  folders: readonly string[],
+): void {
+  for (const folder of [...cache.sessionDirs.keys()]) {
+    if (!folders.includes(folder)) cache.sessionDirs.delete(folder);
+  }
+  for (const folder of [...cache.texts.keys()]) {
+    if (!folders.includes(folder)) cache.texts.delete(folder);
+  }
+}
+
+async function listChildNames(dir: ReadableDir): Promise<string[]> {
+  return (await listDirEntries(dir)).map((child) => child.name);
+}
+
+function isLogsRootKind(names: readonly string[]): boolean {
+  const kind = classifyLogsRoot(names);
+  return kind === "logs" || kind === "session";
+}
+
+/** 带缓存时沿用上轮解析出的日志根，它列不出启动记录了再从授权目录重新往下找。 */
+async function logsRootWithNames(
+  handle: ReadableDir,
+  cache?: TarkovLogReadCache,
+): Promise<{ resolved: ResolvedTarkovDir; names: string[] }> {
+  if (cache && cache.picked !== handle) {
+    cache.picked = handle;
+    cache.texts.clear();
+    forgetTarkovLogDirs(cache);
+  }
+  if (cache?.root) {
+    const names = await listChildNames(cache.root.dir).catch(() => null);
+    if (names && isLogsRootKind(names)) return { resolved: cache.root, names };
+    forgetTarkovLogDirs(cache);
+  }
+  const resolved = await resolveLogsDirDetailed(handle);
+  const names = await listChildNames(resolved.dir);
+  if (cache) cache.root = resolved;
+  return { resolved, names };
+}
+
+export async function readLogsIndex(
+  handle: ReadableDir,
+  cache?: TarkovLogReadCache,
+): Promise<{
   resolved: ResolvedTarkovDir;
   sessions: TarkovLogSessionStub[];
 }> {
-  const resolved = await resolveLogsDirDetailed(handle);
-  const names = (await listDirEntries(resolved.dir)).map((child) => child.name);
+  const { resolved, names } = await logsRootWithNames(handle, cache);
   const kind = classifyLogsRoot(names);
+  if (cache) cache.rootIsSession = kind === "session";
   const sessions =
     kind === "session"
       ? listSessionStubs(names, { selfFolder: resolved.dir.name })
@@ -522,15 +601,30 @@ export async function readLogsIndex(handle: ReadableDir): Promise<{
   return { resolved, sessions };
 }
 
+async function sessionDirFor(
+  handle: ReadableDir,
+  folder: string,
+  cache?: TarkovLogReadCache,
+): Promise<ReadableDir> {
+  if (cache?.root && cache.picked === handle) {
+    if (cache.rootIsSession) return cache.root.dir;
+    const hit = cache.sessionDirs.get(folder);
+    if (hit) return hit;
+    const dir = await cache.root.dir.getDirectoryHandle(folder);
+    cache.sessionDirs.set(folder, dir);
+    return dir;
+  }
+  const root = await resolveLogsDir(handle);
+  const rootKind = classifyLogsRoot(await listChildNames(root));
+  return rootKind === "session" ? root : root.getDirectoryHandle(folder);
+}
+
 async function sessionFileHandles(
   handle: ReadableDir,
   folder: string,
+  cache?: TarkovLogReadCache,
 ): Promise<ReadableFile[]> {
-  const root = await resolveLogsDir(handle);
-  const rootChildren = await listDirEntries(root);
-  const rootKind = classifyLogsRoot(rootChildren.map((child) => child.name));
-  const sessionDir =
-    rootKind === "session" ? root : await root.getDirectoryHandle(folder);
+  const sessionDir = await sessionDirFor(handle, folder, cache);
   const entries = await listDirEntries(sessionDir);
   const out: ReadableFile[] = [];
   for (const entry of entries) {
@@ -554,17 +648,56 @@ function joinFingerprint(parts: string[]): string {
   return [...parts].sort().join("|");
 }
 
+export async function statSessionLogs(
+  handle: ReadableDir,
+  folder: string,
+  cache?: TarkovLogReadCache,
+): Promise<TarkovLogSessionStat> {
+  const handles = await sessionFileHandles(handle, folder, cache);
+  const files: TarkovLogSessionStat["files"] = [];
+  for (const fileHandle of handles) {
+    files.push({ handle: fileHandle, file: await fileHandle.getFile() });
+  }
+  const fingerprint = joinFingerprint(files.map((row) => fileFingerprint(row.file)));
+  return { folder, files, fingerprint };
+}
+
 export async function peekSessionFingerprint(
   handle: ReadableDir,
   folder: string,
 ): Promise<string> {
-  const handles = await sessionFileHandles(handle, folder);
-  const parts: string[] = [];
-  for (const fileHandle of handles) {
-    const file = await fileHandle.getFile();
-    parts.push(fileFingerprint(file));
+  return (await statSessionLogs(handle, folder)).fingerprint;
+}
+
+async function readStattedFile(
+  row: TarkovLogSessionStat["files"][number],
+  prev: TarkovLogTextEntry | undefined,
+): Promise<TarkovLogTextEntry> {
+  try {
+    return await readTarkovLogText(row.handle.name, row.file, prev);
+  } catch {
+    // 取快照之后游戏又写了文件，浏览器会拒读旧快照；重取一次。
+    return readTarkovLogText(row.handle.name, await row.handle.getFile(), prev);
   }
-  return joinFingerprint(parts);
+}
+
+/** 与 readSessionLogs 结果相同；带缓存时没变的文件不读，变长的只读新字节。 */
+export async function readStattedSessionLogs(
+  stat: TarkovLogSessionStat,
+  cache?: TarkovLogReadCache,
+): Promise<TarkovLogSessionRead> {
+  const prevTexts = cache?.texts.get(stat.folder);
+  const nextTexts = new Map<string, TarkovLogTextEntry>();
+  const files: TarkovLogFileRead[] = [];
+  for (const row of stat.files) {
+    const entry = await readStattedFile(row, prevTexts?.get(row.handle.name));
+    nextTexts.set(row.handle.name, entry);
+    files.push(entry.read);
+  }
+  cache?.texts.set(stat.folder, nextTexts);
+  files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
+  const fingerprint = joinFingerprint(files.map((file) => fileFingerprint(file)));
+  return { folder: stat.folder, files, fingerprint };
 }
 
 export async function readSessionLogs(

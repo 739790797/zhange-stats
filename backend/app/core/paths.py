@@ -30,6 +30,10 @@ _VAR_LAYOUT = (
     ("mariadb", "mariadb"),
     ("tmp", "tmp"),
 )
+# 扁平迁移原地保留的 data/ 一级条目：install / run 脚本先建好这些空目录，run/ 里是在跑进程的 pid 与输出
+_LAYOUT_ENTRIES = frozenset({*(new for _, new in _VAR_LAYOUT), "models", "README.md"})
+# 迁移前就可能落进 runtime/ 的：旧版 import 时迁来的密钥、.env 导入（在迁移之前）打的启动日志
+_PRE_MIGRATION_RUNTIME = frozenset({".secret_key", "logs"})
 _LEGACY_DATA_RELATIVE = ("backend/data", "frontend/data")
 _LEGACY_UPLOAD_RELATIVE = ("uploads", "backend/uploads", "frontend/uploads")
 _HYDRATE_SUBDIRS = ("logs", "maa")
@@ -137,12 +141,52 @@ def _relocate(src: Path, dest: Path) -> None:
         pass
 
 
+def _holds_files(path: Path) -> bool:
+    if not path.is_dir():
+        return path.exists()
+    return any(filenames for _dirpath, _dirnames, filenames in os.walk(path))
+
+
 def _is_old_flat_data_dir(root: Path) -> bool:
+    """data/ itself used to be DATA_DIR.
+
+    Files under ``uploads/`` mean the new layout is in use. The empty dirs the scripts pre-create,
+    weights copied into ``models/`` from home-directory caches (``pin_library_cache_env``) and a
+    ``runtime/`` holding only what is written before the migration runs do not.
+    """
     if not root.is_dir():
         return False
-    if (root / "runtime").exists() or (root / "uploads").exists() or (root / "models").exists():
+    if _holds_files(root / "uploads"):
         return False
+    runtime = root / "runtime"
+    if runtime.exists() or runtime.is_symlink():
+        try:
+            if any(child.name not in _PRE_MIGRATION_RUNTIME for child in runtime.iterdir()):
+                return False
+        except OSError:
+            return False
     return (root / ".secret_key").is_file() or (root / "logs").is_dir() or (root / "rapidocr").is_dir()
+
+
+def _merge_into_runtime(src: Path, dest: Path) -> None:
+    """Move a flat ``data/`` entry under ``runtime/`` without replacing what is already there.
+
+    A clashing file (e.g. the log the running process opened before the migration) stays put
+    and the flat copy lands next to it as ``<name>.flat``.
+    """
+    if src.is_dir() and not src.is_symlink() and dest.is_dir() and not dest.is_symlink():
+        for child in list(src.iterdir()):
+            _merge_into_runtime(child, dest / child.name)
+        try:
+            src.rmdir()
+        except OSError:
+            pass
+        return
+    if dest.exists() or dest.is_symlink():
+        dest = dest.with_name(dest.name + ".flat")
+        if dest.exists() or dest.is_symlink():
+            return
+    _relocate(src, dest)
 
 
 def _split_models(root: Path) -> None:
@@ -398,19 +442,13 @@ def migrate_runtime_layout(install: Path | None = None) -> None:
     var = base / "var"
 
     if _is_old_flat_data_dir(root):
-        staging = base / ".zhange-data-migrate"
-        if staging.exists():
-            shutil.rmtree(staging)
-        root.rename(staging)
-        root.mkdir(parents=True)
         runtime = root / "runtime"
-        runtime.mkdir()
-        for child in list(staging.iterdir()):
-            _relocate(child, runtime / child.name)
-        try:
-            staging.rmdir()
-        except OSError:
-            pass
+        runtime.mkdir(exist_ok=True)
+        for child in list(root.iterdir()):
+            # 密钥交给下面的 leftover 步骤：runtime/ 里已有的是在用的，不换
+            if child.name in _LAYOUT_ENTRIES or child.name == ".secret_key":
+                continue
+            _merge_into_runtime(child, runtime / child.name)
 
     if var.is_dir():
         root.mkdir(parents=True, exist_ok=True)

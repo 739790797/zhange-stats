@@ -6,9 +6,10 @@ import io
 import time
 
 from fastapi import HTTPException, UploadFile
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from sqlalchemy.orm import Session
 
+from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.user_files.store import (
     NS_AVATARS,
     UserFileError,
@@ -26,8 +27,6 @@ ALLOWED_CONTENT_TYPES = {
 }
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5MB
 AVATAR_SIZE = 256
-# 限制解压后像素，降低恶意图片 DoS
-Image.MAX_IMAGE_PIXELS = 20_000_000
 
 
 def is_custom_avatar_url(url: str | None) -> bool:
@@ -53,9 +52,10 @@ def encode_avatar_jpeg(raw: bytes) -> bytes:
         raise HTTPException(status_code=400, detail="头像不能超过 5MB")
 
     try:
-        img = Image.open(io.BytesIO(raw))
-        img.load()
-    except UnidentifiedImageError as exc:
+        img = open_bounded_image(raw)
+    except ImageTooLarge as exc:
+        raise HTTPException(status_code=400, detail="图片尺寸过大") from exc
+    except ImageDecodeError as exc:
         raise HTTPException(status_code=400, detail="无法识别的图片文件") from exc
 
     if img.mode in ("RGBA", "LA", "P"):
@@ -111,18 +111,19 @@ def delete_avatar_file(member_id: int, *, db: Session, commit: bool = False) -> 
     mark_deleted(db, rel, unlink=True, commit=commit)
 
 
-async def save_avatar_upload(
+def save_avatar_upload(
     member_id: int,
     file: UploadFile,
     *,
     db: Session,
     owner_user_id: int | None,
 ) -> str:
+    """同步读盘 + 解码，路由须是普通 def（线程池）。多读 1 字节交给大小校验。"""
     content_type = (file.content_type or "").lower()
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
 
-    raw = await file.read()
+    raw = file.file.read(MAX_UPLOAD_BYTES + 1)
     return save_avatar_bytes(
         db,
         member_id,

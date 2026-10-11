@@ -1,73 +1,41 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session, joinedload
-import urllib.parse
 
-from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_admin
-from app.core.public_url import resolve_backend_base, resolve_frontend_base
-from app.core.security import hash_password
+from app.core.deps import require_admin
+from app.core.security import (
+    DISPLAY_NAME_MARKUP_ERROR,
+    bump_token_version,
+    has_markup_chars,
+    hash_password,
+)
+from app.core.session_cookies import issue_session
 from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import (
-    MemberProfileOut,
-    MemberProfileUpdate,
-    QqOAuthStartResponse,
-    SteamBindPreviewRequest,
-    SteamBindPreviewResponse,
-    SteamOpenIdStartResponse,
     UserAdminCreate,
     UserAdminUpdate,
     UserBrief,
 )
 from app.services.auth_config import (
+    admins_remaining,
     enforce_single_admin_if_needed,
     get_min_password_length,
     load_auth_config,
+    lock_admin_ids,
 )
 from app.services.password_policy import PasswordPolicyError, validate_password
-from app.services.avatar_store import (
-    delete_avatar_file,
-    is_custom_avatar_url,
-    save_avatar_upload,
-)
 from app.services.member_sync import ensure_user_member
-from app.services.steam.bind import (
-    PRIVACY_HINT,
-    require_public_steam_profile,
-    steam_profile_public_dict,
-)
-from app.services.steam.openid import (
-    build_steam_login_url,
-    create_openid_state,
-    decode_openid_state,
-    verify_steam_openid_assertion,
-)
-from app.services.qq_oauth import (
-    PURPOSE_BIND,
-    PURPOSE_LOGIN,
-    QqOAuthError,
-    build_qq_authorize_url,
-    create_qq_oauth_state,
-    decode_qq_oauth_state,
-    exchange_code_for_profile,
-)
 from app.services.account_anonymize import (
     AccountAnonymizeError,
     anonymize_user_account,
     user_is_anonymized,
 )
 from app.api.profile.helpers import (
-    _apply_profile_fields,
-    _frontend_from_state,
     _is_admin_user,
     _normalize_email,
-    _profile_from_member,
-    _require_steam_feature,
-    _set_qq_profile,
     _set_steam_id,
     _user_brief,
 )
@@ -119,6 +87,8 @@ def create_user(
     display_name = body.display_name.strip()
     if not display_name:
         raise HTTPException(status_code=400, detail="用户名不能为空")
+    if has_markup_chars(display_name):
+        raise HTTPException(status_code=400, detail=DISPLAY_NAME_MARKUP_ERROR)
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
 
@@ -157,6 +127,8 @@ def create_user(
 def update_user(
     user_id: int,
     body: UserAdminUpdate,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ) -> UserBrief:
@@ -201,9 +173,12 @@ def update_user(
         name = data["display_name"].strip()
         if not name:
             raise HTTPException(status_code=400, detail="用户名不能为空")
+        if has_markup_chars(name):
+            raise HTTPException(status_code=400, detail=DISPLAY_NAME_MARKUP_ERROR)
         user.display_name = name
         member.nickname = name
 
+    password_set = False
     if "password" in data and data["password"]:
         try:
             password = validate_password(
@@ -214,30 +189,42 @@ def update_user(
         except PasswordPolicyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         user.password_hash = hash_password(password)
+        bump_token_version(user)
+        password_set = True
 
     if "steam_id" in data:
         _set_steam_id(db, member, data["steam_id"])
 
     if target_role is not None:
-        becoming_user = target_role == UserRole.user and currently_admin
-        becoming_admin = target_role == UserRole.admin and not currently_admin
+        becoming_user = role_changing and currently_admin
+        becoming_admin = role_changing and not currently_admin
         if becoming_user:
             if user.id == current.id:
                 raise HTTPException(
                     status_code=400,
                     detail="不能取消自己的管理员角色",
                 )
-            admin_count = sum(1 for u in db.query(User).all() if _is_admin_user(u))
-            if admin_count <= 1:
+            others = [i for i in lock_admin_ids(db) if i != user.id]
+            if not others:
                 raise HTTPException(
                     status_code=400,
                     detail="系统至少保留一名管理员",
                 )
         user.apply_role(target_role)
+        if becoming_user:
+            bump_token_version(user)
+            if admins_remaining(db) < 1:
+                db.rollback()
+                raise HTTPException(
+                    status_code=400,
+                    detail="系统至少保留一名管理员",
+                )
         if becoming_admin and load_auth_config(db).get("enforce_single_admin"):
             enforce_single_admin_if_needed(db, keep_user_id=user.id)
 
     db.commit()
+    if password_set and user.id == current.id:
+        issue_session(response, request, user)
     user = (
         db.query(User)
         .options(joinedload(User.member))

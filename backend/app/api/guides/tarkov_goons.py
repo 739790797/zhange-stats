@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, WebSocket
 from app.api.guides.schemas import TarkovGoonTrackerOut
 from app.core.platform_deps import require_feature
 from app.core.rate_limit import client_ip, platform_limiter
+from app.core.ws_origin import CLOSE_ORIGIN_FORBIDDEN, websocket_origin_allowed
 from app.services.tarkov import goon_tracker as goon_svc
 from app.services.tarkov import goon_tracker_ws as goon_ws_svc
 
@@ -29,5 +30,9 @@ def guides_tarkov_goons(request: Request) -> TarkovGoonTrackerOut:
 
 @router.websocket("/goons/ws")
 async def tarkov_goons_ws(websocket: WebSocket) -> None:
+    allowed = websocket_origin_allowed(websocket)
     await websocket.accept()
+    if not allowed:
+        await websocket.close(code=CLOSE_ORIGIN_FORBIDDEN)
+        return
     await goon_ws_svc.run_goon_session(websocket)

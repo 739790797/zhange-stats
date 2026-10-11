@@ -12,6 +12,27 @@ INTEGRATIONS_KEY = "integrations"
 RCON_DEFAULT_PORT = 25575
 GAME_DEFAULT_PORT = 25565
 
+# 只写不读：管理端响应恒为空串 + `<字段>_set`；保存时空/缺省保留原值，`clear_<字段>: true` 才清空。
+SECRET_FIELDS = (
+    "steam_api_key",
+    "qq_app_key",
+    "github_token",
+    "pelican_client_token",
+    "pelican_application_token",
+    "minecraft_rcon_password",
+)
+# 长 token 回末 4 位方便认出是哪把；口令类（RCON）不给。
+HINTED_SECRET_FIELDS = frozenset(
+    {
+        "steam_api_key",
+        "qq_app_key",
+        "github_token",
+        "pelican_client_token",
+        "pelican_application_token",
+    }
+)
+HINT_MIN_LENGTH = 16
+
 
 def _parse_port(raw: Any, *, default: int) -> int:
     try:
@@ -72,14 +93,7 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
         merged["minecraft_public_host"] = str(stored.get("minecraft_public_host") or "").strip()
     if stored.get("minecraft_public_port") is not None:
         merged["minecraft_public_port"] = str(stored.get("minecraft_public_port") or "").strip()
-    for key in (
-        "steam_api_key",
-        "qq_app_key",
-        "github_token",
-        "pelican_client_token",
-        "pelican_application_token",
-        "minecraft_rcon_password",
-    ):
+    for key in SECRET_FIELDS:
         if key not in stored or stored.get(key) is None:
             continue
         merged[key] = str(stored.get(key) or "").strip()
@@ -120,40 +134,13 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
     if "pelican_server_uuid" in payload and payload.get("pelican_server_uuid") is not None:
         stored["pelican_server_uuid"] = str(payload.get("pelican_server_uuid") or "").strip()
 
-    if payload.get("clear_steam_api_key"):
-        stored["steam_api_key"] = ""
-    else:
-        steam_key = payload.get("steam_api_key")
-        if steam_key is not None and str(steam_key).strip():
-            stored["steam_api_key"] = str(steam_key).strip()
-
-    if payload.get("clear_qq_app_key"):
-        stored["qq_app_key"] = ""
-    else:
-        qq_key = payload.get("qq_app_key")
-        if qq_key is not None and str(qq_key).strip():
-            stored["qq_app_key"] = str(qq_key).strip()
-
-    if payload.get("clear_github_token"):
-        stored["github_token"] = ""
-    else:
-        github_token = payload.get("github_token")
-        if github_token is not None and str(github_token).strip():
-            stored["github_token"] = str(github_token).strip()
-
-    if payload.get("clear_pelican_client_token"):
-        stored["pelican_client_token"] = ""
-    else:
-        pelican_token = payload.get("pelican_client_token")
-        if pelican_token is not None and str(pelican_token).strip():
-            stored["pelican_client_token"] = str(pelican_token).strip()
-
-    if payload.get("clear_pelican_application_token"):
-        stored["pelican_application_token"] = ""
-    else:
-        pelican_app = payload.get("pelican_application_token")
-        if pelican_app is not None and str(pelican_app).strip():
-            stored["pelican_application_token"] = str(pelican_app).strip()
+    for key in SECRET_FIELDS:
+        if payload.get(f"clear_{key}"):
+            stored[key] = ""
+            continue
+        value = payload.get(key)
+        if value is not None and str(value).strip():
+            stored[key] = str(value).strip()
 
     if "minecraft_rcon_host" in payload and payload.get("minecraft_rcon_host") is not None:
         stored["minecraft_rcon_host"] = str(payload.get("minecraft_rcon_host") or "").strip()
@@ -172,12 +159,6 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
             "clear_minecraft_rcon_password",
         )
     )
-    if payload.get("clear_minecraft_rcon_password"):
-        stored["minecraft_rcon_password"] = ""
-    else:
-        rcon_password = payload.get("minecraft_rcon_password")
-        if rcon_password is not None and str(rcon_password).strip():
-            stored["minecraft_rcon_password"] = str(rcon_password).strip()
 
     write_json("integrations", _normalize(stored))
     if rcon_changed:
@@ -187,47 +168,39 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
     return load_integrations(_db)
 
 
+def secret_hint(value: str) -> str:
+    text = (value or "").strip()
+    return text[-4:] if len(text) >= HINT_MIN_LENGTH else ""
+
+
 def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
-    steam = cfg.get("steam_api_key") or ""
-    qq_key = cfg.get("qq_app_key") or ""
+    values = {key: cfg.get(key) or "" for key in SECRET_FIELDS}
     qq_id = cfg.get("qq_app_id") or ""
-    github_token = cfg.get("github_token") or ""
     pelican_url = cfg.get("pelican_base_url") or ""
-    pelican_token = cfg.get("pelican_client_token") or ""
-    pelican_app = cfg.get("pelican_application_token") or ""
     pelican_uuid = cfg.get("pelican_server_uuid") or ""
     rcon_host = cfg.get("minecraft_rcon_host") or ""
-    rcon_port = _parse_rcon_port(cfg.get("minecraft_rcon_port"))
-    rcon_password = cfg.get("minecraft_rcon_password") or ""
     public_host = cfg.get("minecraft_public_host") or ""
-    public_port = _parse_game_port(cfg.get("minecraft_public_port"))
-    return {
-        "steam_api_key": steam,
-        "steam_api_key_set": bool(steam),
+    out: dict[str, Any] = {
         "qq_app_id": qq_id,
-        "qq_app_key": qq_key,
-        "qq_app_key_set": bool(qq_key),
-        "qq_configured": bool(qq_id and qq_key),
-        "steam_configured": bool(steam),
-        "github_token": github_token,
-        "github_token_set": bool(github_token),
-        "github_configured": bool(github_token),
+        "qq_configured": bool(qq_id and values["qq_app_key"]),
+        "steam_configured": bool(values["steam_api_key"]),
+        "github_configured": bool(values["github_token"]),
         "pelican_base_url": pelican_url,
-        "pelican_client_token": pelican_token,
-        "pelican_client_token_set": bool(pelican_token),
-        "pelican_application_token": pelican_app,
-        "pelican_application_token_set": bool(pelican_app),
         "pelican_server_uuid": pelican_uuid,
-        "pelican_configured": bool(pelican_url and pelican_token and pelican_uuid),
+        "pelican_configured": bool(pelican_url and values["pelican_client_token"] and pelican_uuid),
         "minecraft_rcon_host": rcon_host,
-        "minecraft_rcon_port": rcon_port,
-        "minecraft_rcon_password": rcon_password,
-        "minecraft_rcon_password_set": bool(rcon_password),
-        "minecraft_rcon_configured": bool(rcon_host and rcon_password),
+        "minecraft_rcon_port": _parse_rcon_port(cfg.get("minecraft_rcon_port")),
+        "minecraft_rcon_configured": bool(rcon_host and values["minecraft_rcon_password"]),
         "minecraft_public_host": public_host,
-        "minecraft_public_port": public_port,
+        "minecraft_public_port": _parse_game_port(cfg.get("minecraft_public_port")),
         "minecraft_public_configured": bool(public_host),
     }
+    for key, value in values.items():
+        out[key] = ""
+        out[f"{key}_set"] = bool(value)
+        if key in HINTED_SECRET_FIELDS:
+            out[f"{key}_hint"] = secret_hint(value)
+    return out
 
 
 def get_steam_api_key(_db: Session | None = None) -> str:

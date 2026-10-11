@@ -217,11 +217,15 @@ export async function fetchRuntimeEnv() {
   return data;
 }
 
-export async function updateRuntimeEnv(payload: RuntimeEnvUpdate) {
-  const { data } = await client.put<RuntimeEnvSettings>(
-    "/settings/runtime-env",
-    payload,
-  );
+export async function updateRuntimeEnv(
+  payload: Omit<RuntimeEnvUpdate, "clear_redis_url"> & {
+    clear_redis_url?: boolean;
+  },
+) {
+  const { data } = await client.put<RuntimeEnvSettings>("/settings/runtime-env", {
+    clear_redis_url: false,
+    ...payload,
+  });
   return data;
 }
 

@@ -308,6 +308,15 @@ describe("overlayFlagsForMode", () => {
       lootLooseKinds: {},
     });
   });
+
+  it("returns the same fixed flag objects on every call", () => {
+    for (const mode of ["boss-spawns", "locks"] as const) {
+      const first = overlayFlagsForMode(emptyDefaults, mode);
+      const again = overlayFlagsForMode({ ...emptyDefaults }, mode);
+      expect(again.extractKinds).toBe(first.extractKinds);
+      expect(again.spawnKinds).toBe(first.spawnKinds);
+    }
+  });
 });
 
 describe("mapFocusZoom", () => {

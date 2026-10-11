@@ -171,13 +171,13 @@ def minecraft_files_download(
 
 
 @router.post("/upload", response_model=MinecraftFileOkOut, dependencies=[_FEATURE])
-async def minecraft_files_upload(
+def minecraft_files_upload(
     directory: str = Form("/"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ) -> MinecraftFileOkOut:
-    raw = await file.read()
+    raw = file.file.read(files_svc.MAX_UPLOAD_BYTES + 1)
     filename = file.filename or "upload.bin"
     try:
         data = files_svc.upload_file(db, directory, filename, raw)

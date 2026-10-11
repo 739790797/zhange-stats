@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import log_context
 from app.core.timeutil import now_naive
 from app.services.tarkov import bosses as bosses_svc
 from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import overlay as overlay_svc
+from app.services.tarkov import sync_lock
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import upstream as upstream_svc
@@ -30,6 +33,12 @@ from app.services.tarkov.game_mode import (
 logger = logging.getLogger(__name__)
 
 FULL_SYNC_JOB_KEY = "tarkov_full_sync"
+# 定时 / 任务管理触发时，单栏目回源或冷启动回源占着锁就等它结束，最多等这么久。
+FULL_SYNC_LOCK_WAIT_SEC = 600.0
+FULL_SYNC_STARTED_MESSAGE = "已开始全量同步，进度见任务管理"
+
+_full_sync_active = threading.Event()
+_full_sync_started_at = 0.0
 
 
 class TarkovFullSyncError(Exception):
@@ -147,19 +156,13 @@ def _apply_traders(_db: Session, dump: dict[str, dict[str, Any]]) -> dict[str, A
     return _dump_result("traders", trader_count=len(traders))
 
 
-def _seed_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _check_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
     payload = dump.get("maps")
     if not isinstance(payload, dict) or not payload:
         raise key_packs_svc.TarkovKeyPacksError("dump 缺少 maps，无法刷新门锁")
     maps = key_packs_svc.parse_json_maps_locks(payload)
     if not key_packs_svc.maps_have_lock_data(maps):
         raise key_packs_svc.TarkovKeyPacksError("dump maps 没有门锁")
-    now = time.time()
-    key_packs_svc._lock_cache[key_packs_svc._cache_key(parse_game_mode())] = {
-        "at": now,
-        "maps": maps,
-        "source": key_packs_svc.SOURCE_JSON,
-    }
     return {
         "source": key_packs_svc.SOURCE_JSON,
         "synced_at": now_naive().isoformat(),
@@ -184,7 +187,7 @@ _APPLY_STEPS: tuple[tuple[str, Any, type[Exception]], ...] = (
     ("maps", _apply_maps, bosses_svc.TarkovBossesError),
     ("guides", _apply_guides, guides_svc.TarkovGuidesError),
     ("traders", _apply_traders, traders_svc.TarkovTradersError),
-    ("locks", lambda db, dump: _seed_locks(dump), key_packs_svc.TarkovKeyPacksError),
+    ("locks", lambda db, dump: _check_locks(dump), key_packs_svc.TarkovKeyPacksError),
 )
 
 APPLY_DOMAIN_IDS: tuple[str, ...] = (
@@ -590,25 +593,102 @@ def _domain_payload(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def full_sync_job_wrapper() -> None:
+def _create_full_sync_run() -> int:
     from app.core.database import SessionLocal
     from app.models.job_run import JobRun
 
     db = SessionLocal()
-    run = JobRun(
-        job_key=FULL_SYNC_JOB_KEY,
-        status="running",
-        message=format_full_sync_message("start"),
-        stats={
-            "phase": "start",
-            "percent": 0,
-            "domains": planned_full_sync_domains(sync_modes(), lang="zh"),
-        },
-    )
-    db.add(run)
-    db.commit()
-    run_id = int(run.id)
-    db.close()
+    try:
+        run = JobRun(
+            job_key=FULL_SYNC_JOB_KEY,
+            status="running",
+            message=format_full_sync_message("start"),
+            stats={
+                "phase": "start",
+                "percent": 0,
+                "domains": planned_full_sync_domains(sync_modes(), lang="zh"),
+            },
+        )
+        db.add(run)
+        db.commit()
+        return int(run.id)
+    finally:
+        db.close()
+
+
+def _begin_full_sync() -> None:
+    global _full_sync_started_at
+    _full_sync_active.set()
+    _full_sync_started_at = time.monotonic()
+
+
+def full_sync_job_wrapper() -> None:
+    """定时 / 任务管理入口：与管理端、单栏目回源和冷启动 ensure_* 共用单飞锁。
+
+    已有整站同步在跑（或等锁期间刚跑过一轮）就跳过；只是单栏目回源占着锁则等它结束。
+    """
+    if _full_sync_active.is_set():
+        logger.info("tarkov full sync skipped: another full sync is running")
+        return
+    waited_from = time.monotonic()
+    try:
+        with sync_lock.exclusive(wait=FULL_SYNC_LOCK_WAIT_SEC):
+            if _full_sync_started_at > waited_from:
+                logger.info("tarkov full sync skipped: another full sync ran meanwhile")
+                return
+            _begin_full_sync()
+            try:
+                _run_full_sync(_create_full_sync_run())
+            finally:
+                _full_sync_active.clear()
+    except sync_lock.TarkovSyncBusy:
+        logger.warning(
+            "tarkov full sync skipped: sync lock still busy after %ss",
+            int(FULL_SYNC_LOCK_WAIT_SEC),
+        )
+
+
+def start_full_sync() -> int:
+    """管理端：抢不到单飞锁抛 TarkovSyncBusy；抢到后建 JobRun、交给后台线程，立即返回 run id。"""
+    sync_lock.claim()
+    _begin_full_sync()
+    run_id: int | None = None
+    try:
+        run_id = _create_full_sync_run()
+        threading.Thread(
+            target=_full_sync_thread,
+            args=(run_id,),
+            name="tarkov-full-sync",
+            daemon=True,
+        ).start()
+    except BaseException:
+        _full_sync_active.clear()
+        sync_lock.unclaim()
+        if run_id is not None:
+            _write_job_run(
+                run_id,
+                status="error",
+                message="后台同步未能启动",
+                stats={"phase": "error", "percent": 0},
+                finished=True,
+            )
+        raise
+    return run_id
+
+
+def _full_sync_thread(run_id: int) -> None:
+    try:
+        with sync_lock.held(), log_context(job=FULL_SYNC_JOB_KEY):
+            logger.info("tarkov full sync begin run_id=%s", run_id)
+            _run_full_sync(run_id)
+            logger.info("tarkov full sync finished run_id=%s", run_id)
+    finally:
+        _full_sync_active.clear()
+
+
+def _run_full_sync(run_id: int) -> None:
+    """调用方已持单飞锁；结果与进度写回 JobRun，异常不外抛。"""
+    from app.core.database import SessionLocal
 
     last_at = 0.0
 

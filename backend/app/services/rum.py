@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive, to_naive
@@ -226,7 +227,7 @@ def classify_rum_biz(kind: str, url_key: str, host: str = "") -> str:
 def _as_duration_ms(value: Any) -> int | None:
     try:
         ms = int(round(float(value)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if ms < 0 or ms > MAX_DURATION_MS:
         return None
@@ -262,10 +263,10 @@ def ingest_rum_events(
     events: list[RumEventIn] | list[Any],
     recorded_at: datetime | None = None,
 ) -> int:
-    """写入合法样本。调用方负责 commit。"""
+    """一条批量 INSERT 写入合法样本。调用方负责 commit。"""
     now = recorded_at or now_naive()
     page_path = _clip((page or "").strip(), PAGE_MAX)
-    accepted = 0
+    rows: list[dict[str, Any]] = []
     for raw in events[:MAX_EVENTS_PER_POST]:
         if isinstance(raw, RumEventIn):
             kind = raw.kind
@@ -299,23 +300,23 @@ def ingest_rum_events(
             method = None
             status_code = None
             transfer_size = _as_optional_int(transfer, lo=0, hi=50_000_000)
-        db.add(
-            RumSample(
-                recorded_at=now,
-                kind=kind,
-                url_key=url_key,
-                host=host,
-                page_path=page_path,
-                duration_ms=duration,
-                status_code=status_code,
-                transfer_size=transfer_size,
-                method=method,
-            )
+        rows.append(
+            {
+                "recorded_at": now,
+                "kind": kind,
+                "url_key": url_key,
+                "host": host,
+                "page_path": page_path,
+                "duration_ms": duration,
+                "status_code": status_code,
+                "transfer_size": transfer_size,
+                "method": method,
+            }
         )
-        accepted += 1
-    if accepted:
-        db.flush()
-    return accepted
+    if rows:
+        # render_nulls：否则 ORM 按「哪些列为 NULL」把一批拆成多条 INSERT
+        db.execute(insert(RumSample).execution_options(render_nulls=True), rows)
+    return len(rows)
 
 
 def prune_rum_samples(db: Session, *, now: datetime | None = None) -> int:

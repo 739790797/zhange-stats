@@ -1,5 +1,5 @@
 import { InputNumber, Select, Slider, Tooltip } from "antd";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import type { TarkovWorkbenchStats } from "@/api/guidesApi";
 import { formatMoney, formatWeight } from "@/lib/tarkovItemFormat";
 import {
@@ -55,8 +55,11 @@ function StatInfoTip({
   label?: string;
   children: string;
 }) {
+  const tipId = useId();
   return (
     <Tooltip
+      id={tipId}
+      trigger={["hover", "focus"]}
       placement="left"
       mouseEnterDelay={0.12}
       mouseLeaveDelay={0.08}
@@ -68,13 +71,14 @@ function StatInfoTip({
         </div>
       }
     >
-      <span
+      <button
+        type="button"
         className={styles.statInfo}
-        tabIndex={0}
         aria-label={label ? `${label}说明` : "说明"}
+        aria-describedby={tipId}
       >
         i
-      </span>
+      </button>
     </Tooltip>
   );
 }

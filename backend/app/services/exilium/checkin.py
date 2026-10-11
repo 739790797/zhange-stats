@@ -17,9 +17,12 @@ from app.services.checkin.adapter import (
     CheckinRunOutcome,
     SkipPolicy,
 )
+from app.services.checkin.binding import after_bind, unbind_member
 from app.services.checkin.common import CheckinResult
-from app.services.checkin.orchestrator import (
-    checkin_job_wrapper as _orch_job_wrapper,
+from app.services.checkin.credentials import (
+    StoredCreds,
+    refresh_creds_locked,
+    store_creds_if_changed,
 )
 from app.services.checkin.orchestrator import (
     query_today_for_bind as _orch_query_today,
@@ -60,7 +63,7 @@ def get_bind_for_member(db: Session, member_id: int) -> ExiliumBind | None:
     return db.query(ExiliumBind).filter(ExiliumBind.member_id == member_id).one_or_none()
 
 
-def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
+def _load_payload(bind: ExiliumBind) -> dict[str, Any]:
     raw = decrypt_secret(bind.credentials_enc)
     if not raw:
         raise ExiliumApiError("凭证已损坏，请重新绑定")
@@ -70,13 +73,38 @@ def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
         raise ExiliumApiError("凭证格式无效，请重新绑定") from exc
     if not isinstance(payload, dict):
         raise ExiliumApiError("凭证格式无效，请重新绑定")
-    return ExiliumCredentials.from_dict(payload)
+    return payload
+
+
+def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
+    return ExiliumCredentials.from_dict(_load_payload(bind))
+
+
+def _drop_plaintext_password(db: Session, bind: ExiliumBind) -> None:
+    """早期凭证里存的是明文口令：用到时改写成只带 MD5（按读出时的密文 CAS，期间被改过就留给下次）。"""
+    payload = _load_payload(bind)
+    if "password" not in payload:
+        return
+    creds = ExiliumCredentials.from_dict(payload)
+    stored = StoredCreds(creds=creds, loaded_enc=bind.credentials_enc or "", loaded=payload)
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(creds))
+    db.commit()
+
+
+def _creds_columns(creds: ExiliumCredentials) -> dict[str, Any]:
+    return {"phone_mask": mask_account(creds.account_name) or creds.nickname}
 
 
 def _save_creds(bind: ExiliumBind, creds: ExiliumCredentials) -> None:
     bind.credentials_enc = encrypt_secret(json.dumps(creds.to_dict(), ensure_ascii=False))
-    bind.phone_mask = mask_account(creds.account_name) or creds.nickname
+    bind.phone_mask = _creds_columns(creds)["phone_mask"]
     bind.updated_at = now_naive()
+
+
+def _store_creds(
+    db: Session, bind: ExiliumBind, stored: StoredCreds[ExiliumCredentials]
+) -> None:
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
 
 
 def bind_with_password(db: Session, member: Member, account: str, password: str) -> ExiliumBind:
@@ -88,7 +116,7 @@ def bind_with_password(db: Session, member: Member, account: str, password: str)
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(exilium_adapter, db, bind)
     return bind
 
 
@@ -101,30 +129,12 @@ def bind_with_sms(db: Session, member: Member, phone: str, captcha: str) -> Exil
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(exilium_adapter, db, bind)
     return bind
 
 
-def _maybe_checkin_after_bind(db: Session, bind: ExiliumBind) -> None:
-    """绑定成功后：若开启自动签到且今日尚未签到，则立即补签。"""
-    if not bind.auto_checkin:
-        return
-    try:
-        run_checkin_for_bind(db, bind, force=False)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "exilium checkin after bind failed member_id=%s", bind.member_id
-        )
-        db.rollback()
-        db.refresh(bind)
-
-
 def unbind_exilium(db: Session, member: Member) -> None:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return
-    db.delete(bind)
-    db.commit()
+    unbind_member(exilium_adapter, db, member.id)
 
 
 def update_bind_prefs(
@@ -152,25 +162,24 @@ def update_bind_prefs(
     return bind
 
 
-def _session_for_bind(db: Session, bind: ExiliumBind) -> ExiliumCredentials:
-    creds = _load_creds(bind)
-    working = ensure_session(creds)
-    if (
-        working.token != creds.token
-        or working.nickname != creds.nickname
-        or working.user_id != creds.user_id
-        or working.password != creds.password
-    ):
-        _save_creds(bind, working)
-        db.commit()
-    return working
+def _session_for_bind(db: Session, bind: ExiliumBind) -> StoredCreds[ExiliumCredentials]:
+    """探活；token 失效且存了口令摘要时重登。"""
+    _drop_plaintext_password(db, bind)
+    return refresh_creds_locked(
+        db,
+        bind,
+        platform=PLATFORM_EXILIUM,
+        load=_load_creds,
+        refresh=ensure_session,
+        extra=_creds_columns,
+    )
 
 
 def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     return [
         {
             "game_code": "exilium_bbs",
@@ -188,7 +197,7 @@ def fetch_exchange_shop(db: Session, member: Member) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     items = list_exchange_items(working)
     score = get_user_score(working)
     return {
@@ -203,7 +212,7 @@ def run_exchange_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     shop_before = {i.exchange_id: i for i in list_exchange_items(working)}
     target = shop_before.get(int(exchange_id))
     if target is None:
@@ -237,7 +246,7 @@ def fetch_score_logs(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     return list_score_logs(working, page=page, page_size=page_size)
 
 
@@ -253,27 +262,30 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> ExiliumBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(self, db: Session, bind: ExiliumBind) -> ExiliumCredentials:
-        return _load_creds(bind)
+    def load_session(
+        self, db: Session, bind: ExiliumBind
+    ) -> StoredCreds[ExiliumCredentials]:
+        return _session_for_bind(db, bind)
 
     def save_session(
-        self, db: Session, bind: ExiliumBind, session: ExiliumCredentials
+        self, db: Session, bind: ExiliumBind, session: StoredCreds[ExiliumCredentials]
     ) -> None:
-        _save_creds(bind, session)
+        _store_creds(db, bind, session)
 
     def query_today_all(
-        self, session: ExiliumCredentials
-    ) -> tuple[ExiliumCredentials, list[CheckinResult]]:
-        return query_today(session)
+        self, session: StoredCreds[ExiliumCredentials]
+    ) -> tuple[StoredCreds[ExiliumCredentials], list[CheckinResult]]:
+        working, results = query_today(session.creds, session_checked=True)
+        return session.with_creds(working), results
 
     def run_checkins(
         self,
-        session: ExiliumCredentials,
+        session: StoredCreds[ExiliumCredentials],
         *,
         force: bool,
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
-        expected_uid = session.user_id or session.account_name or "-"
+        expected_uid = session.creds.user_id or session.creds.account_name or "-"
         if role_keys is not None and not matches_role_filter(
             GAME_CODE, expected_uid, role_keys
         ):
@@ -288,8 +300,8 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
                 },
             )
         # 即使今日已签，仍走 checkin：会补跑每日任务（浏览/点赞/分享）
-        working, results = checkin(session, force=force)
-        return CheckinRunOutcome(session=working, results=results)
+        working, results = checkin(session.creds, force=force, session_checked=True)
+        return CheckinRunOutcome(session=session.with_creds(working), results=results)
 
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)
@@ -347,7 +359,3 @@ def run_checkin_for_member(
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
-
-
-def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    _orch_job_wrapper(exilium_adapter, due_only=due_only, member_id=member_id)

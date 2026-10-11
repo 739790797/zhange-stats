@@ -3,8 +3,8 @@ import type { components } from "./generated/schema";
 /** 与后端 OpenAPI `UserOut` 对齐（单一契约源）。 */
 export type User = components["schemas"]["UserOut"];
 
-/** 与后端 OpenAPI `TokenResponse` 对齐。 */
-export type TokenResponse = components["schemas"]["TokenResponse"];
+/** 与后端 OpenAPI `SessionResponse` 对齐（登录只下发 Cookie，响应体不含 JWT）。 */
+export type SessionResponse = components["schemas"]["SessionResponse"];
 
 /** 与后端 OpenAPI `UserBrief` 对齐。 */
 export type UserBrief = components["schemas"]["UserBrief"];

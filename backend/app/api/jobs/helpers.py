@@ -10,9 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.api.jobs.catalog import JOB_CATALOG
 from app.api.jobs.schemas import ExecutorOut, ScheduledJobLastRunOut, ScheduledJobOut, ScheduledJobsOut
-from app.core.timeutil import BEIJING
+from app.core.timeutil import BEIJING, now_naive
 from app.models.job_run import JobRun
+from app.services.checkin.registry import get_checkin_adapters
 from app.services.integrations_config import get_steam_api_key
+from app.services.job_runs_prune import STALE_RUNNING_AFTER
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import load_scheduler_config
 from app.services.scheduler_runtime import APP_EXECUTOR_ID, APP_EXECUTOR_NAME
@@ -60,77 +62,40 @@ def _describe_trigger(trigger: Any) -> tuple[str, str]:
 
 
 def _last_runs_by_key(db: Session, keys: list[str]) -> dict[str, JobRun]:
-    if not keys:
-        return {}
-    rows = (
-        db.query(JobRun)
-        .filter(JobRun.job_key.in_(keys))
-        .order_by(desc(JobRun.started_at))
-        .limit(len(keys) * 5)
-        .all()
-    )
     out: dict[str, JobRun] = {}
-    for row in rows:
-        if row.job_key not in out:
-            out[row.job_key] = row
+    for key in dict.fromkeys(keys):
+        row = (
+            db.query(JobRun)
+            .filter(JobRun.job_key == key)
+            .order_by(desc(JobRun.started_at), desc(JobRun.id))
+            .first()
+        )
+        if row is not None:
+            out[key] = row
     return out
 
 
 def _job_has_running_run(db: Session, job_id: str) -> bool:
     return (
         db.query(JobRun.id)
-        .filter(JobRun.job_key == job_id, JobRun.status == "running")
+        .filter(
+            JobRun.job_key == job_id,
+            JobRun.status == "running",
+            JobRun.started_at >= now_naive() - STALE_RUNNING_AFTER,
+        )
         .first()
         is not None
     )
 
 
 def _checkin_log_model(platform: str):
-    if platform == "skland":
-        from app.models.skland import SklandCheckinLog
-
-        return SklandCheckinLog
-    if platform == "taygedo":
-        from app.models.taygedo import TaygedoCheckinLog
-
-        return TaygedoCheckinLog
-    if platform == "exilium":
-        from app.models.exilium import ExiliumCheckinLog
-
-        return ExiliumCheckinLog
-    if platform == "kujiequ":
-        from app.models.kujiequ import KujiequCheckinLog
-
-        return KujiequCheckinLog
-    if platform == "mihoyo":
-        from app.models.mihoyo import MihoyoCheckinLog
-
-        return MihoyoCheckinLog
-    return None
+    adapter = get_checkin_adapters().get(platform)
+    return adapter.log_model if adapter is not None else None
 
 
 def _bind_model(platform: str):
-    if platform == "skland":
-        from app.models.skland import SklandBind
-
-        return SklandBind
-    if platform == "taygedo":
-        from app.models.taygedo import TaygedoBind
-
-        return TaygedoBind
-    if platform == "exilium":
-        from app.models.exilium import ExiliumBind
-
-        return ExiliumBind
-    if platform == "kujiequ":
-        from app.models.kujiequ import KujiequBind
-
-        return KujiequBind
-    if platform == "mihoyo":
-        from app.models.mihoyo import MihoyoBind
-
-        return MihoyoBind
-    return None
+    adapter = get_checkin_adapters().get(platform)
+    return adapter.bind_model if adapter is not None else None
 
 
 def _member_label(member) -> str:

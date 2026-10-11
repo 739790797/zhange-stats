@@ -477,10 +477,10 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
         </div>
         )}
       </div>
-      <div className={styles.rail} role="list" aria-label="地图">
+      <div className={styles.rail} role="group" aria-label="地图">
         <button
           type="button"
-          role="listitem"
+          aria-pressed={allMaps}
           className={`${styles.packBtn}${allMaps ? ` ${styles.packOn}` : ""}`}
           onClick={() => setMap(ALL_PACK_SLUG)}
         >
@@ -503,7 +503,7 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
             <button
               key={pack.slug}
               type="button"
-              role="listitem"
+              aria-pressed={on}
               className={`${styles.packBtn}${on ? ` ${styles.packOn}` : ""}`}
               onClick={() => setMap(pack.slug)}
             >

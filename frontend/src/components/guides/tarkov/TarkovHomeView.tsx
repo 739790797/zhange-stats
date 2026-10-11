@@ -292,6 +292,7 @@ export function TarkovHomeView() {
               aria-label="全站搜索攻略"
               autoComplete="off"
               enterKeyHint="search"
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- 只在助手搜索窗格里聚焦：那个窗格只有这一个搜索框
               autoFocus={searchOnly}
             />
             <kbd className={styles.kbd}>Enter</kbd>

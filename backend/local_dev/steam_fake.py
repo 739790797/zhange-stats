@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import hash_password
-from app.core.timeutil import now_naive, to_naive
+from app.core.timeutil import now_naive
 from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.play_session import PlaySession
@@ -788,8 +788,10 @@ def wipe_steam_records(
 
 
 def wipe_non_admin_users(db: Session) -> dict[str, int]:
-    """删除除 admin 外的全部用户及其成员 / 会话 / 好友边；保留 steam_apps 等。"""
+    """删除除 admin 外的全部用户及其成员 / 会话 / 好友边；保留 steam_apps 等。生产环境拒绝执行。"""
     settings = get_settings()
+    if settings.is_production:
+        raise RuntimeError("APP_ENV=production：拒绝清空非 admin 用户（只用于本地开发库）")
     keep_users = (
         db.query(User)
         .filter(

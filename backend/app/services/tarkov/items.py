@@ -18,6 +18,7 @@ from app.core.timeutil import now_naive
 from app.models.tarkov import TarkovAmmo
 from app.services.tarkov import ammo as ammo_svc
 from app.services.tarkov import guns as gun_svc
+from app.services.tarkov import sync_lock
 from app.services.tarkov import upstream as upstream_svc
 from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 from app.services.tarkov.game_mode import parse_game_mode, raw_row_id, run_for_modes
@@ -28,6 +29,9 @@ ITEMS_JOB_KEY = "tarkov_items_sync"
 
 # GraphQL split 信封标记（ammo/guns 各自一份 GraphQL 响应）
 GRAPHQL_SPLIT_FORMAT = "graphql_split"
+
+# mode → 已核对过派生表的 items raw synced_at；同一份 raw 不再每个请求数一遍弹药 / 枪械表。
+_verified_raw: dict[str, str] = {}
 
 
 class TarkovItemsError(Exception):
@@ -234,52 +238,71 @@ def sync_from_upstream(db: Session, *, game_mode: str | None = None) -> dict[str
     )
 
 
+def _raw_token(raw) -> str:
+    return raw.synced_at.isoformat() if raw is not None and raw.synced_at else ""
+
+
+def _derived_gaps(db: Session, raw) -> tuple[bool, bool]:
+    """(弹药或枪械派生为空, 弹药 icon 全空或曳光尚未投影)。"""
+    if ammo_svc.ammo_count(db) == 0 or gun_svc.gun_count(db) == 0:
+        return True, False
+    with_icon = (
+        db.query(TarkovAmmo)
+        .filter(
+            TarkovAmmo.mode_id == raw_row_id(),
+            TarkovAmmo.icon_link != "",
+        )
+        .count()
+    )
+    if with_icon == 0:
+        return False, True
+    json_raw = raw is not None and (getattr(raw, "source", "") or "").strip() == SOURCE_JSON_API
+    return False, json_raw and ammo_svc.ammo_tracer_unpopulated(db)
+
+
 def ensure_items(db: Session) -> None:
     """当前模式 raw 缺失则回源该模式；弹药或枪械派生为空时优先 raw 重算。
 
     弹药已有行但 icon 全空、或曳光尚未投影（新加 tracer 列）时，有 json dump 则重算一次。
+    同一份 raw 核对过就只剩一次表头查询；回源 / 重算走冷启动单飞锁。
     """
+    mode = parse_game_mode()
     raw = get_items_raw(db)
-    if raw is None:
-        sync_from_upstream(db, game_mode=parse_game_mode())
-        raw = get_items_raw(db)
-
-    need_ammo = ammo_svc.ammo_count(db) == 0
-    need_guns = gun_svc.gun_count(db) == 0
-    icons_missing = False
-    if not need_ammo:
-        with_icon = (
-            db.query(TarkovAmmo)
-            .filter(
-                TarkovAmmo.mode_id == raw_row_id(),
-                TarkovAmmo.icon_link != "",
-            )
-            .count()
-        )
-        icons_missing = with_icon == 0
-
-    tracer_missing = False
-    if (
-        not need_ammo
-        and raw is not None
-        and (getattr(raw, "source", "") or "").strip() == SOURCE_JSON_API
-    ):
-        tracer_missing = ammo_svc.ammo_tracer_unpopulated(db)
-
-    if not need_ammo and not need_guns and not icons_missing and not tracer_missing:
-        return
-    if get_items_raw(db) is not None:
-        try:
-            rebuild_from_raw(db)
+    if raw is not None:
+        token = _raw_token(raw)
+        if _verified_raw.get(mode) == token:
             return
-        except TarkovItemsError as exc:
-            logger.warning("rebuild items from raw failed, syncing: %s", exc)
-    if need_ammo or need_guns:
-        sync_from_upstream(db)
+        if _derived_gaps(db, raw) == (False, False):
+            _verified_raw[mode] = token
+            return
+
+    with sync_lock.cold_start():
+        # 等锁期间别人可能已回源 / 重算：结束旧事务才看得到它提交的行（MariaDB 可重复读）。
+        db.commit()
+        raw = get_items_raw(db)
+        if raw is None:
+            sync_from_upstream(db, game_mode=mode)
+            raw = get_items_raw(db)
+        empty, stale = _derived_gaps(db, raw)
+        if empty or stale:
+            rebuilt = False
+            if raw is not None:
+                try:
+                    rebuild_from_raw(db)
+                    rebuilt = True
+                except TarkovItemsError as exc:
+                    logger.warning("rebuild items from raw failed, syncing: %s", exc)
+            if empty and not rebuilt:
+                sync_from_upstream(db)
+        raw = get_items_raw(db)
+        if raw is not None:
+            _verified_raw[mode] = _raw_token(raw)
 
 
 def get_ammo_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     """从 items raw 取出单条弹药的完整 item + properties（读库优先）。"""
+    from app.services.tarkov import catalog as catalog_svc
+
     item_id = (item_id or "").strip()
     if not item_id:
         raise TarkovItemsError("弹药 id 无效")
@@ -296,14 +319,20 @@ def get_ammo_item_detail(db: Session, item_id: str) -> dict[str, Any]:
     ):
         raise TarkovItemsError(f"未找到弹药: {item_id}")
 
-    source, payload, _synced, _note = upstream_svc.load_main_payload(
-        db,
-        "items",
-        error_cls=TarkovItemsError,
-        missing="无物品 raw",
-        invalid="物品 raw_json 无效",
-    )
-    detail = _extract_ammo_item_detail(source, payload, item_id)
+    index = catalog_svc.load_items_index(db)
+    if index.full:
+        source = index.source
+        raw = index.get(item_id)
+        detail = _ammo_detail_from_json(item_id, raw, index.locale) if raw else None
+    else:
+        source, payload, _synced, _note = upstream_svc.load_main_payload(
+            db,
+            "items",
+            error_cls=TarkovItemsError,
+            missing="无物品 raw",
+            invalid="物品 raw_json 无效",
+        )
+        detail = _extract_ammo_item_detail(source, payload, item_id)
     if detail is None:
         raise TarkovItemsError(f"未找到弹药: {item_id}")
     detail["source"] = source
@@ -376,11 +405,18 @@ def _extract_ammo_item_detail(
     raw = items.get(item_id)
     if not isinstance(raw, dict):
         return None
+    return _ammo_detail_from_json(item_id, raw, _locale_map(payload))
+
+
+def _ammo_detail_from_json(
+    item_id: str,
+    raw: dict[str, Any],
+    locale: dict[str, Any],
+) -> dict[str, Any]:
     props = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
     if props.get("propertiesType") not in (None, "ItemPropertiesAmmo"):
         # 仍允许返回：只要 id 在弹药派生表会先校验；这里宽松
         pass
-    locale = _locale_map(payload)
     name = str(
         locale.get(f"{item_id} Name")
         or raw.get("name")

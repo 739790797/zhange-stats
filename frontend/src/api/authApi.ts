@@ -1,5 +1,5 @@
 import { client } from "./http";
-import type { TokenResponse, User } from "./types";
+import type { SessionResponse, User } from "./types";
 import type { components } from "./generated/schema";
 
 type RegisterResponse = components["schemas"]["RegisterResponse"];
@@ -9,7 +9,7 @@ type LinkExistingAccountResponse =
 type ResetPasswordResponse = components["schemas"]["ResetPasswordResponse"];
 
 export async function login(username: string, password: string) {
-  const { data } = await client.post<TokenResponse>("/auth/login", {
+  const { data } = await client.post<SessionResponse>("/auth/login", {
     username,
     password,
   });
@@ -129,8 +129,6 @@ export async function changeOwnUsername(payload: {
   const { data } = await client.post<{
     ok: boolean;
     message: string;
-    access_token: string;
-    token_type: string;
     username: string;
   }>("/auth/change-username", payload);
   return data;
@@ -143,7 +141,7 @@ export async function startQqOAuthLogin() {
 
 /** QQ 回调一次性 ticket → 会话 Cookie（不经 URL 传递 access_token）。 */
 export async function exchangeQqTicket(ticket: string) {
-  const { data } = await client.post<TokenResponse>("/auth/qq/exchange", {
+  const { data } = await client.post<SessionResponse>("/auth/qq/exchange", {
     ticket,
   });
   return data;
@@ -151,6 +149,11 @@ export async function exchangeQqTicket(ticket: string) {
 
 export async function logoutRequest() {
   await client.post("/auth/logout", {});
+}
+
+/** 作废本账号在所有设备上的会话（含本机），之后须重新登录。 */
+export async function logoutAllRequest() {
+  await client.post("/auth/logout-all", {});
 }
 
 export async function sendDeleteAccountCode() {

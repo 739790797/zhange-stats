@@ -1,5 +1,5 @@
 import { Avatar, Tooltip, Typography } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import type { SteamNowItem } from "@/api/types";
 import { formatDuration } from "@/components/steam/format";
@@ -10,6 +10,15 @@ import {
 } from "@/components/steam/nowPlayingUtils";
 import { GameIcon } from "@/components/steam/SteamClientIcon";
 import { steamStoreUrl } from "@/components/steam/timelineUtils";
+
+const HEADER_STYLE: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 12px",
+  background: "#fafafa",
+  borderBottom: "1px solid #f0f0f0",
+};
 
 export function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
   const groups = useMemo(() => groupNowPlaying(items), [items]);
@@ -42,27 +51,8 @@ export function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
         }}
       >
         {groups.map((group) => {
-          const header = (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 12px",
-                background: "#fafafa",
-                borderBottom: "1px solid #f0f0f0",
-                cursor: group.steam_app_id ? "pointer" : "default",
-              }}
-              onClick={() => {
-                if (group.steam_app_id) {
-                  window.open(
-                    steamStoreUrl(group.steam_app_id),
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                }
-              }}
-            >
+          const headerBody = (
+            <>
               <GameIcon
                 appId={group.steam_app_id}
                 iconUrl={group.icon_url}
@@ -87,7 +77,19 @@ export function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
                   {group.players.length} 人在玩
                 </div>
               </div>
-            </div>
+            </>
+          );
+          const header = group.steam_app_id ? (
+            <a
+              href={steamStoreUrl(group.steam_app_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...HEADER_STYLE, color: "inherit", textDecoration: "none" }}
+            >
+              {headerBody}
+            </a>
+          ) : (
+            <div style={{ ...HEADER_STYLE, cursor: "default" }}>{headerBody}</div>
           );
           return (
           <div

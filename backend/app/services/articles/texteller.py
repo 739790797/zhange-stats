@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import os
 import threading
@@ -11,13 +10,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from app.core.config import get_settings
 from app.core.http_client import HttpRequestError, http_request, http_stream
 from app.services.articles.errors import ArticleError
-
-Image.MAX_IMAGE_PIXELS = 20_000_000
+from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 
 logger = logging.getLogger("zhange.articles.texteller")
 
@@ -29,6 +27,7 @@ _HF_JSON_READ_SEC = 30
 _HF_DOWNLOAD_READ_SEC = 600
 REVISION_NAME = "REVISION"
 MAX_RECOGNIZE_BYTES = 2 * 1024 * 1024
+MAX_CONCURRENT_RECOGNIZE = 1
 # 推理只用 encoder + decoder_model；merged / with_past 各约 800MB+，不同步。
 ALLOW_PATTERNS = (
     "config.json",
@@ -44,6 +43,7 @@ ALLOW_PATTERNS = (
 )
 
 _SYNC_LOCK = threading.Lock()
+_RECOGNIZE_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_RECOGNIZE)
 _RUNTIME_LOCK = threading.Lock()
 _model = None
 _tokenizer = None
@@ -272,7 +272,7 @@ def download_models(
         for index, (name, size) in enumerate(files, start=1):
             current_n = 0
 
-            def on_bytes(n: int, *, _name=name, _index=index) -> None:
+            def on_bytes(n: int, *, _name=name, _index=index, _done=done_bytes) -> None:
                 nonlocal current_n
                 current_n = max(0, n)
                 if not progress:
@@ -287,14 +287,14 @@ def download_models(
                     {
                         "phase": "download",
                         "percent": compute_download_percent(
-                            done_bytes=done_bytes,
+                            done_bytes=_done,
                             current_bytes=current_n,
                             total_bytes=total_bytes,
                             files_done=_index - 1,
                             files_total=len(files),
                         ),
                         "file": _name,
-                        "bytes": done_bytes + current_n,
+                        "bytes": _done + current_n,
                         "total_bytes": total_bytes,
                         "files_done": _index - 1,
                         "files_total": len(files),
@@ -502,9 +502,10 @@ def _open_rgb_image(raw: bytes) -> Image.Image:
     if len(raw) > MAX_RECOGNIZE_BYTES:
         raise ArticleError(400, "识别图片不能超过 2MB")
     try:
-        image = Image.open(io.BytesIO(raw))
-        image.load()
-    except (UnidentifiedImageError, OSError) as exc:
+        image = open_bounded_image(raw)
+    except ImageTooLarge as exc:
+        raise ArticleError(400, "图片尺寸过大") from exc
+    except ImageDecodeError as exc:
         raise ArticleError(400, "无法识别该图片") from exc
     return image.convert("RGB")
 
@@ -515,8 +516,10 @@ def recognize_image_bytes(raw: bytes) -> str:
             503,
             "公式识别模型尚未就绪，请到任务配置运行「公式识别模型」",
         )
-    image = _open_rgb_image(raw)
+    if not _RECOGNIZE_SLOTS.acquire(blocking=False):
+        raise ArticleError(429, "已有识别任务在运行，请稍后再试")
     try:
+        image = _open_rgb_image(raw)
         from app.services.articles.texteller_onnx import recognize_pil
 
         latex = parse_texteller_latex(recognize_pil(image, texteller_dir()))
@@ -525,6 +528,8 @@ def recognize_image_bytes(raw: bytes) -> str:
     except Exception as exc:
         logger.exception("texteller recognize failed")
         raise ArticleError(500, "公式识别失败") from exc
+    finally:
+        _RECOGNIZE_SLOTS.release()
     if not latex:
         raise ArticleError(422, "没有识别到公式")
     return latex

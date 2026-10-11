@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from app.services.articles.errors import ArticleError
@@ -75,6 +77,25 @@ def test_sanitize_html_promotes_style_colors_to_classes() -> None:
     assert classify_article_mark((255, 255, 0)) == "yellow"
     promoted = promote_palette_styles('<mark>亮</mark>')
     assert "article-mark-yellow" in promoted
+
+
+def test_css_color_separators() -> None:
+    assert parse_css_color("rgb(231, 76, 60)") == (231, 76, 60)
+    assert parse_css_color("rgb(231 76 60)") == (231, 76, 60)
+    assert parse_css_color("rgb( 1 ,2 , 3 )") == (1, 2, 3)
+    assert parse_css_color("rgb(100% 0% 0% / 0.4)") == (255, 0, 0)
+    assert parse_css_color("rgba(1, 2, 3, 0)") is None
+    assert parse_css_color("rgb(1, ,2, 3)") is None
+    assert parse_css_color("rgb(1;2;3)") is None
+
+
+def test_palette_promotion_is_linear_on_hostile_markup() -> None:
+    unclosed_tags = "<b " * 20_000
+    spaced_rgb = '<span style="color: rgb(1{0}2{0}3{0}x)">a</span>'.format(" " * 800)
+    started = time.perf_counter()
+    assert promote_palette_styles(unclosed_tags) == unclosed_tags
+    assert "article-color" not in promote_palette_styles(spaced_rgb)
+    assert time.perf_counter() - started < 1.0
 
 
 def test_sanitize_html_keeps_local_article_images() -> None:

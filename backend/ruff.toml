@@ -1,0 +1,24 @@
+target-version = "py311"
+line-length = 120
+extend-exclude = ["alembic/versions"]
+
+[lint]
+select = [
+    "E9",
+    "F",
+    "B",
+    "ASYNC",
+    "RUF006",
+]
+ignore = [
+    # FastAPI 依赖注入写在默认参数里
+    "B008",
+    "B904",
+    "B905",
+    # 参数名 timeout 是超时秒数，不是 asyncio.timeout
+    "ASYNC109",
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["B011", "B017", "ASYNC"]
+"app/**/__init__.py" = ["F401"]

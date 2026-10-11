@@ -4,16 +4,24 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any, TypeVar
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.biz_logging import clear_log_until_change, log_context, log_until_change
+from app.core.timeutil import now as now_beijing
 from app.core.timeutil import now_naive, today
 from app.models.job_run import JobRun
 from app.services.checkin.adapter import (
     CheckinPlatformAdapter,
     SkipPolicy,
+)
+from app.services.checkin.attempts import (
+    classify_terminal_failure,
+    record_checkin_attempt,
+    record_checkin_outcome,
 )
 from app.services.checkin.common import (
     LOG_SOURCE_ACTION,
@@ -29,6 +37,8 @@ from app.services.checkin.role_prefs import RoleKey, collect_checkin_job_targets
 
 logger = logging.getLogger(__name__)
 
+_T = TypeVar("_T")
+
 _job_locks: dict[str, threading.Lock] = {}
 
 
@@ -38,6 +48,33 @@ def _job_lock_for(platform: str) -> threading.Lock:
         lock = threading.Lock()
         _job_locks[platform] = lock
     return lock
+
+
+def _call_upstream(
+    adapter: CheckinPlatformAdapter,
+    db: Session,
+    bind: Any,
+    call: Callable[[Any], _T],
+) -> _T:
+    """load_session → 交还连接 → 打上游；Adapter 作废了失效凭证时换票重试一次。
+
+    失败统一经 reraise_api_error 转成友好文案（含换票本身失败）。
+    """
+    try:
+        session = adapter.load_session(db, bind)
+        # 结束当前事务，把连接还给池，再打上游
+        db.commit()
+        try:
+            return call(session)
+        except adapter.api_error_cls as exc:
+            if not adapter.renew_session_after_auth_error(db, bind, exc):
+                raise
+        session = adapter.load_session(db, bind)
+        db.commit()
+        return call(session)
+    except adapter.api_error_cls as exc:
+        adapter.reraise_api_error(exc)
+        raise  # pragma: no cover — reraise always raises
 
 
 def query_today_for_bind(
@@ -60,14 +97,7 @@ def query_today_for_bind(
             if prepared is not None:
                 return day_results_payload(prepared)
 
-    try:
-        session = adapter.load_session(db, bind)
-        # 结束当前事务，把连接还给池，再打上游
-        db.commit()
-        session, results = adapter.query_today_all(session)
-    except adapter.api_error_cls as exc:
-        adapter.reraise_api_error(exc)
-        raise  # pragma: no cover — reraise always raises
+    session, results = _call_upstream(adapter, db, bind, adapter.query_today_all)
 
     adapter.save_session(db, bind, session)
     results = adapter.normalize_results(results)
@@ -143,19 +173,24 @@ def run_checkin_for_bind(
                 "exchanges": [],
             }
 
-    try:
-        session = adapter.load_session(db, bind)
-        db.commit()
-        outcome = adapter.run_checkins(
+    outcome = _call_upstream(
+        adapter,
+        db,
+        bind,
+        lambda session: adapter.run_checkins(
             session, force=force, role_keys=role_keys
-        )
-    except adapter.api_error_cls as exc:
-        adapter.reraise_api_error(exc)
-        raise  # pragma: no cover
+        ),
+    )
 
     if outcome.early_response is not None:
+        # 探测目标时可能已换票（轮换型 refresh token），不写回下次就拿作废的旧票
+        adapter.save_session(db, bind, outcome.session)
+        db.commit()
         early = dict(outcome.early_response)
         early.setdefault("exchanges", [])
+        early.setdefault(
+            "no_targets", not early.get("skipped") and not early.get("results")
+        )
         return early
 
     adapter.save_session(db, bind, outcome.session)
@@ -189,6 +224,7 @@ def run_checkin_for_bind(
         "summary": summary,
         "results": results_to_api(merged),
         "exchanges": exchanges,
+        "no_targets": not results,
     }
 
 
@@ -198,15 +234,21 @@ def run_checkin_job(
     *,
     due_only: bool = False,
     member_id: int | None = None,
+    targets: dict[int, set[RoleKey] | None] | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
-    targets = collect_checkin_job_targets(
-        db,
-        platform=adapter.platform,
-        bind_model=adapter.bind_model,
-        due_only=due_only,
-        member_id=member_id,
-        log_model=adapter.log_model,
-    )
+    """due_only 时每个成员的结果记入当日重试账（checkin.attempts）。"""
+    t = now or now_beijing()
+    if targets is None:
+        targets = collect_checkin_job_targets(
+            db,
+            platform=adapter.platform,
+            bind_model=adapter.bind_model,
+            due_only=due_only,
+            member_id=member_id,
+            log_model=adapter.log_model,
+            now=t,
+        )
     binds_by_member = {
         b.member_id: b
         for b in db.query(adapter.bind_model)
@@ -227,24 +269,52 @@ def run_checkin_job(
         if keys is not None and len(keys) == 0:
             stats["skipped"] += 1
             continue
+        log_key = f"checkin-auto:{adapter.platform}:{mid}"
         try:
             out = run_checkin_for_bind(
                 adapter, db, bind, force=False, role_keys=keys
             )
-            if out.get("skipped"):
-                stats["skipped"] += 1
-            elif out.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
+        except adapter.api_error_cls as exc:
+            db.rollback()
+            stats["failed"] += 1
+            message = getattr(exc, "message", None) or str(exc)
+            log_until_change(
+                logger,
+                log_key,
+                "%s auto checkin failed member_id=%s: %s",
+                adapter.platform,
+                mid,
+                message,
+            )
+            if due_only:
+                record_checkin_attempt(
+                    adapter.platform,
+                    mid,
+                    keys,
+                    now=t,
+                    terminal=classify_terminal_failure([message]),
+                )
+            continue
         except Exception:  # noqa: BLE001
+            db.rollback()
+            stats["failed"] += 1
             logger.exception(
-                "%s auto checkin failed member_id=%s",
+                "%s auto checkin crashed member_id=%s",
                 adapter.platform,
                 mid,
             )
+            if due_only:
+                record_checkin_attempt(adapter.platform, mid, keys, now=t)
+            continue
+        if due_only:
+            record_checkin_outcome(adapter.platform, mid, keys, out, now=t)
+        if out.get("skipped"):
+            stats["skipped"] += 1
+        elif out.get("ok"):
+            stats["ok"] += 1
+            clear_log_until_change(log_key)
+        else:
             stats["failed"] += 1
-            db.rollback()
     return stats
 
 
@@ -253,8 +323,10 @@ def checkin_job_wrapper(
     *,
     due_only: bool = True,
     member_id: int | None = None,
-) -> None:
+) -> bool:
+    """返回这轮是否真跑了签到（写了 JobRun）；巡检无人到点 / 上一轮未完返回 False。"""
     from app.core.database import SessionLocal
+    from app.services.job_runs_prune import fail_job_run
 
     lock = _job_lock_for(adapter.platform)
     if not lock.acquire(blocking=False):
@@ -264,17 +336,32 @@ def checkin_job_wrapper(
             "%s checkin job already running, skip",
             adapter.platform,
         )
-        return
+        return False
     clear_log_until_change(f"checkin-lock:{adapter.platform}")
     # 连接池耗尽会在 SessionLocal / 首次 commit 抛出。锁必须在这次失败后仍释放，
     # 否则下一分钟 acquire 失败，签到会一直停。
     db: Session | None = None
     try:
         db = SessionLocal()
-        job = JobRun(job_key=adapter.job_key, status="running")
+        t = now_beijing()
+        targets = collect_checkin_job_targets(
+            db,
+            platform=adapter.platform,
+            bind_model=adapter.bind_model,
+            due_only=due_only,
+            member_id=member_id,
+            log_model=adapter.log_model,
+            now=t,
+        )
+        if due_only and not targets:
+            # 每分钟巡检多数时候没人到点：不写 JobRun，也不打 INFO
+            logger.debug("%s checkin job idle", adapter.platform)
+            clear_log_until_change(f"checkin-db:{adapter.platform}")
+            return False
+        job = JobRun(job_key=adapter.job_key, status="running", started_at=now_naive())
         db.add(job)
         db.commit()
-        db.refresh(job)
+        run_id = job.id
         ctx_kwargs: dict[str, str | int | None] = {
             "platform": adapter.platform,
             "job": "checkin",
@@ -283,14 +370,13 @@ def checkin_job_wrapper(
             ctx_kwargs["member_id"] = member_id
         with log_context(**ctx_kwargs):
             try:
-                logger.info(
-                    "%s checkin job begin due_only=%s member_id=%s",
-                    adapter.platform,
-                    due_only,
-                    member_id,
-                )
                 stats = run_checkin_job(
-                    adapter, db, due_only=due_only, member_id=member_id
+                    adapter,
+                    db,
+                    due_only=due_only,
+                    member_id=member_id,
+                    targets=targets,
+                    now=t,
                 )
                 logger.info(
                     "%s checkin job done ok=%s failed=%s skipped=%s total=%s",
@@ -312,18 +398,18 @@ def checkin_job_wrapper(
                 clear_log_until_change(f"checkin-db:{adapter.platform}")
             except Exception as exc:  # noqa: BLE001
                 logger.exception("%s checkin job crashed", adapter.platform)
-                job.status = "error"
-                job.message = str(exc)
-                job.finished_at = now_naive()
-                db.commit()
+                fail_job_run(db, run_id, str(exc))
                 clear_log_until_change(f"checkin-db:{adapter.platform}")
+        return True
     except Exception:
         log_until_change(
             logger,
             f"checkin-db:{adapter.platform}",
             "%s checkin job could not record run",
             adapter.platform,
+            exc_info=True,
         )
+        return False
     finally:
         try:
             if db is not None:

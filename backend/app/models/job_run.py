@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.core.sqltypes import PortableJSON
+from app.core.timeutil import now_naive
 
 
 class JobRun(Base):
@@ -18,7 +19,8 @@ class JobRun(Base):
     job_key: Mapped[str] = mapped_column(String(64), nullable=False)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
         nullable=False,
         index=True,
     )

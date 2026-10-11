@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -15,13 +16,25 @@ from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import raid_rooms as rooms_svc
-from app.services.tarkov.raid_room_hub import hub, presence_client
+from app.services.tarkov.raid_room_hub import CLOSE_SLOW_CONSUMER, hub, presence_client
+from app.services.tarkov.ws_limits import (
+    CLOSE_TOO_LARGE,
+    FrameTooLarge,
+    TokenBucket,
+    close_quietly,
+    receive_json_bounded,
+    send_json_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
 CLOSE_NOT_FOUND = 4404
+# 笔画草稿最多 160 点，正常帧只有几 KB。
+MAX_FRAME_CHARS = 256 * 1024
+SEAT_RECHECK_SEC = 10.0
+TOUCH_MIN_INTERVAL_SEC = 15.0
 
 
 def _load_user(token: str) -> User:
@@ -41,23 +54,32 @@ def _load_user(token: str) -> User:
 def _snapshot(public_id: str, user: User) -> dict[str, Any]:
     db: Session = SessionLocal()
     try:
-        data = rooms_svc.get_room(
+        return rooms_svc.run_in_room_tx(
             db,
-            public_id,
-            user,
-            online_user_ids=hub.online_user_ids(public_id),
+            lambda: rooms_svc.get_room(
+                db,
+                public_id,
+                user,
+                online_user_ids=hub.online_user_ids(public_id),
+            ),
         )
-        db.commit()
-        return data
-    except rooms_svc.RaidRoomError:
-        db.rollback()
-        raise
     finally:
         db.close()
 
 
+def _session() -> Session | None:
+    """心跳、入座复核、补推钥匙都是旁路：库没配好或暂时打不开时不能拆掉这条连接。"""
+    try:
+        return SessionLocal()
+    except Exception:  # noqa: BLE001
+        logger.debug("raid room db unavailable", exc_info=True)
+        return None
+
+
 def _touch_ws_member(public_id: str, user: User) -> None:
-    db: Session = SessionLocal()
+    db = _session()
+    if db is None:
+        return
     try:
         rooms_svc.touch_member(db, public_id, user)
         db.commit()
@@ -68,7 +90,9 @@ def _touch_ws_member(public_id: str, user: User) -> None:
 
 
 def _is_member(public_id: str, user: User) -> bool:
-    db: Session = SessionLocal()
+    db = _session()
+    if db is None:
+        return False
     try:
         ok = rooms_svc.is_room_member(db, public_id, user)
         db.commit()
@@ -76,6 +100,18 @@ def _is_member(public_id: str, user: User) -> bool:
     except Exception:  # noqa: BLE001
         db.rollback()
         return False
+    finally:
+        db.close()
+
+
+def _publish_key_owns(public_id: str) -> None:
+    db = _session()
+    if db is None:
+        return
+    try:
+        rooms_svc.publish_room_key_owns(db, public_id)
+    except Exception:  # noqa: BLE001
+        logger.debug("raid room key owns publish failed", exc_info=True)
     finally:
         db.close()
 
@@ -88,26 +124,63 @@ def _presence(public_id: str) -> dict[str, Any]:
     }
 
 
-def _can_edit(public_id: str, user: User) -> bool:
-    db: Session = SessionLocal()
-    try:
-        ok = rooms_svc.can_user_edit_room(db, public_id, user)
-        db.commit()
-        return ok
-    except Exception:  # noqa: BLE001
-        db.rollback()
-        return False
-    finally:
-        db.close()
+def _event_buckets() -> dict[str, TokenBucket]:
+    """前端草稿约 48ms 一帧、心跳 25s 一次；超出的帧直接丢弃。"""
+    return {
+        "ping": TokenBucket(0.5, 4),
+        "view_map": TokenBucket(2, 10),
+        "draw_draft": TokenBucket(25, 40),
+        "player_fix": TokenBucket(1, 5),
+        "log_phase": TokenBucket(2, 10),
+    }
+
+
+class _SeatCheck:
+    """单连接的入座复核。离座会直接 evict socket，这里只是隔一段时间再查一次库兜底。"""
+
+    def __init__(self, public_id: str, user: User) -> None:
+        self.public_id = public_id
+        self.user = user
+        self._ok_until = 0.0
+        self._touched_at = 0.0
+
+    def mark_ok(self) -> None:
+        self._ok_until = time.monotonic() + SEAT_RECHECK_SEC
+
+    async def ok(self) -> bool:
+        now = time.monotonic()
+        if now < self._ok_until:
+            return True
+        seated = await asyncio.to_thread(_is_member, self.public_id, self.user)
+        self._ok_until = now + SEAT_RECHECK_SEC if seated else 0.0
+        return seated
+
+    async def touch(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and now - self._touched_at < TOUCH_MIN_INTERVAL_SEC:
+            return
+        self._touched_at = now
+        await asyncio.to_thread(_touch_ws_member, self.public_id, self.user)
+
+
+async def _drop_session(client: WebSocket, public_id: str, code: int) -> None:
+    await hub.leave(public_id, client)
+    hub.publish(public_id, _presence(public_id))
+    await close_quietly(client, code)
 
 
 async def run_room_session(client: WebSocket, public_id: str) -> None:
     try:
-        first = await asyncio.wait_for(client.receive_json(), timeout=10)
+        first = await asyncio.wait_for(
+            receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10
+        )
     except TimeoutError:
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
     except WebSocketDisconnect:
+        return
+    except FrameTooLarge:
+        await client.close(code=CLOSE_TOO_LARGE)
         return
     except Exception:  # noqa: BLE001
         await client.close(code=CLOSE_UNAUTHORIZED)
@@ -117,14 +190,14 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         return
     token = access_token_from_websocket(client, first)
     try:
-        user = _load_user(token)
+        user = await asyncio.to_thread(_load_user, token)
     except PermissionError as exc:
         code = CLOSE_FORBIDDEN if str(exc) == "feature" else CLOSE_UNAUTHORIZED
         await client.close(code=code)
         return
 
     try:
-        snapshot = _snapshot(public_id, user)
+        snapshot = await asyncio.to_thread(_snapshot, public_id, user)
     except rooms_svc.RaidRoomError as exc:
         code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
         await client.close(code=code)
@@ -134,16 +207,20 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         return
 
     online = await hub.join(public_id, client, user.id, presence_client(first.get("client")))
-    _touch_ws_member(public_id, user)
+    seat = _SeatCheck(public_id, user)
+    await seat.touch(force=True)
     try:
-        snapshot = _snapshot(public_id, user)
+        snapshot = await asyncio.to_thread(_snapshot, public_id, user)
     except rooms_svc.RaidRoomError as exc:
-        await hub.leave(public_id, client)
-        hub.publish(public_id, _presence(public_id))
         code = CLOSE_NOT_FOUND if exc.status_code == 404 else CLOSE_FORBIDDEN
-        await client.close(code=code)
+        await _drop_session(client, public_id, code)
         return
-    await client.send_json(
+    if not snapshot.get("is_member") or not hub.is_connected(public_id, client):
+        await _drop_session(client, public_id, CLOSE_FORBIDDEN)
+        return
+    seat.mark_ok()
+    sent = await send_json_timeout(
+        client,
         {
             "event": "snapshot",
             "seq": 0,
@@ -153,25 +230,36 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
             "log_phases": hub.log_phases(public_id),
             "player_fixes": hub.player_fixes(public_id),
             "view_maps": hub.view_maps(public_id),
-        }
+        },
     )
+    if not sent:
+        await _drop_session(client, public_id, CLOSE_SLOW_CONSUMER)
+        return
     hub.publish(public_id, _presence(public_id))
+    buckets = _event_buckets()
     try:
         while True:
-            raw = await client.receive_json()
+            raw = await receive_json_bounded(client, max_chars=MAX_FRAME_CHARS)
+            # 被 evict 的连接等 hub 发来关闭帧即可，期间的入站帧一律不处理。
+            if not hub.is_connected(public_id, client):
+                continue
             if not isinstance(raw, dict):
                 continue
             event = str(raw.get("event") or "").strip()
+            bucket = buckets.get(event)
+            if bucket is None or not bucket.take():
+                continue
             if event == "ping":
-                _touch_ws_member(public_id, user)
-                await client.send_json({"event": "pong"})
+                await seat.touch()
+                await send_json_timeout(client, {"event": "pong"})
                 continue
             if event == "view_map":
                 slug = rooms_svc.normalize_room_map_slug(
                     str(raw.get("map_id") or raw.get("map") or "")
                 )
-                if not slug or not _is_member(public_id, user):
+                if not slug or not await seat.ok():
                     continue
+                moved = hub.view_map_of(public_id, user.id) != slug
                 hub.set_view_map(public_id, user.id, slug)
                 hub.publish(
                     public_id,
@@ -182,10 +270,12 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                         "view_maps": hub.view_maps(public_id),
                     },
                 )
+                if moved and rooms_svc.view_map_is_new(public_id, user.id):
+                    await asyncio.to_thread(_publish_key_owns, public_id)
                 continue
             if event == "draw_draft":
                 view_map = hub.view_map_of(public_id, user.id)
-                if not view_map or not _can_edit(public_id, user):
+                if not view_map or not await seat.ok():
                     continue
                 draft = rooms_svc.parse_draw_draft(raw)
                 if draft is None:
@@ -202,7 +292,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 )
                 continue
             if event == "player_fix":
-                if not _can_edit(public_id, user):
+                if not hub.view_map_of(public_id, user.id) or not await seat.ok():
                     continue
                 fix = rooms_svc.parse_player_fix(raw)
                 if fix is None:
@@ -217,7 +307,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 )
                 continue
             if event == "log_phase":
-                if not _is_member(public_id, user):
+                if not await seat.ok():
                     continue
                 phase = rooms_svc.parse_log_phase(raw)
                 if phase is None:
@@ -233,11 +323,16 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 if changed:
                     payload["view_maps"] = hub.view_maps(public_id)
                 hub.publish(public_id, payload)
+                if changed and rooms_svc.view_map_is_new(public_id, user.id):
+                    await asyncio.to_thread(_publish_key_owns, public_id)
     except WebSocketDisconnect:
         pass
+    except FrameTooLarge:
+        await close_quietly(client, CLOSE_TOO_LARGE)
     except Exception:  # noqa: BLE001
         logger.debug("raid room ws ended", exc_info=True)
+        await close_quietly(client, 1011)
     finally:
-        online = await hub.leave(public_id, client)
-        _touch_ws_member(public_id, user)
+        await hub.leave(public_id, client)
+        await seat.touch(force=True)
         hub.publish(public_id, _presence(public_id))

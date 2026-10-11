@@ -7,7 +7,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import event
+from sqlalchemy.orm import Session, SessionTransaction, undefer
 
 from app.core.timeutil import now_naive
 from app.models.tarkov import (
@@ -180,16 +181,35 @@ def load_raw_row(
     *,
     lang: str | None = None,
     mode_id: int | None = None,
+    with_json: bool = False,
 ) -> TarkovCatalogRawMixin | None:
+    """默认只取表头（source / synced_at / note）；with_json 时同一条查询带上 raw_json。"""
     model = raw_model(resource)
-    return (
-        db.query(model)
-        .filter(
-            model.mode_id == (mode_id if mode_id is not None else raw_row_id()),
-            model.lang == normalize_raw_lang(lang),
-        )
-        .one_or_none()
-    )
+    query = db.query(model)
+    if with_json:
+        query = query.options(undefer(model.raw_json))
+    return query.filter(
+        model.mode_id == (mode_id if mode_id is not None else raw_row_id()),
+        model.lang == normalize_raw_lang(lang),
+    ).one_or_none()
+
+
+_SESSION_MEMO_KEY = "tarkov_raw_memo"
+
+
+def session_memo(db: Session) -> dict[Any, Any] | None:
+    """本事务内 raw 表头派生值（如 overlay token）的备忘；写 raw 或事务结束时清空。假 session 无 info 时为 None。"""
+    info = getattr(db, "info", None)
+    if not isinstance(info, dict):
+        return None
+    return info.setdefault(_SESSION_MEMO_KEY, {})
+
+
+@event.listens_for(Session, "after_transaction_end")
+def _drop_session_memo(session: Session, transaction: SessionTransaction) -> None:
+    # 等锁后 db.commit() 再查时要看到别的线程刚写的 raw，备忘不能跨事务。
+    if transaction.parent is None:
+        session.info.pop(_SESSION_MEMO_KEY, None)
 
 
 def decode_raw_json(raw_json: str | None) -> dict[str, Any] | None:
@@ -216,7 +236,7 @@ def load_raw(
     lang: str | None = None,
     mode_id: int | None = None,
 ) -> dict[str, Any] | None:
-    row = load_raw_row(db, resource, lang=lang, mode_id=mode_id)
+    row = load_raw_row(db, resource, lang=lang, mode_id=mode_id, with_json=True)
     if row is None:
         return None
     return decode_raw_json(row.raw_json)
@@ -231,7 +251,7 @@ def load_main_payload(
     invalid: str = "raw_json 无效",
 ) -> tuple[str, dict[str, Any], str | None, str | None]:
     """当前模式主文件 + 同表 locale。各栏目读库走这里，不要再手拆 raw_json。"""
-    row = load_raw_row(db, resource)
+    row = load_raw_row(db, resource, with_json=True)
     if row is None:
         raise error_cls(missing)
     payload = decode_raw_json(row.raw_json)
@@ -277,7 +297,10 @@ def persist_raw(
     mode_id = raw_row_id()
     lang_key = normalize_raw_lang(lang)
     model = raw_model(resource)
-    row = load_raw_row(db, resource, lang=lang_key, mode_id=mode_id)
+    memo = session_memo(db)
+    if memo is not None:
+        memo.clear()
+    row = load_raw_row(db, resource, lang=lang_key, mode_id=mode_id, with_json=True)
     if row is None:
         row = model(
             mode_id=mode_id,

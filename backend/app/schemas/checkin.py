@@ -48,7 +48,7 @@ class RoleMembershipItem(BaseModel):
 
 
 class RoleMembershipReplaceBody(BaseModel):
-    roles: list[RoleMembershipItem] = Field(default_factory=list)
+    roles: list[RoleMembershipItem] = Field(default_factory=list, max_length=50)
 
 
 class RoleMembershipNodeOut(BaseModel):

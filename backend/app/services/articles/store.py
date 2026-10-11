@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
-from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.user_files.store import StoredUserFile, UserFileError, public_file_url, store_bytes
 
 ALLOWED_CONTENT_TYPES = {
@@ -21,7 +20,6 @@ ALLOWED_CONTENT_TYPES = {
 }
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-Image.MAX_IMAGE_PIXELS = 20_000_000
 
 ALLOWED_ATTACHMENT_EXTS = {
     ".pdf",
@@ -78,12 +76,11 @@ def sniff_article_image_ext(raw: bytes) -> str:
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="图片不能超过 5MB")
     try:
-        img = Image.open(io.BytesIO(raw))
-        img.load()
-    except UnidentifiedImageError as exc:
-        raise HTTPException(status_code=400, detail="无法识别的图片文件") from exc
-    except Image.DecompressionBombError as exc:
+        img = open_bounded_image(raw)
+    except ImageTooLarge as exc:
         raise HTTPException(status_code=400, detail="图片尺寸过大") from exc
+    except ImageDecodeError as exc:
+        raise HTTPException(status_code=400, detail="无法识别的图片文件") from exc
     fmt = (img.format or "").upper()
     ext = _EXT.get(fmt)
     if ext is None:
@@ -246,7 +243,12 @@ def is_rejected_image_content_type(content_type: str) -> bool:
     return declared not in ALLOWED_CONTENT_TYPES
 
 
-async def save_article_image(
+def read_upload_bounded(file: UploadFile, limit: int) -> bytes:
+    """多读 1 字节：超限交给后面的大小校验报错，内存里最多 limit + 1 字节。"""
+    return file.file.read(limit + 1)
+
+
+def save_article_image(
     file: UploadFile,
     *,
     db: Session,
@@ -255,7 +257,7 @@ async def save_article_image(
     if is_rejected_image_content_type(file.content_type or ""):
         raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
     return write_article_image(
-        await file.read(),
+        read_upload_bounded(file, MAX_UPLOAD_BYTES),
         db=db,
         owner_user_id=owner_user_id,
         filename=file.filename or "",
@@ -283,14 +285,14 @@ def save_article_bytes(
     )
 
 
-async def save_article_asset(
+def save_article_asset(
     file: UploadFile,
     *,
     db: Session,
     owner_user_id: int | None,
 ) -> StoredUserFile:
     return save_article_bytes(
-        await file.read(),
+        read_upload_bounded(file, max(MAX_UPLOAD_BYTES, MAX_ATTACHMENT_BYTES)),
         file.filename or "",
         db=db,
         owner_user_id=owner_user_id,

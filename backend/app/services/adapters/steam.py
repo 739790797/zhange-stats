@@ -2,12 +2,66 @@
 
 from __future__ import annotations
 
+import logging
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
+from app.core.security import strip_markup_chars
 from app.services.adapters import BaseGameAdapter
+
+logger = logging.getLogger(__name__)
+
+
+def clean_persona_name(raw: Any) -> str | None:
+    """Steam 昵称会当成员昵称展示：去掉尖括号，去完为空当没有。"""
+    if raw is None:
+        return None
+    return strip_markup_chars(str(raw)).strip() or None
+
+
+def _int_or_none(raw: Any) -> int | None:
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _players(raw: Any) -> list[dict[str, Any]]:
+    response = raw.get("response") if isinstance(raw, dict) else None
+    players = response.get("players") if isinstance(response, dict) else None
+    if not isinstance(players, list):
+        return []
+    return [p for p in players if isinstance(p, dict)]
+
+
+def _steam_json(resp: httpx.Response, endpoint: str) -> dict[str, Any]:
+    """4xx/5xx 与坏 JSON 转成固定文案（不回显上游正文，正文截断进日志）。"""
+    log_key = f"steam-api:{endpoint}"
+    if resp.status_code >= 400:
+        log_until_change(
+            logger,
+            log_key,
+            "Steam %s HTTP %s: %s",
+            endpoint,
+            resp.status_code,
+            resp.text[:200],
+        )
+        raise RuntimeError(f"Steam API 请求失败（HTTP {resp.status_code}）")
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        log_until_change(logger, log_key, "Steam %s returned non-JSON", endpoint)
+        raise RuntimeError("Steam API 返回无法解析") from exc
+    if not isinstance(payload, dict):
+        log_until_change(logger, log_key, "Steam %s returned non-object JSON", endpoint)
+        raise RuntimeError("Steam API 返回格式无效")
+    clear_log_until_change(log_key)
+    return payload
 
 
 @dataclass
@@ -84,32 +138,22 @@ class SteamAdapter(BaseGameAdapter):
                 headers={"User-Agent": "zhange-stats/1.0"},
                 timeout=20,
             )
-            if resp.status_code >= 400:
-                raise RuntimeError(
-                    f"Steam API HTTP {resp.status_code}: {resp.text[:200]}"
-                )
-            return resp.json()
         except HttpRequestError as exc:
             raise RuntimeError(f"Steam API 网络错误: {exc}") from exc
+        return _steam_json(resp, "GetPlayerSummaries")
 
     def fetch_player_profile(self, steam_id: str) -> SteamPlayerProfile:
-        raw = self.fetch_summaries([steam_id])
-        players = (raw or {}).get("response", {}).get("players") or []
+        players = _players(self.fetch_summaries([steam_id]))
         if not players:
             raise ValueError("未找到该 Steam 账号")
         p = players[0]
-        visibility = p.get("communityvisibilitystate")
         return SteamPlayerProfile(
             steam_id=str(p.get("steamid") or steam_id),
-            persona_name=p.get("personaname"),
+            persona_name=clean_persona_name(p.get("personaname")),
             avatar_url=p.get("avatarfull") or p.get("avatarmedium") or p.get("avatar"),
             profile_url=p.get("profileurl"),
-            community_visibility_state=int(visibility)
-            if visibility is not None
-            else None,
-            persona_state=int(p["personastate"])
-            if p.get("personastate") is not None
-            else None,
+            community_visibility_state=_int_or_none(p.get("communityvisibilitystate")),
+            persona_state=_int_or_none(p.get("personastate")),
         )
 
     def fetch_owned_game_icons(self, steam_id: str) -> dict[str, str]:
@@ -139,19 +183,18 @@ class SteamAdapter(BaseGameAdapter):
                 headers={"User-Agent": "zhange-stats/1.0"},
                 timeout=30,
             )
-            if resp.status_code in (401, 403):
-                return {}
-            if resp.status_code >= 400:
-                raise RuntimeError(
-                    f"Steam GetOwnedGames HTTP {resp.status_code}: {resp.text[:200]}"
-                )
-            raw = resp.json()
         except HttpRequestError as exc:
             raise RuntimeError(f"Steam GetOwnedGames 网络错误: {exc}") from exc
+        if resp.status_code in (401, 403):
+            return {}
+        raw = _steam_json(resp, "GetOwnedGames")
 
-        games = (raw or {}).get("response", {}).get("games") or []
+        response = raw.get("response")
+        games = response.get("games") if isinstance(response, dict) else None
         result: dict[str, str] = {}
-        for g in games:
+        for g in games if isinstance(games, list) else []:
+            if not isinstance(g, dict):
+                continue
             app_id = str(g.get("appid") or "").strip()
             icon_hash = str(g.get("img_icon_url") or "").strip()
             if not app_id or not icon_hash:
@@ -163,17 +206,14 @@ class SteamAdapter(BaseGameAdapter):
         return result
 
     def parse_presences(self, raw: dict[str, Any]) -> list[SteamPresence]:
-        players = (raw or {}).get("response", {}).get("players", []) or []
         result: list[SteamPresence] = []
-        for p in players:
+        for p in _players(raw):
             game_id = p.get("gameid")
             result.append(
                 SteamPresence(
                     steam_id=str(p.get("steamid", "")),
-                    persona_name=p.get("personaname"),
-                    persona_state=int(p["personastate"])
-                    if p.get("personastate") is not None
-                    else None,
+                    persona_name=clean_persona_name(p.get("personaname")),
+                    persona_state=_int_or_none(p.get("personastate")),
                     game_id=str(game_id) if game_id else None,
                     game_extra_info=p.get("gameextrainfo"),
                     avatar_url=p.get("avatarfull")

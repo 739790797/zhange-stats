@@ -67,22 +67,27 @@ class RequestLogMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             elapsed_ms = (time.perf_counter() - started) * 1000.0
-            if not should_log_request(method, path, status_code, elapsed_ms):
-                return
-            client = "-"
-            peer = scope.get("client")
-            if peer:
-                client = str(peer[0])
-            with log_context(
-                method=method,
-                path=path,
-                status=str(status_code),
-            ):
-                logger.info(
-                    "%s %s -> %s %.0fms client=%s",
-                    method,
-                    path,
-                    status_code,
-                    elapsed_ms,
-                    client,
-                )
+            if should_log_request(method, path, status_code, elapsed_ms):
+                _log_request(scope, method, path, status_code, elapsed_ms)
+
+
+def _log_request(
+    scope: Scope, method: str, path: str, status_code: int, elapsed_ms: float
+) -> None:
+    client = "-"
+    peer = scope.get("client")
+    if peer:
+        client = str(peer[0])
+    with log_context(
+        method=method,
+        path=path,
+        status=str(status_code),
+    ):
+        logger.info(
+            "%s %s -> %s %.0fms client=%s",
+            method,
+            path,
+            status_code,
+            elapsed_ms,
+            client,
+        )

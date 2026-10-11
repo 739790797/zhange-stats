@@ -203,6 +203,91 @@ def test_migrate_old_flat_data_dir(tmp_path: Path) -> None:
     assert app["DATA_DIR"] == DEFAULT_DATA_DIR
 
 
+def test_migrate_flat_data_dir_behind_early_secret_and_script_dirs(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    data = install / "data"
+    runtime = data / "runtime"
+    runtime.mkdir(parents=True)
+    # 旧版 import 时就把 data/.secret_key 迁进了 runtime/；其余还是扁平布局
+    (runtime / ".secret_key").write_text("live-key\n", encoding="utf-8")
+    (data / "logs").mkdir()
+    (data / "logs" / "app.jsonl").write_text("{}\n", encoding="utf-8")
+    (data / "rapidocr").mkdir()
+    (data / "rapidocr" / "det.onnx").write_bytes(b"x")
+    (data / "zhange.sqlite").write_bytes(b"SQLite format 3\x00")
+    (data / "README.md").write_text("layout\n", encoding="utf-8")
+    for name in ("uploads", "models", "cache", "tmp", "backups", "run"):
+        (data / name).mkdir()
+    (data / "run" / "backend.pid").write_text("4242\n", encoding="utf-8")
+    (install / "config").mkdir()
+    (install / "config" / "database.json").write_text(
+        json.dumps({"engine": "sqlite", "path": "data/zhange.sqlite"}),
+        encoding="utf-8",
+    )
+
+    migrate_runtime_layout(install)
+
+    assert sorted(p.name for p in runtime.iterdir()) == [".secret_key", "logs", "zhange.sqlite"]
+    assert (runtime / ".secret_key").read_text(encoding="utf-8") == "live-key\n"
+    assert (runtime / "logs" / "app.jsonl").is_file()
+    assert (data / "models" / "rapidocr" / "det.onnx").is_file()
+    assert not (data / "logs").exists()
+    assert not (data / "rapidocr").exists()
+    assert (data / "run" / "backend.pid").read_text(encoding="utf-8") == "4242\n"
+    assert (data / "README.md").is_file()
+    db = json.loads((install / "config" / "database.json").read_text(encoding="utf-8"))
+    assert db["path"] == "data/runtime/zhange.sqlite"
+    got = ensure_secret_key(
+        "",
+        data_dir="data/runtime",
+        upload_dir="data/uploads",
+        install_dir=str(install),
+    )
+    assert got == "live-key"
+
+
+def test_migrate_flat_data_keeps_the_log_opened_before_migration(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    data = install / "data"
+    live_logs = data / "runtime" / "logs"
+    live_logs.mkdir(parents=True)
+    live = live_logs / "app.jsonl"
+    live.write_text('{"message": "imported DATABASE_URL"}\n', encoding="utf-8")
+    inode = live.stat().st_ino
+    (data / ".secret_key").write_text("flat-key\n", encoding="utf-8")
+    (data / "logs").mkdir()
+    (data / "logs" / "app.jsonl").write_text('{"message": "flat"}\n', encoding="utf-8")
+    (data / "logs" / "app.jsonl.1").write_text('{"message": "older"}\n', encoding="utf-8")
+
+    migrate_runtime_layout(install)
+
+    assert live.stat().st_ino == inode
+    assert live.read_text(encoding="utf-8") == '{"message": "imported DATABASE_URL"}\n'
+    assert (live_logs / "app.jsonl.flat").read_text(encoding="utf-8") == '{"message": "flat"}\n'
+    assert (live_logs / "app.jsonl.1").read_text(encoding="utf-8") == '{"message": "older"}\n'
+    assert (data / "runtime" / ".secret_key").read_text(encoding="utf-8") == "flat-key\n"
+    assert not (data / "logs").exists()
+    assert not (data / ".secret_key").exists()
+
+
+@pytest.mark.parametrize("in_use", ["uploads/avatars/1.jpg", "runtime/zhange.sqlite"])
+def test_migrate_leaves_data_dir_in_use_alone(tmp_path: Path, in_use: str) -> None:
+    install = tmp_path / "zhange-stats"
+    data = install / "data"
+    (data / "runtime").mkdir(parents=True)
+    (data / "runtime" / ".secret_key").write_text("live-key\n", encoding="utf-8")
+    (data / in_use).parent.mkdir(parents=True, exist_ok=True)
+    (data / in_use).write_bytes(b"x")
+    (data / "logs").mkdir()
+    (data / "logs" / "stray.jsonl").write_text("{}\n", encoding="utf-8")
+
+    migrate_runtime_layout(install)
+
+    assert (data / "logs" / "stray.jsonl").is_file()
+    assert not (data / "runtime" / "logs").exists()
+    assert (data / "runtime" / ".secret_key").read_text(encoding="utf-8") == "live-key\n"
+
+
 def test_migrate_merges_into_existing_runtime(tmp_path: Path) -> None:
     install = tmp_path / "zhange-stats"
     runtime = install / "data" / "runtime"

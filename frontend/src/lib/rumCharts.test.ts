@@ -3,6 +3,7 @@ import {
   rumAtToMs,
   rumBarHeight,
   rumBarPoints,
+  rumBarTooltipTitle,
   rumBizBarPoints,
   rumBizFilterOptions,
   rumChartLabel,
@@ -10,6 +11,30 @@ import {
   rumTrendDomain,
   rumTrendPoints,
 } from "./rumCharts";
+
+describe("rumBarTooltipTitle", () => {
+  it("escapes publicly reported url keys before G2 writes them as HTML", () => {
+    const [bar] = rumBarPoints([
+      {
+        url_key: "GET /api/<img src=x onerror=alert(1)>",
+        host: "",
+        biz: "other",
+        biz_label: "其他",
+        count: 1,
+        avg_ms: 1,
+        p50_ms: 10,
+        p95_ms: 20,
+        error_count: 0,
+      },
+    ]);
+    expect(rumBarTooltipTitle(bar!)).toBe(
+      "GET /api/&lt;img src=x onerror=alert(1)&gt;",
+    );
+    expect(rumBarTooltipTitle({ label: "GET /api/health" })).toBe(
+      "GET /api/health",
+    );
+  });
+});
 
 describe("rumChartLabel", () => {
   it("strips protocol and truncates from the left", () => {

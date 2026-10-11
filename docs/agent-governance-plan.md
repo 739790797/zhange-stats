@@ -107,7 +107,7 @@ zhange-stats/
    - 后端：venv、pytest、alembic
    - 前端：dev / lint / `export:openapi && gen:api`
 4. **禁止清单（极短）**
-   - 无迁移改表；往 `schema_ensure` 堆 ALTER
+   - 无迁移改表；启动时绕过 Alembic 改表
    - 签到 status 写 `last_checkin_*`；打开页必打上游
    - 页面直连 axios；手拆错误 `detail`（应用 `apiError`）
    - 未 CSRF 半改 JWT Cookie；生产开 `ALLOW_EMAIL_CODE_LOG`
@@ -125,7 +125,7 @@ zhange-stats/
 |----|------|------|------|
 | 契约 | 改 FastAPI schema/路由后跑 OpenAPI 导出并提交 generated | 只改手写 `types.ts` 冒充契约 | `generated/README.md` |
 | 签到/盒子 | 今日 logs / raw 权威 | status 改 bind 摘要；无 force 每次回源 | `platform-raw-cache.mdc` |
-| DB | Alembic + 同步 README 表结构 | 扩 `schema_ensure` | `db-schema-readme.mdc` |
+| DB | Alembic + 同步 README 表结构 | 启动时绕过 Alembic 改表 | `db-schema-readme.mdc` |
 | 前端 API | 域 `*Api.ts` + `apiError` | 页面直连 axios；手拆 detail | `frontend-*.mdc` |
 | 后端 | api 薄、services 厚；upstream 拆 client/attendance | 巨型单文件堆逻辑 | `backend-conventions.mdc` |
 | 安全 | 生产 `APP_ENV`；凭证 Fernet；QQ ticket | 弱口令默许上生产；JWT 进回调 URL | README「说明」 |

@@ -1,17 +1,18 @@
 # 前端（战鸽数据）
 
-React 18 + Vite 8 + Ant Design 5 + TanStack Query。开发时代理到后端 `http://127.0.0.1:6130`（见 `vite.config.ts`）。
+React 18 + Vite 8 + Ant Design 5 + TanStack Query。开发时代理到后端 `http://127.0.0.1:6130`（见 `vite.config.ts`）。需要 Node 22.12+（Vite 8 / vitest 5 的下限）。
 
 ## 常用命令
 
 ```bash
-npm ci --legacy-peer-deps   # 因 openapi-typescript 与 TS 6 peer 冲突
+npm ci                      # openapi-typescript 的 TS peer 由 package.json overrides 指到本仓 typescript，无需 --legacy-peer-deps
 npm run dev
 npm run lint
 npm run test                # vitest：lib / 展示纯函数
 npm run build
-npm run export:openapi      # 从后端导出 OpenAPI
+npm run export:openapi      # 从后端导出 OpenAPI（backend/.venv 的 Python，没有则 PATH 上的 python3 / python；加 -- --dry-run 只打印命令）
 npm run gen:api             # 生成 src/api/generated/schema.d.ts
+node scripts/find-unused-css-modules.mjs   # 只读：列出 *.module.css 里没被引用的类、以及引用了却没定义的类
 ```
 
 ## 目录要点

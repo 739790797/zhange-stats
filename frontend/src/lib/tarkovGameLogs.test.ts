@@ -48,6 +48,7 @@ import {
   takeSessionStubs,
   toRaidLogImportRows,
   versionFromLogLine,
+  type TarkovLogBundleMemo,
 } from "./tarkovGameLogs";
 
 const MATCH_LINE =
@@ -635,6 +636,45 @@ describe("parseTarkovLogText", () => {
       mapId: "shoreline",
     });
     expect(logPhaseFromParsed(parsed)).toMatchObject({ kind: "raid_exited" });
+  });
+
+  it("reuses per-file parses from the memo only while the text is unchanged", () => {
+    const app = {
+      name: "application.log",
+      text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join("\n"),
+    };
+    const notifications = {
+      name: "notifications.log",
+      text: [
+        "2023-12-29 19:10:00.000|x|Info|push-notifications|Got notification | ChatMessageReceived",
+        '{ "type": "new_message", "message": { "type": 10, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+      ].join("\n"),
+    };
+    const output = {
+      name: "output.log",
+      text: "2023-12-29 19:41:12.000|x|Info|application|EFT.NetworkGame`1:GameStopping()",
+    };
+    const memo: TarkovLogBundleMemo = new WeakMap();
+    const first = parseTarkovLogBundle([app, notifications, output], memo);
+    expect(first).toEqual(parseTarkovLogBundle([app, notifications, output]));
+
+    const again = parseTarkovLogBundle([app, notifications, output], memo);
+    expect(again).toEqual(first);
+    expect(again.events[0]).toBe(first.events[0]);
+
+    const grownApp = {
+      ...app,
+      text: `${app.text}\n2023-12-29 19:42:01.000|x|Info|application|LocationLoaded:1.00 real:1.00`,
+    };
+    const grown = parseTarkovLogBundle([grownApp, notifications, output], memo);
+    expect(grown).toEqual(parseTarkovLogBundle([grownApp, notifications, output]));
+    expect(grown.events[0]).not.toBe(first.events[0]);
+    expect(grown.quests?.[0]?.taskId).toBe(first.quests?.[0]?.taskId);
+
+    output.text = "";
+    expect(parseTarkovLogBundle([grownApp, notifications, output], memo)).toEqual(
+      parseTarkovLogBundle([grownApp, notifications, output]),
+    );
   });
 
   it("does not inherit the previous map for an offline raid without Location", () => {

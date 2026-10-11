@@ -313,16 +313,15 @@ def files_write(
 
 
 @router.post("/upload", response_model=FileOkOut)
-async def files_upload(
+def files_upload(
     _: User = Depends(require_admin),
     root_id: str = Form(..., min_length=1, max_length=64),
     path: str = Form("", max_length=2048),
     file: UploadFile = File(...),
 ) -> FileOkOut:
-    raw = await file.read()
     filename = file.filename or "upload.bin"
     try:
-        result = files_svc.upload_file(root_id, path, filename, raw)
+        result = files_svc.upload_stream(root_id, path, filename, file.file)
     except files_svc.FileManagerError as exc:
         _raise_fm(exc)
     return _ok(result)

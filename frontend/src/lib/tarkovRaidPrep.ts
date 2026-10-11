@@ -612,7 +612,7 @@ export type RaidPrepCompletedUser = {
 };
 
 const EMPTY_SKIP: ReadonlySet<string> = new Set();
-const RAID_PREP_OBJ_DONE_STORAGE = "zhange.tarkov.raidPrep.objDone.v1";
+export const RAID_PREP_OBJ_DONE_STORAGE = "zhange.tarkov.raidPrep.objDone.v1";
 
 function isFiniteNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -2644,15 +2644,26 @@ export function toggleRaidPrepObjectiveDone(
   return next;
 }
 
-type StoredObjectiveDone = Record<string, Record<string, string[]>>;
+export type StoredObjectiveDone = Record<string, Record<string, string[]>>;
 
-function readObjectiveDoneStore(): StoredObjectiveDone {
+export function parseRaidPrepObjectiveDoneStore(
+  raw: string | null | undefined,
+): StoredObjectiveDone {
   try {
-    const raw = localStorage.getItem(RAID_PREP_OBJ_DONE_STORAGE);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     return parsed as StoredObjectiveDone;
+  } catch {
+    return {};
+  }
+}
+
+function readObjectiveDoneStore(): StoredObjectiveDone {
+  try {
+    return parseRaidPrepObjectiveDoneStore(
+      localStorage.getItem(RAID_PREP_OBJ_DONE_STORAGE),
+    );
   } catch {
     return {};
   }
@@ -2807,6 +2818,47 @@ export function raidPrepObjectiveDoneLegacyScopes(
   const room = (roomId || "").trim();
   if (room) out.push(`room:${room}`);
   return out;
+}
+
+const GUEST_OBJ_DONE_SCOPE_PREFIX = "user:guest:";
+
+/**
+ * 访客暂存的步骤勾选并进该账号：guest 作用域改记到账号名下，旧版不分账号的 solo / room 作用域原样并回；
+ * 别的账号名下的作用域不导入。
+ */
+export function mergeGuestRaidPrepObjectiveDone(
+  current: StoredObjectiveDone,
+  guest: StoredObjectiveDone,
+  userId: number,
+): StoredObjectiveDone {
+  const out: StoredObjectiveDone = { ...current };
+  for (const [scope, rows] of Object.entries(guest)) {
+    let target = scope;
+    if (scope.startsWith(GUEST_OBJ_DONE_SCOPE_PREFIX)) {
+      target = `user:${userId}:${scope.slice(GUEST_OBJ_DONE_SCOPE_PREFIX.length)}`;
+    } else if (scope.startsWith("user:")) {
+      continue;
+    }
+    const merged = serializeRaidPrepObjectiveDone(
+      mergeRaidPrepSkipMaps(
+        parseRaidPrepObjectiveDone(out[target]),
+        parseRaidPrepObjectiveDone(rows),
+      ),
+    );
+    if (Object.keys(merged).length) out[target] = merged;
+  }
+  return out;
+}
+
+export function importGuestRaidPrepObjectiveDone(
+  raw: string | null | undefined,
+  userId: number,
+): void {
+  const guest = parseRaidPrepObjectiveDoneStore(raw);
+  if (!Object.keys(guest).length) return;
+  writeObjectiveDoneStore(
+    mergeGuestRaidPrepObjectiveDone(readObjectiveDoneStore(), guest, userId),
+  );
 }
 
 export function useRaidPrepObjectiveDone(

@@ -174,6 +174,7 @@ export function TarkovRaidSeatBoard({
               clickRoom(room);
             };
             return (
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 整组行只是扩大鼠标点击区，键盘走「加入」按钮
               <tbody
                 key={room.public_id}
                 className={`${styles.room}${mine ? ` ${styles.roomMine}` : ""}`}

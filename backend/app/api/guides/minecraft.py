@@ -13,6 +13,7 @@ from app.api.guides import minecraft_files as minecraft_files_api
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
+from app.core.ws_origin import CLOSE_ORIGIN_FORBIDDEN, websocket_origin_allowed
 from app.models.user import User
 from app.services.minecraft import console as console_svc
 from app.services.minecraft import mod_tools as mod_tools_svc
@@ -724,7 +725,11 @@ def minecraft_startup_apply(
 
 @router.websocket("/console")
 async def minecraft_console(websocket: WebSocket) -> None:
+    allowed = websocket_origin_allowed(websocket)
     await websocket.accept()
+    if not allowed:
+        await websocket.close(code=CLOSE_ORIGIN_FORBIDDEN)
+        return
     await console_svc.run_console_session(websocket)
 
 

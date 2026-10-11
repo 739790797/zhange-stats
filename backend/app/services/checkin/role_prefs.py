@@ -18,6 +18,11 @@ PLATFORM_MIHOYO = "mihoyo"
 
 RoleKey = tuple[str, str]  # (game_code, role_uid)
 
+# 每个成员每个平台最多这么多条偏好；正常账号远到不了
+MAX_PREFS_PER_MEMBER = 100
+
+UNKNOWN_ROLE_MESSAGE = "该角色不在账号的角色列表中，请刷新后重试"
+
 
 def role_key(game_code: str, role_uid: str) -> RoleKey:
     return (str(game_code or "").strip(), str(role_uid or "").strip())
@@ -88,10 +93,13 @@ def ensure_prefs_for_roles(
 ) -> dict[RoleKey, CheckinRolePref]:
     """为尚未有 pref 的角色插入行；已有行不覆盖。
 
+    只有这里建行，roles 须来自上游角色列表（角色树 / 签到状态）；写偏好只认已有行。
+
     种子规则：
     - 新角色默认 included=False（须经绑定/同步树选加入），除非显式 default_included
     - bind.auto_checkin == True → enabled=True + 沿用 bind 时间（旧「全开」）
     - 否则 → enabled=False，时间可带上 bind 旧时间便于一键开启
+    - 该成员该平台已有 MAX_PREFS_PER_MEMBER 条时不再建行
     """
     pref_map = load_pref_map(db, platform=platform, member_id=member_id)
     legacy_on = bool(getattr(bind, "auto_checkin", False))
@@ -107,6 +115,8 @@ def ensure_prefs_for_roles(
         key = (gc, uid)
         if key in pref_map:
             continue
+        if len(pref_map) >= MAX_PREFS_PER_MEMBER:
+            break
         row = CheckinRolePref(
             platform=platform,
             member_id=int(member_id),
@@ -135,6 +145,8 @@ def sync_bind_auto_checkin_from_prefs(
     bind: Any,
 ) -> None:
     """bind.auto_checkin = 任一「已加入且 enabled」角色（管理端任务列表兼容）。"""
+    # SessionLocal 不 autoflush：调用方刚改的 pref 不先刷进去，下面的查询看到的是改之前
+    db.flush()
     any_on = (
         db.query(CheckinRolePref.id)
         .filter(
@@ -152,39 +164,14 @@ def sync_bind_auto_checkin_from_prefs(
             bind.updated_at = now_naive()
 
 
-def upsert_role_pref(
-    db: Session,
+def _apply_pref_change(
+    row: CheckinRolePref,
     *,
-    platform: str,
-    member_id: int,
-    bind: Any,
-    game_code: str,
-    role_uid: str,
     enabled: bool | None = None,
     included: bool | None = None,
     checkin_hour: int | None = None,
     checkin_minute: int | None = None,
-    commit: bool = True,
-) -> CheckinRolePref:
-    gc, uid = role_key(game_code, role_uid)
-    if not gc or not uid:
-        raise ValueError("game_code / role_uid 不能为空")
-
-    pref_map = load_pref_map(db, platform=platform, member_id=member_id)
-    row = pref_map.get((gc, uid))
-    if row is None:
-        row = CheckinRolePref(
-            platform=platform,
-            member_id=int(member_id),
-            game_code=gc,
-            role_uid=uid,
-            included=False,
-            enabled=False,
-            checkin_hour=clamp_checkin_hour(getattr(bind, "checkin_hour", 0)),
-            checkin_minute=clamp_checkin_minute(getattr(bind, "checkin_minute", 5)),
-        )
-        db.add(row)
-
+) -> None:
     if included is not None:
         row.included = bool(included)
         if not row.included:
@@ -208,12 +195,39 @@ def upsert_role_pref(
         row.checkin_minute = clamp_checkin_minute(row.checkin_minute)
 
     row.updated_at = now_naive()
+
+
+def upsert_role_pref(
+    db: Session,
+    *,
+    platform: str,
+    member_id: int,
+    bind: Any,
+    game_code: str,
+    role_uid: str,
+    enabled: bool | None = None,
+    included: bool | None = None,
+    checkin_hour: int | None = None,
+    checkin_minute: int | None = None,
+) -> CheckinRolePref:
+    """改一条已种过的偏好；不认识的角色抛 ValueError（不建行，免得调度天天去签编出来的 UID）。"""
+    gc, uid = role_key(game_code, role_uid)
+    if not gc or not uid:
+        raise ValueError("game_code / role_uid 不能为空")
+
+    row = load_pref_map(db, platform=platform, member_id=member_id).get((gc, uid))
+    if row is None:
+        raise ValueError(UNKNOWN_ROLE_MESSAGE)
+    _apply_pref_change(
+        row,
+        enabled=enabled,
+        included=included,
+        checkin_hour=checkin_hour,
+        checkin_minute=checkin_minute,
+    )
     sync_bind_auto_checkin_from_prefs(db, platform=platform, member_id=member_id, bind=bind)
-    if commit:
-        db.commit()
-        db.refresh(row)
-    else:
-        db.flush()
+    db.commit()
+    db.refresh(row)
     return row
 
 
@@ -228,31 +242,52 @@ def apply_role_memberships(
     """批量写入加入本站；未列入的已有 pref 保持不变。
 
     每项需含 game_code / role_uid / included。关闭 included 时强制 enabled=False。
+    有一项不在已种的偏好里就整批不写，抛 ValueError。
     """
-    out: list[CheckinRolePref] = []
+    pref_map = load_pref_map(db, platform=platform, member_id=member_id)
+    changes: list[tuple[CheckinRolePref, bool]] = []
     for item in roles:
-        gc = str(item.get("game_code") or "").strip()
-        uid = str(item.get("role_uid") or item.get("uid") or "").strip()
-        if not gc or not uid:
+        key = _parse_role_item(item)
+        if key is None:
             continue
-        included = bool(item.get("included", False))
-        row = upsert_role_pref(
-            db,
-            platform=platform,
-            member_id=member_id,
-            bind=bind,
-            game_code=gc,
-            role_uid=uid,
-            included=included,
-            enabled=False if not included else None,
-            commit=False,
-        )
-        out.append(row)
+        row = pref_map.get(key)
+        if row is None:
+            raise ValueError(UNKNOWN_ROLE_MESSAGE)
+        changes.append((row, bool(item.get("included", False))))
+    for row, included in changes:
+        _apply_pref_change(row, included=included, enabled=False if not included else None)
     sync_bind_auto_checkin_from_prefs(db, platform=platform, member_id=member_id, bind=bind)
     db.commit()
-    for row in out:
-        db.refresh(row)
-    return out
+    return [row for row, _ in changes]
+
+
+def retire_vanished_prefs(
+    db: Session,
+    *,
+    platform: str,
+    member_id: int,
+    bind: Any,
+    roles: Iterable[RoleKey | dict[str, Any] | Any],
+) -> int:
+    """删掉账号下已不存在的角色的偏好（否则调度每天去签一个找不到的角色，行也只增不减）；返回删除条数。
+
+    只看本次列出过角色的游戏：整个游戏没列出来更可能是那一路接口失败，不能据此动偏好。
+    """
+    listed = {key for key in map(_parse_role_item, roles) if key is not None}
+    listed_games = {gc for gc, _ in listed}
+    vanished = [
+        row
+        for key, row in load_pref_map(db, platform=platform, member_id=member_id).items()
+        if key not in listed and key[0] in listed_games
+    ]
+    for row in vanished:
+        db.delete(row)
+    if vanished:
+        sync_bind_auto_checkin_from_prefs(
+            db, platform=platform, member_id=member_id, bind=bind
+        )
+        db.commit()
+    return len(vanished)
 
 
 def enrich_result_dicts(
@@ -339,6 +374,41 @@ def list_due_role_keys(
     return grouped
 
 
+def enabled_role_keys_by_member(
+    db: Session,
+    *,
+    platform: str,
+    member_ids: Iterable[int],
+) -> dict[int, set[RoleKey] | None]:
+    """成员 → 已加入且 enabled 的角色；完全没有 pref 的成员给 None（走旧 bind 全量）。"""
+    ids = sorted({int(mid) for mid in member_ids})
+    if not ids:
+        return {}
+    rows = (
+        db.query(
+            CheckinRolePref.member_id,
+            CheckinRolePref.game_code,
+            CheckinRolePref.role_uid,
+            CheckinRolePref.included,
+            CheckinRolePref.enabled,
+        )
+        .filter(
+            CheckinRolePref.platform == platform,
+            CheckinRolePref.member_id.in_(ids),
+        )
+        .all()
+    )
+    out: dict[int, set[RoleKey] | None] = {mid: None for mid in ids}
+    for mid, gc, uid, included, enabled in rows:
+        keys = out.get(int(mid))
+        if keys is None:
+            keys = set()
+            out[int(mid)] = keys
+        if included and enabled:
+            keys.add(role_key(gc, uid))
+    return out
+
+
 def list_enabled_role_keys_for_member(
     db: Session,
     *,
@@ -346,19 +416,9 @@ def list_enabled_role_keys_for_member(
     member_id: int,
 ) -> set[RoleKey] | None:
     """该成员全部已加入且 enabled 角色；若尚无任何 pref 返回 None（走旧 bind 全量）。"""
-    if count_prefs(db, platform=platform, member_id=member_id) == 0:
-        return None
-    rows = (
-        db.query(CheckinRolePref)
-        .filter(
-            CheckinRolePref.platform == platform,
-            CheckinRolePref.member_id == int(member_id),
-            CheckinRolePref.included.is_(True),
-            CheckinRolePref.enabled.is_(True),
-        )
-        .all()
-    )
-    return {role_key(r.game_code, r.role_uid) for r in rows}
+    return enabled_role_keys_by_member(
+        db, platform=platform, member_ids=[member_id]
+    ).get(int(member_id))
 
 
 def matches_role_filter(
@@ -417,10 +477,15 @@ def collect_checkin_job_targets(
 ) -> dict[int, set[RoleKey] | None]:
     """组装调度目标：member_id → role_keys（None=旧绑定全量）。
 
-    due_only 时到点成员进入 30 分钟队列，本分钟只取出一批。
+    due_only 时到点成员进入 30 分钟队列，本分钟只取出一批；退避中 / 当日已终止的角色不排队。
     """
     from app.core.timeutil import now as now_beijing
-    from app.services.checkin.queue import CheckinQueueItem, plan_checkin_queue
+    from app.services.checkin.attempts import filter_retry_ready
+    from app.services.checkin.queue import (
+        CheckinQueueItem,
+        plan_checkin_queue,
+        window_minutes_of_day,
+    )
 
     targets: dict[int, set[RoleKey] | None] = {}
 
@@ -439,42 +504,66 @@ def collect_checkin_job_targets(
     if due_only:
         t = now if now is not None else now_beijing()
         checkin_date = t.date()
-        pref_q = db.query(CheckinRolePref).filter(
+        window = window_minutes_of_day(t.hour, t.minute)
+        pref_q = db.query(
+            CheckinRolePref.member_id,
+            CheckinRolePref.game_code,
+            CheckinRolePref.role_uid,
+            CheckinRolePref.checkin_hour,
+            CheckinRolePref.checkin_minute,
+        ).filter(
             CheckinRolePref.platform == platform,
             CheckinRolePref.included.is_(True),
             CheckinRolePref.enabled.is_(True),
             CheckinRolePref.checkin_hour.isnot(None),
             CheckinRolePref.checkin_minute.isnot(None),
+            (CheckinRolePref.checkin_hour * 60 + CheckinRolePref.checkin_minute).in_(
+                window
+            ),
         )
         if member_id is not None:
             pref_q = pref_q.filter(CheckinRolePref.member_id == int(member_id))
-        pref_rows = pref_q.all()
         items: list[CheckinQueueItem] = [
             CheckinQueueItem(
-                member_id=int(row.member_id),
-                role_key=role_key(row.game_code, row.role_uid),
-                hour=int(row.checkin_hour),
-                minute=int(row.checkin_minute),
+                member_id=int(mid),
+                role_key=role_key(gc, uid),
+                hour=int(hour),
+                minute=int(minute),
             )
-            for row in pref_rows
+            for mid, gc, uid, hour, minute in pref_q.all()
         ]
-        pref_members = {int(row.member_id) for row in pref_rows}
-        legacy_q = db.query(bind_model).filter(bind_model.auto_checkin.is_(True))
+        legacy_q = db.query(
+            bind_model.member_id, bind_model.checkin_hour, bind_model.checkin_minute
+        ).filter(
+            bind_model.auto_checkin.is_(True),
+            (bind_model.checkin_hour * 60 + bind_model.checkin_minute).in_(window),
+        )
         if member_id is not None:
             legacy_q = legacy_q.filter(bind_model.member_id == int(member_id))
-        for bind in legacy_q.all():
-            if int(bind.member_id) in pref_members:
-                continue
-            if count_prefs(db, platform=platform, member_id=bind.member_id) != 0:
-                continue
-            items.append(
-                CheckinQueueItem(
-                    member_id=int(bind.member_id),
-                    role_key=None,
-                    hour=int(bind.checkin_hour),
-                    minute=int(bind.checkin_minute),
+        legacy_rows = legacy_q.all()
+        if legacy_rows:
+            with_prefs = {
+                int(mid)
+                for (mid,) in db.query(CheckinRolePref.member_id)
+                .filter(
+                    CheckinRolePref.platform == platform,
+                    CheckinRolePref.member_id.in_(
+                        [int(row[0]) for row in legacy_rows]
+                    ),
                 )
-            )
+                .distinct()
+            }
+            for mid, hour, minute in legacy_rows:
+                if int(mid) in with_prefs:
+                    continue
+                items.append(
+                    CheckinQueueItem(
+                        member_id=int(mid),
+                        role_key=None,
+                        hour=int(hour),
+                        minute=int(minute),
+                    )
+                )
         if log_model is not None and items:
             success, failed_members = _action_outcomes_by_member(
                 db,
@@ -494,13 +583,17 @@ def collect_checkin_job_targets(
                     continue
                 kept.append(item)
             items = kept
+        if items:
+            items = filter_retry_ready(platform, items, now=t)
         return plan_checkin_queue(items, now=t)
 
-    for bind in db.query(bind_model).filter(bind_model.auto_checkin.is_(True)).all():
-        targets[bind.member_id] = list_enabled_role_keys_for_member(
-            db, platform=platform, member_id=bind.member_id
+    auto_ids = [
+        int(mid)
+        for (mid,) in db.query(bind_model.member_id).filter(
+            bind_model.auto_checkin.is_(True)
         )
-    return targets
+    ]
+    return enabled_role_keys_by_member(db, platform=platform, member_ids=auto_ids)
 
 
 def build_membership_tree_from_roles(

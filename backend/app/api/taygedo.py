@@ -71,17 +71,9 @@ router = APIRouter(
 )
 
 
-@router.get("/status", response_model=TaygedoStatusOut)
-def taygedo_status(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    member: Member = Depends(require_user_member),
-    include_roles: bool = Query(default=True),
-    force: bool = Query(
-        default=True,
-        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
-    ),
-):
+def _status_out(
+    db: Session, member: Member, *, include_roles: bool, force: bool
+) -> TaygedoStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -100,6 +92,20 @@ def taygedo_status(
     )
 
 
+@router.get("/status", response_model=TaygedoStatusOut)
+def taygedo_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+    include_roles: bool = Query(default=True),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
+):
+    return _status_out(db, member, include_roles=include_roles, force=force)
+
+
 @router.post("/bind/password", response_model=TaygedoStatusOut)
 def taygedo_bind_password(
     payload: TaygedoBindPasswordRequest,
@@ -111,7 +117,7 @@ def taygedo_bind_password(
         bind_with_password(db, member, payload.phone, payload.password)
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
-    return taygedo_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/sms/send", response_model=TaygedoBindSmsSendResponse)
@@ -147,7 +153,7 @@ def taygedo_bind_sms(
         bind_with_sms(db, member, payload.phone, payload.captcha, payload.device_id)
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
-    return taygedo_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/json", response_model=TaygedoStatusOut)
@@ -161,7 +167,7 @@ def taygedo_bind_json(
         bind_with_credentials_json(db, member, payload.credentials_json)
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
-    return taygedo_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.delete("/bind", response_model=TaygedoStatusOut)
@@ -194,7 +200,7 @@ def taygedo_update_bind(
         )
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
-    return taygedo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.patch(
@@ -220,7 +226,7 @@ def taygedo_update_role_pref(
         bind=bind,
         payload=payload,
     )
-    return taygedo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.get(
@@ -242,6 +248,7 @@ def taygedo_role_tree(
         db=db,
         platform=PLATFORM_TAYGEDO,
         member_id=member.id,
+        bind=bind,
         preview_roles=preview_roles,
         member=member,
         api_error_cls=TaygedoApiError,
@@ -271,7 +278,7 @@ def taygedo_replace_role_memberships(
         bind=bind,
         body=body,
     )
-    return taygedo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.post(

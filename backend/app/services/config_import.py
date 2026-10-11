@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto_secret import decrypt_secret
 from app.core.file_config import (
     parse_dotenv,
+    read_example,
     read_json,
     write_json,
 )
@@ -57,6 +58,49 @@ _ENV_TO_INTEGRATION = (
     ("QQ_APP_KEY", "qq_app_key"),
     ("UPDATE_GITHUB_TOKEN", "github_token"),
 )
+
+_IMPORT_MARKER_KEY = "legacy_config_imported"
+
+# 同组字段一起迁：组里有一项已不是模板默认值，就当管理员在 config/ 里配过这一组，整组不动，免得拼出新主机配旧端口
+_IMPORT_GROUPS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "email": (
+        (
+            "enabled",
+            "smtp_host",
+            "smtp_port",
+            "smtp_user",
+            "smtp_password",
+            "smtp_from",
+            "display_name",
+            "encryption",
+        ),
+        ("code_expire_minutes",),
+    ),
+    "integrations": (
+        ("steam_api_key",),
+        ("qq_app_id", "qq_app_key"),
+        ("github_token",),
+        (
+            "pelican_base_url",
+            "pelican_client_token",
+            "pelican_application_token",
+            "pelican_server_uuid",
+        ),
+        ("minecraft_rcon_host", "minecraft_rcon_port", "minecraft_rcon_password"),
+        ("minecraft_public_host", "minecraft_public_port"),
+    ),
+    "auth": (
+        ("access_token_expire_minutes",),
+        ("min_password_length",),
+        ("reject_weak_admin_password",),
+        ("enforce_single_admin",),
+        ("icp_beian_no",),
+    ),
+    "ocr": (("paddle_profile", "engines", "use_cases"),),
+    "jobs": (("scheduler",), ("features",)),
+}
+
+_MISSING = object()
 
 
 def _row_json(db: Session, key: str) -> dict[str, Any] | None:
@@ -165,12 +209,81 @@ def _auth_from_env(env: dict[str, str]) -> dict[str, Any]:
 
 
 def _decrypt_stored_secrets(stored: dict[str, Any]) -> None:
-    for key in _SECRET_KEYS:
-        if stored.get(key):
-            stored[key] = decrypt_secret(str(stored[key])).strip()
-    pwd = stored.get("smtp_password")
-    if pwd:
-        stored["smtp_password"] = decrypt_secret(str(pwd))
+    """库里空的或解不开的密钥当没配，回落 .env。"""
+    for key in (*_SECRET_KEYS, "smtp_password"):
+        plain = decrypt_secret(str(stored.get(key) or ""))
+        if not plain.strip():
+            stored.pop(key, None)
+        else:
+            stored[key] = plain if key == "smtp_password" else plain.strip()
+
+
+def _overlay(base: dict[str, Any], stored: dict[str, Any] | None) -> dict[str, Any]:
+    out = dict(base)
+    out.update({key: value for key, value in (stored or {}).items() if value is not None})
+    return out
+
+
+def _legacy_email(db: Session, env: dict[str, str]) -> dict[str, Any]:
+    stored = _row_json(db, "email_smtp")
+    if stored:
+        _decrypt_stored_secrets(stored)
+    return _overlay(_email_from_env(env), stored)
+
+
+def _legacy_integrations(db: Session, env: dict[str, str]) -> dict[str, Any]:
+    stored = _row_json(db, "integrations")
+    if stored:
+        _decrypt_stored_secrets(stored)
+    return _overlay(_integrations_from_env(env), stored)
+
+
+def _legacy_auth(db: Session, env: dict[str, str]) -> dict[str, Any]:
+    stored = _row_json(db, "auth_session") or {}
+    out = _overlay(_auth_from_env(env), stored)
+    if "reject_weak_admin_password" in stored:
+        # 旧版库里 null 是管理员选的「自动」，同样盖过 .env
+        out["reject_weak_admin_password"] = stored["reject_weak_admin_password"]
+    site = _row_json(db, "site") or {}
+    if site.get("icp_beian_no") is not None:
+        out["icp_beian_no"] = site["icp_beian_no"]
+    return out
+
+
+def _legacy_jobs(db: Session) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    sched = _row_json(db, "scheduler_jobs")
+    if sched:
+        out["scheduler"] = sched
+    feat = _row_json(db, "platform_features")
+    if feat:
+        flags = feat.get("features") if isinstance(feat.get("features"), dict) else feat
+        if flags:
+            out["features"] = flags
+    return out
+
+
+def _at_template_default(current: dict[str, Any], template: dict[str, Any], key: str) -> bool:
+    value = current.get(key, _MISSING)
+    return value is _MISSING or value == template.get(key, _MISSING)
+
+
+def _merge_legacy(name: str, legacy: dict[str, Any]) -> bool:
+    """Copy legacy values into groups still at the template defaults. True when the file changed."""
+    template = read_example(name) or {}
+    current = read_json(name) or {}
+    changed = False
+    for group in _IMPORT_GROUPS[name]:
+        values = {key: legacy[key] for key in group if legacy.get(key) is not None}
+        if not values or not all(_at_template_default(current, template, key) for key in group):
+            continue
+        for key, value in values.items():
+            if current.get(key, _MISSING) != value:
+                current[key] = value
+                changed = True
+    if changed:
+        write_json(name, current)
+    return changed
 
 
 def import_legacy_dotenv() -> None:
@@ -194,62 +307,28 @@ def import_legacy_dotenv() -> None:
 
 
 def import_legacy_system_configs(db: Session) -> None:
+    """Fill config/*.json from the root .env and legacy system_configs rows, once per database.
+
+    sync_site_config (startup and the lifecycle scripts) creates the files from the templates before
+    the database is reachable, so an existing file says nothing about the admin: a group is imported
+    while it is still at the template defaults. The marker row stops values the admin clears later
+    from coming back on the next start.
+    """
+    if db.get(SystemConfig, _IMPORT_MARKER_KEY) is not None:
+        return
     env = _legacy_env()
-
-    if not read_json("email"):
-        merged = _email_from_env(env)
-        stored = _row_json(db, "email_smtp")
-        if stored:
-            _decrypt_stored_secrets(stored)
-            merged.update(stored)
-        if merged:
-            write_json("email", merged)
-            logger.info("imported email into config/email.json")
-
-    if not read_json("integrations"):
-        merged = _integrations_from_env(env)
-        stored = _row_json(db, "integrations")
-        if stored:
-            _decrypt_stored_secrets(stored)
-            merged.update(stored)
-        if merged:
-            write_json("integrations", merged)
-            logger.info("imported integrations into config/integrations.json")
-
-    if not read_json("auth"):
-        auth = _auth_from_env(env)
-        stored_auth = _row_json(db, "auth_session") or {}
-        site = _row_json(db, "site") or {}
-        auth.update(stored_auth)
-        if site.get("icp_beian_no") is not None:
-            auth["icp_beian_no"] = site.get("icp_beian_no")
-        if auth:
-            write_json("auth", auth)
-            logger.info("imported auth_session/site into config/auth.json")
-
-    if not read_json("ocr"):
-        stored = _row_json(db, "ocr")
-        if stored:
-            write_json("ocr", stored)
-            logger.info("imported ocr into config/ocr.json")
-
-    jobs = read_json("jobs") or {}
-    changed = False
-    if "scheduler" not in jobs:
-        sched = _row_json(db, "scheduler_jobs")
-        if sched:
-            jobs["scheduler"] = sched
-            changed = True
-    if "features" not in jobs:
-        feat = _row_json(db, "platform_features")
-        if feat:
-            flags = feat.get("features") if isinstance(feat.get("features"), dict) else feat
-            if isinstance(flags, dict):
-                jobs["features"] = flags
-                changed = True
-    if changed:
-        write_json("jobs", jobs)
-        logger.info("imported scheduler/platform_features into config/jobs.json")
+    legacy = {
+        "email": _legacy_email(db, env),
+        "integrations": _legacy_integrations(db, env),
+        "auth": _legacy_auth(db, env),
+        "ocr": _row_json(db, "ocr") or {},
+        "jobs": _legacy_jobs(db),
+    }
+    imported = [name for name, values in legacy.items() if values and _merge_legacy(name, values)]
+    db.add(SystemConfig(key=_IMPORT_MARKER_KEY, value="1"))
+    db.commit()
+    if imported:
+        logger.info("imported legacy .env/system_configs into config/ files=%s", ",".join(imported))
 
 
 def default_sqlite_database_json(path: Path) -> dict[str, Any]:

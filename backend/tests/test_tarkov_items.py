@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from app.core.timeutil import now_naive
 from app.models.tarkov import (
     TarkovAmmo,
     TarkovGun,
@@ -23,11 +24,13 @@ class _FakeQuery:
         self.model = model
         self._rows = list(session.store.get(model, []))
 
+    def options(self, *_a, **_k):  # noqa: ANN001
+        return self
+
     def filter(self, *args, **_k):  # noqa: ANN001
         for expr in args:
             left = getattr(expr, "left", None)
             key = getattr(left, "key", None) or getattr(left, "name", None)
-            op = getattr(getattr(expr, "operator", None), "__name__", "")
             right = getattr(expr, "right", None)
             value = getattr(right, "value", right)
             if key == "icon_link":
@@ -246,7 +249,7 @@ def test_ensure_items_rebuilds_once(monkeypatch: pytest.MonkeyPatch):
             lang="",
             source=SOURCE_GRAPHQL,
             raw_json=json.dumps(payload, ensure_ascii=False),
-            synced_at=__import__("datetime").datetime.utcnow(),
+            synced_at=now_naive(),
             note="saved",
         )
     )
@@ -272,7 +275,7 @@ def test_ensure_ammo_and_guns_share_sync(monkeypatch: pytest.MonkeyPatch):
 
     def fake_sync(db, **_k):  # noqa: ANN001
         calls["n"] += 1
-        now = __import__("datetime").datetime.utcnow()
+        now = now_naive()
         db.add(
             TarkovItemsRaw(
                 mode_id=1,
@@ -378,7 +381,7 @@ def test_extract_ammo_item_detail_from_json_envelope():
 def test_pve_ammo_write_does_not_wipe_pvp_rows() -> None:
     from app.services.tarkov.game_mode import game_mode_scope
 
-    now = __import__("datetime").datetime.utcnow()
+    now = now_naive()
     db = FakeSession()
 
     def _row(item_id: str) -> dict:

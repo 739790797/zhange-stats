@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
@@ -398,3 +402,86 @@ def test_upsert_category_admin_only_and_chip() -> None:
     )
     assert cleared.admin_only is False
     assert cleared.chip_color is None
+
+
+@contextmanager
+def _sql_log(db: Session) -> Iterator[list[str]]:
+    engine = db.get_bind()
+    seen: list[str] = []
+
+    def record(_conn, _cursor, statement, _params, _context, _many) -> None:
+        seen.append(" ".join(statement.split()))
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        yield seen
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+
+def _selecting(statements: list[str], column: str) -> list[str]:
+    pattern = re.compile(rf"\b{re.escape(column)}\b")
+    return [s for s in statements if pattern.search(s)]
+
+
+def test_list_and_detail_reads_skip_bodies() -> None:
+    db = _session()
+    author = _user(db, "ann")
+    reader = _user(db, "reader")
+    articles_svc.set_authors(db, [author.id])
+    row = articles_svc.create_article(
+        db,
+        author=author,
+        title="Long read",
+        body="x" * 1000,
+        status=articles_svc.STATUS_PUBLISHED,
+    )
+    articles_svc.add_comment(db, row.slug, user=reader, body="first")
+    articles_svc.add_comment(db, row.slug, user=reader, body="second")
+    tag = articles_svc.upsert_tag(db, name="攻略")
+    assert tag.created_at is not None
+    article_id, slug, author_id = row.id, row.slug, author.id
+    db.expunge_all()
+    author = db.get(User, author_id)
+
+    with _sql_log(db) as statements:
+        articles_svc.list_published(db)
+        articles_svc.list_published(db, sort="hot")
+        articles_svc.list_admin(db)
+        articles_svc.list_mine(db, author)
+    page_reads = [s for s in statements if not s.startswith("SELECT count(*)")]
+    assert page_reads
+    assert _selecting(page_reads, "articles.body") == []
+
+    with _sql_log(db) as statements:
+        versions = articles_svc.list_versions(db, article_id, author)
+    assert [v["version_no"] for v in versions] == [1]
+    assert _selecting(statements, "article_versions.body") == []
+
+    detail_row = articles_svc.get_published_by_slug(db, slug)
+    with _sql_log(db) as statements:
+        detail = articles_svc.article_to_detail(db, detail_row)
+    assert detail["comment_count"] == 2
+    assert detail["body"] == "x" * 1000
+    assert _selecting(statements, "article_comments.body") == []
+
+
+def test_prune_versions_keeps_newest_without_scanning_bodies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = _session()
+    author = _user(db, "ann")
+    articles_svc.set_authors(db, [author.id])
+    row = articles_svc.create_article(
+        db, author=author, title="T", body="body-1", status=articles_svc.STATUS_PUBLISHED
+    )
+    for n in range(2, 6):
+        articles_svc.update_article(db, row.id, actor=author, body=f"body-{n}")
+    monkeypatch.setattr(articles_svc, "MAX_VERSIONS", 2)
+
+    with _sql_log(db) as statements:
+        articles_svc.update_article(db, row.id, actor=author, body="body-6")
+    body_scans = [s for s in _selecting(statements, "article_versions.body") if " LIMIT " not in s]
+    assert body_scans == []
+    assert len([s for s in statements if s.startswith("DELETE FROM article_versions")]) == 1
+    assert [v["version_no"] for v in articles_svc.list_versions(db, row.id, author)] == [6, 5]

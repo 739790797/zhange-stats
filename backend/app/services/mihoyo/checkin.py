@@ -17,9 +17,12 @@ from app.services.checkin.adapter import (
     CheckinRunOutcome,
     SkipPolicy,
 )
+from app.services.checkin.binding import after_bind, unbind_member
 from app.services.checkin.common import CheckinResult, is_success_status
-from app.services.checkin.orchestrator import (
-    checkin_job_wrapper as _orch_job_wrapper,
+from app.services.checkin.credentials import (
+    StoredCreds,
+    refresh_creds_locked,
+    store_creds_if_changed,
 )
 from app.services.checkin.orchestrator import (
     query_today_for_bind as _orch_query_today,
@@ -31,6 +34,7 @@ from app.services.checkin.role_prefs import PLATFORM_MIHOYO, RoleKey
 from app.services.mihoyo.attendance import (
     CALENDAR_GAME_CODES,
     GAME_CODE,
+    _bbs_uid,
     query_today_all as mihoyo_query_today_all,
     run_all_checkins,
     sort_mihoyo_results,
@@ -75,10 +79,21 @@ def _load_creds(bind: MihoyoBind) -> MihoyoCredentials:
     return MihoyoCredentials.from_dict(payload)
 
 
+def _creds_columns(creds: MihoyoCredentials) -> dict[str, Any]:
+    return {"phone_mask": mask_account(creds.stuid or creds.ltuid) or creds.nickname}
+
+
 def _save_creds(bind: MihoyoBind, creds: MihoyoCredentials) -> None:
     bind.credentials_enc = encrypt_secret(json.dumps(creds.to_dict(), ensure_ascii=False))
-    bind.phone_mask = mask_account(creds.stuid or creds.ltuid) or creds.nickname
+    bind.phone_mask = _creds_columns(creds)["phone_mask"]
     bind.updated_at = now_naive()
+
+
+def _store_creds(
+    db: Session, bind: MihoyoBind, stored: StoredCreds[MihoyoCredentials]
+) -> None:
+    """接口内 cookie_token 过期会原地换新（call_with_cookie_refresh），用完写回。"""
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
 
 
 def bind_member_with_creds(
@@ -91,7 +106,7 @@ def bind_member_with_creds(
     _save_creds(bind, creds)
     db.commit()
     db.refresh(bind)
-    _maybe_checkin_after_bind(db, bind)
+    after_bind(mihoyo_adapter, db, bind)
     return bind
 
 
@@ -135,23 +150,8 @@ def send_sms_for_bind(
         }
 
 
-def _maybe_checkin_after_bind(db: Session, bind: MihoyoBind) -> None:
-    if not bind.auto_checkin:
-        return
-    try:
-        run_checkin_for_bind(db, bind, force=False)
-    except Exception:  # noqa: BLE001
-        logger.exception("mihoyo checkin after bind failed member_id=%s", bind.member_id)
-        db.rollback()
-        db.refresh(bind)
-
-
 def unbind_mihoyo(db: Session, member: Member) -> None:
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        return
-    db.delete(bind)
-    db.commit()
+    unbind_member(mihoyo_adapter, db, member.id)
 
 
 def update_bind_prefs(
@@ -179,27 +179,30 @@ def update_bind_prefs(
     return bind
 
 
-def _session_for_bind(db: Session, bind: MihoyoBind) -> MihoyoCredentials:
+def _session_for_bind(db: Session, bind: MihoyoBind) -> StoredCreds[MihoyoCredentials]:
     from app.services.mihoyo.client import ensure_session
 
-    creds = _load_creds(bind)
-    working = ensure_session(creds)
-    if working.to_dict() != creds.to_dict():
-        _save_creds(bind, working)
-        db.commit()
-    return working
+    return refresh_creds_locked(
+        db,
+        bind,
+        platform=PLATFORM_MIHOYO,
+        load=_load_creds,
+        refresh=ensure_session,
+        extra=_creds_columns,
+    )
 
 
 def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
-    working = _session_for_bind(db, bind)
+    stored = _session_for_bind(db, bind)
+    working = stored.creds
     roles: list[dict[str, str]] = [
         {
             "game_code": GAME_CODE,
             "game_name": "米游社",
-            "uid": working.stuid or working.ltuid or "-",
+            "uid": _bbs_uid(working),
             "role_name": working.nickname or mask_account(working.stuid) or "社区账号",
             "channel_name": "社区",
         }
@@ -209,6 +212,8 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
     except MihoyoApiError as exc:
         logger.warning("mihoyo preview_roles list_game_roles: %s", exc.message)
         game_roles = []
+    _store_creds(db, bind, stored)
+    db.commit()
     for role in game_roles:
         roles.append(
             {
@@ -226,7 +231,8 @@ def fetch_exchange_shop(db: Session, member: Member) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
-    working = _session_for_bind(db, bind)
+    stored = _session_for_bind(db, bind)
+    working = stored.creds
     items = list_exchange_goods(working)
     points = get_points_balance(working)
     roles = []
@@ -245,6 +251,8 @@ def fetch_exchange_shop(db: Session, member: Member) -> dict[str, Any]:
             )
     except MihoyoApiError as exc:
         logger.warning("mihoyo exchange list_game_roles failed: %s", exc.message)
+    _store_creds(db, bind, stored)
+    db.commit()
     return {
         "points": points,
         "items": [item.to_dict() for item in items],
@@ -264,7 +272,8 @@ def run_exchange_for_member(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
-    working = _session_for_bind(db, bind)
+    stored = _session_for_bind(db, bind)
+    working = stored.creds
     shop = {i.goods_id: i for i in list_exchange_goods(working)}
     target = shop.get(str(goods_id).strip())
     if target is None:
@@ -293,6 +302,8 @@ def run_exchange_for_member(
         goods_type=target.goods_type,
     )
     points_after = get_points_balance(working)
+    _store_creds(db, bind, stored)
+    db.commit()
     return {
         "ok": True,
         "message": f"已兑换 {target.goods_name}，请到游戏或社区查看",
@@ -311,7 +322,7 @@ def fetch_points_logs(
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
-    working = _session_for_bind(db, bind)
+    working = _session_for_bind(db, bind).creds
     return list_points_logs(working, page=page, page_size=page_size)
 
 
@@ -320,6 +331,7 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
     job_key = JOB_KEY
     bind_model = MihoyoBind
     log_model = MihoyoCheckinLog
+    member_raw_models = (MihoyoAttendanceRaw,)
     api_error_cls = MihoyoApiError
     empty_message = "未执行任何签到"
     skip_policy = SkipPolicy.ALWAYS_RUN
@@ -327,29 +339,34 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> MihoyoBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(self, db: Session, bind: MihoyoBind) -> MihoyoCredentials:
-        return _load_creds(bind)
+    def load_session(
+        self, db: Session, bind: MihoyoBind
+    ) -> StoredCreds[MihoyoCredentials]:
+        return _session_for_bind(db, bind)
 
     def save_session(
-        self, db: Session, bind: MihoyoBind, session: MihoyoCredentials
+        self, db: Session, bind: MihoyoBind, session: StoredCreds[MihoyoCredentials]
     ) -> None:
-        _save_creds(bind, session)
+        _store_creds(db, bind, session)
 
     def query_today_all(
-        self, session: MihoyoCredentials
-    ) -> tuple[MihoyoCredentials, list[CheckinResult]]:
-        return mihoyo_query_today_all(session)
+        self, session: StoredCreds[MihoyoCredentials]
+    ) -> tuple[StoredCreds[MihoyoCredentials], list[CheckinResult]]:
+        working, results = mihoyo_query_today_all(session.creds, session_checked=True)
+        return session.with_creds(working), results
 
     def run_checkins(
         self,
-        session: MihoyoCredentials,
+        session: StoredCreds[MihoyoCredentials],
         *,
         force: bool,
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         _ = force
-        working, results = run_all_checkins(session, role_keys=role_keys)
-        return CheckinRunOutcome(session=working, results=results)
+        working, results = run_all_checkins(
+            session.creds, role_keys=role_keys, session_checked=True
+        )
+        return CheckinRunOutcome(session=session.with_creds(working), results=results)
 
     def prepare_cached_results(
         self, results: list[CheckinResult]
@@ -443,10 +460,6 @@ def run_checkin_for_member(
     return run_checkin_for_bind(db, bind, force=force, role_keys=role_keys)
 
 
-def checkin_job_wrapper(*, due_only: bool = True, member_id: int | None = None) -> None:
-    _orch_job_wrapper(mihoyo_adapter, due_only=due_only, member_id=member_id)
-
-
 def invalidate_mihoyo_attendance_raws(
     db: Session,
     member_id: int,
@@ -508,12 +521,13 @@ def get_mihoyo_attendance_calendar_for_member(
     if bind is None:
         raise MihoyoApiError("尚未绑定米游社")
 
-    working = _session_for_bind(db, bind)
+    stored = _session_for_bind(db, bind)
+    working = stored.creds
     try:
         roles = [r for r in list_game_roles(working) if r.game_code == game_code]
     except MihoyoApiError as exc:
         raise MihoyoApiError(friendly_error_message(exc.message)) from exc
-    _save_creds(bind, working)
+    _store_creds(db, bind, stored)
     db.commit()
 
     if not roles:
@@ -551,6 +565,8 @@ def get_mihoyo_attendance_calendar_for_member(
     stale = False
     need_fetch = force or row is None or not _same_beijing_month(row.synced_at)
     if need_fetch:
+        # 交还连接再打上游
+        db.commit()
         try:
             bundle = fetch_game_attendance_bundle(working, role)
             raw_json = json.dumps(bundle, ensure_ascii=False)

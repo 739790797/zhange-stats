@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
@@ -13,6 +15,9 @@ from app.models.user import User
 
 ITEM_ID_MAX = 64
 MERGE_MAX = 400
+OWNS_MAX = 1500
+UNKNOWN_KEY_MSG = "不在钥匙目录里，不能记为拥有"
+CATALOG_UNAVAILABLE_MSG = "钥匙目录暂时不可用，请稍后再试"
 
 
 class TarkovKeyOwnsError(Exception):
@@ -29,6 +34,24 @@ def normalize_item_id(raw: str | None) -> str:
     return ident
 
 
+def _known_key_ids(db: Session) -> frozenset[str]:
+    from app.services.tarkov.key_packs import known_key_ids
+
+    known = known_key_ids(db)
+    if not known:
+        raise TarkovKeyOwnsError(CATALOG_UNAVAILABLE_MSG, 503)
+    return known
+
+
+def _own_count(db: Session, user_id: int) -> int:
+    return int(
+        db.query(func.count(TarkovUserKeyOwn.item_id))
+        .filter(TarkovUserKeyOwn.user_id == user_id)
+        .scalar()
+        or 0
+    )
+
+
 def list_item_ids(db: Session, user_id: int) -> list[str]:
     rows = (
         db.query(TarkovUserKeyOwn.item_id)
@@ -42,14 +65,18 @@ def list_item_ids(db: Session, user_id: int) -> list[str]:
 def list_owns_for_users(
     db: Session,
     user_ids: list[int] | set[int],
+    *,
+    item_ids: Collection[str] | None = None,
 ) -> list[TarkovUserKeyOwn]:
+    """item_ids 给出时只取这些钥匙；空集合直接返回空。"""
     ids = sorted({int(uid) for uid in user_ids if uid is not None})
-    if not ids:
+    if not ids or (item_ids is not None and not item_ids):
         return []
+    query = db.query(TarkovUserKeyOwn).filter(TarkovUserKeyOwn.user_id.in_(ids))
+    if item_ids is not None:
+        query = query.filter(TarkovUserKeyOwn.item_id.in_(sorted(item_ids)))
     return (
-        db.query(TarkovUserKeyOwn)
-        .filter(TarkovUserKeyOwn.user_id.in_(ids))
-        .order_by(
+        query.order_by(
             TarkovUserKeyOwn.created_at.asc(),
             TarkovUserKeyOwn.user_id.asc(),
             TarkovUserKeyOwn.item_id.asc(),
@@ -76,6 +103,10 @@ def add_own(
     )
     added = False
     if existing is None:
+        if ident not in _known_key_ids(db):
+            raise TarkovKeyOwnsError(UNKNOWN_KEY_MSG)
+        if _own_count(db, user.id) >= OWNS_MAX:
+            raise TarkovKeyOwnsError(f"最多记录 {OWNS_MAX} 把钥匙", 409)
         db.add(
             TarkovUserKeyOwn(
                 user_id=user.id,
@@ -113,7 +144,9 @@ def merge_owns(
     *,
     now: datetime | None = None,
 ) -> list[str]:
+    """目录外的 id 直接丢掉；加满 OWNS_MAX 后其余不再写入。"""
     stamp = now or now_naive()
+    known = _known_key_ids(db)
     seen: set[str] = set()
     incoming: list[str] = []
     for raw in item_ids or []:
@@ -121,16 +154,20 @@ def merge_owns(
             ident = normalize_item_id(str(raw) if raw is not None else "")
         except TarkovKeyOwnsError:
             continue
-        if ident in seen:
+        if ident in seen or ident not in known:
             continue
         seen.add(ident)
         incoming.append(ident)
         if len(incoming) >= MERGE_MAX:
             break
     have = set(list_item_ids(db, user.id))
+    room = OWNS_MAX - len(have)
     for ident in incoming:
         if ident in have:
             continue
+        if room <= 0:
+            break
+        room -= 1
         db.add(
             TarkovUserKeyOwn(
                 user_id=user.id,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
+from functools import partial
 
 from datetime import datetime
 
@@ -23,17 +24,14 @@ from app.services.game_schedule import (
     game_schedule_arknights_sync_job_wrapper as game_schedule_arknights_sync_job_wrapper,
     game_schedule_endfield_sync_job_wrapper as game_schedule_endfield_sync_job_wrapper,
 )
-from app.services.exilium.checkin import checkin_job_wrapper as exilium_checkin_job_wrapper
+from app.services.checkin.orchestrator import checkin_job_wrapper
+from app.services.checkin.registry import get_checkin_adapters
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
-from app.services.kujiequ.checkin import checkin_job_wrapper as kujiequ_checkin_job_wrapper
-from app.services.mihoyo.checkin import checkin_job_wrapper as mihoyo_checkin_job_wrapper
 # from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
-from app.services.skland.checkin import checkin_job_wrapper as skland_checkin_job_wrapper
 from app.services.steam.poller import poll_job_wrapper
-from app.services.taygedo.checkin import checkin_job_wrapper as taygedo_checkin_job_wrapper
 from app.services.articles.texteller import model_sync_job as texteller_model_sync_job
 from app.services.ocr.models import model_sync_job as ocr_model_sync_job
 from app.services.tarkov.sync import full_sync_job_wrapper as tarkov_full_sync_job_wrapper
@@ -43,6 +41,8 @@ from app.services.checkin.queue import CHECKIN_QUEUE_WINDOW_MINUTES
 logger = logging.getLogger("zhange.scheduler")
 
 CHECKIN_MISFIRE_GRACE_SECONDS = CHECKIN_QUEUE_WINDOW_MINUTES * 60
+# 每日 cron：进程忙或刚重启错过触发点，10 分钟内补跑一次；积压多次只跑一次
+SYSTEM_CRON_MISFIRE_GRACE_SECONDS = 600
 
 _SCHEDULER_LOCK = threading.Lock()
 _MANUAL_TRIGGER_LOCKS: dict[str, threading.Lock] = {
@@ -52,28 +52,18 @@ _MANUAL_TRIGGER_LOCKS: dict[str, threading.Lock] = {
 APP_EXECUTOR_ID = "app"
 APP_EXECUTOR_NAME = "战鸽应用"
 
-CHECKIN_JOB_IDS = (
-    "skland_checkin",
-    "taygedo_checkin",
-    "exilium_checkin",
-    "kujiequ_checkin",
-    "mihoyo_checkin",
-)
+_CHECKIN_ADAPTERS_BY_JOB = {a.job_key: a for a in get_checkin_adapters().values()}
 
-CHECKIN_DUE_HANDLERS: dict[str, Callable[[], None]] = {
-    "skland_checkin": lambda: skland_checkin_job_wrapper(due_only=True),
-    "taygedo_checkin": lambda: taygedo_checkin_job_wrapper(due_only=True),
-    "exilium_checkin": lambda: exilium_checkin_job_wrapper(due_only=True),
-    "kujiequ_checkin": lambda: kujiequ_checkin_job_wrapper(due_only=True),
-    "mihoyo_checkin": lambda: mihoyo_checkin_job_wrapper(due_only=True),
+CHECKIN_JOB_IDS = tuple(_CHECKIN_ADAPTERS_BY_JOB)
+
+CHECKIN_DUE_HANDLERS: dict[str, Callable[[], bool]] = {
+    job_id: partial(checkin_job_wrapper, adapter, due_only=True)
+    for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
 
-CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
-    "skland_checkin": skland_checkin_job_wrapper,
-    "taygedo_checkin": taygedo_checkin_job_wrapper,
-    "exilium_checkin": exilium_checkin_job_wrapper,
-    "kujiequ_checkin": kujiequ_checkin_job_wrapper,
-    "mihoyo_checkin": mihoyo_checkin_job_wrapper,
+CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., bool]] = {
+    job_id: partial(checkin_job_wrapper, adapter)
+    for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
 
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
@@ -178,7 +168,7 @@ def register_scheduler_jobs(
             if run_steam_once:
                 steam_job["next_run_time"] = datetime.now(tz=BEIJING)
             scheduler.add_job(
-                wrap_scheduled_job("steam_presence", poll_job_wrapper),
+                wrap_scheduled_job("steam_presence", poll_job_wrapper, quiet=True),
                 "interval",
                 minutes=interval,
                 **steam_job,
@@ -193,7 +183,7 @@ def register_scheduler_jobs(
             if not _job_feature_allowed(db, job_id):
                 continue
             scheduler.add_job(
-                wrap_scheduled_job(job_id, func),
+                wrap_scheduled_job(job_id, func, quiet=True),
                 "interval",
                 minutes=1,
                 id=job_id,
@@ -222,6 +212,8 @@ def register_scheduler_jobs(
                 id=job_id,
                 replace_existing=True,
                 max_instances=1,
+                coalesce=True,
+                misfire_grace_time=SYSTEM_CRON_MISFIRE_GRACE_SECONDS,
             )
             started = True
 

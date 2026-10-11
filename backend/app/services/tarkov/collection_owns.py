@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_naive
@@ -14,6 +15,7 @@ from app.services.tarkov.game_mode import current_game_mode, parse_game_mode
 
 ITEM_ID_MAX = 64
 MERGE_MAX = 200
+OWNS_MAX = 400
 
 
 class TarkovCollectionOwnsError(Exception):
@@ -77,6 +79,16 @@ def add_own(
     )
     added = False
     if existing is None:
+        have = (
+            db.query(func.count(TarkovUserCollectionOwn.item_id))
+            .filter(
+                TarkovUserCollectionOwn.user_id == user.id,
+                TarkovUserCollectionOwn.game_mode == mode,
+            )
+            .scalar()
+        )
+        if int(have or 0) >= OWNS_MAX:
+            raise TarkovCollectionOwnsError(f"最多记录 {OWNS_MAX} 件收集道具", 409)
         db.add(
             TarkovUserCollectionOwn(
                 user_id=user.id,
@@ -140,9 +152,13 @@ def merge_owns(
         if len(incoming) >= MERGE_MAX:
             break
     have = set(list_item_ids(db, user.id, game_mode=mode))
+    room = OWNS_MAX - len(have)
     for ident in incoming:
         if ident in have:
             continue
+        if room <= 0:
+            break
+        room -= 1
         db.add(
             TarkovUserCollectionOwn(
                 user_id=user.id,

@@ -34,15 +34,33 @@
         ],
         "summary": "Post Setup Database",
         "operationId": "post_setup_database_api_setup_database_post",
+        "parameters": [
+          {
+            "name": "X-Setup-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Setup-Token"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetupDatabaseRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -75,15 +93,33 @@
         ],
         "summary": "Post Setup Admin",
         "operationId": "post_setup_admin_api_setup_admin_post",
+        "parameters": [
+          {
+            "name": "X-Setup-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Setup-Token"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetupAdminRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -299,7 +335,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -340,13 +376,42 @@
         }
       }
     },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout All",
+        "description": "作废本账号在所有设备上的登录（含当前），之后须重新登录。",
+        "operationId": "logout_all_api_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Logout All Api Auth Logout All Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/auth/qq/oauth/start": {
       "get": {
         "tags": [
           "auth"
         ],
         "summary": "Qq Oauth Login Start",
-        "description": "未登录用户发起 QQ 登录 / 一键注册。",
+        "description": "未登录用户发起 QQ 登录 / 一键注册。回跳只去白名单前端，且须回到发起的这个浏览器。",
         "operationId": "qq_oauth_login_start_api_auth_qq_oauth_start_get",
         "responses": {
           "200": {
@@ -368,7 +433,7 @@
           "auth"
         ],
         "summary": "Qq Oauth Exchange",
-        "description": "用回调 URL 中的一次性 ticket 换取会话（不把 access_token 放进 query）。",
+        "description": "用回调 URL 中的一次性 ticket 换取会话（令牌只进 HttpOnly Cookie，不进 query 也不进响应体）。",
         "operationId": "qq_oauth_exchange_api_auth_qq_exchange_post",
         "requestBody": {
           "content": {
@@ -386,7 +451,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             }
@@ -668,9 +733,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Change Username Api Auth Change Username Post"
+                  "$ref": "#/components/schemas/ChangeUsernameResponse"
                 }
               }
             }
@@ -1194,7 +1257,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 32
                 },
                 {
                   "type": "null"
@@ -1271,7 +1335,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 32
                 },
                 {
                   "type": "null"
@@ -1437,6 +1502,7 @@
           "profile"
         ],
         "summary": "Steam Openid Callback",
+        "description": "回跳只带 steam_bind=ok|error 与固定 reason 码（码表见 docs/security.md），不带任何文案。",
         "operationId": "steam_openid_callback_api_profile_steam_openid_callback_get",
         "parameters": [
           {
@@ -1445,6 +1511,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "maxLength": 4096,
               "title": "State"
             }
           }
@@ -1535,7 +1602,7 @@
           "profile"
         ],
         "summary": "Qq Oauth Callback",
-        "description": "QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。",
+        "description": "QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。\n\n回跳只带 qq_login|qq_bind=ok|error、固定 reason 码（码表见 docs/security.md）、\n一次性 ticket 与 need_complete，不带 QQ 返回或异常里的任何文案。",
         "operationId": "qq_oauth_callback_api_auth_qq_callback_get",
         "parameters": [
           {
@@ -1545,7 +1612,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 512
                 },
                 {
                   "type": "null"
@@ -1561,7 +1629,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 4096
                 },
                 {
                   "type": "null"
@@ -1577,29 +1646,14 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 128
                 },
                 {
                   "type": "null"
                 }
               ],
               "title": "Error"
-            }
-          },
-          {
-            "name": "error_description",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Error Description"
             }
           }
         ],
@@ -3473,11 +3527,11 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "description": "仅返回 id 大于该值的新行",
+              "description": "仅返回 id 大于该值的新行（ring / file 生效；all 合并后会重排 id）",
               "default": 0,
               "title": "After Id"
             },
-            "description": "仅返回 id 大于该值的新行"
+            "description": "仅返回 id 大于该值的新行（ring / file 生效；all 合并后会重排 id）"
           },
           {
             "name": "source",
@@ -4202,7 +4256,7 @@
           "steam"
         ],
         "summary": "Steam App Icon",
-        "description": "单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。",
+        "description": "单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。只认站内出现过的 AppID。",
         "operationId": "steam_app_icon_api_steam_apps__app_id__icon_get",
         "security": [
           {
@@ -4216,6 +4270,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^\\d{1,10}$",
               "title": "App Id"
             }
           }
@@ -4250,7 +4305,7 @@
           "steam"
         ],
         "summary": "Steam App Store Card",
-        "description": "商店悬停卡片：头图、简介、国区价格（含折扣）。",
+        "description": "商店悬停卡片：头图、简介、国区价格（含折扣）。只认站内出现过的 AppID。",
         "operationId": "steam_app_store_card_api_steam_apps__app_id__get",
         "security": [
           {
@@ -4264,6 +4319,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^\\d{1,10}$",
               "title": "App Id"
             }
           }
@@ -5137,7 +5193,7 @@
           "skland"
         ],
         "summary": "Skland Arknights Box Compare",
-        "description": "多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。",
+        "description": "多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。\n\n只有自己的那一行会回源森空岛；别人的盒子只读每日同步的快照。",
         "operationId": "skland_arknights_box_compare_api_skland_arknights_box_compare_get",
         "security": [
           {
@@ -5151,6 +5207,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "maxLength": 256,
               "description": "逗号分隔的成员 id，最多 5 人",
               "title": "Member Ids"
             },
@@ -5163,7 +5220,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 256
                 },
                 {
                   "type": "null"
@@ -9899,7 +9957,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Full Sync",
-        "description": "管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。",
+        "description": "管理员：后台回源 json.tarkov.dev 全文件再投影各栏目，立即返回执行记录；已有回源在跑时 409。",
         "operationId": "guides_tarkov_full_sync_api_guides_tarkov_sync_post",
         "security": [
           {
@@ -9922,12 +9980,12 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TarkovFullSyncOut"
+                  "$ref": "#/components/schemas/TarkovFullSyncStartOut"
                 }
               }
             }
@@ -10197,7 +10255,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Item Detail",
-        "description": "通用物品详情：从 items raw 返回完整 item / properties。",
+        "description": "通用物品详情：从 items raw 返回完整 item / properties；相关 raw 表头未变时 304。",
         "operationId": "guides_tarkov_item_detail_api_guides_tarkov_items__item_id__get",
         "parameters": [
           {
@@ -10300,7 +10358,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Ammo Detail",
-        "description": "弹药详情：从 items raw 返回完整 item / properties。",
+        "description": "弹药详情：从 items raw 返回完整 item / properties；items / overlay 表头未变时 304。",
         "operationId": "guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get",
         "parameters": [
           {
@@ -19319,7 +19377,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 525600.0,
+                "maximum": 43200.0,
                 "minimum": 5.0
               },
               {
@@ -19384,8 +19442,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 72,
-                "minLength": 8
+                "maxLength": 256,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -19552,13 +19610,13 @@
         "properties": {
           "current_password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "Current Password"
           },
           "new_password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "New Password"
           }
@@ -19580,7 +19638,7 @@
           },
           "current_password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "Current Password"
           }
@@ -19591,6 +19649,29 @@
           "current_password"
         ],
         "title": "ChangeUsernameBody"
+      },
+      "ChangeUsernameResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "username"
+        ],
+        "title": "ChangeUsernameResponse"
       },
       "CheckinAwardItem": {
         "properties": {
@@ -20280,7 +20361,8 @@
           "code_expire_minutes",
           "configured"
         ],
-        "title": "EmailSettingsOut"
+        "title": "EmailSettingsOut",
+        "description": "smtp_password 只写：响应恒为空串，是否已设置看 smtp_password_set。"
       },
       "EmailSettingsUpdate": {
         "properties": {
@@ -20291,18 +20373,21 @@
           },
           "smtp_user": {
             "type": "string",
+            "maxLength": 128,
             "title": "Smtp User",
             "default": ""
           },
           "smtp_from": {
             "type": "string",
+            "maxLength": 256,
             "title": "Smtp From",
             "default": ""
           },
           "smtp_password": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 256
               },
               {
                 "type": "null"
@@ -20310,13 +20395,20 @@
             ],
             "title": "Smtp Password"
           },
+          "clear_smtp_password": {
+            "type": "boolean",
+            "title": "Clear Smtp Password",
+            "default": false
+          },
           "display_name": {
             "type": "string",
+            "maxLength": 64,
             "title": "Display Name",
             "default": ""
           },
           "smtp_host": {
             "type": "string",
+            "maxLength": 255,
             "title": "Smtp Host",
             "default": ""
           },
@@ -20335,14 +20427,15 @@
           },
           "code_expire_minutes": {
             "type": "integer",
-            "maximum": 1440.0,
+            "maximum": 30.0,
             "minimum": 1.0,
             "title": "Code Expire Minutes",
             "default": 15
           }
         },
         "type": "object",
-        "title": "EmailSettingsUpdate"
+        "title": "EmailSettingsUpdate",
+        "description": "smtp_password 空或缺省保留原口令；clear_smtp_password=true 才清空（优先于新值）。"
       },
       "EmailTestRequest": {
         "properties": {
@@ -22169,6 +22262,11 @@
             "type": "boolean",
             "title": "Steam Api Key Set"
           },
+          "steam_api_key_hint": {
+            "type": "string",
+            "title": "Steam Api Key Hint",
+            "default": ""
+          },
           "qq_app_id": {
             "type": "string",
             "title": "Qq App Id"
@@ -22181,6 +22279,11 @@
           "qq_app_key_set": {
             "type": "boolean",
             "title": "Qq App Key Set"
+          },
+          "qq_app_key_hint": {
+            "type": "string",
+            "title": "Qq App Key Hint",
+            "default": ""
           },
           "qq_configured": {
             "type": "boolean",
@@ -22205,6 +22308,11 @@
             "title": "Github Token Set",
             "default": false
           },
+          "github_token_hint": {
+            "type": "string",
+            "title": "Github Token Hint",
+            "default": ""
+          },
           "github_configured": {
             "type": "boolean",
             "title": "Github Configured",
@@ -22225,6 +22333,11 @@
             "title": "Pelican Client Token Set",
             "default": false
           },
+          "pelican_client_token_hint": {
+            "type": "string",
+            "title": "Pelican Client Token Hint",
+            "default": ""
+          },
           "pelican_application_token": {
             "type": "string",
             "title": "Pelican Application Token",
@@ -22234,6 +22347,11 @@
             "type": "boolean",
             "title": "Pelican Application Token Set",
             "default": false
+          },
+          "pelican_application_token_hint": {
+            "type": "string",
+            "title": "Pelican Application Token Hint",
+            "default": ""
           },
           "pelican_server_uuid": {
             "type": "string",
@@ -22294,7 +22412,8 @@
           "qq_configured",
           "steam_configured"
         ],
-        "title": "IntegrationsOut"
+        "title": "IntegrationsOut",
+        "description": "密钥字段只写：响应恒为空串，看 `*_set`；长 token 另给末 4 位 `*_hint`（不足 16 位为空）。"
       },
       "IntegrationsStatusOut": {
         "properties": {
@@ -22501,7 +22620,8 @@
           }
         },
         "type": "object",
-        "title": "IntegrationsUpdate"
+        "title": "IntegrationsUpdate",
+        "description": "密钥字段空或缺省保留原值；`clear_<字段>`=true 才清空（优先于新值）。"
       },
       "JobConfigUpdateItem": {
         "properties": {
@@ -23443,7 +23563,7 @@
           },
           "password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "Password"
           }
@@ -23461,15 +23581,6 @@
             "type": "string",
             "title": "Message"
           },
-          "access_token": {
-            "type": "string",
-            "title": "Access Token"
-          },
-          "token_type": {
-            "type": "string",
-            "title": "Token Type",
-            "default": "bearer"
-          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
@@ -23477,7 +23588,6 @@
         "type": "object",
         "required": [
           "message",
-          "access_token",
           "user"
         ],
         "title": "LinkExistingAccountResponse"
@@ -23486,10 +23596,14 @@
         "properties": {
           "username": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Username"
           },
           "password": {
             "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
             "title": "Password"
           }
         },
@@ -28157,8 +28271,8 @@
           },
           "password": {
             "type": "string",
-            "maxLength": 72,
-            "minLength": 8,
+            "maxLength": 256,
+            "minLength": 1,
             "title": "Password"
           },
           "code": {
@@ -28196,22 +28310,6 @@
               }
             ],
             "title": "Delivery"
-          },
-          "access_token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Access Token"
-          },
-          "token_type": {
-            "type": "string",
-            "title": "Token Type",
-            "default": "bearer"
           }
         },
         "type": "object",
@@ -28250,7 +28348,7 @@
           },
           "new_password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "New Password"
           }
@@ -28364,6 +28462,7 @@
               "$ref": "#/components/schemas/RoleMembershipItem"
             },
             "type": "array",
+            "maxItems": 50,
             "title": "Roles"
           }
         },
@@ -28807,6 +28906,16 @@
             "title": "Redis Url",
             "default": ""
           },
+          "redis_url_set": {
+            "type": "boolean",
+            "title": "Redis Url Set",
+            "default": false
+          },
+          "redis_password_set": {
+            "type": "boolean",
+            "title": "Redis Password Set",
+            "default": false
+          },
           "cors_origins": {
             "type": "string",
             "title": "Cors Origins",
@@ -28827,6 +28936,11 @@
             "title": "Trust X Forwarded For",
             "default": false
           },
+          "rate_limit_enabled": {
+            "type": "boolean",
+            "title": "Rate Limit Enabled",
+            "default": true
+          },
           "db_engine": {
             "type": "string",
             "title": "Db Engine",
@@ -28842,10 +28956,22 @@
             "title": "Db Url",
             "default": ""
           },
+          "db_password_set": {
+            "type": "boolean",
+            "title": "Db Password Set",
+            "default": false
+          },
           "restart_required": {
             "type": "boolean",
             "title": "Restart Required",
             "default": false
+          },
+          "env_locked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Env Locked"
           }
         },
         "type": "object",
@@ -28853,7 +28979,8 @@
           "app_env",
           "is_production"
         ],
-        "title": "RuntimeEnvOut"
+        "title": "RuntimeEnvOut",
+        "description": "redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。\n\ndb_url 只回 scheme://账号@主机:端口/库名（不含口令、查询串）；是否带口令看 db_password_set。"
       },
       "RuntimeEnvUpdate": {
         "properties": {
@@ -28880,6 +29007,11 @@
               }
             ],
             "title": "Redis Url"
+          },
+          "clear_redis_url": {
+            "type": "boolean",
+            "title": "Clear Redis Url",
+            "default": false
           },
           "cors_origins": {
             "anyOf": [
@@ -28927,6 +29059,17 @@
             ],
             "title": "Trust X Forwarded For"
           },
+          "rate_limit_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limit Enabled"
+          },
           "db_engine": {
             "anyOf": [
               {
@@ -28965,7 +29108,8 @@
           }
         },
         "type": "object",
-        "title": "RuntimeEnvUpdate"
+        "title": "RuntimeEnvUpdate",
+        "description": "redis_url 空或缺省保留原值；clear_redis_url=true 才清空（优先于新值）。\n\n回传的脱敏地址（不带账号口令）若与已存的主机、端口一致，沿用已存账号口令与查询串。\ndb_url 空或缺省同样保留原值；回传的脱敏连接串（不带口令与查询串）若与已存的主机、端口、账号一致，\n沿用已存口令与查询串。"
       },
       "RuntimeHealthOut": {
         "properties": {
@@ -29434,6 +29578,25 @@
         ],
         "title": "SendResetPasswordCodeRequest"
       },
+      "SessionResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SessionResponse",
+        "description": "会话只在 HttpOnly Cookie 里，响应体不回令牌。"
+      },
       "SetupAdminRequest": {
         "properties": {
           "email": {
@@ -29449,7 +29612,7 @@
           },
           "password": {
             "type": "string",
-            "maxLength": 72,
+            "maxLength": 256,
             "minLength": 1,
             "title": "Password"
           }
@@ -29467,23 +29630,14 @@
           "message": {
             "type": "string",
             "title": "Message"
-          },
-          "access_token": {
-            "type": "string",
-            "title": "Access Token"
-          },
-          "token_type": {
-            "type": "string",
-            "title": "Token Type",
-            "default": "bearer"
           }
         },
         "type": "object",
         "required": [
-          "message",
-          "access_token"
+          "message"
         ],
-        "title": "SetupAdminResponse"
+        "title": "SetupAdminResponse",
+        "description": "会话只在 HttpOnly Cookie 里，响应体不回令牌。"
       },
       "SetupDatabaseRequest": {
         "properties": {
@@ -29494,6 +29648,7 @@
           },
           "url": {
             "type": "string",
+            "maxLength": 2000,
             "title": "Url",
             "default": ""
           }
@@ -29562,6 +29717,11 @@
             "type": "string",
             "title": "Sqlite Path",
             "default": ""
+          },
+          "token_required": {
+            "type": "boolean",
+            "title": "Token Required",
+            "default": false
           }
         },
         "type": "object",
@@ -32639,86 +32799,39 @@
         ],
         "title": "TarkovCraftOut"
       },
-      "TarkovFullSyncDomainOut": {
+      "TarkovFullSyncStartOut": {
         "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "ok": {
+          "accepted": {
             "type": "boolean",
-            "title": "Ok"
+            "title": "Accepted",
+            "default": true
           },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
           },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synced At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "ok"
-        ],
-        "title": "TarkovFullSyncDomainOut"
-      },
-      "TarkovFullSyncOut": {
-        "properties": {
-          "ok_count": {
+          "run_id": {
             "type": "integer",
-            "title": "Ok Count"
+            "title": "Run Id"
           },
-          "failed_count": {
-            "type": "integer",
-            "title": "Failed Count"
-          },
-          "domains": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovFullSyncDomainOut"
-            },
-            "type": "array",
-            "title": "Domains"
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "running"
           },
           "message": {
             "type": "string",
             "title": "Message",
-            "default": "ok"
+            "default": ""
           }
         },
         "type": "object",
         "required": [
-          "ok_count",
-          "failed_count"
+          "job_id",
+          "run_id"
         ],
-        "title": "TarkovFullSyncOut"
+        "title": "TarkovFullSyncStartOut",
+        "description": "整站同步已转后台；进度与各栏目结果见任务管理里 run_id 这条执行记录。"
       },
       "TarkovGoonTrackerOut": {
         "properties": {
@@ -36236,46 +36349,55 @@
         "properties": {
           "folder": {
             "type": "string",
+            "maxLength": 256,
             "title": "Folder",
             "default": ""
           },
           "raid_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Raid Id",
             "default": ""
           },
           "location": {
             "type": "string",
+            "maxLength": 128,
             "title": "Location",
             "default": ""
           },
           "map_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Map Id",
             "default": ""
           },
           "map_label": {
             "type": "string",
+            "maxLength": 64,
             "title": "Map Label",
             "default": ""
           },
           "raid_mode": {
             "type": "string",
+            "maxLength": 32,
             "title": "Raid Mode",
             "default": ""
           },
           "session_mode": {
             "type": "string",
+            "maxLength": 32,
             "title": "Session Mode",
             "default": ""
           },
           "started_at": {
             "type": "string",
+            "maxLength": 64,
             "title": "Started At",
             "default": ""
           },
           "ended_at": {
             "type": "string",
+            "maxLength": 64,
             "title": "Ended At",
             "default": ""
           },
@@ -36297,46 +36419,55 @@
         "properties": {
           "folder": {
             "type": "string",
+            "maxLength": 256,
             "title": "Folder",
             "default": ""
           },
           "raid_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Raid Id",
             "default": ""
           },
           "location": {
             "type": "string",
+            "maxLength": 128,
             "title": "Location",
             "default": ""
           },
           "map_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Map Id",
             "default": ""
           },
           "map_label": {
             "type": "string",
+            "maxLength": 64,
             "title": "Map Label",
             "default": ""
           },
           "raid_mode": {
             "type": "string",
+            "maxLength": 32,
             "title": "Raid Mode",
             "default": ""
           },
           "session_mode": {
             "type": "string",
+            "maxLength": 32,
             "title": "Session Mode",
             "default": ""
           },
           "started_at": {
             "type": "string",
+            "maxLength": 64,
             "title": "Started At",
             "default": ""
           },
           "ended_at": {
             "type": "string",
+            "maxLength": 64,
             "title": "Ended At",
             "default": ""
           },
@@ -41902,24 +42033,6 @@
         ],
         "title": "TaygedoStatusOut"
       },
-      "TokenResponse": {
-        "properties": {
-          "access_token": {
-            "type": "string",
-            "title": "Access Token"
-          },
-          "token_type": {
-            "type": "string",
-            "title": "Token Type",
-            "default": "bearer"
-          }
-        },
-        "type": "object",
-        "required": [
-          "access_token"
-        ],
-        "title": "TokenResponse"
-      },
       "UserAdminCreate": {
         "properties": {
           "email": {
@@ -41936,8 +42049,8 @@
           },
           "password": {
             "type": "string",
-            "maxLength": 72,
-            "minLength": 8,
+            "maxLength": 256,
+            "minLength": 1,
             "title": "Password"
           },
           "steam_id": {
@@ -41993,8 +42106,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 72,
-                "minLength": 8
+                "maxLength": 256,
+                "minLength": 1
               },
               {
                 "type": "null"

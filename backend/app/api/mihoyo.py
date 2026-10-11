@@ -75,18 +75,9 @@ router = APIRouter(
 )
 
 
-@router.get("/status", response_model=MihoyoStatusOut)
-def mihoyo_status(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    member: Member = Depends(require_user_member),
-    include_roles: bool = Query(default=True),
-    force: bool = Query(
-        default=True,
-        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
-    ),
-):
-    _ = user
+def _status_out(
+    db: Session, member: Member, *, include_roles: bool, force: bool
+) -> MihoyoStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -103,6 +94,21 @@ def mihoyo_status(
         extra_fields={"phone_mask": bind.phone_mask if bind else None},
         role_pref_platform="mihoyo",
     )
+
+
+@router.get("/status", response_model=MihoyoStatusOut)
+def mihoyo_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    member: Member = Depends(require_user_member),
+    include_roles: bool = Query(default=True),
+    force: bool = Query(
+        default=True,
+        description="展示路径默认回源官方；传 false 仅供内部/排障读今日 logs",
+    ),
+):
+    _ = user
+    return _status_out(db, member, include_roles=include_roles, force=force)
 
 
 @router.post("/bind/sms/send", response_model=MihoyoBindSmsSendResponse)
@@ -148,7 +154,7 @@ def mihoyo_bind_sms(
         bind_member_with_sms(db, member, payload.phone, payload.captcha)
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)
-    return mihoyo_status(db=db, user=user, member=member, include_roles=True)
+    return _status_out(db, member, include_roles=True, force=True)
 
 
 @router.post("/bind/password", response_model=MihoyoBindPasswordResponse)
@@ -177,7 +183,7 @@ def mihoyo_bind_password(
         )
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)
-    status = mihoyo_status(db=db, user=user, member=member, include_roles=True)
+    status = _status_out(db, member, include_roles=True, force=True)
     return MihoyoBindPasswordResponse(ok=True, message="绑定成功", status=status)
 
 
@@ -244,7 +250,7 @@ def mihoyo_update_bind(
         )
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)
-    return mihoyo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.patch(
@@ -272,7 +278,7 @@ def mihoyo_update_role_pref(
         bind=bind,
         payload=payload,
     )
-    return mihoyo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.get(
@@ -296,6 +302,7 @@ def mihoyo_role_tree(
         db=db,
         platform=PLATFORM_MIHOYO,
         member_id=member.id,
+        bind=bind,
         preview_roles=preview_roles,
         member=member,
         api_error_cls=MihoyoApiError,
@@ -327,7 +334,7 @@ def mihoyo_replace_role_memberships(
         bind=bind,
         body=body,
     )
-    return mihoyo_status(db=db, user=user, member=member, include_roles=False)
+    return _status_out(db, member, include_roles=False, force=False)
 
 
 @router.post(

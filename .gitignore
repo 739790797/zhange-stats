@@ -31,6 +31,8 @@ Thumbs.db
 !/var/README.md
 /uploads/
 /static/
+/static.new/
+/static.prev/
 backend/data/
 frontend/data/
 backend/var/

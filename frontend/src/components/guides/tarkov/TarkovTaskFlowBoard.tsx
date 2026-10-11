@@ -227,6 +227,7 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
       ? traderDisplayName(traderSlug, task.trader_name || traderSlug)
       : "";
     return (
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- 键盘走卡内 cardHit 按钮，整卡点击只接冒泡
       <article
         {...rest}
         ref={ref}
@@ -238,13 +239,24 @@ const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
         }${onActivate ? ` ${styles.cardJump}` : ""}${
           className ? ` ${className}` : ""
         }`}
-        aria-haspopup={hasRibbon ? "dialog" : undefined}
-        aria-expanded={hasRibbon ? open : undefined}
         onClick={(event) => {
           onClick?.(event);
           onActivate?.();
         }}
       >
+        {hasRibbon || onActivate ? (
+          <button
+            type="button"
+            className={styles.cardHit}
+            aria-label={
+              hasRibbon
+                ? `查看「${label}」的前置、阻断与冲突任务`
+                : `在任务流中定位「${label}」`
+            }
+            aria-haspopup={hasRibbon ? "dialog" : undefined}
+            aria-expanded={hasRibbon ? open : undefined}
+          />
+        ) : null}
         {hasRibbon ? (
           <span
             className={styles.cardRibbon}

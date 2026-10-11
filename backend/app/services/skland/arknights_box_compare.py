@@ -8,6 +8,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
+from app.core.security import strip_markup_chars
 from app.core.timeutil import now_naive, today
 from app.models.arknights import ArknightsBoxSnapshot
 from app.models.checkin_role_pref import CheckinRolePref
@@ -170,6 +172,62 @@ def _save_snapshot(db: Session, member_id: int, payload: dict[str, Any]) -> None
     db.commit()
 
 
+def _empty_box(status: str, message: str, roles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "status": status,
+        "message": message,
+        "uid": None,
+        "role_name": None,
+        "channel_name": None,
+        "owned": {},
+        "roles": roles or [],
+    }
+
+
+def _latest_snapshot(db: Session, member_id: int, uid: str | None) -> dict[str, Any] | None:
+    q = db.query(ArknightsBoxSnapshot).filter(ArknightsBoxSnapshot.member_id == member_id)
+    if uid:
+        q = q.filter(ArknightsBoxSnapshot.uid == uid)
+    for row in q.order_by(ArknightsBoxSnapshot.synced_at.desc()).limit(5):
+        try:
+            payload = json.loads(row.payload_json)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("status") == "ok":
+            return payload
+    return None
+
+
+def _cached_roles(db: Session, member_id: int) -> list[dict[str, Any]]:
+    """最近一次同步时的角色列表；没有快照就用签到 / 肉鸽 raw 还原，不打 list_roles。"""
+    latest = _latest_snapshot(db, member_id, None)
+    roles = latest.get("roles") if latest else None
+    if isinstance(roles, list) and roles:
+        return [r for r in roles if isinstance(r, dict) and str(r.get("uid") or "").strip()]
+    from app.services.box_role_cache import skland_arknights_roles_from_raws
+
+    return [
+        {"uid": r.uid, "role_name": r.role_name, "channel_name": r.channel_name}
+        for r in skland_arknights_roles_from_raws(db, member_id) or []
+    ]
+
+
+def _snapshot_only_box(db: Session, member: Member, uid: str | None) -> dict[str, Any]:
+    """别人的盒子只读库：当日快照优先，否则最近一次同步的快照；从不拿对方凭证回源，刷新交给每日同步。"""
+    roles = _cached_roles(db, member.id)
+    if uid and roles and uid not in {str(r.get("uid")) for r in roles}:
+        return _empty_box("error", "该角色不在已同步的绑定列表中", roles)
+    payload = _load_snapshot(db, member.id, uid) or _latest_snapshot(db, member.id, uid)
+    if payload is not None:
+        payload = dict(payload)
+        if not payload.get("roles"):
+            payload["roles"] = roles
+        return payload
+    if get_bind_for_member(db, member.id) is None:
+        return _empty_box("unbound", "未绑定森空岛")
+    return _empty_box("no_snapshot", "暂无盒子快照，每日同步后可见", roles)
+
+
 def fetch_member_owned_chars(
     db: Session,
     member: Member,
@@ -177,8 +235,14 @@ def fetch_member_owned_chars(
     uid: str | None = None,
     use_cache: bool = True,
     force_refresh: bool = False,
+    allow_upstream: bool = True,
 ) -> dict[str, Any]:
-    """返回盒子练度；默认使用当日快照，过期或缺失时拉取森空岛。"""
+    """返回盒子练度；默认使用当日快照，过期或缺失时拉取森空岛。
+
+    allow_upstream=False 只读库（看别人的盒子）。force_refresh 是同步任务：刷新失败如实报错，不拿旧快照充数。
+    """
+    if not allow_upstream:
+        return _snapshot_only_box(db, member, uid)
     if use_cache and not force_refresh:
         cached = _load_snapshot(db, member.id, uid)
         if cached is not None and "roles" in cached:
@@ -186,15 +250,7 @@ def fetch_member_owned_chars(
 
     bind = get_bind_for_member(db, member.id)
     if bind is None:
-        return {
-            "status": "unbound",
-            "message": "未绑定森空岛",
-            "uid": None,
-            "role_name": None,
-            "channel_name": None,
-            "owned": {},
-            "roles": [],
-        }
+        return _empty_box("unbound", "未绑定森空岛")
 
     try:
         box, role, roles = get_arknights_box_for_member(db, member, uid)
@@ -220,41 +276,22 @@ def fetch_member_owned_chars(
         }
     except SklandApiError as exc:
         # 拉取失败时尽量回退到非当日快照
-        stale = (
-            db.query(ArknightsBoxSnapshot)
-            .filter(ArknightsBoxSnapshot.member_id == member.id)
-            .order_by(ArknightsBoxSnapshot.synced_at.desc())
-            .first()
-        )
+        stale = None if force_refresh else _latest_snapshot(db, member.id, None)
         if stale is not None:
-            try:
-                old = json.loads(stale.payload_json)
-                if isinstance(old, dict) and old.get("status") == "ok":
-                    old = dict(old)
-                    old["message"] = f"使用缓存（刷新失败：{exc.message}）"
-                    return old
-            except json.JSONDecodeError:
-                pass
-        return {
-            "status": "error",
-            "message": exc.message,
-            "uid": None,
-            "role_name": None,
-            "channel_name": None,
-            "owned": {},
-            "roles": [],
-        }
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("fetch box for member %s failed", member.id)
-        return {
-            "status": "error",
-            "message": str(exc),
-            "uid": None,
-            "role_name": None,
-            "channel_name": None,
-            "owned": {},
-            "roles": [],
-        }
+            old = dict(stale)
+            old["message"] = f"使用缓存（刷新失败：{exc.message}）"
+            return old
+        return _empty_box("error", exc.message)
+    except Exception:  # noqa: BLE001
+        log_until_change(
+            logger,
+            f"arknights-box:{member.id}",
+            "fetch box for member %s failed",
+            member.id,
+            exc_info=True,
+        )
+        return _empty_box("error", "读取盒子失败，请稍后重试")
+    clear_log_until_change(f"arknights-box:{member.id}")
 
     if payload["status"] == "ok":
         member_id = member.id
@@ -309,6 +346,14 @@ def _viewer_member_id(db: Session, viewer: User) -> int:
     return int(ensure_user_member(db, viewer).id)
 
 
+def _member_nickname(member: Member) -> str:
+    return (
+        strip_markup_chars(member.steam_persona_name).strip()
+        or (member.user.display_name if member.user else None)
+        or member.nickname
+    )
+
+
 def list_compare_candidates(db: Session, viewer: User) -> list[dict[str, Any]]:
     """可选对比成员：站内已有明日方舟账号记录者（含自己）。"""
     self_id = _viewer_member_id(db, viewer)
@@ -335,15 +380,10 @@ def list_compare_candidates(db: Session, viewer: User) -> list[dict[str, Any]]:
         # 仅展示仍绑定森空岛的成员；自己例外已在上面处理
         if m.skland_bind is None and m.id != self_id:
             continue
-        nickname = (
-            m.steam_persona_name
-            or (m.user.display_name if m.user else None)
-            or m.nickname
-        )
         out.append(
             {
                 "member_id": m.id,
-                "nickname": nickname,
+                "nickname": _member_nickname(m),
                 "avatar_url": m.avatar_url,
                 "is_self": m.id == self_id,
                 "skland_bound": m.skland_bind is not None,
@@ -435,17 +475,14 @@ def build_box_compare(
                 }
             )
             continue
-        nickname = (
-            member.steam_persona_name
-            or (member.user.display_name if member.user else None)
-            or member.nickname
-        )
         selected_uid = (uid_map.get(mid) or "").strip() or None
-        owned_payload = fetch_member_owned_chars(db, member, uid=selected_uid)
+        owned_payload = fetch_member_owned_chars(
+            db, member, uid=selected_uid, allow_upstream=mid == self_id
+        )
         rows.append(
             {
                 "member_id": member.id,
-                "nickname": nickname,
+                "nickname": _member_nickname(member),
                 "avatar_url": member.avatar_url,
                 "status": owned_payload["status"],
                 "message": owned_payload.get("message"),
@@ -516,26 +553,45 @@ def run_arknights_box_sync_job(db: Session) -> dict[str, Any]:
         if exists is not None:
             stats["skipped"] += 1
             continue
+        log_key = f"arknights-box-sync:{bind.member_id}"
         try:
             out = sync_box_for_bind(db, bind)
-            if out.get("ok"):
-                stats["ok"] += 1
-            else:
-                stats["failed"] += 1
         except Exception:  # noqa: BLE001
-            logger.exception("arknights box sync failed member_id=%s", bind.member_id)
-            stats["failed"] += 1
             db.rollback()
+            stats["failed"] += 1
+            log_until_change(
+                logger,
+                log_key,
+                "arknights box sync crashed member_id=%s",
+                bind.member_id,
+                exc_info=True,
+            )
+            continue
+        if out.get("ok"):
+            stats["ok"] += 1
+            clear_log_until_change(log_key)
+        else:
+            stats["failed"] += 1
+            log_until_change(
+                logger,
+                log_key,
+                "arknights box sync failed member_id=%s: %s",
+                bind.member_id,
+                out.get("message"),
+            )
     return stats
 
 
 def box_sync_job_wrapper() -> None:
     from app.core.database import SessionLocal
 
+    from app.services.job_runs_prune import fail_job_run
+
     db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running")
+    job = JobRun(job_key=JOB_KEY, status="running", started_at=now_naive())
     db.add(job)
     db.commit()
+    run_id = job.id
     try:
         stats = run_arknights_box_sync_job(db)
         job.status = "ok"
@@ -544,9 +600,6 @@ def box_sync_job_wrapper() -> None:
         db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("arknights box sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
+        fail_job_run(db, run_id, str(exc))
     finally:
         db.close()

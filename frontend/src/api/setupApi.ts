@@ -15,15 +15,28 @@ export async function fetchSetupStatus() {
   return data;
 }
 
-export async function completeSetupDatabase(payload: SetupDatabaseRequest) {
+const SETUP_TOKEN_HEADER = "X-Setup-Token";
+
+function setupTokenHeaders(token: string) {
+  const value = token.trim();
+  return value ? { [SETUP_TOKEN_HEADER]: value } : {};
+}
+
+export async function completeSetupDatabase(
+  payload: SetupDatabaseRequest,
+  token: string,
+) {
   const { data } = await client.post<SetupDatabaseResult>(
     "/setup/database",
     payload,
+    { headers: setupTokenHeaders(token) },
   );
   return data;
 }
 
-export async function completeSetupAdmin(payload: SetupAdminRequest) {
-  const { data } = await client.post<SetupAdminResult>("/setup/admin", payload);
+export async function completeSetupAdmin(payload: SetupAdminRequest, token: string) {
+  const { data } = await client.post<SetupAdminResult>("/setup/admin", payload, {
+    headers: setupTokenHeaders(token),
+  });
   return data;
 }

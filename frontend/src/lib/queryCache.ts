@@ -3,6 +3,8 @@ export const LOCAL_QUERY_STALE_MS = 30_000;
 
 export const QUERY_PERSIST_KEY = "zhange-query-persist";
 
+export const QUERY_PERSIST_OWNER_KEY = "zhange-query-persist-owner";
+
 /** sessionStorage 里只留半小时，刷新后可先画签到状态再 force 回源。 */
 export const QUERY_PERSIST_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -14,6 +16,24 @@ const PERSIST_QUERY_HEADS = new Set([
   "mihoyo-status",
   "platform-features-effective",
 ]);
+
+/**
+ * 记下 sessionStorage 里那份查询缓存属于谁；返回 true 表示换了人，调用方须丢掉整份缓存。
+ * 缓存按标签页隔离，登录用户却在 localStorage 跨标签页共享，别的标签页换号后刷新也要能识别。
+ */
+export function claimQueryPersistOwner(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  userId: number | null | undefined,
+): boolean {
+  const owner = userId ? String(userId) : "";
+  try {
+    const prev = storage.getItem(QUERY_PERSIST_OWNER_KEY);
+    storage.setItem(QUERY_PERSIST_OWNER_KEY, owner);
+    return prev !== owner;
+  } catch {
+    return true;
+  }
+}
 
 export function shouldPersistQueryKey(queryKey: readonly unknown[]): boolean {
   const head = queryKey[0];

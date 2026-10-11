@@ -11,6 +11,7 @@ from app.services.checkin.queue import (
     elapsed_scheduled_minutes,
     plan_checkin_queue,
     queue_batch_size,
+    window_minutes_of_day,
 )
 
 
@@ -74,6 +75,28 @@ def test_plan_merges_roles_and_keeps_tighter_window() -> None:
     assert set(selected) == {1, 2}
     assert selected[1] == {("arknights", "a"), ("arknights", "b")}
     assert selected[2] == {("arknights", "c")}
+
+
+def test_plan_puts_members_that_already_failed_behind() -> None:
+    items = [
+        CheckinQueueItem(member_id=1, role_key=("arknights", "1"), hour=0, minute=5, attempts=2),
+        CheckinQueueItem(member_id=2, role_key=("arknights", "2"), hour=0, minute=5, attempts=1),
+        CheckinQueueItem(member_id=3, role_key=("arknights", "3"), hour=0, minute=5),
+    ]
+    assert list(plan_checkin_queue(items, now=_at(0, 6))) == [3]
+    assert list(plan_checkin_queue(items[:2], now=_at(0, 6))) == [2]
+
+
+def test_window_minutes_of_day_matches_elapsed_window() -> None:
+    window = window_minutes_of_day(0, 10)
+    assert len(window) == CHECKIN_QUEUE_WINDOW_MINUTES
+    assert 10 in window and 0 in window
+    assert 23 * 60 + 41 in window
+    assert 23 * 60 + 40 not in window
+    for total in range(24 * 60):
+        hour, minute = divmod(total, 60)
+        in_window = elapsed_scheduled_minutes(hour, minute, 0, 10) is not None
+        assert (total in window) is in_window
 
 
 def test_plan_separate_slots_do_not_share_a_batch() -> None:

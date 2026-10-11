@@ -399,6 +399,41 @@ def list_ammo(db: Session) -> list[TarkovAmmo]:
     )
 
 
+def ammo_catalog_rows(db: Session) -> list[dict[str, Any]]:
+    """弹药总表出参行：派生行 + items raw 里的弹药盒图标。"""
+    from app.services.tarkov import catalog as catalog_svc
+
+    packs = catalog_svc.list_ammo_pack_index(db)
+    rows: list[dict[str, Any]] = []
+    for row in list_ammo(db):
+        pack = packs.get(row.item_id) or {}
+        rows.append(
+            {
+                "id": row.item_id,
+                "name": row.name,
+                "short_name": row.short_name,
+                "caliber": row.caliber,
+                "ammo_type": row.ammo_type,
+                "damage": row.damage,
+                "penetration": row.penetration,
+                "armor_damage": row.armor_damage,
+                "initial_speed": row.initial_speed,
+                "accuracy_modifier": row.accuracy_modifier,
+                "recoil_modifier": row.recoil_modifier,
+                "light_bleed_modifier": row.light_bleed_modifier,
+                "heavy_bleed_modifier": row.heavy_bleed_modifier,
+                "tracer": bool(row.tracer),
+                "tracer_color": row.tracer_color or "",
+                "fragmentation_chance": row.fragmentation_chance,
+                "ricochet_chance": row.ricochet_chance,
+                "icon_link": row.icon_link,
+                "pack_icon_link": str(pack.get("pack_icon_link") or ""),
+                "pack_item_id": str(pack.get("pack_item_id") or ""),
+            }
+        )
+    return rows
+
+
 def replace_derived_ammo_rows(
     db: Session,
     rows: list[dict[str, Any]],

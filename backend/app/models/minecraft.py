@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 from app.core.sqltypes import PortableJSON
+from app.core.timeutil import now_naive
 
 PROFILE_ROW_ID = 1
 
@@ -47,8 +48,9 @@ class MinecraftServerProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
+        default=now_naive,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=now_naive,
     )
 
 

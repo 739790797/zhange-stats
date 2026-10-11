@@ -1,20 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { Badge, Typography } from "antd";
 import { Link } from "react-router-dom";
+import { useServerAppVersion } from "@/hooks/useServerAppVersion";
 import { isAdminUser } from "@/lib/isAdminUser";
 import { useAuthStore } from "@/stores/authStore";
-
-async function fetchAppVersion(): Promise<string> {
-  // 探活公开 /health（无 Cookie / CSRF）；不走 *Api
-  const res = await fetch("/health", { cache: "no-store" });
-  // degraded 时后端返回 503，仍带 version 字段
-  try {
-    const data = (await res.json()) as { version?: string };
-    return (data.version || "").replace(/^v/i, "").trim();
-  } catch {
-    return "";
-  }
-}
 
 /** 展示当前运行中的应用版本（来自 /health） */
 export function AppVersion({
@@ -30,12 +18,7 @@ export function AppVersion({
   inline?: boolean;
 }) {
   const user = useAuthStore((s) => s.user);
-  const { data: version } = useQuery({
-    queryKey: ["app-version"],
-    queryFn: fetchAppVersion,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  });
+  const { data: version } = useServerAppVersion();
 
   if (!version) return null;
 

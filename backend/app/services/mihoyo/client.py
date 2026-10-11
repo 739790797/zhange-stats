@@ -877,10 +877,11 @@ def ensure_session(creds: MihoyoCredentials) -> MihoyoCredentials:
     except MihoyoApiError as exc:
         # cookie_token 失败时仍可先走 stoken 接口；记录警告
         logger.warning("mihoyo refresh_cookie_token skipped: %s", exc.message)
-    try:
-        enrich_user_info(working)
-    except MihoyoApiError as exc:
-        logger.warning("mihoyo enrich_user_info skipped: %s", exc.message)
+    if not working.nickname:
+        try:
+            enrich_user_info(working)
+        except MihoyoApiError as exc:
+            logger.warning("mihoyo enrich_user_info skipped: %s", exc.message)
     return working
 
 

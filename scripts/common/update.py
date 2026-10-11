@@ -15,9 +15,6 @@ _BACKEND = _REPO_ROOT / "backend"
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-from app.core.runtime_cache import pin_library_cache_env  # noqa: E402
-
-pin_library_cache_env()
 from app.services.app_updator import host_update_main  # noqa: E402
 
 if __name__ == "__main__":

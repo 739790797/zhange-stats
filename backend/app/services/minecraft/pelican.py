@@ -8,15 +8,18 @@ from __future__ import annotations
 import json
 import logging
 import urllib.parse
+from collections.abc import Callable
 from typing import Any
 
-from app.core.http_client import HttpRequestError, http_request
+from app.core.http_client import HttpRequestError, http_request, http_stream
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
 LONG_TIMEOUT = 120.0
 USER_AGENT = "zhange-stats-pelican/1.0"
+# 校验通过前新文件只以这个后缀存在；加载器只认 *.jar，半截文件不会被当成模组 / 核心。
+PULL_TEMP_SUFFIX = ".zhange-part"
 
 
 class PelicanError(Exception):
@@ -386,32 +389,47 @@ def download_file(
     max_bytes: int,
     timeout: float = LONG_TIMEOUT,
 ) -> bytes:
-    """经签名 URL 拉二进制（jar）；不要走 files/contents，那是给文本编辑用的。"""
+    """经签名 URL 拉二进制（jar）；不要走 files/contents，那是给文本编辑用的。
+
+    边读边数字节，超过 ``max_bytes`` 立刻断开；Content-Length 只用来提前拒绝。
+    """
     if max_bytes <= 0:
         raise PelicanError("下载大小限制不合法")
     signed = get_download_url(base_url, token, server_uuid, path)
     try:
-        resp = http_request(
+        with http_stream(
             "GET",
             signed,
             headers={"User-Agent": USER_AGENT, "Accept": "*/*"},
             timeout=timeout,
-        )
+        ) as resp:
+            if resp.status_code >= 400:
+                detail = _read_capped(resp, 300).decode("utf-8", errors="replace")
+                raise PelicanError(
+                    friendly_error(resp.status_code, detail), status_code=resp.status_code
+                )
+            declared = str(resp.headers.get("content-length") or "").strip()
+            if declared.isdigit() and int(declared) > max_bytes:
+                raise PelicanError("文件过大，无法读取模组信息")
+            chunks: list[bytes] = []
+            done = 0
+            for chunk in resp.iter_bytes():
+                done += len(chunk)
+                if done > max_bytes:
+                    raise PelicanError("文件过大，无法读取模组信息")
+                chunks.append(chunk)
     except HttpRequestError as exc:
         raise PelicanError(f"下载失败：{exc}") from exc
-    if resp.status_code >= 400:
-        detail = resp.content.decode("utf-8", errors="replace")[:300]
-        raise PelicanError(friendly_error(resp.status_code, detail), status_code=resp.status_code)
-    try:
-        content_length = int(resp.headers.get("content-length") or 0)
-    except (TypeError, ValueError):
-        content_length = 0
-    if content_length > max_bytes:
-        raise PelicanError("文件过大，无法读取模组信息")
-    data = resp.content
-    if len(data) > max_bytes:
-        raise PelicanError("文件过大，无法读取模组信息")
-    return data
+    return b"".join(chunks)
+
+
+def _read_capped(resp: Any, limit: int) -> bytes:
+    buf = bytearray()
+    for chunk in resp.iter_bytes():
+        buf.extend(chunk)
+        if len(buf) >= limit:
+            break
+    return bytes(buf[:limit])
 
 
 def rename_files(
@@ -540,6 +558,61 @@ def pull_file(
         },
         timeout=timeout,
     )
+
+
+def pull_file_verified(
+    base_url: str,
+    token: str,
+    server_uuid: str,
+    *,
+    url: str,
+    directory: str,
+    filename: str,
+    verify: Callable[[bytes], None],
+    max_bytes: int,
+    timeout: float = LONG_TIMEOUT,
+) -> str:
+    """先拉到同目录临时名、下载回来交给 ``verify``，过了才替换正式文件。
+
+    校验失败或下载失败时删掉临时文件，原有同名文件不动；返回正式路径。
+    """
+    folder = normalize_remote_directory(directory)
+    name = sanitize_filename(filename)
+    temp = f"{name}{PULL_TEMP_SUFFIX}"
+    pull_file(
+        base_url,
+        token,
+        server_uuid,
+        url=url,
+        directory=folder,
+        filename=temp,
+        timeout=timeout,
+    )
+    try:
+        data = download_file(
+            base_url,
+            token,
+            server_uuid,
+            join_remote_path(folder, temp),
+            max_bytes=max_bytes,
+            timeout=timeout,
+        )
+        verify(data)
+    except Exception:
+        _discard_quietly(base_url, token, server_uuid, folder, temp)
+        raise
+    present = {str(row.get("name") or "") for row in list_files(base_url, token, server_uuid, folder)}
+    if name in present:
+        delete_files(base_url, token, server_uuid, root=folder, files=[name])
+    rename_files(base_url, token, server_uuid, root=folder, files=[(temp, name)])
+    return join_remote_path(folder, name)
+
+
+def _discard_quietly(base_url: str, token: str, server_uuid: str, folder: str, name: str) -> None:
+    try:
+        delete_files(base_url, token, server_uuid, root=folder, files=[name])
+    except PelicanError as exc:
+        logger.warning("pelican: discard %s/%s failed: %s", folder, name, exc.message)
 
 
 def delete_files(
