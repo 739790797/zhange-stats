@@ -64,7 +64,8 @@ class ExiliumNeedGraphCaptcha(ExiliumApiError):
 class ExiliumCredentials:
     token: str
     account_name: str | None = None
-    password: str | None = None  # 明文仅存于加密凭证中，用于 token 失效后重登
+    # 登录口令的 MD5（token 失效后重登用）；不存明文
+    password_md5: str | None = None
     source: str | None = None  # phone | mail
     nickname: str | None = None
     user_id: str | None = None
@@ -73,8 +74,8 @@ class ExiliumCredentials:
         data = {"token": self.token}
         if self.account_name:
             data["account_name"] = self.account_name
-        if self.password:
-            data["password"] = self.password
+        if self.password_md5:
+            data["password_md5"] = self.password_md5
         if self.source:
             data["source"] = self.source
         if self.nickname:
@@ -88,10 +89,14 @@ class ExiliumCredentials:
         token = str(raw.get("token") or "").strip()
         if not token:
             raise ExiliumApiError("凭证缺少 token")
+        digest = str(raw.get("password_md5") or "").strip() or None
+        if digest is None and raw.get("password"):
+            # 早期凭证存的是明文口令
+            digest = password_digest(str(raw["password"]))
         return cls(
             token=token,
             account_name=(str(raw["account_name"]).strip() if raw.get("account_name") else None),
-            password=(str(raw["password"]) if raw.get("password") else None),
+            password_md5=digest,
             source=(str(raw["source"]).strip() if raw.get("source") else None),
             nickname=(str(raw["nickname"]).strip() if raw.get("nickname") else None),
             user_id=(str(raw["user_id"]).strip() if raw.get("user_id") else None),
@@ -133,10 +138,9 @@ def encrypt_account_name(account: str) -> str:
     return _aes_encrypt(account.strip())
 
 
-def encrypt_password(password: str) -> str:
-    # 官方前端：先 MD5(明文密码) 再 AES
-    digest = hashlib.md5(password.encode("utf-8")).hexdigest()
-    return _aes_encrypt(digest)
+def password_digest(password: str) -> str:
+    # 官方前端登录提交 AES(MD5(明文))，所以只存 MD5 就够重登
+    return hashlib.md5(password.encode("utf-8")).hexdigest()
 
 
 def friendly_error_message(message: str | None) -> str:
@@ -227,9 +231,13 @@ def _http_full(
     return data_out, payload
 
 
-def login_with_password(account: str, password: str) -> ExiliumCredentials:
+def login_with_password(
+    account: str, password: str | None = None, *, password_md5: str | None = None
+) -> ExiliumCredentials:
+    """明文口令或存下的 MD5 二选一；返回的凭证只带 MD5。"""
     account = account.strip()
-    if not account or not password:
+    digest = (password_md5 or "").strip() or (password_digest(password) if password else "")
+    if not account or not digest:
         raise ExiliumApiError("请填写账号和密码")
     source = detect_source(account)
     data = _http(
@@ -237,7 +245,7 @@ def login_with_password(account: str, password: str) -> ExiliumCredentials:
         "/login/account",
         body={
             "account_name": encrypt_account_name(account),
-            "passwd": encrypt_password(password),
+            "passwd": _aes_encrypt(digest),
             "source": source,
         },
     )
@@ -248,7 +256,7 @@ def login_with_password(account: str, password: str) -> ExiliumCredentials:
     creds = ExiliumCredentials(
         token=token,
         account_name=account,
-        password=password,
+        password_md5=digest,
         source=source,
     )
     try:

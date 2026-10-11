@@ -30,14 +30,14 @@ from app.services.exilium.client import (
 logger = logging.getLogger(__name__)
 
 def ensure_session(creds: ExiliumCredentials) -> ExiliumCredentials:
-    """探活；失败且有密码则重登。"""
+    """探活；失败且存了口令摘要则重登。"""
     try:
         enrich_user_info(creds)
         return creds
     except ExiliumApiError as exc:
-        if creds.account_name and creds.password:
-            logger.info("exilium token invalid, re-login with password")
-            return login_with_password(creds.account_name, creds.password)
+        if creds.account_name and creds.password_md5:
+            logger.info("exilium token invalid, re-login with saved password")
+            return login_with_password(creds.account_name, password_md5=creds.password_md5)
         raise ExiliumApiError(
             friendly_error_message(exc.message) or "登录已失效，请重新绑定",
             code=exc.code,

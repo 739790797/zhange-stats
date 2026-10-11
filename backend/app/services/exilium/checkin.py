@@ -63,7 +63,7 @@ def get_bind_for_member(db: Session, member_id: int) -> ExiliumBind | None:
     return db.query(ExiliumBind).filter(ExiliumBind.member_id == member_id).one_or_none()
 
 
-def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
+def _load_payload(bind: ExiliumBind) -> dict[str, Any]:
     raw = decrypt_secret(bind.credentials_enc)
     if not raw:
         raise ExiliumApiError("凭证已损坏，请重新绑定")
@@ -73,7 +73,22 @@ def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
         raise ExiliumApiError("凭证格式无效，请重新绑定") from exc
     if not isinstance(payload, dict):
         raise ExiliumApiError("凭证格式无效，请重新绑定")
-    return ExiliumCredentials.from_dict(payload)
+    return payload
+
+
+def _load_creds(bind: ExiliumBind) -> ExiliumCredentials:
+    return ExiliumCredentials.from_dict(_load_payload(bind))
+
+
+def _drop_plaintext_password(db: Session, bind: ExiliumBind) -> None:
+    """早期凭证里存的是明文口令：用到时改写成只带 MD5（按读出时的密文 CAS，期间被改过就留给下次）。"""
+    payload = _load_payload(bind)
+    if "password" not in payload:
+        return
+    creds = ExiliumCredentials.from_dict(payload)
+    stored = StoredCreds(creds=creds, loaded_enc=bind.credentials_enc or "", loaded=payload)
+    store_creds_if_changed(db, bind, stored, extra=_creds_columns(creds))
+    db.commit()
 
 
 def _creds_columns(creds: ExiliumCredentials) -> dict[str, Any]:
@@ -148,7 +163,8 @@ def update_bind_prefs(
 
 
 def _session_for_bind(db: Session, bind: ExiliumBind) -> StoredCreds[ExiliumCredentials]:
-    """探活；token 失效且存了密码时重登。"""
+    """探活；token 失效且存了口令摘要时重登。"""
+    _drop_plaintext_password(db, bind)
     return refresh_creds_locked(
         db,
         bind,
