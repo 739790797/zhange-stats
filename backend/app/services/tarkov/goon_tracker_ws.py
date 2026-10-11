@@ -14,7 +14,7 @@ from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import goon_tracker as goon_svc
-from app.services.tarkov.goon_tracker_hub import hub
+from app.services.tarkov.goon_tracker_hub import CLOSE_SLOW_CONSUMER, hub
 from app.services.tarkov.ws_limits import (
     CLOSE_TOO_LARGE,
     FrameTooLarge,
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN = 4403
+CLOSE_INTERNAL = 1011
 # 客户端只发 auth / ping。
 MAX_FRAME_CHARS = 16 * 1024
 
@@ -77,6 +78,7 @@ async def run_goon_session(client: WebSocket) -> None:
     pings = TokenBucket(0.5, 4)
     try:
         if not await send_json_timeout(client, goon_svc.snapshot_payload()):
+            await close_quietly(client, CLOSE_SLOW_CONSUMER)
             return
         while True:
             raw = await receive_json_bounded(client, max_chars=MAX_FRAME_CHARS)
@@ -90,5 +92,6 @@ async def run_goon_session(client: WebSocket) -> None:
         await close_quietly(client, CLOSE_TOO_LARGE)
     except Exception:  # noqa: BLE001
         logger.debug("goon tracker ws ended", exc_info=True)
+        await close_quietly(client, CLOSE_INTERNAL)
     finally:
         await hub.leave(client)

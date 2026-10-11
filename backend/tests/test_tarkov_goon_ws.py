@@ -69,6 +69,20 @@ def test_goons_ws_loads_user_off_the_event_loop(monkeypatch) -> None:
     assert on_loop == [False]
 
 
+def test_goons_ws_closes_when_snapshot_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(goon_ws_svc, "_load_user", lambda _token: None)
+
+    def boom() -> dict:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(goon_ws_svc.goon_svc, "snapshot_payload", boom)
+    with _client().websocket_connect("/goons/ws") as ws:
+        ws.send_json({"event": "auth", "token": "t"})
+        with pytest.raises(WebSocketDisconnect) as caught:
+            ws.receive_json()
+    assert caught.value.code == goon_ws_svc.CLOSE_INTERNAL
+
+
 def test_goons_ws_closes_oversized_frame() -> None:
     with _client().websocket_connect("/goons/ws") as ws:
         ws.send_text("x" * (goon_ws_svc.MAX_FRAME_CHARS + 1))
