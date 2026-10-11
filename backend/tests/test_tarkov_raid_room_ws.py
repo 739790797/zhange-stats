@@ -23,6 +23,10 @@ def _frozen() -> float:
     return 0.0
 
 
+def test_publish_key_owns_skips_when_database_missing() -> None:
+    room_ws_svc._publish_key_owns("missing-room")
+
+
 def test_ws_rejects_cross_site_origin_before_auth(monkeypatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(room_ws_svc, "_load_user", lambda token: calls.append(token))

@@ -67,8 +67,19 @@ def _snapshot(public_id: str, user: User) -> dict[str, Any]:
         db.close()
 
 
+def _session() -> Session | None:
+    """心跳、入座复核、补推钥匙都是旁路：库没配好或暂时打不开时不能拆掉这条连接。"""
+    try:
+        return SessionLocal()
+    except Exception:  # noqa: BLE001
+        logger.debug("raid room db unavailable", exc_info=True)
+        return None
+
+
 def _touch_ws_member(public_id: str, user: User) -> None:
-    db: Session = SessionLocal()
+    db = _session()
+    if db is None:
+        return
     try:
         rooms_svc.touch_member(db, public_id, user)
         db.commit()
@@ -79,7 +90,9 @@ def _touch_ws_member(public_id: str, user: User) -> None:
 
 
 def _is_member(public_id: str, user: User) -> bool:
-    db: Session = SessionLocal()
+    db = _session()
+    if db is None:
+        return False
     try:
         ok = rooms_svc.is_room_member(db, public_id, user)
         db.commit()
@@ -92,7 +105,9 @@ def _is_member(public_id: str, user: User) -> bool:
 
 
 def _publish_key_owns(public_id: str) -> None:
-    db: Session = SessionLocal()
+    db = _session()
+    if db is None:
+        return
     try:
         rooms_svc.publish_room_key_owns(db, public_id)
     except Exception:  # noqa: BLE001
@@ -316,6 +331,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         await close_quietly(client, CLOSE_TOO_LARGE)
     except Exception:  # noqa: BLE001
         logger.debug("raid room ws ended", exc_info=True)
+        await close_quietly(client, 1011)
     finally:
         await hub.leave(public_id, client)
         await seat.touch(force=True)
