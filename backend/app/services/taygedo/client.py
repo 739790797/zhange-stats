@@ -11,6 +11,7 @@ import string
 import time
 import urllib.parse
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
 import uuid
 from dataclasses import dataclass
@@ -159,12 +160,17 @@ def _http(
                 code=status,
             )
         raise TaygedoApiError(f"空响应（HTTP {status}）")
+    path = urllib.parse.urlsplit(url).path
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise TaygedoApiError(f"无效 JSON（HTTP {status}）：{raw[:160]}") from exc
+        log_until_change(
+            logger, f"taygedo-http:{path}", "taygedo %s HTTP %s non-JSON: %s", path, status, raw[:200]
+        )
+        raise TaygedoApiError(f"无效 JSON（HTTP {status}）") from exc
     if not isinstance(payload, dict):
         raise TaygedoApiError(f"响应格式异常（HTTP {status}）")
+    clear_log_until_change(f"taygedo-http:{path}")
     return status, payload
 
 

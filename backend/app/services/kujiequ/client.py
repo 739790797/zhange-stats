@@ -10,6 +10,7 @@ import urllib.parse
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
 
 logger = logging.getLogger(__name__)
@@ -149,15 +150,19 @@ def _post_form(
         status = resp.status_code
     except HttpRequestError as exc:
         raise KujiequApiError(f"无法连接库街区: {exc}") from exc
+    log_key = f"kujiequ-http:{path}"
     if status >= 400:
-        raise KujiequApiError(f"HTTP {status}: {raw[:200]}")
+        log_until_change(logger, log_key, "kujiequ %s HTTP %s: %s", path, status, raw[:200])
+        raise KujiequApiError(f"库街区请求失败（HTTP {status}）")
 
     try:
         data = json.loads(raw) if raw else {}
     except json.JSONDecodeError as exc:
-        raise KujiequApiError(f"库街区响应无效: {raw[:120]}") from exc
+        log_until_change(logger, log_key, "kujiequ %s returned non-JSON: %s", path, raw[:200])
+        raise KujiequApiError("库街区响应无效") from exc
     if not isinstance(data, dict):
         raise KujiequApiError("库街区响应格式错误")
+    clear_log_until_change(log_key)
     return data
 
 

@@ -40,6 +40,43 @@ def test_normalize_and_classify_ongoing() -> None:
     assert gs._classify(event, at=at) == "ongoing"
 
 
+def test_link_url_only_keeps_http_links_with_a_real_host() -> None:
+    def link(value: object) -> str | None:
+        event = gs._normalize_event({"title": "活动", "linkUrl": value}, game="arknights")
+        assert event is not None
+        return event["link_url"]
+
+    for ok in (
+        "https://ak.hypergryph.com/news/2026",
+        "http://example.com:8080/a?b=c#d",
+        "https://www.fz.wiki/wiki/%E6%B4%BB%E5%8A%A8",
+        "  https://example.com  ",
+    ):
+        assert link(ok) == ok.strip()
+    for bad in (
+        "javascript:alert(1)",
+        "JavaScript:alert(document.cookie)",
+        "data:text/html,<script>alert(1)</script>",
+        "//evil.example/path",
+        "/relative/path",
+        "https:/\\evil.example",
+        "https://user:pass@example.com/",
+        "https://example.com\\@evil.example/",
+        "java\tscript:alert(1)",
+        "https://exa mple.com/",
+        "https://",
+        "https://example.com:99999/",
+        "https://[::1/",
+        "ftp://example.com/file",
+        "https://-bad-.example/",
+        "https://exa_mple.com/",
+        "https://" + "a" * 2048 + ".com/",
+        123,
+        {"href": "https://example.com"},
+    ):
+        assert link(bad) is None, bad
+
+
 def test_strip_title_ordinal() -> None:
     assert gs._strip_title_ordinal("一、SideStory「墟」") == "SideStory「墟」"
     assert gs._strip_title_ordinal("十一、「夏日嘉年华」") == "「夏日嘉年华」"

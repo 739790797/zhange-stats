@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.timeutil import now_naive
 from app.models.kujiequ import KujiequWwBoxRaw
 from app.models.member import Member
@@ -390,6 +391,7 @@ def get_ww_box_for_member(
             raise KujiequApiError("鸣潮角色缺少 roleId/serverId，请重新绑定库街区")
     stale = False
     if force or row is None:
+        log_key = f"kujiequ-ww-box:{member.id}:{role.role_id}"
         try:
             bundle = fetch_ww_box_bundle(upstream_creds(), role)
             raw_json = json.dumps(bundle, ensure_ascii=False)
@@ -417,14 +419,18 @@ def get_ww_box_for_member(
                 row.synced_at = now
             db.commit()
             db.refresh(row)
-        except KujiequApiError:
+            clear_log_until_change(log_key)
+        except KujiequApiError as exc:
             if row is None:
                 raise
             stale = True
-            logger.exception(
-                "ww box refresh failed member_id=%s role_id=%s",
+            log_until_change(
+                logger,
+                log_key,
+                "ww box refresh failed member_id=%s role_id=%s, serving stored raw: %s",
                 member.id,
                 role.role_id,
+                exc.message,
             )
 
     try:

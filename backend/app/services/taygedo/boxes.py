@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.timeutil import now_naive
 from app.models.exastris import ExastrisBoxRaw
 from app.models.member import Member
@@ -309,6 +310,7 @@ def get_exastris_box_for_member(
     )
     stale = False
     if force or row is None:
+        log_key = f"taygedo-exastris-box:{member.id}:{role.role_id}"
         try:
             if working is None:
                 working = _session_for_bind(db, bind).creds
@@ -341,14 +343,18 @@ def get_exastris_box_for_member(
                 row.synced_at = now
             db.commit()
             db.refresh(row)
-        except TaygedoApiError:
+            clear_log_until_change(log_key)
+        except TaygedoApiError as exc:
             if row is None:
                 raise
             stale = True
-            logger.exception(
-                "exastris box refresh failed member_id=%s role_id=%s",
+            log_until_change(
+                logger,
+                log_key,
+                "exastris box refresh failed member_id=%s role_id=%s, serving stored raw: %s",
                 member.id,
                 role.role_id,
+                exc.message,
             )
 
     try:
