@@ -197,6 +197,8 @@ def test_today_done_from_logs_role_keys() -> None:
 
 
 def test_role_pref_toggle_keeps_bind_auto_checkin_in_sync(db) -> None:
+    _pref(db, "arknights", "1", on=False)
+    db.commit()
     bind = _bind(db)
     upsert_role_pref(
         db,
@@ -243,14 +245,12 @@ def test_retire_vanished_prefs_only_judges_games_that_were_listed(db) -> None:
         roles=[SimpleNamespace(game_code="arknights", uid="kept")],
     )
 
-    assert retired == 1
+    assert retired == 2
     db.expire_all()
     prefs = load_pref_map(db, platform="skland", member_id=1)
     state = {key: (p.included, p.enabled) for key, p in prefs.items()}
     assert state == {
         ("arknights", "kept"): (True, True),
-        ("arknights", "gone"): (False, False),
-        ("arknights", "gone-already-off"): (False, False),
         ("endfield", "unlisted-game"): (True, True),
     }
     assert _bind(db).auto_checkin is True
@@ -297,8 +297,180 @@ def test_role_tree_retires_vanished_roles_before_rendering(db) -> None:
 
     assert [(n.role_uid, n.included) for n in tree.roles] == [("kept", True)]
     db.expire_all()
-    gone = load_pref_map(db, platform="skland", member_id=1)[("arknights", "gone")]
-    assert (gone.included, gone.enabled) == (False, False)
+    assert ("arknights", "gone") not in load_pref_map(db, platform="skland", member_id=1)
+
+
+def _tree(db, roles: list[dict]):
+    from app.api.platform_checkin import build_role_membership_tree
+
+    return build_role_membership_tree(
+        db=db,
+        platform="skland",
+        member_id=1,
+        bind=_bind(db),
+        preview_roles=lambda _db, _member: roles,
+        member=db.get(Member, 1),
+        api_error_cls=RuntimeError,
+    )
+
+
+def _replace(db, roles: list[dict]) -> None:
+    from app.api.platform_checkin import apply_role_membership_replace
+    from app.schemas.checkin import RoleMembershipReplaceBody
+
+    apply_role_membership_replace(
+        db=db,
+        platform="skland",
+        member_id=1,
+        bind=_bind(db),
+        body=RoleMembershipReplaceBody(roles=roles),
+    )
+
+
+def test_role_tree_seeds_listed_roles_so_memberships_can_be_saved(db) -> None:
+    tree = _tree(db, [{"game_code": "arknights", "uid": "1"}, {"game_code": "endfield", "uid": "2"}])
+
+    assert [(n.role_uid, n.included) for n in tree.roles] == [("1", False), ("2", False)]
+    _replace(
+        db,
+        [
+            {"game_code": "arknights", "role_uid": "1", "included": True},
+            {"game_code": "endfield", "role_uid": "2", "included": False},
+        ],
+    )
+    db.expire_all()
+    state = {k: p.included for k, p in load_pref_map(db, platform="skland", member_id=1).items()}
+    assert state == {("arknights", "1"): True, ("endfield", "2"): False}
+
+
+def test_role_memberships_reject_the_whole_batch_when_a_role_was_never_listed(db) -> None:
+    from fastapi import HTTPException
+
+    from app.services.checkin.role_prefs import UNKNOWN_ROLE_MESSAGE
+
+    _pref(db, "arknights", "1", on=False)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        _replace(
+            db,
+            [
+                {"game_code": "arknights", "role_uid": "1", "included": True},
+                {"game_code": "arknights", "role_uid": "made-up", "included": True},
+            ],
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == UNKNOWN_ROLE_MESSAGE
+    db.rollback()
+    prefs = load_pref_map(db, platform="skland", member_id=1)
+    assert {k: p.included for k, p in prefs.items()} == {("arknights", "1"): False}
+
+
+def test_role_memberships_load_the_pref_map_once(db, monkeypatch) -> None:
+    from app.services.checkin import role_prefs
+    from app.services.checkin.role_prefs import apply_role_memberships
+
+    for uid in ("1", "2", "3"):
+        _pref(db, "arknights", uid, on=False)
+    db.commit()
+    calls: list[int] = []
+    real_load = role_prefs.load_pref_map
+
+    def counting_load(*args, **kwargs):
+        calls.append(1)
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(role_prefs, "load_pref_map", counting_load)
+    apply_role_memberships(
+        db,
+        platform="skland",
+        member_id=1,
+        bind=_bind(db),
+        roles=[{"game_code": "arknights", "role_uid": uid, "included": True} for uid in "123"],
+    )
+
+    assert len(calls) == 1
+    db.expire_all()
+    assert all(p.included for p in real_load(db, platform="skland", member_id=1).values())
+
+
+def test_upsert_role_pref_does_not_create_rows_for_unknown_roles(db) -> None:
+    from app.services.checkin.role_prefs import UNKNOWN_ROLE_MESSAGE, count_prefs
+
+    with pytest.raises(ValueError, match=UNKNOWN_ROLE_MESSAGE):
+        upsert_role_pref(
+            db,
+            platform="skland",
+            member_id=1,
+            bind=_bind(db),
+            game_code="arknights",
+            role_uid="made-up",
+            enabled=True,
+            checkin_hour=8,
+            checkin_minute=0,
+        )
+
+    db.rollback()
+    assert count_prefs(db, platform="skland", member_id=1) == 0
+
+
+def test_ensure_prefs_stops_at_the_per_member_cap(db) -> None:
+    from app.services.checkin.role_prefs import (
+        MAX_PREFS_PER_MEMBER,
+        count_prefs,
+        ensure_prefs_for_roles,
+    )
+
+    ensure_prefs_for_roles(
+        db,
+        platform="skland",
+        member_id=1,
+        bind=_bind(db),
+        roles=[("arknights", str(i)) for i in range(MAX_PREFS_PER_MEMBER + 20)],
+    )
+    db.commit()
+
+    assert count_prefs(db, platform="skland", member_id=1) == MAX_PREFS_PER_MEMBER
+
+
+def test_role_tree_hides_roles_that_did_not_fit_under_the_cap(db, monkeypatch) -> None:
+    from app.services.checkin import role_prefs
+
+    monkeypatch.setattr(role_prefs, "MAX_PREFS_PER_MEMBER", 1)
+
+    tree = _tree(db, [{"game_code": "arknights", "uid": "1"}, {"game_code": "arknights", "uid": "2"}])
+
+    assert [n.role_uid for n in tree.roles] == ["1"]
+
+
+def test_role_membership_body_caps_the_number_of_roles() -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.checkin import RoleMembershipReplaceBody
+
+    item = {"game_code": "arknights", "role_uid": "1", "included": True}
+    assert len(RoleMembershipReplaceBody(roles=[item] * 50).roles) == 50
+    with pytest.raises(ValidationError):
+        RoleMembershipReplaceBody(roles=[item] * 51)
+
+
+def test_role_pref_endpoints_are_rate_limited_per_member(db) -> None:
+    from fastapi import HTTPException
+
+    from app.api.platform_checkin import ROLE_PREF_WRITE_LIMIT, ROLE_TREE_LIMIT
+
+    for _ in range(ROLE_TREE_LIMIT):
+        _tree(db, [])
+    with pytest.raises(HTTPException) as tree_exc:
+        _tree(db, [])
+    assert tree_exc.value.status_code == 429
+
+    for _ in range(ROLE_PREF_WRITE_LIMIT):
+        _replace(db, [])
+    with pytest.raises(HTTPException) as write_exc:
+        _replace(db, [])
+    assert write_exc.value.status_code == 429
 
 
 def test_mihoyo_role_tree_community_key_matches_checkin_key(monkeypatch) -> None:

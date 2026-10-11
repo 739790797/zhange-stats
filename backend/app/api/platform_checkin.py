@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import platform_limiter
 from app.models.member import Member
 from app.schemas.checkin import (
     CheckinNowBody,
@@ -21,6 +22,19 @@ StatusT = TypeVar("StatusT", bound=BaseModel)
 RoleT = TypeVar("RoleT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
 CheckinT = TypeVar("CheckinT", bound=BaseModel)
+
+ROLE_PREF_WINDOW_SEC = 600
+# 角色树每次都回源列角色
+ROLE_TREE_LIMIT = 30
+ROLE_PREF_WRITE_LIMIT = 120
+
+
+def _hit_role_pref_write_limit(platform: str, member_id: int) -> None:
+    platform_limiter.hit(
+        f"{platform}-role-prefs:member:{int(member_id)}",
+        limit=ROLE_PREF_WRITE_LIMIT,
+        window_sec=ROLE_PREF_WINDOW_SEC,
+    )
 
 
 def raise_api_error(exc: Exception, api_error_cls: type[Exception]) -> None:
@@ -167,7 +181,8 @@ def apply_role_pref_update(
     bind: Any,
     payload: CheckinRolePrefUpdate,
 ) -> None:
-    """Validate and upsert a single role pref (included / auto_checkin)."""
+    """Validate and update a single seeded role pref (included / auto_checkin)."""
+    _hit_role_pref_write_limit(platform, member_id)
     if payload.enabled is None and payload.included is None:
         raise HTTPException(
             status_code=400,
@@ -206,13 +221,22 @@ def build_role_membership_tree(
     member: Member,
     api_error_cls: type[Exception],
 ) -> RoleMembershipTreeOut:
-    """角色树（绑定 / 更换绑定后前端紧接着会打开）；账号下已不存在的角色顺手退出自动签到。"""
+    """角色树（绑定 / 更换绑定后前端紧接着会打开）。
+
+    账号下已不存在的角色删掉偏好；列出的角色种好偏好行，之后的写入只认这些行。
+    """
     from app.services.checkin.role_prefs import (
         build_membership_tree_from_roles,
-        load_pref_map,
+        ensure_prefs_for_roles,
         retire_vanished_prefs,
+        role_key,
     )
 
+    platform_limiter.hit(
+        f"{platform}-role-tree:member:{int(member_id)}",
+        limit=ROLE_TREE_LIMIT,
+        window_sec=ROLE_PREF_WINDOW_SEC,
+    )
     try:
         raw_roles = preview_roles(db, member)
     except api_error_cls as exc:  # type: ignore[misc]
@@ -221,13 +245,21 @@ def build_role_membership_tree(
     retire_vanished_prefs(
         db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles
     )
-    pref_map = load_pref_map(db, platform=platform, member_id=member_id)
+    pref_map = ensure_prefs_for_roles(
+        db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles
+    )
+    db.commit()
     nodes = build_membership_tree_from_roles(
         platform=platform, roles=raw_roles, pref_map=pref_map
     )
     return RoleMembershipTreeOut(
         platform=platform,
-        roles=[RoleMembershipNodeOut(**n) for n in nodes],
+        roles=[
+            RoleMembershipNodeOut(**n)
+            for n in nodes
+            # 超出偏好条数上限没种上的角色不给选，否则整批保存会被拒
+            if role_key(n["game_code"], n["role_uid"]) in pref_map
+        ],
     )
 
 
@@ -241,10 +273,14 @@ def apply_role_membership_replace(
 ) -> None:
     from app.services.checkin.role_prefs import apply_role_memberships
 
-    apply_role_memberships(
-        db,
-        platform=platform,
-        member_id=member_id,
-        bind=bind,
-        roles=[r.model_dump() for r in body.roles],
-    )
+    _hit_role_pref_write_limit(platform, member_id)
+    try:
+        apply_role_memberships(
+            db,
+            platform=platform,
+            member_id=member_id,
+            bind=bind,
+            roles=[r.model_dump() for r in body.roles],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
