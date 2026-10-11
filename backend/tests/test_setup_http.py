@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,9 @@ from app.services.setup import (
     read_setup_token,
     reset_setup_complete_for_tests,
 )
+
+_SECRET_MYSQL_URL = "mysql+pymysql://zhange_user:s3cret-pw@db.internal:3306/zhange"
+_SECRET_PARTS = ("s3cret-pw", "zhange_user", "db.internal")
 
 
 def _cleanup_engine() -> None:
@@ -38,6 +42,105 @@ def fresh_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     yield install
     reset_setup_complete_for_tests()
     _cleanup_engine()
+
+
+def _sqlite_tables(path: Path) -> set[str]:
+    conn = sqlite3.connect(path)
+    try:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    finally:
+        conn.close()
+    return {row[0] for row in rows}
+
+
+def _mysql_url_opens_standin(monkeypatch: pytest.MonkeyPatch, standin: Path) -> None:
+    """MySQL 连接串改连本地 SQLite 替身，替身按服务器库的规则建表/迁移。"""
+    from app.core import file_config, migrate
+
+    real_configure = dbmod.configure_engine
+    real_sqlite_schema = migrate._run_sqlite_schema
+    monkeypatch.setattr(file_config, "ping_mysql_url", lambda _url, **_kw: None)
+    monkeypatch.setattr(
+        "app.api.setup.configure_engine",
+        lambda url=None: real_configure(
+            f"sqlite:///{standin.as_posix()}" if url and url.startswith("mysql") else url
+        ),
+    )
+
+    def schema(engine) -> None:
+        if engine.url.database == standin.as_posix():
+            migrate._run_server_schema(engine)
+        else:
+            real_sqlite_schema(engine)
+
+    monkeypatch.setattr(migrate, "_run_sqlite_schema", schema)
+
+
+def test_unversioned_database_refused_and_choice_rolled_back(
+    fresh_install: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """有 users 无 alembic_version 的库：409 给修复说明，database.json 恢复原样，向导还能换库。"""
+    from app.core.file_config import config_path
+    from app.core.migrate import _PRE_ALEMBIC_HELP
+    from app.main import app
+
+    standin = tmp_path / "legacy.sqlite"
+    conn = sqlite3.connect(standin)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+    _mysql_url_opens_standin(monkeypatch, standin)
+    db_json = config_path("database")
+    original = b'{\n  "_version": 1\n}\n'
+    db_json.write_bytes(original)
+
+    with TestClient(app) as client:
+        auth = {SETUP_TOKEN_HEADER: read_setup_token()}
+        refused = client.post(
+            "/api/setup/database",
+            json={"engine": "mysql", "url": _SECRET_MYSQL_URL},
+            headers=auth,
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == _PRE_ALEMBIC_HELP
+        assert not any(part in refused.text for part in _SECRET_PARTS)
+        assert db_json.read_bytes() == original
+        assert _sqlite_tables(standin) == {"users"}
+        assert client.get("/api/setup/status").json()["needs_database"] is True
+
+        retry = client.post("/api/setup/database", json={"engine": "sqlite"}, headers=auth)
+        assert retry.status_code == 200, retry.text
+        assert client.get("/api/setup/status").json()["needs_database"] is False
+
+
+def test_schema_failure_rolls_back_without_leaking_credentials(
+    fresh_install: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.core import file_config
+    from app.core.file_config import config_path
+    from app.main import app
+
+    monkeypatch.setattr(file_config, "ping_mysql_url", lambda _url, **_kw: None)
+    monkeypatch.setattr("app.api.setup.configure_engine", lambda url=None: None)
+
+    def fail() -> None:
+        raise RuntimeError(f"(1142, 'CREATE command denied') while using {_SECRET_MYSQL_URL}")
+
+    monkeypatch.setattr("app.api.setup._apply_schema", fail)
+    with TestClient(app) as client, caplog.at_level("ERROR", logger="zhange.setup"):
+        failed = client.post(
+            "/api/setup/database",
+            json={"engine": "mysql", "url": _SECRET_MYSQL_URL},
+            headers={SETUP_TOKEN_HEADER: read_setup_token()},
+        )
+        assert failed.status_code == 500
+        assert failed.json()["detail"] == "建表或迁移失败，已撤回这次数据库选择；详情见服务日志"
+        assert not any(part in failed.text for part in _SECRET_PARTS)
+        assert not config_path("database").exists()
+        assert client.get("/api/setup/status").json()["needs_database"] is True
+    logged = [r.getMessage() for r in caplog.records if r.name == "zhange.setup"]
+    assert any("rolled back" in m and "CREATE command denied" in m for m in logged)
+    assert not any("s3cret-pw" in m or "zhange_user" in m for m in logged)
 
 
 def test_first_deploy_sqlite_wizard_http(

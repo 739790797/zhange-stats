@@ -86,13 +86,13 @@ def read_setup_token() -> str:
         return ""
 
 
-def _write_private_file(path: Path, text: str) -> None:
+def _write_private_file(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # mkstemp 建出来就是 0600；replace 保证读者不会读到半个令牌
+    # mkstemp 建出来就是 0600；replace 保证读者不会读到半个文件
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
         os.chmod(tmp, 0o600)
@@ -111,7 +111,7 @@ def ensure_setup_token() -> Path:
     path = setup_token_path()
     with _token_lock:
         if not read_setup_token():
-            _write_private_file(path, secrets.token_urlsafe(24) + "\n")
+            _write_private_file(path, (secrets.token_urlsafe(24) + "\n").encode("ascii"))
             _token_announced = False
         if not _token_announced:
             _token_announced = True
@@ -142,6 +142,38 @@ def delete_setup_token() -> None:
             return
         except OSError as exc:
             logger.warning("setup: could not delete install token %s (%s)", path, exc)
+
+
+def snapshot_database_settings() -> bytes | None:
+    """向导写连接设置前 config/database.json 的原样内容；None 表示原来没有这个文件。"""
+    from app.core.file_config import config_path
+
+    try:
+        return config_path("database").read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def roll_back_database_choice(snapshot: bytes | None) -> None:
+    """选库后建表失败：放回原来的 database.json 并断开那个库，否则下次启动还会去连它。"""
+    from app.core.config import get_settings
+    from app.core.database import get_engine
+    from app.core.file_config import clear_cache, config_path
+
+    path = config_path("database")
+    try:
+        if snapshot is None:
+            path.unlink(missing_ok=True)
+        else:
+            _write_private_file(path, snapshot)
+    except OSError as exc:
+        logger.error("setup: could not roll back %s (%s); remove it before restarting", path, exc)
+    clear_cache("database")
+    get_settings.cache_clear()
+    try:
+        get_engine().dispose()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def ensure_setup_marker_if_admins_exist(db: Session) -> None:

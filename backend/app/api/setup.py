@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
@@ -18,6 +19,7 @@ from app.core.file_config import (
     default_sqlite_rel,
     save_database_settings,
 )
+from app.core.migrate import UnversionedSchemaError
 from app.core.session_cookies import attach_session_cookies
 from app.core.startup import run_post_database_startup, start_background_services
 from app.services.auth_config import get_min_password_length
@@ -30,9 +32,11 @@ from app.services.setup import (
     is_setup_complete_cached,
     mark_setup_complete,
     needs_setup,
+    roll_back_database_choice,
     setup_marker_exists,
     setup_open,
     setup_token_matches,
+    snapshot_database_settings,
 )
 
 logger = logging.getLogger("zhange.setup")
@@ -41,6 +45,8 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 
 _CRED_IN_URL = re.compile(r"(://)[^@/\s]+@")
 _TOKEN_LOG_KEY = "setup.token_file"
+# 失败会撤回 database.json：并发的另一次提交不能夹在保存与撤回之间
+_database_choice_lock = threading.Lock()
 
 
 class SetupStatusOut(BaseModel):
@@ -173,10 +179,16 @@ def post_setup_database(
     body: SetupDatabaseRequest,
     x_setup_token: str | None = Header(default=None, alias=SETUP_TOKEN_HEADER),
 ) -> SetupDatabaseResponse:
-    if database_is_configured() or is_setup_complete_cached():
-        raise HTTPException(status_code=409, detail="数据库已配置")
-    _check_setup_token(x_setup_token)
+    with _database_choice_lock:
+        if database_is_configured() or is_setup_complete_cached():
+            raise HTTPException(status_code=409, detail="数据库已配置")
+        _check_setup_token(x_setup_token)
+        return _choose_database(body)
+
+
+def _choose_database(body: SetupDatabaseRequest) -> SetupDatabaseResponse:
     engine = body.engine.strip().lower()
+    snapshot = snapshot_database_settings()
     try:
         saved = save_database_settings(engine=engine, url=body.url or "")
     except DatabaseSettingsError as exc:
@@ -192,16 +204,29 @@ def post_setup_database(
             detail="无法连接数据库，请检查主机、端口、库名与账号密码",
         ) from exc
     get_settings.cache_clear()
-    if engine == "sqlite":
-        configure_engine()
+    try:
+        configure_engine(saved["db_url"] if engine == "mysql" else None)
         _apply_schema()
+    except UnversionedSchemaError as exc:
+        roll_back_database_choice(snapshot)
+        # 文案是固定的修复说明或残留表名，不含连接串
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        roll_back_database_choice(snapshot)
+        logger.error(
+            "setup: schema setup failed, database choice rolled back (%s)",
+            _redact_db_error(exc, body.url or ""),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="建表或迁移失败，已撤回这次数据库选择；详情见服务日志",
+        ) from exc
+    if engine == "sqlite":
         return SetupDatabaseResponse(
             message="已使用 SQLite 文件库",
             engine="sqlite",
             sqlite_path=saved["db_path"],
         )
-    configure_engine(saved["db_url"])
-    _apply_schema()
     return SetupDatabaseResponse(
         message="已连接外部 MySQL/MariaDB",
         engine="mysql",
