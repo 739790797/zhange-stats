@@ -80,6 +80,10 @@ jobs:
           python -m pip install -r requirements.txt -r requirements-dev.txt \
             -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
 
+      - name: Ruff
+        working-directory: backend
+        run: python -m ruff check app tests
+
       - name: Test
         working-directory: backend
         run: python -m pytest -q

@@ -87,7 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -St
 
 对外可见的版本 = **质量门绿之后写上的 GitHub Release**。门红则 `publish-release` 不跑：不新建、不覆盖 tag，生产「检查更新」仍是上一成功版，**和没发一样**。
 
-推送到 `main` 时，CI 先跑 `frontend-quality`、`backend-tests`、`backend-migrate-mariadb`（MariaDB 上空库迁移两遍、`alembic check`、迁移测试）、`openapi-drift`；全部通过后才按根目录 `VERSION` 发 Release（tag `v{VERSION}`，建在本次提交上），上传三个资产：
+推送到 `main` 时，CI 先跑 `frontend-quality`、`backend-tests`（ruff + pytest）、`backend-migrate-mariadb`（MariaDB 上空库迁移两遍、`alembic check`、迁移测试）、`openapi-drift`；全部通过后才按根目录 `VERSION` 发 Release（tag `v{VERSION}`，建在本次提交上），上传三个资产：
 
 - `zhange-stats-{VERSION}-static.tar.gz`：预构建前端
 - `zhange-stats-{VERSION}-source.tar.gz`：`git archive` 源码包，单一顶层目录 `zhange-stats-{VERSION}/`

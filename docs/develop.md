@@ -44,7 +44,7 @@ cd backend && python -m venv .venv
 # 先装 CPU torch（不带 -c），否则 easyocr 会拉 CUDA 版
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt -c constraints.txt
-pip install -r requirements-dev.txt   # pytest
+pip install -r requirements-dev.txt   # pytest、ruff
 # 酒馆公式识别：主依赖已含 onnxruntime / tokenizers；权重在 data/models/texteller
 # 钥匙管理 / 局前任务截图识别：rapidocr + easyocr（CPU torch）+ opencv-python-headless；权重在 data/models/rapidocr 与 data/models/easyocr。
 # 到站点设置「文字识别」从 RapidOCR 清单选档位，点「检查更新」或到任务管理跑「文字识别模型」预拉权重；识别时不再下载。

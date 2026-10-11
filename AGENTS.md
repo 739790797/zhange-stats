@@ -100,5 +100,5 @@ alembic upgrade head
 
 ## CI
 
-PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（pytest）· `backend-migrate-mariadb`（MariaDB 上 alembic）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR。`main` 仅在质量门绿后发 GitHub Release（static）；门红不改 Release，与没发一样。详见 [`docs/deploy.md`](docs/deploy.md)「发版」。  
+PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（ruff + pytest）· `backend-migrate-mariadb`（MariaDB 上 alembic）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR。`main` 仅在质量门绿后发 GitHub Release（static）；门红不改 Release，与没发一样。详见 [`docs/deploy.md`](docs/deploy.md)「发版」。  
 提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。
