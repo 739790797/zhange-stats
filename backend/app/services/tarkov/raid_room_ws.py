@@ -91,6 +91,16 @@ def _is_member(public_id: str, user: User) -> bool:
         db.close()
 
 
+def _publish_key_owns(public_id: str) -> None:
+    db: Session = SessionLocal()
+    try:
+        rooms_svc.publish_room_key_owns(db, public_id)
+    except Exception:  # noqa: BLE001
+        logger.debug("raid room key owns publish failed", exc_info=True)
+    finally:
+        db.close()
+
+
 def _presence(public_id: str) -> dict[str, Any]:
     return {
         "event": "presence",
@@ -234,6 +244,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 )
                 if not slug or not await seat.ok():
                     continue
+                moved = hub.view_map_of(public_id, user.id) != slug
                 hub.set_view_map(public_id, user.id, slug)
                 hub.publish(
                     public_id,
@@ -244,6 +255,8 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                         "view_maps": hub.view_maps(public_id),
                     },
                 )
+                if moved and rooms_svc.view_map_is_new(public_id, user.id):
+                    await asyncio.to_thread(_publish_key_owns, public_id)
                 continue
             if event == "draw_draft":
                 view_map = hub.view_map_of(public_id, user.id)
@@ -295,6 +308,8 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 if changed:
                     payload["view_maps"] = hub.view_maps(public_id)
                 hub.publish(public_id, payload)
+                if changed and rooms_svc.view_map_is_new(public_id, user.id):
+                    await asyncio.to_thread(_publish_key_owns, public_id)
     except WebSocketDisconnect:
         pass
     except FrameTooLarge:

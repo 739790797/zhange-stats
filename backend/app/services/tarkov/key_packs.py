@@ -2,25 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import time
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy.orm import Session
 
-from app.services.tarkov.bosses import MAP_ZH
+from app.core.biz_logging import clear_log_until_change, log_until_change
+from app.services.tarkov.bosses import MAP_ZH, TarkovBossesError, ensure_maps, get_maps_raw
 from app.services.tarkov.catalog import (
     KEYS_HANDBOOK_IDS,
     KEY_TYPES,
     load_parsed_catalog,
+    peek_catalog_items,
 )
-from app.services.tarkov.game_mode import (
-    json_resource_url,
-    parse_game_mode,
-)
+from app.services.tarkov.game_mode import cache_key
 from app.services.tarkov.guides import TarkovGuidesError, load_parsed_guides
-from app.services.tarkov.http import download_bytes
 from app.services.tarkov.item_sources import _load_task_rows
 from app.services.tarkov.items import TarkovItemsError
 from app.services.tarkov.maps import (
@@ -29,17 +25,17 @@ from app.services.tarkov.maps import (
     factory_exit_key_lock_allowed,
     resolve_map_slug,
 )
+from app.services.tarkov.overlay import parsed_cache_key
+from app.services.tarkov.parse_cache import ModeCache
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov.tasks import TRADER_BY_ID, TarkovTasksError, load_parsed_tasks
 
 logger = logging.getLogger(__name__)
 
-_CACHE_TTL_SEC = 3600
-_CACHE_VER = "locks-v3"
-_lock_cache: dict[str, dict[str, Any]] = {}
+_CACHE_VER = "locks-v4"
+_LOCKS_LOG_KEY = "tarkov-key-packs-locks"
 
 SOURCE_JSON = "json.tarkov.dev maps.locks"
-SOURCE_STALE = "stale cache"
 UNAVAILABLE_MSG = "钥匙分类暂时拉不到门锁数据（json.tarkov.dev 不可用）。请稍后再试。"
 
 # 门锁 / 入场钥未收录时的第二优先：eftarkov.com 物品页面包屑（海岸线/海关/街区/储备站/破冰船钥匙）。
@@ -92,26 +88,13 @@ class TarkovKeyPacksError(Exception):
         self.message = message
 
 
-def _http_request(
-    url: str,
-    *,
-    method: str = "GET",
-    body: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = 20,
-) -> bytes:
-    return download_bytes(
-        url,
-        method=method,
-        body=body,
-        headers=headers,
-        timeout=timeout,
-        error_cls=TarkovKeyPacksError,
-    )
+class KeyIdIndex(NamedTuple):
+    known: frozenset[str]
+    by_map: dict[str, frozenset[str]]
 
 
-def _cache_key(mode: str) -> str:
-    return f"{mode}:{_CACHE_VER}"
+_locks_cache: ModeCache[list[dict[str, Any]]] = ModeCache()
+_key_ids_cache: ModeCache[KeyIdIndex] = ModeCache()
 
 
 def parent_map_slug(slug: str) -> str:
@@ -718,72 +701,95 @@ def parse_json_maps_locks(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def _decode_json_object(raw: bytes, *, label: str) -> dict[str, Any]:
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovKeyPacksError(f"{label}解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovKeyPacksError(f"{label}格式无效")
-    return payload
-
-
-def _fetch_json_locks() -> list[dict[str, Any]]:
-    raw = _http_request(json_resource_url("maps"), timeout=120)
-    return parse_json_maps_locks(_decode_json_object(raw, label="json.tarkov.dev maps 门锁"))
-
-
-def _locks_from_persisted(db: Session) -> list[dict[str, Any]] | None:
+def _locks_from_persisted(db: Session) -> list[dict[str, Any]]:
     from app.services.tarkov import upstream as upstream_svc
 
     payload = upstream_svc.load_raw(db, "maps")
     if not isinstance(payload, dict):
-        return None
+        return []
     try:
         maps = parse_json_maps_locks(payload)
     except TarkovKeyPacksError:
-        logger.warning("key packs persisted maps dump has no locks")
-        return None
+        log_until_change(logger, _LOCKS_LOG_KEY, "key packs persisted maps dump has no locks")
+        return []
+    clear_log_until_change(_LOCKS_LOG_KEY)
     return maps
 
 
-def fetch_map_locks(
-    *,
-    db: Session | None = None,
-) -> tuple[list[dict[str, Any]], str]:
-    now = time.time()
-    mode = parse_game_mode()
-    key = _cache_key(mode)
-    entry = _lock_cache.get(key) or {}
-    cached = entry.get("maps")
-    cached_source = str(entry.get("source") or SOURCE_JSON)
-    if (
-        isinstance(cached, list)
-        and cached
-        and maps_have_lock_data(cached)
-        and now - float(entry.get("at") or 0) < _CACHE_TTL_SEC
-    ):
-        return cached, cached_source
+def _maps_header_key(db: Session) -> str | None:
+    from app.services.tarkov import upstream as upstream_svc
 
-    if db is not None:
-        persisted = _locks_from_persisted(db)
-        if persisted:
-            _lock_cache[key] = {"at": now, "maps": persisted, "source": SOURCE_JSON}
-            return persisted, SOURCE_JSON
+    row = get_maps_raw(db)
+    if row is None:
+        return None
+    return cache_key(upstream_svc.raw_row_header(row)[1] or "", _CACHE_VER)
 
-    errors: list[str] = []
+
+def stored_map_locks(db: Session) -> list[dict[str, Any]]:
+    """库里 maps raw 的门锁，表头未变直接用进程缓存；没有 raw 或 raw 里没有门锁时为空。不回源。"""
+    key = _maps_header_key(db)
+    if key is None:
+        return []
+    hit = _locks_cache.get(key)
+    if hit is not None:
+        return hit
+    maps = _locks_from_persisted(db)
+    _locks_cache.put(key, maps)
+    return maps
+
+
+def fetch_map_locks(db: Session) -> tuple[list[dict[str, Any]], str]:
+    """门锁只认库里的 maps raw：缺 raw 时走 ensure_maps（单飞回源并落库），读路径不另行下载。"""
     try:
-        maps = _fetch_json_locks()
-        _lock_cache[key] = {"at": now, "maps": maps, "source": SOURCE_JSON}
-        return maps, SOURCE_JSON
-    except TarkovKeyPacksError as exc:
-        errors.append(f"json: {exc}")
-        logger.warning("key packs json maps locks failed: %s", exc)
+        ensure_maps(db)
+    except TarkovBossesError as exc:
+        log_until_change(
+            logger,
+            _LOCKS_LOG_KEY,
+            "key packs maps raw unavailable: %s",
+            str(exc)[:200],
+        )
+        raise TarkovKeyPacksError(UNAVAILABLE_MSG) from exc
+    maps = stored_map_locks(db)
+    if not maps:
+        raise TarkovKeyPacksError(UNAVAILABLE_MSG)
+    return maps, SOURCE_JSON
 
-    if isinstance(cached, list) and cached:
-        logger.warning("key packs using stale locks cache after: %s", "；".join(errors))
-        return cached, SOURCE_STALE
-    raise TarkovKeyPacksError(UNAVAILABLE_MSG)
+
+def _key_id_index(db: Session) -> KeyIdIndex:
+    from app.services.tarkov import items as items_svc
+
+    _source, items_synced, _note = items_svc.items_raw_header(db)
+    key = f"{_maps_header_key(db) or ''}|{parsed_cache_key(db, items_synced)}"
+    hit = _key_ids_cache.get(key)
+    if hit is not None:
+        return hit
+    try:
+        catalog_rows = peek_catalog_items(db)
+    except TarkovItemsError as exc:
+        logger.warning("key id index: items catalog unavailable: %s", exc)
+        catalog_rows = []
+    grouped = group_key_packs(stored_map_locks(db), catalog_rows)
+    by_map = {
+        str(pack["slug"]): frozenset(str(row["id"]) for row in pack["keys"])
+        for pack in grouped["maps"]
+    }
+    known: set[str] = {str(row["id"]) for row in grouped["unbound"]}
+    for ids in by_map.values():
+        known |= ids
+    index = KeyIdIndex(frozenset(known), by_map)
+    _key_ids_cache.put(key, index)
+    return index
+
+
+def known_key_ids(db: Session) -> frozenset[str]:
+    """能勾「我有」的钥匙：门锁 / 入场钥 / 社区归图 + 物品目录里的手册钥匙。只读库里的 raw，不回源。"""
+    return _key_id_index(db).known
+
+
+def map_key_ids(db: Session, map_slug: str) -> frozenset[str]:
+    """这张图（变体并到母图）门锁 / 入场钥 / 社区归图的钥匙。"""
+    return _key_id_index(db).by_map.get(parent_map_slug(map_slug), frozenset())
 
 
 def _catalog_rows(db: Session) -> tuple[list[dict[str, Any]], str | None, str | None]:
@@ -842,18 +848,14 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
 
 def _merge_note(catalog_note: str | None, source: str) -> str | None:
-    extra = ""
-    if source == SOURCE_JSON:
-        extra = "门锁来自 json.tarkov.dev"
-    elif source == SOURCE_STALE:
-        extra = "门锁为缓存（上游暂不可用）"
+    extra = "门锁来自 json.tarkov.dev" if source == SOURCE_JSON else ""
     if extra and catalog_note:
         return f"{catalog_note}；{extra}"
     return extra or catalog_note
 
 
 def list_key_packs(db: Session) -> dict[str, Any]:
-    maps, source = fetch_map_locks(db=db)
+    maps, source = fetch_map_locks(db)
     catalog_rows, synced_at, note = _catalog_rows(db)
     grouped = group_key_packs(maps, catalog_rows)
     barters, crafts = _guides_for_sources(db)

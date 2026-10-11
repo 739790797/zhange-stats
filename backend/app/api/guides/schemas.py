@@ -1738,15 +1738,15 @@ class TarkovTaskDonesIn(BaseModel):
 
 
 class TarkovRaidLogIn(BaseModel):
-    folder: str = ""
-    raid_id: str = ""
-    location: str = ""
-    map_id: str = ""
-    map_label: str = ""
-    raid_mode: str = ""
-    session_mode: str = ""
-    started_at: str = ""
-    ended_at: str = ""
+    folder: str = Field(default="", max_length=256)
+    raid_id: str = Field(default="", max_length=64)
+    location: str = Field(default="", max_length=128)
+    map_id: str = Field(default="", max_length=64)
+    map_label: str = Field(default="", max_length=64)
+    raid_mode: str = Field(default="", max_length=32)
+    session_mode: str = Field(default="", max_length=32)
+    started_at: str = Field(default="", max_length=64)
+    ended_at: str = Field(default="", max_length=64)
     reconnected: bool = False
     aborted: bool = False
 

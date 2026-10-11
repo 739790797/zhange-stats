@@ -12,6 +12,7 @@ from app.models.tarkov import TarkovUserRaidLog
 from app.models.user import User
 
 IMPORT_MAX = 500
+KEEP_MAX = 2000
 FOLDER_MAX = 128
 RAID_ID_MAX = 16
 LOCATION_MAX = 64
@@ -77,6 +78,24 @@ def normalize_raid(raw: Any) -> dict[str, Any] | None:
     if not _keep_raid(item):
         return None
     return item
+
+
+def _prune_oldest(db: Session, user_id: int) -> None:
+    """每人只留按开局时间最近的 KEEP_MAX 局。"""
+    stale = [
+        row[0]
+        for row in db.query(TarkovUserRaidLog.id)
+        .filter(TarkovUserRaidLog.user_id == user_id)
+        .order_by(TarkovUserRaidLog.started_at.desc(), TarkovUserRaidLog.id.desc())
+        .offset(KEEP_MAX)
+        .all()
+    ]
+    for start in range(0, len(stale), IMPORT_MAX):
+        (
+            db.query(TarkovUserRaidLog)
+            .filter(TarkovUserRaidLog.id.in_(stale[start : start + IMPORT_MAX]))
+            .delete(synchronize_session=False)
+        )
 
 
 def upsert_raids(
@@ -146,6 +165,7 @@ def upsert_raids(
             row.updated_at = stamp
             updated += 1
     db.flush()
+    _prune_oldest(db, user.id)
     return {
         "inserted": inserted,
         "updated": updated,

@@ -156,19 +156,13 @@ def _apply_traders(_db: Session, dump: dict[str, dict[str, Any]]) -> dict[str, A
     return _dump_result("traders", trader_count=len(traders))
 
 
-def _seed_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _check_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
     payload = dump.get("maps")
     if not isinstance(payload, dict) or not payload:
         raise key_packs_svc.TarkovKeyPacksError("dump 缺少 maps，无法刷新门锁")
     maps = key_packs_svc.parse_json_maps_locks(payload)
     if not key_packs_svc.maps_have_lock_data(maps):
         raise key_packs_svc.TarkovKeyPacksError("dump maps 没有门锁")
-    now = time.time()
-    key_packs_svc._lock_cache[key_packs_svc._cache_key(parse_game_mode())] = {
-        "at": now,
-        "maps": maps,
-        "source": key_packs_svc.SOURCE_JSON,
-    }
     return {
         "source": key_packs_svc.SOURCE_JSON,
         "synced_at": now_naive().isoformat(),
@@ -193,7 +187,7 @@ _APPLY_STEPS: tuple[tuple[str, Any, type[Exception]], ...] = (
     ("maps", _apply_maps, bosses_svc.TarkovBossesError),
     ("guides", _apply_guides, guides_svc.TarkovGuidesError),
     ("traders", _apply_traders, traders_svc.TarkovTradersError),
-    ("locks", lambda db, dump: _seed_locks(dump), key_packs_svc.TarkovKeyPacksError),
+    ("locks", lambda db, dump: _check_locks(dump), key_packs_svc.TarkovKeyPacksError),
 )
 
 APPLY_DOMAIN_IDS: tuple[str, ...] = (

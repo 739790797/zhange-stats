@@ -98,6 +98,8 @@ _raid_prep_cache: ModeKeyedCache[
 ] = ModeKeyedCache()
 # map_slug → {task_id: name}
 _raid_prep_index_cache: ModeCache[dict[str, dict[str, dict[str, str]]]] = ModeCache()
+# canon_map → 本图任务用得上的钥匙 id
+_raid_prep_key_cache: ModeKeyedCache[frozenset[str]] = ModeKeyedCache()
 
 
 class TarkovTasksError(Exception):
@@ -1891,6 +1893,7 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
     _parsed_cache.clear()
     _raid_prep_cache.clear()
     _raid_prep_index_cache.clear()
+    _raid_prep_key_cache.clear()
     return {
         "task_count": len(rows),
         "source": bundle.source,
@@ -2393,6 +2396,64 @@ def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
         for row in rows
         if str(row.get("id") or "").strip()
     }
+
+
+def _ref_ids(refs: Any) -> set[str]:
+    out: set[str] = set()
+    for ref in refs or []:
+        ident = str(ref.get("id") or "").strip() if isinstance(ref, dict) else ""
+        if ident:
+            out.add(ident)
+    return out
+
+
+def _objective_on_map(obj: dict[str, Any], keys: set[str], ids: set[str]) -> bool:
+    """与前端 objectiveAppliesToMap 同口径；裁剪后的行里 zones / possible_locations 只剩本图的。"""
+    maps = [m for m in (obj.get("maps") or []) if isinstance(m, dict)]
+    zones = obj.get("zones") or []
+    locs = obj.get("possible_locations") or []
+    if not (any(str(m.get("slug") or "").strip() for m in maps) or zones or locs):
+        return True
+    if any(_map_ref_hits(m, keys, ids) for m in maps):
+        return True
+    return bool(zones or locs)
+
+
+def raid_prep_key_ids_for_map(db: Session, map_slug: str) -> frozenset[str] | None:
+    """本图联机目录里任务用得上的钥匙：本图目标的 required_keys + needed_keys。
+
+    只读库里的任务 raw，不回源；没有 raw 或地图无效时为 None。
+    """
+    from app.services.tarkov import upstream as upstream_svc
+
+    raw_row = get_tasks_raw(db)
+    if raw_row is None:
+        return None
+    canon = canonical_raid_map_slug(map_slug)
+    _source, synced, _note = upstream_svc.raw_row_header(raw_row)
+    hit = _raid_prep_key_cache.get(parsed_cache_key(db, synced), canon)
+    if hit is not None:
+        return hit
+    try:
+        _source, _name, rows, synced, _note, _quest_items = load_raid_prep_rows(
+            db, map_slug, ensure=False
+        )
+    except TarkovTasksError:
+        return None
+    keys, ids = map_match_keys(canon)
+    found: set[str] = set()
+    for task in rows:
+        for needed in task.get("needed_keys") or []:
+            if isinstance(needed, dict):
+                found |= _ref_ids(needed.get("keys"))
+        for obj in task.get("objectives") or []:
+            if not isinstance(obj, dict) or not _objective_on_map(obj, keys, ids):
+                continue
+            for group in obj.get("required_keys") or []:
+                found |= _ref_ids(group)
+    out = frozenset(found)
+    _raid_prep_key_cache.put(parsed_cache_key(db, synced), canon, out)
+    return out
 
 
 def raid_prep_task_belongs_to_map(

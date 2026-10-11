@@ -1709,6 +1709,13 @@ def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
+def _hit_owns_write(user: User, kind: str, *, limit: int, window_sec: int) -> None:
+    """勾选写入按账号限速：每次都要改库，坐在房间里还会给全房推一帧。"""
+    platform_limiter.hit(
+        f"tarkov-{kind}:uid:{user.id}", limit=limit, window_sec=window_sec
+    )
+
+
 @router.get(
     "/key-owns",
     response_model=TarkovKeyOwnsOut,
@@ -1733,7 +1740,11 @@ def guides_tarkov_key_owns_merge(
     user: User = Depends(get_current_user),
 ):
     """合并写入一批「我有」（本机勾选迁到账号）。"""
-    ids = key_owns_svc.merge_owns(db, user, body.item_ids)
+    _hit_owns_write(user, "key-owns-merge", limit=20, window_sec=600)
+    try:
+        ids = key_owns_svc.merge_owns(db, user, body.item_ids)
+    except key_owns_svc.TarkovKeyOwnsError as exc:
+        raise _key_owns_error(exc) from exc
     db.commit()
     rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
@@ -1819,6 +1830,7 @@ def guides_tarkov_key_owns_add(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "key-owns", limit=120, window_sec=60)
     try:
         ids, _added = key_owns_svc.add_own(db, user, item_id)
     except key_owns_svc.TarkovKeyOwnsError as exc:
@@ -1838,6 +1850,7 @@ def guides_tarkov_key_owns_remove(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "key-owns", limit=120, window_sec=60)
     try:
         ids, _removed = key_owns_svc.remove_own(db, user, item_id)
     except key_owns_svc.TarkovKeyOwnsError as exc:
@@ -1910,6 +1923,7 @@ def guides_tarkov_collection_owns_merge(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns-merge", limit=20, window_sec=600)
     ids = collection_owns_svc.merge_owns(db, user, body.item_ids)
     db.commit()
     return TarkovCollectionOwnsOut(item_ids=ids)
@@ -1925,6 +1939,7 @@ def guides_tarkov_collection_owns_add(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns", limit=120, window_sec=60)
     try:
         ids, _added = collection_owns_svc.add_own(db, user, item_id)
     except collection_owns_svc.TarkovCollectionOwnsError as exc:
@@ -1943,6 +1958,7 @@ def guides_tarkov_collection_owns_remove(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-owns", limit=120, window_sec=60)
     try:
         ids, _removed = collection_owns_svc.remove_own(db, user, item_id)
     except collection_owns_svc.TarkovCollectionOwnsError as exc:
@@ -2133,6 +2149,7 @@ def guides_tarkov_raid_logs_import(
     user: User = Depends(get_current_user),
 ):
     """本机解析后的战局摘要落库；不接收日志原文。"""
+    _hit_owns_write(user, "raid-logs", limit=30, window_sec=600)
     result = raid_logs_svc.upsert_raids(
         db,
         user,

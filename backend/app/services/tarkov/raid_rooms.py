@@ -796,6 +796,44 @@ def _member_view_maps(public_id: str, member_ids: set[int]) -> list[dict[str, An
     return [row for row in hub.view_maps(public_id) if int(row["user_id"]) in member_ids]
 
 
+def _key_own_scope(
+    db: Session,
+    room: TarkovRaidRoom,
+    view_maps: list[dict[str, Any]],
+    bring_ids: Iterable[str],
+) -> set[str]:
+    """快照里的「我有」只带在座成员正在看的图用得上的钥匙（门锁 / 本图任务）和已声明携带的。
+
+    每人整份仓库可达上千条，不能随每一帧快照广播；换到新图时由 publish_room_key_owns 补推。
+    """
+    from app.services.tarkov.key_packs import map_key_ids
+    from app.services.tarkov.tasks import raid_prep_key_ids_for_map
+
+    scope = {str(item_id) for item_id in bring_ids if item_id}
+    slugs = sorted({str(row.get("map_slug") or "") for row in view_maps} - {""})
+    if not slugs:
+        return scope
+    with game_mode_scope(parse_game_mode(room.game_mode or "pvp")):
+        for slug in slugs:
+            scope |= map_key_ids(db, slug)
+            scope |= raid_prep_key_ids_for_map(db, slug) or frozenset()
+    return scope
+
+
+def view_map_is_new(public_id: str, user_id: int) -> bool:
+    """这人刚换到的图房里没有别人在看：已推的「我有」还没带这张图的钥匙。"""
+    from app.services.tarkov.raid_room_hub import hub
+
+    slug = hub.view_map_of(public_id, int(user_id))
+    if not slug:
+        return False
+    return not any(
+        row["map_slug"] == slug
+        for row in hub.view_maps(public_id)
+        if int(row["user_id"]) != int(user_id)
+    )
+
+
 def _wipe_board(db: Session, room_id: int) -> None:
     (
         db.query(TarkovRaidRoomMark)
@@ -1105,13 +1143,18 @@ def serialize_room(
         viewer_map = hub.view_map_of(room.public_id, int(viewer_id))
     can_edit = is_member and bool(viewer_map)
     occupant_ids = [row.user_id for row in occupants]
-    key_owns = list_owns_for_users(db, occupant_ids)
+    view_maps = _member_view_maps(room.public_id, {int(row.user_id) for row in members})
+    key_owns = list_owns_for_users(
+        db,
+        occupant_ids,
+        item_ids=_key_own_scope(db, room, view_maps, (row.item_id for row in key_brings)),
+    )
     progress, map_overlap = _overlap_payload(db, room, occupants)
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
         "map_slug": "",
-        "view_maps": _member_view_maps(room.public_id, {int(row.user_id) for row in members}),
+        "view_maps": view_maps,
         "game_mode": parse_game_mode(room.game_mode or "pvp"),
         "listed": bool(room.listed),
         "has_password": _room_password_set(room),
@@ -1631,6 +1674,17 @@ def _room_key_owns(db: Session, room: TarkovRaidRoom) -> list[dict[str, Any]]:
     members = _seated_members(db, room.id)
     fallback = {int(row.user_id): row.display_name for row in members}
     names = _user_names(db, set(fallback), fallback)
+    brings = (
+        db.query(TarkovRaidRoomKeyBring.item_id)
+        .filter(TarkovRaidRoomKeyBring.room_id == room.id)
+        .all()
+    )
+    scope = _key_own_scope(
+        db,
+        room,
+        _member_view_maps(room.public_id, set(fallback)),
+        (row[0] for row in brings),
+    )
     return [
         {
             "item_id": row.item_id,
@@ -1638,27 +1692,39 @@ def _room_key_owns(db: Session, room: TarkovRaidRoom) -> list[dict[str, Any]]:
             "display_name": names.get(row.user_id) or f"用户{row.user_id}",
             "created_at": _iso(row.created_at),
         }
-        for row in list_owns_for_users(db, list(fallback))
+        for row in list_owns_for_users(db, list(fallback), item_ids=scope)
     ]
 
 
-def publish_occupant_key_owns(db: Session, user: User) -> None:
+def _publish_key_owns(db: Session, room: TarkovRaidRoom) -> None:
     from app.services.tarkov.raid_room_hub import hub
 
+    hub.publish(
+        room.public_id,
+        {
+            "event": "key_own_change",
+            "key_owns": _room_key_owns(db, room),
+            "online_user_ids": list(hub.online_user_ids(room.public_id)),
+            "online_clients": hub.online_clients(room.public_id),
+        },
+    )
+
+
+def publish_occupant_key_owns(db: Session, user: User) -> None:
     for public_id in occupant_public_ids(db, user.id):
         try:
             room = _get_room(db, public_id)
         except RaidRoomError:
             continue
-        hub.publish(
-            public_id,
-            {
-                "event": "key_own_change",
-                "key_owns": _room_key_owns(db, room),
-                "online_user_ids": list(hub.online_user_ids(public_id)),
-                "online_clients": hub.online_clients(public_id),
-            },
-        )
+        _publish_key_owns(db, room)
+
+
+def publish_room_key_owns(db: Session, public_id: str) -> None:
+    try:
+        room = _get_room(db, public_id)
+    except RaidRoomError:
+        return
+    _publish_key_owns(db, room)
 
 
 def get_room(
