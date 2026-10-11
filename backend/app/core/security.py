@@ -11,7 +11,7 @@ from jwt import InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.key_derivation import PURPOSE_JWT, derive_key
-from app.core.timeutil import utc_now
+from app.core.timeutil import ensure, utc_now
 
 ALGORITHM = "HS256"
 # bcrypt 只吃前 72 字节；与 passlib 的静默截断一致，存量 $2b$ 哈希照常校验
@@ -19,6 +19,8 @@ _BCRYPT_MAX_BYTES = 72
 # 盐不足 22 字符时 bcrypt 4.x 直接 Rust panic（BaseException），先按格式挡掉损坏的哈希
 _BCRYPT_HASH = re.compile(r"\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}")
 MAX_ACCESS_TOKEN_MINUTES = 60 * 24 * 30
+# 多实例时钟差、iat 只记整秒、MySQL DATETIME 把毫秒进位：签发时刻可能比 users.created_at 早一两秒
+TOKEN_CLOCK_SKEW_SEC = 5
 
 # 显示名会进 Leaflet tooltip 等按 innerHTML 渲染的地方；前端漏一处转义就是存储型 XSS，后端干脆不收尖括号
 _MARKUP_CHARS = frozenset("<>")
@@ -35,11 +37,12 @@ def strip_markup_chars(text: str | None) -> str:
 
 @dataclass(frozen=True)
 class AccessPrincipal:
-    """JWT 身份。`sub` 为 user_id；`token_version` 为 None 表示升级前签发、不带 `ver` 的令牌。"""
+    """JWT 身份。`sub` 为 user_id；`token_version` 为 None 表示不带 `ver` 的令牌；`issued_at` 为 `iat`（Unix 秒）。"""
 
     user_id: int
     username: str | None
     token_version: int | None = None
+    issued_at: int | None = None
 
 
 def _password_bytes(password: str) -> bytes:
@@ -101,8 +104,10 @@ def create_access_token(
         else get_access_token_expire_minutes()
     )
     minutes = max(1, min(int(minutes), MAX_ACCESS_TOKEN_MINUTES))
+    issued = utc_now()
     payload: dict = {
-        "exp": utc_now() + timedelta(minutes=minutes),
+        "iat": issued,
+        "exp": issued + timedelta(minutes=minutes),
         "sub": str(int(user_id)),
         "username": subject,
         "ver": int(token_version or 0),
@@ -121,31 +126,25 @@ def create_user_access_token(user: Any) -> str:
 
 
 def _decode_payload(token: str) -> dict | None:
-    settings = get_settings()
+    # 不带 iat 的令牌（含升级前直接用 SECRET_KEY 签的）排不出与建号的先后，一律不认：升级后每人重新登录一次
     try:
         return jwt.decode(
             token,
-            derive_key(settings.SECRET_KEY, PURPOSE_JWT),
+            derive_key(get_settings().SECRET_KEY, PURPOSE_JWT),
             algorithms=[ALGORITHM],
+            options={"require": ["exp", "iat", "sub"]},
+            leeway=TOKEN_CLOCK_SKEW_SEC,
         )
     except InvalidTokenError:
-        pass
-    # 过渡：升级前直接用 SECRET_KEY 签的令牌，只认剩余有效期不超过新上限的，最迟一个上限周期后全部失效
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-    except InvalidTokenError:
         return None
-    exp = payload.get("exp")
-    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
-        return None
-    if exp - utc_now().timestamp() > MAX_ACCESS_TOKEN_MINUTES * 60:
-        return None
-    return payload
 
 
 def decode_access_token(token: str) -> AccessPrincipal | None:
     payload = _decode_payload(token)
     if payload is None:
+        return None
+    issued_at = payload.get("iat")
+    if isinstance(issued_at, bool) or not isinstance(issued_at, int):
         return None
     sub = payload.get("sub")
     if sub is None:
@@ -162,7 +161,10 @@ def decode_access_token(token: str) -> AccessPrincipal | None:
     username_claim = payload.get("username")
     username = str(username_claim) if username_claim else None
     return AccessPrincipal(
-        user_id=int(text), username=username, token_version=token_version
+        user_id=int(text),
+        username=username,
+        token_version=token_version,
+        issued_at=issued_at,
     )
 
 
@@ -171,3 +173,13 @@ def token_version_matches(principal: AccessPrincipal, user: Any) -> bool:
     if principal.token_version is None:
         return current == 0
     return principal.token_version == current
+
+
+def token_issued_after_user_created(principal: AccessPrincipal, user: Any) -> bool:
+    """SQLite 旧库删掉最新的用户后，下一个注册的会拿到同一个 id：建号之前签发的令牌不能顶到新账号上。"""
+    created = getattr(user, "created_at", None)
+    if created is None:
+        return True
+    if principal.issued_at is None:
+        return False
+    return principal.issued_at >= ensure(created).timestamp() - TOKEN_CLOCK_SKEW_SEC

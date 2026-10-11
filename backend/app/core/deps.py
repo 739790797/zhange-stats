@@ -2,7 +2,11 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
-from app.core.security import decode_access_token, token_version_matches
+from app.core.security import (
+    decode_access_token,
+    token_issued_after_user_created,
+    token_version_matches,
+)
 from app.core.session_cookies import (
     ACCESS_COOKIE,
     CSRF_COOKIE,
@@ -35,6 +39,8 @@ def load_user_by_access_token(
     if not user or user_is_anonymized(user):
         return None
     if not token_version_matches(principal, user):
+        return None
+    if not token_issued_after_user_created(principal, user):
         return None
     return user
 

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import warnings
+from datetime import timedelta
+
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -19,11 +23,12 @@ from app.core.ephemeral_kv import reset_ephemeral_kv_for_tests
 from app.core.rate_limit import LOGIN_FAILURES_BEFORE_LOCK, reset_rate_limits_for_tests
 from app.core.security import create_user_access_token, hash_password
 from app.core.session_cookies import ACCESS_COOKIE, CSRF_COOKIE, CSRF_HEADER
+from app.core.timeutil import now_naive
 from app.models.member import Member
 from app.models.mihoyo import MihoyoBind
 from app.models.user import User, UserRole
 from app.services.email import NOTICE_QQ_LINKED
-from app.services.member_sync import ensure_user_member
+from app.services.member_sync import delete_user_with_member, ensure_user_member
 from app.services.oauth_ticket import issue_oauth_ticket
 
 EMAIL = "alice@example.com"
@@ -369,7 +374,11 @@ def test_link_existing_merges_notifies_target_and_sets_cookie_only(env, monkeypa
     )
     temp_id, token = _qq_temp_user(SessionLocal)
     client = TestClient(api)
-    resp = _link(client, token, PASSWORD)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        resp = _link(client, token, PASSWORD)
+    sa_warnings = [str(w.message) for w in caught if issubclass(w.category, SAWarning)]
+    assert sa_warnings == []
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert "access_token" not in body and "token_type" not in body
@@ -379,6 +388,7 @@ def test_link_existing_merges_notifies_target_and_sets_cookie_only(env, monkeypa
     assert client.get("/r").json() == {"id": uid}
     with SessionLocal() as db:
         assert db.get(User, temp_id) is None
+        assert db.query(Member).filter(Member.user_id == temp_id).count() == 0
         member = db.query(Member).filter(Member.user_id == uid).one()
         assert member.qq_openid == "OPENID-TEMP"
 
@@ -398,3 +408,45 @@ def test_link_existing_refuses_temp_account_with_mihoyo_bind(env, monkeypatch) -
     with SessionLocal() as db:
         assert db.get(User, temp_id) is not None
         assert db.query(MihoyoBind).count() == 1
+
+
+def test_token_of_a_deleted_user_does_not_open_a_recycled_id(env, monkeypatch) -> None:
+    """SQLite 旧库（建表时没有 AUTOINCREMENT）删掉最新的用户后，下一个注册的人会拿到同一个 id。"""
+    api, SessionLocal, _ = env
+    real_utc_now = security.utc_now
+    with SessionLocal() as db:
+        gone = User(
+            username="gone",
+            email="gone@example.com",
+            display_name="gone",
+            password_hash=hash_password(PASSWORD),
+            role=UserRole.user,
+            created_at=now_naive() - timedelta(days=1),
+        )
+        db.add(gone)
+        db.flush()
+        ensure_user_member(db, gone)
+        db.commit()
+        gone_id = gone.id
+        with monkeypatch.context() as m:
+            m.setattr(security, "utc_now", lambda: real_utc_now() - timedelta(minutes=1))
+            stale = {"Authorization": f"Bearer {create_user_access_token(gone)}"}
+    client = TestClient(api)
+    assert client.get("/r", headers=stale).json() == {"id": gone_id}
+
+    with SessionLocal() as db:
+        delete_user_with_member(db, db.get(User, gone_id))
+        db.add(
+            User(
+                id=gone_id,
+                username="newcomer",
+                email="newcomer@example.com",
+                display_name="newcomer",
+                password_hash=hash_password(PASSWORD),
+                role=UserRole.user,
+            )
+        )
+        db.commit()
+        fresh = {"Authorization": f"Bearer {create_user_access_token(db.get(User, gone_id))}"}
+    assert client.get("/r", headers=stale).status_code == 401
+    assert client.get("/r", headers=fresh).json() == {"id": gone_id}
