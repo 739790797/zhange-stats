@@ -323,7 +323,8 @@ def checkin_job_wrapper(
     *,
     due_only: bool = True,
     member_id: int | None = None,
-) -> None:
+) -> bool:
+    """返回这轮是否真跑了签到（写了 JobRun）；巡检无人到点 / 上一轮未完返回 False。"""
     from app.core.database import SessionLocal
     from app.services.job_runs_prune import fail_job_run
 
@@ -335,7 +336,7 @@ def checkin_job_wrapper(
             "%s checkin job already running, skip",
             adapter.platform,
         )
-        return
+        return False
     clear_log_until_change(f"checkin-lock:{adapter.platform}")
     # 连接池耗尽会在 SessionLocal / 首次 commit 抛出。锁必须在这次失败后仍释放，
     # 否则下一分钟 acquire 失败，签到会一直停。
@@ -356,7 +357,7 @@ def checkin_job_wrapper(
             # 每分钟巡检多数时候没人到点：不写 JobRun，也不打 INFO
             logger.debug("%s checkin job idle", adapter.platform)
             clear_log_until_change(f"checkin-db:{adapter.platform}")
-            return
+            return False
         job = JobRun(job_key=adapter.job_key, status="running", started_at=now_naive())
         db.add(job)
         db.commit()
@@ -399,6 +400,7 @@ def checkin_job_wrapper(
                 logger.exception("%s checkin job crashed", adapter.platform)
                 fail_job_run(db, run_id, str(exc))
                 clear_log_until_change(f"checkin-db:{adapter.platform}")
+        return True
     except Exception:
         log_until_change(
             logger,
@@ -407,6 +409,7 @@ def checkin_job_wrapper(
             adapter.platform,
             exc_info=True,
         )
+        return False
     finally:
         try:
             if db is not None:

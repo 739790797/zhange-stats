@@ -56,12 +56,12 @@ _CHECKIN_ADAPTERS_BY_JOB = {a.job_key: a for a in get_checkin_adapters().values(
 
 CHECKIN_JOB_IDS = tuple(_CHECKIN_ADAPTERS_BY_JOB)
 
-CHECKIN_DUE_HANDLERS: dict[str, Callable[[], None]] = {
+CHECKIN_DUE_HANDLERS: dict[str, Callable[[], bool]] = {
     job_id: partial(checkin_job_wrapper, adapter, due_only=True)
     for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
 
-CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., None]] = {
+CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., bool]] = {
     job_id: partial(checkin_job_wrapper, adapter)
     for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
@@ -168,7 +168,7 @@ def register_scheduler_jobs(
             if run_steam_once:
                 steam_job["next_run_time"] = datetime.now(tz=BEIJING)
             scheduler.add_job(
-                wrap_scheduled_job("steam_presence", poll_job_wrapper),
+                wrap_scheduled_job("steam_presence", poll_job_wrapper, quiet=True),
                 "interval",
                 minutes=interval,
                 **steam_job,
@@ -183,7 +183,7 @@ def register_scheduler_jobs(
             if not _job_feature_allowed(db, job_id):
                 continue
             scheduler.add_job(
-                wrap_scheduled_job(job_id, func),
+                wrap_scheduled_job(job_id, func, quiet=True),
                 "interval",
                 minutes=1,
                 id=job_id,

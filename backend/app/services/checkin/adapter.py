@@ -89,7 +89,7 @@ class CheckinPlatformAdapter(Protocol):
         """ALWAYS_RUN 等：是否把本次响应标为 skipped（仍已执行上游）。"""
 
     def reraise_api_error(self, exc: Exception) -> None:
-        """把上游异常转成带友好文案的 api_error_cls 并 raise。"""
+        """换上友好文案后原样 raise（子类型与 code / data 都保留）。"""
 
     def renew_session_after_auth_error(
         self, db: Session, bind: Any, exc: Exception
@@ -143,11 +143,9 @@ class CheckinAdapterBase:
     def reraise_api_error(self, exc: Exception) -> None:
         msg = getattr(exc, "message", None) or str(exc)
         friendly = self.friendly_error(msg)
-        code = getattr(exc, "code", None)
-        cls = self.api_error_cls
-        try:
-            if code is not None:
-                raise cls(friendly, code=code) from exc
-        except TypeError:
-            pass
-        raise cls(friendly) from exc
+        if isinstance(exc, self.api_error_cls):
+            # 不新建异常：图形验证码 / 极验等子类带的 data 路由层还要用
+            exc.message = friendly  # type: ignore[attr-defined]
+            exc.args = (friendly, *exc.args[1:])
+            raise exc
+        raise self.api_error_cls(friendly) from exc
