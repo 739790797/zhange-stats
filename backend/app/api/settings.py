@@ -3,6 +3,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -643,7 +645,10 @@ def update_platform_features(
 
 
 class RuntimeEnvOut(BaseModel):
-    """redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。"""
+    """redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。
+
+    db_url 只回 scheme://账号@主机:端口/库名（不含口令、查询串）；是否带口令看 db_password_set。
+    """
 
     app_env: str
     is_production: bool
@@ -658,6 +663,7 @@ class RuntimeEnvOut(BaseModel):
     db_engine: str = "sqlite"
     db_path: str = ""
     db_url: str = ""
+    db_password_set: bool = False
     restart_required: bool = False
     # 由进程环境变量设定的字段名（如 app_env、db_url）：界面只读，PUT 改值返回 409
     env_locked: list[str] = Field(default_factory=list)
@@ -667,6 +673,8 @@ class RuntimeEnvUpdate(BaseModel):
     """redis_url 空或缺省保留原值；clear_redis_url=true 才清空（优先于新值）。
 
     回传的脱敏地址（不带账号口令）若与已存的主机、端口一致，沿用已存账号口令与查询串。
+    db_url 空或缺省同样保留原值；回传的脱敏连接串（不带口令与查询串）若与已存的主机、端口、账号一致，
+    沿用已存口令与查询串。
     """
 
     app_env: str | None = Field(default=None, max_length=32)
@@ -693,6 +701,7 @@ _RUNTIME_ENV_FIELDS = {
 }
 _RUNTIME_DB_FIELDS = ("db_engine", "db_path", "db_url")
 _REDIS_DEFAULT_PORT = 6379
+_MYSQL_DEFAULT_PORT = 3306
 _PRODUCTION_ENV_NAMES = ("production", "prod")
 
 
@@ -767,6 +776,80 @@ def _redis_canonical(url: str) -> str:
     )
 
 
+def _parse_db_url(url: str) -> URL | None:
+    text = (url or "").strip()
+    if not text:
+        return None
+    try:
+        return make_url(text)
+    except (ArgumentError, ValueError):
+        return None
+
+
+def _db_target(parsed: URL) -> tuple[str, int | None, str]:
+    """(主机, 端口, 账号)；MySQL 没写端口按 3306。"""
+    port = parsed.port
+    if port is None and parsed.host and parsed.get_backend_name() in ("mysql", "mariadb"):
+        port = _MYSQL_DEFAULT_PORT
+    return (parsed.host or "").lower(), port, parsed.username or ""
+
+
+def _db_password_set(url: str) -> bool:
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return False
+    return bool(parsed.password) or any(key in parsed.query for key in ("password", "passwd"))
+
+
+def _mask_db_url(url: str) -> str:
+    """只回 scheme://账号@主机:端口/库名：PyMySQL 也从查询串读 password=，查询串和口令一起去掉。"""
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return ""
+    _host, port, _user = _db_target(parsed)
+    masked = URL.create(
+        parsed.drivername,
+        username=parsed.username,
+        host=parsed.host,
+        port=port,
+        database=parsed.database,
+    )
+    return masked.render_as_string(hide_password=False)
+
+
+def _merge_db_url(submitted: str, stored: str) -> str:
+    """表单回传脱敏连接串时补回已存口令与查询串；换了主机、端口或账号就原样保存，已存口令不跟去别处。"""
+    text = (submitted or "").strip()
+    new = _parse_db_url(text)
+    old = _parse_db_url(stored)
+    if new is None or old is None:
+        return text
+    if new.password or new.query or _db_target(new) != _db_target(old):
+        return text
+    merged = new.set(query=old.query)
+    if old.password:
+        merged = merged.set(password=old.password)
+    return merged.render_as_string(hide_password=False)
+
+
+def _db_canonical(url: str) -> str:
+    parsed = _parse_db_url(url)
+    if parsed is None:
+        return (url or "").strip()
+    host, port, user = _db_target(parsed)
+    return "|".join(
+        (
+            parsed.drivername,
+            user,
+            parsed.password or "",
+            host,
+            str(port or ""),
+            parsed.database or "",
+            repr(sorted(parsed.query.items())),
+        )
+    )
+
+
 def _runtime_env_locked() -> list[str]:
     """环境变量优先于 config/*.json（见 config._apply_app_json / resolve_database_url），写文件也不会生效。"""
     import os
@@ -790,6 +873,8 @@ def _runtime_env_unchanged(field: str, value: Any, effective: dict[str, Any]) ->
         return a.lower() == b.lower()
     if field == "redis_url":
         return _redis_canonical(a) == _redis_canonical(b)
+    if field == "db_url":
+        return _db_canonical(a) == _db_canonical(b)
     return a == b
 
 
@@ -813,7 +898,8 @@ def _runtime_env_out(*, restart_required: bool = False) -> dict[str, Any]:
         "rate_limit_enabled": bool(s.RATE_LIMIT_ENABLED),
         "db_engine": db["db_engine"],
         "db_path": db["db_path"],
-        "db_url": db["db_url"],
+        "db_url": _mask_db_url(db["db_url"]),
+        "db_password_set": _db_password_set(db["db_url"]),
         "restart_required": restart_required,
         "env_locked": _runtime_env_locked(),
     }
@@ -850,9 +936,16 @@ def update_runtime_env(
             payload["redis_url"] = _merge_redis_url(submitted, stored_redis)
         else:
             payload.pop("redis_url")
+    stored_db_url = load_database_settings()["db_url"]
+    if "db_url" in payload:
+        submitted_db = str(payload["db_url"] or "").strip()
+        if submitted_db:
+            payload["db_url"] = _merge_db_url(submitted_db, stored_db_url)
+        else:
+            payload.pop("db_url")
     locked = set(_runtime_env_locked())
     if locked:
-        effective = {**_runtime_env_out(), "redis_url": stored_redis}
+        effective = {**_runtime_env_out(), "redis_url": stored_redis, "db_url": stored_db_url}
         blocked = sorted(
             {
                 _RUNTIME_ENV_FIELDS.get(field, "DATABASE_URL")
@@ -927,12 +1020,15 @@ def test_runtime_database(
     body: RuntimeDatabaseTestIn,
     _: User = Depends(require_admin),
 ) -> RuntimeConnTestOut:
+    from app.core.file_config import load_database_settings
     from app.services.runtime_health import probe_database_settings
 
+    stored = load_database_settings()["db_url"]
+    submitted = (body.db_url or "").strip()
     result = probe_database_settings(
         engine=body.db_engine,
         path=body.db_path,
-        url=body.db_url,
+        url=_merge_db_url(submitted, stored) if submitted else stored,
     )
     return RuntimeConnTestOut(
         ok=result.ok,
