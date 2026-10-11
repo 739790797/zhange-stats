@@ -36,6 +36,8 @@ def delete_user_with_member(db: Session, user: User) -> None:
     member = db.query(Member).filter(Member.user_id == user.id).first()
     if member:
         delete_member_cascade(db, member)
+        # 已加载的 user.member 还指着这行：不过期的话 delete(user) 会沿级联再删一遍（0 行匹配 → SAWarning）
+        db.expire(user, ["member"])
     db.delete(user)
     db.flush()
 
