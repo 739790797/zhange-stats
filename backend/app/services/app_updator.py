@@ -1803,7 +1803,6 @@ async def install_static_only(*, proxy: str | None = None) -> UpdateResult:
 
 def host_update_main(argv: list[str] | None = None) -> int:
     """主机 ``update.sh`` / ``update.ps1`` 入口。不 ``os.execv``；成功后由包装脚本重启。"""
-    pin_library_cache_env()
     import argparse
 
     global _set_progress
@@ -1833,6 +1832,8 @@ def host_update_main(argv: list[str] | None = None) -> int:
     if args.static_only and (args.version or "latest") != "latest":
         print("--static-only 只安装当前 VERSION 的前端，不能指定 --version", file=sys.stderr)
         return 1
+    # --help 在 parse_args 里就退出。真正要下载或装包时再把缓存钉进安装树，避免看帮助也去搬家里的模型缓存。
+    pin_library_cache_env()
 
     logging.basicConfig(level=logging.INFO, format="[update] %(message)s")
     orig_set = _set_progress

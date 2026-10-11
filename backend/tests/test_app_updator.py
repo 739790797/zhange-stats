@@ -457,6 +457,15 @@ def test_update_allowed_host_skips_env_gate(tmp_path: Path, monkeypatch: pytest.
     assert ok is True
 
 
+def test_host_update_help_does_not_pin_caches(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(u, "pin_library_cache_env", lambda *a, **k: calls.append(1))
+    with pytest.raises(SystemExit) as caught:
+        u.host_update_main(["--help"])
+    assert caught.value.code == 0
+    assert calls == []
+
+
 def test_host_update_main_check_and_skip(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     async def fake_check(**_kwargs):
         rel = u.ReleaseInfo(
