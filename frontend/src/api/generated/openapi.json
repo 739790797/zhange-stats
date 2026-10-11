@@ -20373,18 +20373,21 @@
           },
           "smtp_user": {
             "type": "string",
+            "maxLength": 128,
             "title": "Smtp User",
             "default": ""
           },
           "smtp_from": {
             "type": "string",
+            "maxLength": 256,
             "title": "Smtp From",
             "default": ""
           },
           "smtp_password": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 256
               },
               {
                 "type": "null"
@@ -20399,11 +20402,13 @@
           },
           "display_name": {
             "type": "string",
+            "maxLength": 64,
             "title": "Display Name",
             "default": ""
           },
           "smtp_host": {
             "type": "string",
+            "maxLength": 255,
             "title": "Smtp Host",
             "default": ""
           },
@@ -42044,8 +42049,8 @@
           },
           "password": {
             "type": "string",
-            "maxLength": 72,
-            "minLength": 8,
+            "maxLength": 256,
+            "minLength": 1,
             "title": "Password"
           },
           "steam_id": {
@@ -42101,8 +42106,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 72,
-                "minLength": 8
+                "maxLength": 256,
+                "minLength": 1
               },
               {
                 "type": "null"
