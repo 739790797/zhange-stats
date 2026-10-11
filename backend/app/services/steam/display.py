@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from app.core.security import strip_markup_chars
 from app.models.member import Member
 from app.models.user import User
 
 
-def _clip(name: str, n: int = 64) -> str:
-    return name.strip()[:n]
+def _clip(name: str | None, n: int = 64) -> str:
+    # Steam 昵称当成员昵称到处展示：存和显示都去掉尖括号
+    return strip_markup_chars(name).strip()[:n]
 
 
 def apply_steam_profile(
@@ -19,8 +21,8 @@ def apply_steam_profile(
     """只更新 steam_persona_name / steam_avatar_url。返回是否有字段变化。"""
     changed = False
 
-    if persona_name and str(persona_name).strip():
-        new_name = _clip(str(persona_name))
+    new_name = _clip(str(persona_name)) if persona_name else ""
+    if new_name:
         if member.steam_persona_name != new_name:
             member.steam_persona_name = new_name
             changed = True
@@ -51,11 +53,7 @@ def force_set_steam_persona_name(
     else:
         member.steam_avatar_url = None
 
-    if not persona_name or not str(persona_name).strip():
-        member.steam_persona_name = None
-        return
-
-    member.steam_persona_name = _clip(str(persona_name))
+    member.steam_persona_name = (_clip(str(persona_name)) if persona_name else "") or None
 
 
 def format_steam_display_name(
@@ -65,7 +63,7 @@ def format_steam_display_name(
 ) -> str:
     """优先 Steam 昵称；否则用 fallback / #id。"""
     if member is not None:
-        name = (member.steam_persona_name or "").strip()
+        name = _clip(member.steam_persona_name)
         if name:
             return name
         return fallback or f"#{member.id}"
@@ -86,5 +84,5 @@ def member_steam_presentation(
             fallback=str(fallback_id) if fallback_id is not None else None,
         ),
         "avatar_url": steam_avatar,
-        "steam_persona_name": (member.steam_persona_name if member else None),
+        "steam_persona_name": (_clip(member.steam_persona_name) or None) if member else None,
     }
