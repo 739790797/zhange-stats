@@ -5,12 +5,16 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
+
+logger = logging.getLogger(__name__)
 
 APP_CODE = "4ca99fa6b56cc2ba"
 GRANT_URL = "https://as.hypergryph.com/user/oauth2/v2/grant"
@@ -258,16 +262,18 @@ def normalize_hg_token(raw: str) -> str:
     if text.startswith("{"):
         try:
             payload = json.loads(text)
-            content = (
-                payload.get("data", {}).get("content")
-                if isinstance(payload, dict)
-                else None
-            )
-            if isinstance(content, str) and content.strip():
-                return content.strip()
         except json.JSONDecodeError as exc:
             raise SklandApiError("Token JSON 格式无效") from exc
+        content = response_data(payload).get("content") if isinstance(payload, dict) else None
+        if isinstance(content, str) and content.strip():
+            return content.strip()
     return text
+
+
+def response_data(resp: dict[str, Any]) -> dict[str, Any]:
+    """上游 envelope 的 data；null / 列表 / 字符串一律当空对象。"""
+    data = resp.get("data")
+    return data if isinstance(data, dict) else {}
 
 
 def _http_json(
@@ -296,22 +302,30 @@ def _http_json(
     except HttpRequestError as exc:
         raise SklandApiError(f"网络错误：{exc}") from exc
 
-    if status >= 400:
-        detail = raw.decode("utf-8", errors="replace")
-        try:
-            payload = json.loads(detail)
-            if isinstance(payload, dict) and (
-                "code" in payload or "message" in payload or "msg" in payload
-            ):
-                return payload
-        except json.JSONDecodeError:
-            pass
-        raise SklandApiError(f"HTTP {status}: {detail[:200]}")
-
+    path = urllib.parse.urlsplit(url).path
+    log_key = f"skland-http:{path}"
+    detail = raw.decode("utf-8", errors="replace")
     try:
-        return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SklandApiError("森空岛响应不是合法 JSON") from exc
+        payload = json.loads(detail)
+    except json.JSONDecodeError:
+        payload = None
+    if status >= 400:
+        # 业务错误也可能挂在 4xx 上：带 code / message 的照常交给调用方判
+        if isinstance(payload, dict) and (
+            "code" in payload or "message" in payload or "msg" in payload
+        ):
+            return payload
+        log_until_change(
+            logger, log_key, "skland %s HTTP %s: %s", path, status, detail[:200]
+        )
+        raise SklandApiError(f"森空岛请求失败（HTTP {status}）", code=status)
+    if not isinstance(payload, dict):
+        log_until_change(
+            logger, log_key, "skland %s returned non-object JSON: %s", path, detail[:200]
+        )
+        raise SklandApiError("森空岛响应格式无效")
+    clear_log_until_change(log_key)
+    return payload
 
 
 def _scan_headers(device_id: str) -> dict[str, str]:
@@ -353,7 +367,7 @@ def create_scan_login(device_id: str) -> SklandScanSession:
             resp.get("msg") or resp.get("message") or "创建扫码会话失败",
             code=status if isinstance(status, int) else None,
         )
-    data = resp.get("data") or {}
+    data = response_data(resp)
     scan_id = data.get("scanId")
     scan_url = data.get("scanUrl")
     if not scan_id or not scan_url:
@@ -365,7 +379,7 @@ def poll_scan_status(device_id: str, scan_id: str) -> SklandScanPoll:
     url = f"{SCAN_STATUS_URL}?{urllib.parse.urlencode({'scanId': scan_id})}"
     resp = _http_json("GET", url, headers=_scan_headers(device_id))
     status = resp.get("status", resp.get("code"))
-    data = resp.get("data") or {}
+    data = response_data(resp)
     scan_code = data.get("scanCode")
     msg = str(resp.get("msg") or resp.get("message") or "")
 
@@ -396,7 +410,7 @@ def token_by_scan_code(device_id: str, scan_code: str) -> str:
             resp.get("msg") or resp.get("message") or "扫码换取 Token 失败",
             code=status if isinstance(status, int) else None,
         )
-    data = resp.get("data") or {}
+    data = response_data(resp)
     token = data.get("content") or data.get("token")
     if not token:
         raise SklandApiError("扫码登录未返回 Token")
@@ -425,7 +439,7 @@ def _extract_hg_token(resp: dict[str, Any], *, action: str) -> str:
                 code=status if isinstance(status, int) else None,
             )
         raise SklandApiError(msg, code=status if isinstance(status, int) else None)
-    data = resp.get("data") or {}
+    data = response_data(resp)
     token = data.get("token") or data.get("content")
     if not token:
         raise SklandApiError(f"{action}未返回 Token")
@@ -541,7 +555,7 @@ def login_with_token(hg_token: str) -> SklandSession:
             grant.get("msg") or grant.get("message") or "获取授权码失败",
             code=grant.get("status"),
         )
-    code = grant.get("data", {}).get("code")
+    code = response_data(grant).get("code")
     if not code:
         raise SklandApiError("授权码为空")
 
@@ -555,7 +569,7 @@ def login_with_token(hg_token: str) -> SklandSession:
             cred_resp.get("message") or "获取 Cred 失败",
             code=cred_resp.get("code"),
         )
-    data = cred_resp.get("data") or {}
+    data = response_data(cred_resp)
     cred = data.get("cred")
     sign_token = data.get("token")
     user_id = data.get("userId")
@@ -579,7 +593,7 @@ def ensure_skland_user_id(session: SklandSession) -> str:
             resp.get("message") or "获取森空岛 userId 失败",
             code=resp.get("code"),
         )
-    data = resp.get("data") or {}
+    data = response_data(resp)
     teen = data.get("teenager") if isinstance(data.get("teenager"), dict) else data
     uid = None
     if isinstance(teen, dict):

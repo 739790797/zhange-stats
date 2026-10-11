@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
+from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.crypto_secret import decrypt_secret, encrypt_secret
 from app.core.timeutil import now_naive, today
 from app.models.arknights import ArknightsBoxSnapshot
@@ -550,6 +551,7 @@ def get_endfield_box_for_member(
     )
     stale = False
     if force or row is None:
+        log_key = f"skland-endfield-card:{member.id}:{role.role_id}"
         try:
             raw = fetch_endfield_card_detail(_ensure_session(), role)
             raw_json = json.dumps(raw, ensure_ascii=False)
@@ -579,14 +581,18 @@ def get_endfield_box_for_member(
                 row.synced_at = now
             db.commit()
             db.refresh(row)
-        except SklandApiError:
+            clear_log_until_change(log_key)
+        except SklandApiError as exc:
             if row is None:
                 raise
             stale = True
-            logger.exception(
-                "endfield card refresh failed member_id=%s role_id=%s",
+            log_until_change(
+                logger,
+                log_key,
+                "endfield card refresh failed member_id=%s role_id=%s, serving stored raw: %s",
                 member.id,
                 role.role_id,
+                exc.message,
             )
 
     try:
@@ -656,6 +662,7 @@ def get_arknights_rogue_for_member(
     )
     stale = False
     if force or row is None:
+        log_key = f"skland-arknights-rogue:{member.id}:{role.uid}:{topic}"
         try:
             sess = _ensure_session()
             raw = fetch_arknights_rogue(sess, uid=str(role.uid), topic_id=topic)
@@ -688,15 +695,19 @@ def get_arknights_rogue_for_member(
                 row.synced_at = now
             db.commit()
             db.refresh(row)
-        except SklandApiError:
+            clear_log_until_change(log_key)
+        except SklandApiError as exc:
             if row is None:
                 raise
             stale = True
-            logger.exception(
-                "arknights rogue refresh failed member_id=%s uid=%s topic=%s",
+            log_until_change(
+                logger,
+                log_key,
+                "arknights rogue refresh failed member_id=%s uid=%s topic=%s, serving stored raw: %s",
                 member.id,
                 role.uid,
                 topic,
+                exc.message,
             )
 
     try:

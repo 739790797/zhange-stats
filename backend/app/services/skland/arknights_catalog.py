@@ -27,6 +27,8 @@ VERSION_URL = (
 OPERATOR_PROFESSIONS = set(PROFESSION_CN.keys())
 META_ROW_ID = 1
 DOWNLOAD_TIMEOUT = 120
+# 全量角色表在 8 MiB 上下且随版本增长，不套 http_client 的默认上限
+DOWNLOAD_MAX_BYTES = 64 * 1024 * 1024
 
 
 class ArknightsCatalogError(Exception):
@@ -42,6 +44,7 @@ def _http_get_bytes(url: str, *, timeout: int = DOWNLOAD_TIMEOUT) -> bytes:
             url,
             headers={"User-Agent": "zhange-stats/1.0"},
             timeout=timeout,
+            max_bytes=DOWNLOAD_MAX_BYTES,
         )
     except HttpRequestError as exc:
         raise ArknightsCatalogError(f"无法连接资源站: {exc}") from exc

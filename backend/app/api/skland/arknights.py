@@ -1,6 +1,8 @@
 """森空岛：明日方舟盒子与图鉴。"""
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from app.api.skland.helpers import _member_or_404
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
+from app.core.rate_limit import platform_limiter
 from app.models.user import User
 from app.schemas import (
     ArknightsAttendanceCalendarOut,
@@ -46,6 +49,9 @@ from app.services.skland.checkin import (
 from app.services.skland.client import SklandApiError
 
 router = APIRouter(tags=["skland"])
+
+_MEMBER_ID_RE = re.compile(r"[0-9]{1,12}")
+_ROLE_UID_RE = re.compile(r"[0-9A-Za-z_-]{1,32}")
 
 
 @router.get(
@@ -281,40 +287,41 @@ def skland_arknights_compare_candidates(
     dependencies=[Depends(require_feature("skland.arknights"))],
 )
 def skland_arknights_box_compare(
-    member_ids: str = Query(..., description="逗号分隔的成员 id，最多 5 人"),
+    member_ids: str = Query(..., max_length=256, description="逗号分隔的成员 id，最多 5 人"),
     role_uids: str | None = Query(
         default=None,
+        max_length=256,
         description="可选，格式 memberId:uid,memberId:uid，指定各成员渠道服角色",
     ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。"""
+    """多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。
+
+    只有自己的那一行会回源森空岛；别人的盒子只读每日同步的快照。
+    """
+    platform_limiter.hit(f"arknights-box-compare:uid:{user.id}", limit=60, window_sec=600)
     _member_or_404(db, user)
     ids: list[int] = []
     for part in member_ids.split(","):
         part = part.strip()
         if not part:
             continue
-        try:
-            ids.append(int(part))
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"无效的 member_id: {part}") from exc
+        if not _MEMBER_ID_RE.fullmatch(part):
+            raise HTTPException(status_code=400, detail=f"无效的 member_id: {part}")
+        ids.append(int(part))
 
     uid_map: dict[int, str] = {}
     if role_uids:
         for part in role_uids.split(","):
             part = part.strip()
-            if not part or ":" not in part:
+            if not part:
                 continue
-            mid_raw, _, uid_raw = part.partition(":")
-            try:
-                mid = int(mid_raw.strip())
-            except ValueError:
-                continue
-            uid = uid_raw.strip()
-            if uid:
-                uid_map[mid] = uid
+            mid_raw, sep, uid_raw = part.partition(":")
+            mid_raw, uid_raw = mid_raw.strip(), uid_raw.strip()
+            if not sep or not _MEMBER_ID_RE.fullmatch(mid_raw) or not _ROLE_UID_RE.fullmatch(uid_raw):
+                raise HTTPException(status_code=400, detail=f"无效的 role_uids: {part}")
+            uid_map[int(mid_raw)] = uid_raw
 
     try:
         data = build_box_compare(db, user, ids, role_uids=uid_map)

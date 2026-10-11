@@ -183,7 +183,8 @@ def format_award_items(
 def arknights_awards_from_sign_resp(
     resp: dict[str, Any],
 ) -> tuple[str | None, list[dict[str, Any]]]:
-    awards = (resp.get("data") or {}).get("awards") or []
+    data = resp.get("data")
+    awards = (data.get("awards") if isinstance(data, dict) else None) or []
     if not isinstance(awards, list):
         return None, []
     return format_award_items(awards, with_icons=True)
@@ -192,9 +193,15 @@ def arknights_awards_from_sign_resp(
 def endfield_awards_from_sign_resp(
     resp: dict[str, Any],
 ) -> tuple[str | None, list[dict[str, Any]]]:
-    data = resp.get("data") or {}
+    data = resp.get("data")
+    if not isinstance(data, dict):
+        return None, []
     award_ids = data.get("awardIds") or []
     resource_map = data.get("resourceInfoMap") or {}
+    if not isinstance(award_ids, list):
+        award_ids = []
+    if not isinstance(resource_map, dict):
+        resource_map = {}
     if not award_ids:
         awards = data.get("awards") or []
         if isinstance(awards, list):
