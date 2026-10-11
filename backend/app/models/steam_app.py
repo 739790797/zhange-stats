@@ -36,3 +36,12 @@ class SteamApp(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    # 上游查无（appdetails 失败 / client icon 各渠道都没补到）的时间；重试窗口内不再回源
+    details_missed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    icon_missed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

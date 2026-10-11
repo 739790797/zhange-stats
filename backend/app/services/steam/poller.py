@@ -23,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 JOB_KEY = "steam_presence"
 _poll_lock = threading.Lock()
+_POLL_FAILURE_LOG_KEY = "steam-presence-poll"
+# 这些计数非零才算这轮有变化，调度日志据此决定 done 打 INFO 还是 DEBUG
+_CHANGE_STATS = (
+    "opened",
+    "closed",
+    "presence_opened",
+    "presence_closed",
+    "stale_closed",
+    "persona_updated",
+)
 
 
 def _now() -> datetime:
@@ -377,19 +387,27 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
         job.stats = stats
         job.finished_at = _now()
         db.commit()
+        clear_log_until_change(_POLL_FAILURE_LOG_KEY)
         return {"status": job.status, "message": job.message, "stats": stats}
+    except RuntimeError as exc:
+        # Steam 接口不通 / key 失效（SteamAdapter 统一抛 RuntimeError）：每轮都会失败，原因变了才再打
+        log_until_change(logger, _POLL_FAILURE_LOG_KEY, "steam presence poll failed: %s", exc)
+        fail_job_run(db, run_id, str(exc), stats=stats)
+        return {"status": "error", "message": str(exc), "stats": stats}
     except Exception as exc:  # noqa: BLE001
         logger.exception("steam presence poll failed")
         fail_job_run(db, run_id, str(exc), stats=stats)
         return {"status": "error", "message": str(exc), "stats": stats}
 
 
-def poll_job_wrapper() -> None:
-    """APScheduler 入口：自建 Session。"""
+def poll_job_wrapper() -> bool:
+    """APScheduler 入口：自建 Session；返回这轮是否有会话 / 在线状态 / 昵称变化。"""
     from app.core.database import SessionLocal
 
     db = SessionLocal()
     try:
-        run_steam_presence_poll(db)
+        out = run_steam_presence_poll(db)
     finally:
         db.close()
+    stats = out.get("stats") or {}
+    return any(stats.get(key) for key in _CHANGE_STATS)

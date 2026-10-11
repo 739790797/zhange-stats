@@ -344,7 +344,6 @@ def build_range_detail(
         db,
         [s.steam_app_id for s in sessions]
         + [seg.steam_app_id for seg in presence_rows],
-        fetch_missing=False,
     )
 
     items: list[dict] = []
@@ -547,9 +546,7 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
     name_map = resolve_app_names(
         db, [s.steam_app_id for s in sessions], fetch_missing=False
     )
-    icon_map = resolve_app_icons(
-        db, [s.steam_app_id for s in sessions], fetch_missing=False
-    )
+    icon_map = resolve_app_icons(db, [s.steam_app_id for s in sessions])
     result = []
     for s in sessions:
         start = _to_aware(s.started_at)

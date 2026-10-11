@@ -1,11 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
+from app.core.rate_limit import platform_limiter
 from app.models.user import User
 from app.schemas import (
     SteamAppIcon,
@@ -16,7 +17,12 @@ from app.schemas import (
     SteamOverviewResponse,
     SteamPollResult,
 )
-from app.services.steam.game_names import get_store_card, resolve_app_icons
+from app.services.steam.game_names import (
+    APP_ID_PATTERN,
+    fetch_app_icon,
+    get_store_card,
+    is_known_app,
+)
 from app.services.steam.poller import run_steam_presence_poll
 from app.services.steam.stats import (
     build_calendar,
@@ -97,25 +103,27 @@ def steam_now(
 
 @router.get("/apps/{app_id}/icon", response_model=SteamAppIcon)
 def steam_app_icon(
-    app_id: str,
+    app_id: str = Path(pattern=APP_ID_PATTERN),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    """单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。"""
-    app_id = (app_id or "").strip()
-    if not app_id:
-        raise HTTPException(status_code=400, detail="app_id 无效")
-    icons = resolve_app_icons(db, [app_id], fetch_missing=True)
-    return {"steam_app_id": app_id, "icon_url": icons.get(app_id)}
+    """单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。只认站内出现过的 AppID。"""
+    platform_limiter.hit(f"steam-app-icon:uid:{user.id}", limit=120, window_sec=600)
+    if not is_known_app(db, app_id):
+        raise HTTPException(status_code=404, detail="未找到该游戏")
+    return {"steam_app_id": app_id, "icon_url": fetch_app_icon(db, app_id)}
 
 
 @router.get("/apps/{app_id}", response_model=SteamAppStoreCard)
 def steam_app_store_card(
-    app_id: str,
+    app_id: str = Path(pattern=APP_ID_PATTERN),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    """商店悬停卡片：头图、简介、国区价格（含折扣）。"""
+    """商店悬停卡片：头图、简介、国区价格（含折扣）。只认站内出现过的 AppID。"""
+    platform_limiter.hit(f"steam-app-card:uid:{user.id}", limit=120, window_sec=600)
+    if not is_known_app(db, app_id):
+        raise HTTPException(status_code=404, detail="未找到该游戏的商店信息")
     data = get_store_card(db, app_id)
     if not data:
         raise HTTPException(status_code=404, detail="未找到该游戏的商店信息")
