@@ -32,6 +32,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { fetchAppUpdateStatus } from "@/api/appUpdateApi";
 import { fetchMe, fetchMyProfile, fetchPlatformFeaturesEffective, logoutRequest } from "@/api/client";
+import { AppReloadBanner } from "@/components/AppReloadBanner";
 import { AppVersion } from "@/components/AppVersion";
 import { BrandLogo } from "@/components/BrandLogo";
 import { IcpBeianFooter } from "@/components/IcpBeianLink";
@@ -199,7 +200,10 @@ export function AppLayout() {
     const state = location.state as { promptCompleteProfile?: boolean } | null;
     const force = Boolean(state?.promptCompleteProfile);
     if (force) {
-      navigate(location.pathname, { replace: true, state: {} });
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: location.hash },
+        { replace: true, state: {} },
+      );
     }
     const email = meQuery.data.email ?? user?.email ?? null;
     if (email) {
@@ -211,6 +215,8 @@ export function AppLayout() {
     }
   }, [
     location.pathname,
+    location.search,
+    location.hash,
     location.state,
     meQuery.data,
     meQuery.isSuccess,
@@ -673,6 +679,7 @@ export function AppLayout() {
             />
           </Header>
         ) : null}
+        <AppReloadBanner />
         <Content
           ref={mainRef}
           id={isTarkovGuide ? undefined : "app-main"}

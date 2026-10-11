@@ -16,14 +16,15 @@ import { useNavigate } from "react-router-dom";
 import {
   createUser,
   deleteUser,
-  fetchIntegrationsSettings,
   fetchUsers,
   updateUser,
 } from "@/api/client";
 import type { UserBrief } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { useIntegrationsStatus } from "@/hooks/useIntegrationsStatus";
 import { apiError } from "@/lib/apiError";
+import { displayNameRules } from "@/lib/displayName";
 import { isAdminUser } from "@/lib/isAdminUser";
 import type { PlatformIconName } from "@/lib/platformIcons";
 import { useAuthStore } from "@/stores/authStore";
@@ -130,10 +131,7 @@ export default function UserManagementPage() {
     queryFn: fetchUsers,
   });
 
-  const { data: integrations } = useQuery({
-    queryKey: ["integrations-settings"],
-    queryFn: fetchIntegrationsSettings,
-  });
+  const { data: integrations } = useIntegrationsStatus();
 
   const platforms = useMemo(() => {
     const list = [...BASE_PLATFORMS];
@@ -331,7 +329,7 @@ export default function UserManagementPage() {
           <Form.Item
             name="display_name"
             label="用户名"
-            rules={[{ required: true, message: "请输入用户名" }]}
+            rules={[{ required: true, message: "请输入用户名" }, ...displayNameRules]}
           >
             <Input placeholder="展示名称" />
           </Form.Item>
@@ -382,7 +380,7 @@ export default function UserManagementPage() {
           <Form.Item
             name="display_name"
             label="用户名"
-            rules={[{ required: true, message: "请输入用户名" }]}
+            rules={[{ required: true, message: "请输入用户名" }, ...displayNameRules]}
           >
             <Input />
           </Form.Item>

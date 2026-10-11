@@ -1,115 +1,124 @@
-import { lazy, Suspense, useMemo, type ReactNode } from "react";
+import { Suspense, useMemo, type ReactNode } from "react";
 import { App as AntdApp, ConfigProvider } from "antd";
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { NotFoundPage } from "@/components/NotFoundPage";
 import { PlatformRoute } from "@/components/PlatformRoute";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { RouteFallback } from "@/components/RouteFallback";
 import { SetupGate } from "@/components/SetupGate";
 import { antdLocale } from "@/locales/zhCN";
+import { lazyWithReload } from "@/lib/chunkReload";
 import { usePrefersReducedMotion } from "@/lib/prefersReducedMotion";
 import { TarkovGameModeProvider } from "@/lib/tarkovGameModeProvider";
 import { TAVERN_ADMIN_PATH, TAVERN_WRITE_PATH, tavernEditPath } from "@/lib/tavernNav";
 import { antdThemeWithMotion } from "@/theme/antdApp";
 
-const AppLayout = lazy(() =>
+const AppLayout = lazyWithReload(() =>
   import("@/components/AppLayout").then((m) => ({ default: m.AppLayout })),
 );
-const AdminHubLayout = lazy(() =>
+const AdminHubLayout = lazyWithReload(() =>
   import("@/components/AdminHubLayout").then((m) => ({
     default: m.AdminHubLayout,
   })),
 );
-const SetupPage = lazy(() => import("@/pages/SetupPage"));
-const LoginPage = lazy(() => import("@/pages/LoginPage"));
-const AppHomePage = lazy(() => import("@/pages/AppHomePage"));
-const LegalTermsPage = lazy(() => import("@/pages/LegalTermsPage"));
-const LegalPrivacyPage = lazy(() => import("@/pages/LegalPrivacyPage"));
-const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
-const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
-const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
-const SteamCalendarPage = lazy(() => import("@/pages/SteamCalendarPage"));
-const SklandPage = lazy(() => import("@/pages/SklandPage"));
-const TaygedoPage = lazy(() => import("@/pages/TaygedoPage"));
-const ExiliumPage = lazy(() => import("@/pages/ExiliumPage"));
-const KujiequPage = lazy(() => import("@/pages/KujiequPage"));
-const MihoyoPage = lazy(() => import("@/pages/MihoyoPage"));
-const MyDailyPage = lazy(() => import("@/pages/MyDailyPage"));
-const ProfileSettingsPage = lazy(() => import("@/pages/ProfileSettingsPage"));
-const UserManagementPage = lazy(() => import("@/pages/UserManagementPage"));
-const IntegrationsSettingsPage = lazy(
+const SetupPage = lazyWithReload(() => import("@/pages/SetupPage"));
+const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
+const AppHomePage = lazyWithReload(() => import("@/pages/AppHomePage"));
+const LegalTermsPage = lazyWithReload(() => import("@/pages/LegalTermsPage"));
+const LegalPrivacyPage = lazyWithReload(() => import("@/pages/LegalPrivacyPage"));
+const RegisterPage = lazyWithReload(() => import("@/pages/RegisterPage"));
+const ForgotPasswordPage = lazyWithReload(() => import("@/pages/ForgotPasswordPage"));
+const VerifyEmailPage = lazyWithReload(() => import("@/pages/VerifyEmailPage"));
+const SteamCalendarPage = lazyWithReload(() => import("@/pages/SteamCalendarPage"));
+const SklandPage = lazyWithReload(() => import("@/pages/SklandPage"));
+const TaygedoPage = lazyWithReload(() => import("@/pages/TaygedoPage"));
+const ExiliumPage = lazyWithReload(() => import("@/pages/ExiliumPage"));
+const KujiequPage = lazyWithReload(() => import("@/pages/KujiequPage"));
+const MihoyoPage = lazyWithReload(() => import("@/pages/MihoyoPage"));
+const MyDailyPage = lazyWithReload(() => import("@/pages/MyDailyPage"));
+const ProfileSettingsPage = lazyWithReload(() => import("@/pages/ProfileSettingsPage"));
+const UserManagementPage = lazyWithReload(() => import("@/pages/UserManagementPage"));
+const IntegrationsSettingsPage = lazyWithReload(
   () => import("@/pages/IntegrationsSettingsPage"),
 );
-const AuthSettingsPage = lazy(() => import("@/pages/AuthSettingsPage"));
-const EmailSettingsPage = lazy(() => import("@/pages/EmailSettingsPage"));
-const OcrSettingsPage = lazy(() => import("@/pages/OcrSettingsPage"));
-const FileManagerPage = lazy(() => import("@/pages/FileManagerPage"));
-const TaskConfigPage = lazy(() => import("@/pages/TaskConfigPage"));
-const ScheduledJobsPage = lazy(() => import("@/pages/ScheduledJobsPage"));
-const PlatformLogsPage = lazy(() => import("@/pages/PlatformLogsPage"));
-const RumPage = lazy(() => import("@/pages/RumPage"));
-const RuntimeEnvPage = lazy(() => import("@/pages/RuntimeEnvPage"));
-const SystemUpdatePage = lazy(() => import("@/pages/SystemUpdatePage"));
-const TarkovGuidesOutlet = lazy(
+const AuthSettingsPage = lazyWithReload(() => import("@/pages/AuthSettingsPage"));
+const EmailSettingsPage = lazyWithReload(() => import("@/pages/EmailSettingsPage"));
+const OcrSettingsPage = lazyWithReload(() => import("@/pages/OcrSettingsPage"));
+const FileManagerPage = lazyWithReload(() => import("@/pages/FileManagerPage"));
+const TaskConfigPage = lazyWithReload(() => import("@/pages/TaskConfigPage"));
+const ScheduledJobsPage = lazyWithReload(() => import("@/pages/ScheduledJobsPage"));
+const PlatformLogsPage = lazyWithReload(() => import("@/pages/PlatformLogsPage"));
+const RumPage = lazyWithReload(() => import("@/pages/RumPage"));
+const RuntimeEnvPage = lazyWithReload(() => import("@/pages/RuntimeEnvPage"));
+const SystemUpdatePage = lazyWithReload(() => import("@/pages/SystemUpdatePage"));
+const TarkovGuidesOutlet = lazyWithReload(
   () => import("@/pages/guides/TarkovGuidesOutlet"),
 );
-const TarkovHomePage = lazy(() => import("@/pages/guides/TarkovHomePage"));
-const TarkovItemsHubPage = lazy(
+const TarkovHomePage = lazyWithReload(() => import("@/pages/guides/TarkovHomePage"));
+const TarkovItemsHubPage = lazyWithReload(
   () => import("@/pages/guides/TarkovItemsHubPage"),
 );
-const TarkovItemTypePage = lazy(
+const TarkovItemTypePage = lazyWithReload(
   () => import("@/pages/guides/TarkovItemTypePage"),
 );
-const TarkovItemDetailPage = lazy(
+const TarkovItemDetailPage = lazyWithReload(
   () => import("@/pages/guides/TarkovItemDetailPage"),
 );
-const TarkovTasksPage = lazy(() => import("@/pages/guides/TarkovTasksPage"));
-const TarkovRaidPrepPage = lazy(
+const TarkovTasksPage = lazyWithReload(() => import("@/pages/guides/TarkovTasksPage"));
+const TarkovRaidPrepPage = lazyWithReload(
   () => import("@/pages/guides/TarkovRaidPrepPage"),
 );
-const TarkovRaidRoomPage = lazy(
+const TarkovRaidRoomPage = lazyWithReload(
   () => import("@/pages/guides/TarkovRaidRoomPage"),
 );
-const TarkovRaidPulseDemoPage = lazy(
+const TarkovRaidPulseDemoPage = lazyWithReload(
   () => import("@/pages/guides/TarkovRaidPulseDemoPage"),
 );
-const TarkovTaskDetailPage = lazy(
+const TarkovTaskDetailPage = lazyWithReload(
   () => import("@/pages/guides/TarkovTaskDetailPage"),
 );
-const TarkovTradersPage = lazy(() => import("@/pages/guides/TarkovTradersPage"));
-const TarkovTraderPage = lazy(() => import("@/pages/guides/TarkovTraderPage"));
-const TarkovBossesPage = lazy(() => import("@/pages/guides/TarkovBossesPage"));
-const TarkovBossPage = lazy(() => import("@/pages/guides/TarkovBossPage"));
-const TarkovMapsPage = lazy(() => import("@/pages/guides/TarkovMapsPage"));
-const TarkovMapDetailPage = lazy(
+const TarkovTradersPage = lazyWithReload(() => import("@/pages/guides/TarkovTradersPage"));
+const TarkovTraderPage = lazyWithReload(() => import("@/pages/guides/TarkovTraderPage"));
+const TarkovBossesPage = lazyWithReload(() => import("@/pages/guides/TarkovBossesPage"));
+const TarkovBossPage = lazyWithReload(() => import("@/pages/guides/TarkovBossPage"));
+const TarkovMapsPage = lazyWithReload(() => import("@/pages/guides/TarkovMapsPage"));
+const TarkovMapDetailPage = lazyWithReload(
   () => import("@/pages/guides/TarkovMapDetailPage"),
 );
-const TarkovHideoutPage = lazy(() => import("@/pages/guides/TarkovHideoutPage"));
-const TarkovHideoutDetailPage = lazy(
+const TarkovHideoutPage = lazyWithReload(() => import("@/pages/guides/TarkovHideoutPage"));
+const TarkovHideoutDetailPage = lazyWithReload(
   () => import("@/pages/guides/TarkovHideoutDetailPage"),
 );
-const TarkovWorkbenchPage = lazy(
+const TarkovWorkbenchPage = lazyWithReload(
   () => import("@/pages/guides/TarkovWorkbenchPage"),
 );
-const TarkovMePage = lazy(() => import("@/pages/guides/TarkovMePage"));
-const TarkovKeyPacksPage = lazy(
+const TarkovMePage = lazyWithReload(() => import("@/pages/guides/TarkovMePage"));
+const TarkovKeyPacksPage = lazyWithReload(
   () => import("@/pages/guides/TarkovKeyPacksPage"),
 );
-const TarkovGameLogsPage = lazy(
+const TarkovGameLogsPage = lazyWithReload(
   () => import("@/pages/guides/TarkovGameLogsPage"),
 );
-const TarkovCollectionPage = lazy(
+const TarkovCollectionPage = lazyWithReload(
   () => import("@/pages/guides/TarkovCollectionPage"),
 );
-const TarkovProgressionPage = lazy(
+const TarkovProgressionPage = lazyWithReload(
   () => import("@/pages/guides/TarkovProgressionPage"),
 );
-// const MinecraftPage = lazy(() => import("@/pages/guides/MinecraftPage"));
-const TavernListPage = lazy(() => import("@/pages/articles/TavernListPage"));
-const TavernArticlePage = lazy(() => import("@/pages/articles/TavernArticlePage"));
-const TavernAdminPage = lazy(() => import("@/pages/articles/TavernAdminPage"));
-const TavernEditPage = lazy(() => import("@/pages/articles/TavernEditPage"));
+// const MinecraftPage = lazyWithReload(() => import("@/pages/guides/MinecraftPage"));
+const TavernListPage = lazyWithReload(() => import("@/pages/articles/TavernListPage"));
+const TavernArticlePage = lazyWithReload(() => import("@/pages/articles/TavernArticlePage"));
+const TavernAdminPage = lazyWithReload(() => import("@/pages/articles/TavernAdminPage"));
+const TavernEditPage = lazyWithReload(() => import("@/pages/articles/TavernEditPage"));
 
 function AdminPage({ children }: { children: ReactNode }) {
   return <AdminRoute>{children}</AdminRoute>;
@@ -138,6 +147,16 @@ const antdLocaleWithActions = {
   },
 };
 
+/** 布局之外（登录页、安装向导、布局本身）出错时的兜底；布局里的页面另有一层。 */
+function SetupGateWithBoundary({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <RouteErrorBoundary resetKey={pathname}>
+      <SetupGate>{children}</SetupGate>
+    </RouteErrorBoundary>
+  );
+}
+
 function AntdProvider({ children }: { children: ReactNode }) {
   const reducedMotion = usePrefersReducedMotion();
   const theme = useMemo(
@@ -155,7 +174,7 @@ export default function App() {
   return (
     <AntdProvider>
       <BrowserRouter>
-        <SetupGate>
+        <SetupGateWithBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/setup" element={<SetupPage />} />
@@ -464,7 +483,7 @@ export default function App() {
               </Route>
             </Routes>
           </Suspense>
-        </SetupGate>
+        </SetupGateWithBoundary>
       </BrowserRouter>
     </AntdProvider>
   );

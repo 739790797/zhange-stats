@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Radio,
   Row,
   Select,
@@ -16,7 +17,6 @@ import {
   message,
   theme,
 } from "antd";
-import { useEffect } from "react";
 import {
   fetchRuntimeEnv,
   testRuntimeDatabase,
@@ -25,9 +25,11 @@ import {
 } from "@/api/client";
 import { fetchRuntimeHealth } from "@/api/runtimeHealthApi";
 import type { RuntimeHealthService } from "@/api/runtimeHealthApi";
-import type { RuntimeEnvUpdate } from "@/api/settingsApi";
+import type { RuntimeEnvSettings } from "@/api/settingsApi";
 import { PageHeader } from "@/components/PageHeader";
+import { hydrateForm, useHydrateUntouchedForm } from "@/hooks/useFormHydration";
 import { apiError } from "@/lib/apiError";
+import { runtimeEnvRiskNotes } from "@/lib/runtimeEnvRisks";
 import {
   MYSQL_CONN_DEFAULTS,
   REDIS_CONN_DEFAULTS,
@@ -63,7 +65,61 @@ type EnvForm = {
   cors_origin_regex: string;
   csp_enforce: boolean;
   trust_x_forwarded_for: boolean;
+  rate_limit_enabled: boolean;
 };
+
+type EnvField = keyof EnvForm;
+
+const ENV_FIELDS: EnvField[] = [
+  "app_env",
+  "cors_origins",
+  "cors_origin_regex",
+  "csp_enforce",
+  "trust_x_forwarded_for",
+  "rate_limit_enabled",
+];
+
+const ENV_LOCKED_TEXT = "由环境变量锁定";
+
+function dbValuesOf(data: RuntimeEnvSettings): DbForm {
+  const mysql = parseMysqlUrl(data.db_url || "");
+  return {
+    db_engine: data.db_engine === "mysql" ? "mysql" : "sqlite",
+    db_path: data.db_path || "",
+    host: mysql.host,
+    port: mysql.port,
+    user: mysql.user,
+    password: mysql.password,
+    database: mysql.database,
+  };
+}
+
+function redisValuesOf(data: RuntimeEnvSettings): RedisForm {
+  return parseRedisUrl(data.redis_url || "");
+}
+
+function envValuesOf(data: RuntimeEnvSettings): EnvForm {
+  return {
+    app_env: data.app_env || "development",
+    cors_origins: data.cors_origins || "",
+    cors_origin_regex: data.cors_origin_regex || "",
+    csp_enforce: Boolean(data.csp_enforce),
+    trust_x_forwarded_for: Boolean(data.trust_x_forwarded_for),
+    rate_limit_enabled: data.rate_limit_enabled !== false,
+  };
+}
+
+function EnvLockedAlert({ name }: { name: string }) {
+  return (
+    <Alert
+      type="info"
+      showIcon
+      style={{ marginBottom: 12 }}
+      message={`${ENV_LOCKED_TEXT}（${name}）`}
+      description="此处只读；请在服务器上修改环境变量后重启。"
+    />
+  );
+}
 
 function isFormValidateError(e: unknown): boolean {
   return Boolean(
@@ -87,10 +143,12 @@ function CardActions({
   onTest,
   testLoading,
   saveLoading,
+  saveDisabled,
 }: {
   onTest?: () => void;
   testLoading?: boolean;
   saveLoading: boolean;
+  saveDisabled?: boolean;
 }) {
   return (
     <div style={{ marginTop: "auto", paddingTop: 8 }}>
@@ -100,7 +158,12 @@ function CardActions({
             测试连接
           </Button>
         ) : null}
-        <Button type="primary" htmlType="submit" loading={saveLoading}>
+        <Button
+          type="primary"
+          htmlType="submit"
+          loading={saveLoading}
+          disabled={saveDisabled}
+        >
           保存
         </Button>
       </Space>
@@ -154,30 +217,18 @@ export default function RuntimeEnvPage() {
   const data = envQuery.data;
   const dbHealth = healthById(healthQuery.data?.services, "database");
   const redisHealth = healthById(healthQuery.data?.services, "redis");
+  const locked = new Set(data?.env_locked ?? []);
+  const dbLocked = ["db_engine", "db_path", "db_url"].some((f) => locked.has(f));
+  const redisLocked = locked.has("redis_url");
+  const envLocked = (field: EnvField) => locked.has(field);
+  const envLockedExtra = (field: EnvField) =>
+    envLocked(field) ? ENV_LOCKED_TEXT : undefined;
 
-  useEffect(() => {
-    if (!data) return;
-    const mysql = parseMysqlUrl(data.db_url || "");
-    dbForm.setFieldsValue({
-      db_engine: data.db_engine === "mysql" ? "mysql" : "sqlite",
-      db_path: data.db_path || "",
-      host: mysql.host,
-      port: mysql.port,
-      user: mysql.user,
-      password: mysql.password,
-      database: mysql.database,
-    });
-    redisForm.setFieldsValue(parseRedisUrl(data.redis_url || ""));
-    envForm.setFieldsValue({
-      app_env: data.app_env || "development",
-      cors_origins: data.cors_origins || "",
-      cors_origin_regex: data.cors_origin_regex || "",
-      csp_enforce: Boolean(data.csp_enforce),
-      trust_x_forwarded_for: Boolean(data.trust_x_forwarded_for),
-    });
-  }, [data, dbForm, redisForm, envForm]);
+  useHydrateUntouchedForm(dbForm, data, dbValuesOf);
+  useHydrateUntouchedForm(redisForm, data, redisValuesOf);
+  useHydrateUntouchedForm(envForm, data, envValuesOf);
 
-  const onSaved = (res: Awaited<ReturnType<typeof updateRuntimeEnv>>) => {
+  const onSaved = (res: RuntimeEnvSettings) => {
     queryClient.setQueryData(["runtime-env"], res);
     void queryClient.invalidateQueries({ queryKey: ["runtime-health"] });
     if (res.restart_required) {
@@ -187,14 +238,74 @@ export default function RuntimeEnvPage() {
     }
   };
 
-  const saveOpts = {
-    mutationFn: (payload: RuntimeEnvUpdate) => updateRuntimeEnv(payload),
-    onSuccess: onSaved,
-    onError: (e: unknown) => message.error(apiError(e, "保存失败")),
+  const onSaveError = (e: unknown) =>
+    message.error({ content: apiError(e, "保存失败"), duration: 8 });
+  const saveDb = useMutation({
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
+      updateRuntimeEnv(payload),
+    onSuccess: (res) => {
+      onSaved(res);
+      hydrateForm(dbForm, dbValuesOf(res));
+    },
+    onError: onSaveError,
+  });
+  const saveRedis = useMutation({
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
+      updateRuntimeEnv(payload),
+    onSuccess: (res) => {
+      onSaved(res);
+      hydrateForm(redisForm, redisValuesOf(res));
+    },
+    onError: onSaveError,
+  });
+  const saveEnv = useMutation({
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
+      updateRuntimeEnv(payload),
+    onSuccess: (res) => {
+      onSaved(res);
+      hydrateForm(envForm, envValuesOf(res));
+    },
+    onError: onSaveError,
+  });
+
+  const submitEnv = (values: EnvForm) => {
+    const payload: Partial<EnvForm> = {
+      app_env: values.app_env,
+      cors_origins: values.cors_origins || "",
+      cors_origin_regex: values.cors_origin_regex || "",
+      csp_enforce: Boolean(values.csp_enforce),
+      trust_x_forwarded_for: Boolean(values.trust_x_forwarded_for),
+      rate_limit_enabled: Boolean(values.rate_limit_enabled),
+    };
+    for (const field of ENV_FIELDS) {
+      if (envLocked(field)) delete payload[field];
+    }
+    const notes = data ? runtimeEnvRiskNotes(envValuesOf(data), payload) : [];
+    if (!notes.length) {
+      saveEnv.mutate(payload);
+      return;
+    }
+    Modal.confirm({
+      title: "确认保存这些运行环境改动？",
+      content: (
+        <ul style={{ paddingLeft: 20, margin: "8px 0 0" }}>
+          {notes.map((note) => (
+            <li key={note} style={{ marginBottom: 6 }}>
+              {note}
+            </li>
+          ))}
+        </ul>
+      ),
+      okText: "确认保存",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      width: 520,
+      onOk: () => {
+        saveEnv.mutate(payload);
+      },
+    });
   };
-  const saveDb = useMutation(saveOpts);
-  const saveRedis = useMutation(saveOpts);
-  const saveEnv = useMutation(saveOpts);
+  const envAllLocked = ENV_FIELDS.every(envLocked);
 
   const onTested = (res: Awaited<ReturnType<typeof testRuntimeDatabase>>) => {
     if (res.ok) {
@@ -288,11 +399,12 @@ export default function RuntimeEnvPage() {
             styles={{ body: cardBody }}
             loading={cardLoading}
           >
+            {dbLocked ? <EnvLockedAlert name="DATABASE_URL" /> : null}
             <Form
               form={dbForm}
               layout="vertical"
               requiredMark={false}
-              disabled={loading}
+              disabled={loading || dbLocked}
               initialValues={{
                 db_engine: "sqlite",
                 ...MYSQL_CONN_DEFAULTS,
@@ -380,11 +492,13 @@ export default function RuntimeEnvPage() {
                   <Input placeholder="data/runtime/zhange.sqlite" />
                 </Form.Item>
               )}
-              <CardActions
-                onTest={() => testDb.mutate()}
-                testLoading={testDb.isPending}
-                saveLoading={saveDb.isPending}
-              />
+              {dbLocked ? null : (
+                <CardActions
+                  onTest={() => testDb.mutate()}
+                  testLoading={testDb.isPending}
+                  saveLoading={saveDb.isPending}
+                />
+              )}
             </Form>
           </Card>
         </Col>
@@ -398,11 +512,12 @@ export default function RuntimeEnvPage() {
             styles={{ body: cardBody }}
             loading={cardLoading}
           >
+            {redisLocked ? <EnvLockedAlert name="REDIS_URL" /> : null}
             <Form
               form={redisForm}
               layout="vertical"
               requiredMark={false}
-              disabled={loading}
+              disabled={loading || redisLocked}
               initialValues={REDIS_CONN_DEFAULTS}
               style={formStyle}
               onFinish={(values) => {
@@ -447,11 +562,13 @@ export default function RuntimeEnvPage() {
                   </Form.Item>
                 </Col>
               </Row>
-              <CardActions
-                onTest={() => testRedis.mutate()}
-                testLoading={testRedis.isPending}
-                saveLoading={saveRedis.isPending}
-              />
+              {redisLocked ? null : (
+                <CardActions
+                  onTest={() => testRedis.mutate()}
+                  testLoading={testRedis.isPending}
+                  saveLoading={saveRedis.isPending}
+                />
+              )}
             </Form>
           </Card>
         </Col>
@@ -470,33 +587,38 @@ export default function RuntimeEnvPage() {
               requiredMark={false}
               disabled={loading}
               style={formStyle}
-              onFinish={(values) => {
-                saveEnv.mutate({
-                  app_env: values.app_env,
-                  cors_origins: values.cors_origins || "",
-                  cors_origin_regex: values.cors_origin_regex || "",
-                  csp_enforce: Boolean(values.csp_enforce),
-                  trust_x_forwarded_for: Boolean(values.trust_x_forwarded_for),
-                });
-              }}
+              onFinish={submitEnv}
             >
               <Form.Item
                 name="app_env"
                 label="APP_ENV"
                 rules={[{ required: true, message: "请选择环境" }]}
+                extra={envLockedExtra("app_env")}
               >
                 <Select
+                  disabled={envLocked("app_env")}
                   options={[
                     { value: "development", label: "development" },
                     { value: "production", label: "production" },
                   ]}
                 />
               </Form.Item>
-              <Form.Item name="cors_origins" label="CORS_ORIGINS">
-                <Input placeholder="https://stats.example.com" />
+              <Form.Item
+                name="cors_origins"
+                label="CORS_ORIGINS"
+                extra={envLockedExtra("cors_origins")}
+              >
+                <Input
+                  placeholder="https://stats.example.com"
+                  disabled={envLocked("cors_origins")}
+                />
               </Form.Item>
-              <Form.Item name="cors_origin_regex" label="CORS_ORIGIN_REGEX">
-                <Input />
+              <Form.Item
+                name="cors_origin_regex"
+                label="CORS_ORIGIN_REGEX"
+                extra={envLockedExtra("cors_origin_regex")}
+              >
+                <Input disabled={envLocked("cors_origin_regex")} />
               </Form.Item>
               <Row gutter={16}>
                 <Col span={12}>
@@ -504,10 +626,12 @@ export default function RuntimeEnvPage() {
                     name="csp_enforce"
                     label="强制 CSP"
                     valuePropName="checked"
+                    extra={envLockedExtra("csp_enforce")}
                   >
                     <Switch
                       checkedChildren="enforce"
                       unCheckedChildren="Report-Only"
+                      disabled={envLocked("csp_enforce")}
                     />
                   </Form.Item>
                 </Col>
@@ -516,12 +640,27 @@ export default function RuntimeEnvPage() {
                     name="trust_x_forwarded_for"
                     label="信任 X-Forwarded-For"
                     valuePropName="checked"
+                    extra={envLockedExtra("trust_x_forwarded_for")}
                   >
-                    <Switch />
+                    <Switch disabled={envLocked("trust_x_forwarded_for")} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="rate_limit_enabled"
+                    label="接口限流"
+                    valuePropName="checked"
+                    extra={envLockedExtra("rate_limit_enabled")}
+                  >
+                    <Switch
+                      checkedChildren="开"
+                      unCheckedChildren="关"
+                      disabled={envLocked("rate_limit_enabled")}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
-              <CardActions saveLoading={saveEnv.isPending} />
+              <CardActions saveLoading={saveEnv.isPending} saveDisabled={envAllLocked} />
             </Form>
           </Card>
         </Col>

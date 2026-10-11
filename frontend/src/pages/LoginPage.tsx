@@ -12,6 +12,7 @@ import { apiError } from "@/lib/apiError";
 import { AuthGuestShell } from "@/components/AuthGuestShell";
 import { LegalLinks } from "@/components/LegalLinks";
 import { QqLoginButton } from "@/components/QqLoginButton";
+import { OAUTH_RETURN_PARAMS, oauthFailureMessage } from "@/lib/oauthReturnReason";
 import {
   consumePostLoginPath,
   postLoginPath,
@@ -52,16 +53,14 @@ export default function LoginPage() {
     qqHandled.current = true;
 
     const ticket = searchParams.get("ticket");
-    const name = searchParams.get("name");
-    const detail = searchParams.get("detail");
+    const reason = searchParams.get("reason");
     const needCompleteFlag = searchParams.get("need_complete") === "1";
     const next = new URLSearchParams(searchParams);
     next.delete("qq_login");
     next.delete("ticket");
     next.delete("access_token"); // 兼容旧回调
-    next.delete("name");
-    next.delete("detail");
     next.delete("need_complete");
+    for (const key of OAUTH_RETURN_PARAMS) next.delete(key);
     setSearchParams(next, { replace: true });
 
     if (status === "ok" && ticket) {
@@ -71,7 +70,7 @@ export default function LoginPage() {
           await exchangeQqTicket(ticket);
           const me = await fetchMe();
           setUser(me);
-          message.success(name ? `欢迎，${name}` : "QQ 登录成功");
+          message.success(me.display_name ? `欢迎，${me.display_name}` : "QQ 登录成功");
           const needComplete = needCompleteFlag || !me.email;
           goHome(needComplete ? { promptCompleteProfile: true } : undefined);
         } catch (e: unknown) {
@@ -83,7 +82,9 @@ export default function LoginPage() {
       return;
     }
 
-    setError(detail || "QQ 登录失败");
+    const text = oauthFailureMessage("qq_login", status === "ok" ? null : reason);
+    if (reason === "cancelled") message.info(text);
+    else setError(text);
   }, [goHome, navigate, searchParams, setUser, setSearchParams]);
 
   const loggedInDest = useRef<string | null>(null);

@@ -18,6 +18,7 @@ import {
   collectedIdsFromLayout,
   collectionDropCell,
   collectionExpandPreview,
+  collectionLayoutFromStorage,
   collectionGridSize,
   collectionGridSizeForPreview,
   findCollectionFit,
@@ -522,6 +523,24 @@ describe("collection layout storage", () => {
     saveCollectionLayout("pvp", clearCollectionLayout());
     expect(loadCollectionLayout("pvp")?.placements).toEqual([]);
     expect(mem.get("zhange.guides.tarkov.collectionLayout.v3")).toBeUndefined();
+  });
+
+  it("reads a layout straight from stashed raw strings", () => {
+    const v2 = JSON.stringify({
+      v: 2,
+      pve: layoutOf({ itemId: "b", col: 1, row: 0 }),
+    });
+    const v3 = JSON.stringify({
+      v: 3,
+      pvp: { v: 3, placements: [{ itemId: "a", col: 0, row: 2 }] },
+    });
+    expect(collectionLayoutFromStorage(v2, v3, "pve")?.placements).toEqual([
+      { itemId: "b", col: 1, row: 0 },
+    ]);
+    expect(collectionLayoutFromStorage(v2, v3, "pvp")?.placements).toEqual([
+      { itemId: "a", col: 0, row: 2 },
+    ]);
+    expect(collectionLayoutFromStorage(undefined, "{", "pvp")).toBeNull();
   });
 });
 

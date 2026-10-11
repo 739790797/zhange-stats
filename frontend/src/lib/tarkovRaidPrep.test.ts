@@ -30,7 +30,9 @@ import {
   matchRaidPrepOverlayAtPoint,
   formatRaidPrepKeyNeedLine,
   parseRaidPrepObjectiveDone,
+  mergeGuestRaidPrepObjectiveDone,
   mergeRaidPrepSkipMaps,
+  parseRaidPrepObjectiveDoneStore,
   raidPrepObjectiveDoneScope,
   raidPrepObjectiveDoneLegacyScopes,
   raidPrepSkipMapsEqual,
@@ -2339,6 +2341,31 @@ describe("raid prep needed items", () => {
         taskDone: true,
       }),
     ).toEqual({ nextChecked: false, toggleLocal: false, reopenTask: true });
+  });
+
+  it("moves guest objective marks under the signing-in account", () => {
+    const merged = mergeGuestRaidPrepObjectiveDone(
+      { "user:7:pvp:customs": { t1: ["a"] } },
+      parseRaidPrepObjectiveDoneStore(
+        JSON.stringify({
+          "user:guest:pvp:customs": { t1: ["b"], t2: [] },
+          "solo:woods": { t3: ["c"] },
+          "user:9:pvp:customs": { t4: ["d"] },
+        }),
+      ),
+      7,
+    );
+    expect(Object.keys(merged).sort()).toEqual([
+      "solo:woods",
+      "user:7:pvp:customs",
+    ]);
+    expect([...(merged["user:7:pvp:customs"]?.t1 || [])].sort()).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(merged["user:7:pvp:customs"]?.t2).toBeUndefined();
+    expect(merged["solo:woods"]).toEqual({ t3: ["c"] });
+    expect(parseRaidPrepObjectiveDoneStore("not json")).toEqual({});
   });
 
   it("sorts summary rows by participant count descending", () => {

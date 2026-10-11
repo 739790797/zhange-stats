@@ -160,6 +160,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout All
+         * @description 作废本账号在所有设备上的登录（含当前），之后须重新登录。
+         */
+        post: operations["logout_all_api_auth_logout_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/qq/oauth/start": {
         parameters: {
             query?: never;
@@ -169,7 +189,7 @@ export interface paths {
         };
         /**
          * Qq Oauth Login Start
-         * @description 未登录用户发起 QQ 登录 / 一键注册。
+         * @description 未登录用户发起 QQ 登录 / 一键注册。回跳只去白名单前端，且须回到发起的这个浏览器。
          */
         get: operations["qq_oauth_login_start_api_auth_qq_oauth_start_get"];
         put?: never;
@@ -191,7 +211,7 @@ export interface paths {
         put?: never;
         /**
          * Qq Oauth Exchange
-         * @description 用回调 URL 中的一次性 ticket 换取会话（不把 access_token 放进 query）。
+         * @description 用回调 URL 中的一次性 ticket 换取会话（令牌只进 HttpOnly Cookie，不进 query 也不进响应体）。
          */
         post: operations["qq_oauth_exchange_api_auth_qq_exchange_post"];
         delete?: never;
@@ -568,7 +588,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Steam Openid Callback */
+        /**
+         * Steam Openid Callback
+         * @description 回跳只带 steam_bind=ok|error 与固定 reason 码（码表见 docs/security.md），不带任何文案。
+         */
         get: operations["steam_openid_callback_api_profile_steam_openid_callback_get"];
         put?: never;
         post?: never;
@@ -605,6 +628,9 @@ export interface paths {
         /**
          * Qq Oauth Callback
          * @description QQ 互联登记的回调：/api/auth/qq/callback（登录 / 绑定共用）。
+         *
+         *     回跳只带 qq_login|qq_bind=ok|error、固定 reason 码（码表见 docs/security.md）、
+         *     一次性 ticket 与 need_complete，不带 QQ 返回或异常里的任何文案。
          */
         get: operations["qq_oauth_callback_api_auth_qq_callback_get"];
         put?: never;
@@ -1427,7 +1453,7 @@ export interface paths {
         };
         /**
          * Steam App Icon
-         * @description 单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。
+         * @description 单独补全库列表小图标（可慢）；时间轴热路径不阻塞此逻辑。只认站内出现过的 AppID。
          */
         get: operations["steam_app_icon_api_steam_apps__app_id__icon_get"];
         put?: never;
@@ -1447,7 +1473,7 @@ export interface paths {
         };
         /**
          * Steam App Store Card
-         * @description 商店悬停卡片：头图、简介、国区价格（含折扣）。
+         * @description 商店悬停卡片：头图、简介、国区价格（含折扣）。只认站内出现过的 AppID。
          */
         get: operations["steam_app_store_card_api_steam_apps__app_id__get"];
         put?: never;
@@ -1774,6 +1800,8 @@ export interface paths {
         /**
          * Skland Arknights Box Compare
          * @description 多用户盒子对比：统一图鉴顺序，未拥有不在 owned 中。
+         *
+         *     只有自己的那一行会回源森空岛；别人的盒子只读每日同步的快照。
          */
         get: operations["skland_arknights_box_compare_api_skland_arknights_box_compare_get"];
         put?: never;
@@ -3129,7 +3157,7 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Full Sync
-         * @description 管理员：回源 json.tarkov.dev 全文件，落本地后再投影现有栏目。
+         * @description 管理员：后台回源 json.tarkov.dev 全文件再投影各栏目，立即返回执行记录；已有回源在跑时 409。
          */
         post: operations["guides_tarkov_full_sync_api_guides_tarkov_sync_post"];
         delete?: never;
@@ -3207,7 +3235,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Item Detail
-         * @description 通用物品详情：从 items raw 返回完整 item / properties。
+         * @description 通用物品详情：从 items raw 返回完整 item / properties；相关 raw 表头未变时 304。
          */
         get: operations["guides_tarkov_item_detail_api_guides_tarkov_items__item_id__get"];
         put?: never;
@@ -3247,7 +3275,7 @@ export interface paths {
         };
         /**
          * Guides Tarkov Ammo Detail
-         * @description 弹药详情：从 items raw 返回完整 item / properties。
+         * @description 弹药详情：从 items raw 返回完整 item / properties；items / overlay 表头未变时 304。
          */
         get: operations["guides_tarkov_ammo_detail_api_guides_tarkov_ammo__item_id__get"];
         put?: never;
@@ -6177,6 +6205,18 @@ export interface components {
             /** Current Password */
             current_password: string;
         };
+        /** ChangeUsernameResponse */
+        ChangeUsernameResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Message */
+            message: string;
+            /** Username */
+            username: string;
+        };
         /**
          * CheckinAwardItem
          * @description 结构化签到奖励；有 icon_url 时前端应展示图标。
@@ -6390,7 +6430,10 @@ export interface components {
             /** Code */
             code: string;
         };
-        /** EmailSettingsOut */
+        /**
+         * EmailSettingsOut
+         * @description smtp_password 只写：响应恒为空串，是否已设置看 smtp_password_set。
+         */
         EmailSettingsOut: {
             /** Enabled */
             enabled: boolean;
@@ -6418,7 +6461,10 @@ export interface components {
             /** Configured */
             configured: boolean;
         };
-        /** EmailSettingsUpdate */
+        /**
+         * EmailSettingsUpdate
+         * @description smtp_password 空或缺省保留原口令；clear_smtp_password=true 才清空（优先于新值）。
+         */
         EmailSettingsUpdate: {
             /**
              * Enabled
@@ -6437,6 +6483,11 @@ export interface components {
             smtp_from: string;
             /** Smtp Password */
             smtp_password?: string | null;
+            /**
+             * Clear Smtp Password
+             * @default false
+             */
+            clear_smtp_password: boolean;
             /**
              * Display Name
              * @default
@@ -7326,7 +7377,10 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** IntegrationsOut */
+        /**
+         * IntegrationsOut
+         * @description 密钥字段只写：响应恒为空串，看 `*_set`；长 token 另给末 4 位 `*_hint`（不足 16 位为空）。
+         */
         IntegrationsOut: {
             /**
              * Steam Api Key
@@ -7335,6 +7389,11 @@ export interface components {
             steam_api_key: string;
             /** Steam Api Key Set */
             steam_api_key_set: boolean;
+            /**
+             * Steam Api Key Hint
+             * @default
+             */
+            steam_api_key_hint: string;
             /** Qq App Id */
             qq_app_id: string;
             /**
@@ -7344,6 +7403,11 @@ export interface components {
             qq_app_key: string;
             /** Qq App Key Set */
             qq_app_key_set: boolean;
+            /**
+             * Qq App Key Hint
+             * @default
+             */
+            qq_app_key_hint: string;
             /** Qq Configured */
             qq_configured: boolean;
             /** Steam Configured */
@@ -7363,6 +7427,11 @@ export interface components {
              * @default false
              */
             github_token_set: boolean;
+            /**
+             * Github Token Hint
+             * @default
+             */
+            github_token_hint: string;
             /**
              * Github Configured
              * @default false
@@ -7384,6 +7453,11 @@ export interface components {
              */
             pelican_client_token_set: boolean;
             /**
+             * Pelican Client Token Hint
+             * @default
+             */
+            pelican_client_token_hint: string;
+            /**
              * Pelican Application Token
              * @default
              */
@@ -7393,6 +7467,11 @@ export interface components {
              * @default false
              */
             pelican_application_token_set: boolean;
+            /**
+             * Pelican Application Token Hint
+             * @default
+             */
+            pelican_application_token_hint: string;
             /**
              * Pelican Server Uuid
              * @default
@@ -7459,7 +7538,10 @@ export interface components {
              */
             pelican_configured: boolean;
         };
-        /** IntegrationsUpdate */
+        /**
+         * IntegrationsUpdate
+         * @description 密钥字段空或缺省保留原值；`clear_<字段>`=true 才清空（优先于新值）。
+         */
         IntegrationsUpdate: {
             /** Steam Api Key */
             steam_api_key?: string | null;
@@ -7905,13 +7987,6 @@ export interface components {
         LinkExistingAccountResponse: {
             /** Message */
             message: string;
-            /** Access Token */
-            access_token: string;
-            /**
-             * Token Type
-             * @default bearer
-             */
-            token_type: string;
             user: components["schemas"]["UserOut"];
         };
         /** LoginRequest */
@@ -10422,13 +10497,6 @@ export interface components {
             email: string;
             /** Delivery */
             delivery?: string | null;
-            /** Access Token */
-            access_token?: string | null;
-            /**
-             * Token Type
-             * @default bearer
-             */
-            token_type: string;
         };
         /** ResendCodeRequest */
         ResendCodeRequest: {
@@ -10649,7 +10717,12 @@ export interface components {
              */
             db_url: string;
         };
-        /** RuntimeEnvOut */
+        /**
+         * RuntimeEnvOut
+         * @description redis_url 只回 scheme://主机:端口/库号（不含账号、口令、查询串）；是否已配置看 *_set。
+         *
+         *     db_url 只回 scheme://账号@主机:端口/库名（不含口令、查询串）；是否带口令看 db_password_set。
+         */
         RuntimeEnvOut: {
             /** App Env */
             app_env: string;
@@ -10660,6 +10733,16 @@ export interface components {
              * @default
              */
             redis_url: string;
+            /**
+             * Redis Url Set
+             * @default false
+             */
+            redis_url_set: boolean;
+            /**
+             * Redis Password Set
+             * @default false
+             */
+            redis_password_set: boolean;
             /**
              * Cors Origins
              * @default
@@ -10681,6 +10764,11 @@ export interface components {
              */
             trust_x_forwarded_for: boolean;
             /**
+             * Rate Limit Enabled
+             * @default true
+             */
+            rate_limit_enabled: boolean;
+            /**
              * Db Engine
              * @default sqlite
              */
@@ -10696,17 +10784,36 @@ export interface components {
              */
             db_url: string;
             /**
+             * Db Password Set
+             * @default false
+             */
+            db_password_set: boolean;
+            /**
              * Restart Required
              * @default false
              */
             restart_required: boolean;
+            /** Env Locked */
+            env_locked?: string[];
         };
-        /** RuntimeEnvUpdate */
+        /**
+         * RuntimeEnvUpdate
+         * @description redis_url 空或缺省保留原值；clear_redis_url=true 才清空（优先于新值）。
+         *
+         *     回传的脱敏地址（不带账号口令）若与已存的主机、端口一致，沿用已存账号口令与查询串。
+         *     db_url 空或缺省同样保留原值；回传的脱敏连接串（不带口令与查询串）若与已存的主机、端口、账号一致，
+         *     沿用已存口令与查询串。
+         */
         RuntimeEnvUpdate: {
             /** App Env */
             app_env?: string | null;
             /** Redis Url */
             redis_url?: string | null;
+            /**
+             * Clear Redis Url
+             * @default false
+             */
+            clear_redis_url: boolean;
             /** Cors Origins */
             cors_origins?: string | null;
             /** Cors Origin Regex */
@@ -10715,6 +10822,8 @@ export interface components {
             csp_enforce?: boolean | null;
             /** Trust X Forwarded For */
             trust_x_forwarded_for?: boolean | null;
+            /** Rate Limit Enabled */
+            rate_limit_enabled?: boolean | null;
             /** Db Engine */
             db_engine?: string | null;
             /** Db Path */
@@ -10913,6 +11022,19 @@ export interface components {
              */
             email: string;
         };
+        /**
+         * SessionResponse
+         * @description 会话只在 HttpOnly Cookie 里，响应体不回令牌。
+         */
+        SessionResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Message */
+            message: string;
+        };
         /** SetupAdminRequest */
         SetupAdminRequest: {
             /**
@@ -10925,17 +11047,13 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** SetupAdminResponse */
+        /**
+         * SetupAdminResponse
+         * @description 会话只在 HttpOnly Cookie 里，响应体不回令牌。
+         */
         SetupAdminResponse: {
             /** Message */
             message: string;
-            /** Access Token */
-            access_token: string;
-            /**
-             * Token Type
-             * @default bearer
-             */
-            token_type: string;
         };
         /** SetupDatabaseRequest */
         SetupDatabaseRequest: {
@@ -10984,6 +11102,11 @@ export interface components {
              * @default
              */
             sqlite_path: string;
+            /**
+             * Token Required
+             * @default false
+             */
+            token_required: boolean;
         };
         /** SiteSettingsOut */
         SiteSettingsOut: {
@@ -12359,30 +12482,28 @@ export interface components {
             required_items?: components["schemas"]["TarkovGuideItemRefOut"][];
             product_item: components["schemas"]["TarkovGuideItemRefOut"];
         };
-        /** TarkovFullSyncDomainOut */
-        TarkovFullSyncDomainOut: {
-            /** Id */
-            id: string;
-            /** Ok */
-            ok: boolean;
-            /** Error */
-            error?: string | null;
-            /** Source */
-            source?: string | null;
-            /** Synced At */
-            synced_at?: string | null;
-        };
-        /** TarkovFullSyncOut */
-        TarkovFullSyncOut: {
-            /** Ok Count */
-            ok_count: number;
-            /** Failed Count */
-            failed_count: number;
-            /** Domains */
-            domains?: components["schemas"]["TarkovFullSyncDomainOut"][];
+        /**
+         * TarkovFullSyncStartOut
+         * @description 整站同步已转后台；进度与各栏目结果见任务管理里 run_id 这条执行记录。
+         */
+        TarkovFullSyncStartOut: {
+            /**
+             * Accepted
+             * @default true
+             */
+            accepted: boolean;
+            /** Job Id */
+            job_id: string;
+            /** Run Id */
+            run_id: number;
+            /**
+             * Status
+             * @default running
+             */
+            status: string;
             /**
              * Message
-             * @default ok
+             * @default
              */
             message: string;
         };
@@ -16823,16 +16944,6 @@ export interface components {
             /** Today Results */
             today_results?: components["schemas"]["CheckinResultItem"][];
         };
-        /** TokenResponse */
-        TokenResponse: {
-            /** Access Token */
-            access_token: string;
-            /**
-             * Token Type
-             * @default bearer
-             */
-            token_type: string;
-        };
         /** UserAdminCreate */
         UserAdminCreate: {
             /** Email */
@@ -17265,7 +17376,9 @@ export interface operations {
     post_setup_database_api_setup_database_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Setup-Token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -17298,7 +17411,9 @@ export interface operations {
     post_setup_admin_api_setup_admin_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Setup-Token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -17481,7 +17596,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenResponse"];
+                    "application/json": components["schemas"]["SessionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -17496,6 +17611,28 @@ export interface operations {
         };
     };
     logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    logout_all_api_auth_logout_all_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -17556,7 +17693,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenResponse"];
+                    "application/json": components["schemas"]["SessionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -17763,9 +17900,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ChangeUsernameResponse"];
                 };
             };
             /** @description Validation Error */
@@ -18321,7 +18456,6 @@ export interface operations {
                 code?: string | null;
                 state?: string | null;
                 error?: string | null;
-                error_description?: string | null;
             };
             header?: never;
             path?: never;
@@ -19576,7 +19710,7 @@ export interface operations {
                 biz?: string | null;
                 /** @description 消息或 logger 子串 */
                 q?: string | null;
-                /** @description 仅返回 id 大于该值的新行 */
+                /** @description 仅返回 id 大于该值的新行（ring / file 生效；all 合并后会重排 id） */
                 after_id?: number;
                 /** @description ring=内存环缓冲；file=持久化 JSONL；all=合并（推荐） */
                 source?: string;
@@ -23433,12 +23567,12 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TarkovFullSyncOut"];
+                    "application/json": components["schemas"]["TarkovFullSyncStartOut"];
                 };
             };
             /** @description Validation Error */

@@ -12,7 +12,10 @@ import {
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   loadTaskSyncAt,
+  importGuestTaskProgress,
+  mergeGuestTaskProgress,
   parseTaskDonesState,
+  parseTaskDonesStateRaw,
   planAccountTaskHydrate,
   keepCatalogTaskProgress,
   mergeObjectivesForTask,
@@ -682,6 +685,41 @@ describe("task dones storage", () => {
       { task_id: "t1", objective_id: "a" },
       { task_id: "t1", objective_id: "b" },
     ]);
+  });
+
+  it("imports guest progress as a union and leaves reset marks behind", () => {
+    saveTaskProgress("pvp", ["acct-done"], ["shared"], false, false, [
+      { task_id: "shared", objective_id: "a" },
+    ]);
+    const guestRaw = JSON.stringify({
+      v: 1,
+      pvp: ["shared", "guest-done"],
+      started: { pvp: ["guest-started"] },
+      failed: { pve: ["guest-failed"] },
+      objectives: { pvp: [{ task_id: "shared", objective_id: "b" }] },
+      clearedDone: { pvp: { "acct-done": "2026-01-01 00:00:00" } },
+      questProfileResetPending: { pvp: true },
+    });
+    const merged = mergeGuestTaskProgress(
+      parseTaskDonesStateRaw(JSON.stringify({ v: 1, pvp: ["acct-done"] })),
+      parseTaskDonesStateRaw(guestRaw),
+    );
+    expect(merged.pvp).toEqual(["acct-done", "shared", "guest-done"]);
+    expect(merged.started?.pvp).toEqual(["guest-started"]);
+    expect(merged.failed?.pve).toEqual(["guest-failed"]);
+    expect(merged.questProfileResetPending?.pvp).toBe(false);
+    expect(merged.clearedDone?.pvp).toEqual({});
+
+    importGuestTaskProgress(guestRaw);
+    expect(loadTaskDoneIds("pvp")).toEqual(["acct-done", "shared", "guest-done"]);
+    expect(loadTaskStartedIds("pvp")).toEqual(["guest-started"]);
+    expect(loadTaskFailedIds("pve")).toEqual(["guest-failed"]);
+    expect(loadTaskObjectivePairs("pvp")).toEqual([
+      { task_id: "shared", objective_id: "a" },
+      { task_id: "shared", objective_id: "b" },
+    ]);
+    expect(loadQuestProfileResetPending("pvp")).toBe(false);
+    expect(loadTaskClearedDone("pvp").has("acct-done")).toBe(false);
   });
 });
 

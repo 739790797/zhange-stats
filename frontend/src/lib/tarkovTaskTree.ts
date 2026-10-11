@@ -859,7 +859,18 @@ export function loadTaskFailedIds(mode: TarkovGameMode): string[] {
 
 function readState(): TarkovTaskDonesState {
   try {
-    const raw = localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY);
+    return parseTaskDonesStateRaw(
+      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
+    );
+  } catch {
+    return { v: 1 };
+  }
+}
+
+export function parseTaskDonesStateRaw(
+  raw: string | null | undefined,
+): TarkovTaskDonesState {
+  try {
     if (!raw) return { v: 1 };
     const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
     if (Array.isArray(parsed)) return { v: 1, pvp: asIdList(parsed) };
@@ -915,6 +926,47 @@ function writeState(state: TarkovTaskDonesState): void {
   } catch {
     /* ignore quota / private mode */
   }
+}
+
+/**
+ * 访客暂存的任务账并进当前账号的本机账：只取完成 / 进行中 / 失败 / 小步骤的并集。
+ * 访客的「已清空」、转生待替换和日志游标不带过来，免得导入反过来删掉账号上的进度。
+ */
+export function mergeGuestTaskProgress(
+  current: TarkovTaskDonesState,
+  guest: TarkovTaskDonesState,
+): TarkovTaskDonesState {
+  const next: TarkovTaskDonesState = { ...current };
+  for (const mode of ["pvp", "pve"] as const) {
+    const merged = unionTaskProgress(
+      {
+        done: asIdList(current[mode]),
+        started: asIdList(current.started?.[mode]),
+        failed: asIdList(current.failed?.[mode]),
+      },
+      {
+        done: asIdList(guest[mode]),
+        started: asIdList(guest.started?.[mode]),
+        failed: asIdList(guest.failed?.[mode]),
+      },
+    );
+    next[mode] = merged.done;
+    next.started = { ...next.started, [mode]: merged.started };
+    next.failed = { ...next.failed, [mode]: merged.failed };
+    next.objectives = {
+      ...next.objectives,
+      [mode]: unionObjectivePairs(
+        asObjectivePairs(current.objectives?.[mode]),
+        asObjectivePairs(guest.objectives?.[mode]),
+      ),
+    };
+  }
+  return next;
+}
+
+export function importGuestTaskProgress(raw: string | null | undefined): void {
+  if (!raw) return;
+  writeState(mergeGuestTaskProgress(readState(), parseTaskDonesStateRaw(raw)));
 }
 
 export function saveTaskDoneIds(

@@ -18,6 +18,7 @@ export {
   startQqOAuthLogin,
   exchangeQqTicket,
   logoutRequest,
+  logoutAllRequest,
   sendDeleteAccountCode,
   deleteOwnAccount,
 } from "./authApi";

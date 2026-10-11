@@ -8,7 +8,7 @@ export const TARKOV_COLLECTION_OWNS_STORAGE_KEY =
   "zhange.guides.tarkov.collectionOwns.v1";
 export const TARKOV_COLLECTION_LAYOUT_STORAGE_KEY =
   "zhange.guides.tarkov.collectionLayout.v2";
-const TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY =
+export const TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY =
   "zhange.guides.tarkov.collectionLayout.v3";
 export const COLLECTION_GRID_MIN_WIDTH = 3;
 export const COLLECTION_GRID_MIN_HEIGHT = 3;
@@ -464,9 +464,11 @@ function parseV3AsV2(raw: unknown): CollectionLayout | null {
   return parseCollectionLayout({ v: 2, placements: parsed.placements });
 }
 
-function loadV3Layout(mode: TarkovGameMode): CollectionLayout | null {
+function parseV3Layout(
+  raw: string | null | undefined,
+  mode: TarkovGameMode,
+): CollectionLayout | null {
   try {
-    const raw = localStorage.getItem(TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { v?: unknown; pvp?: unknown; pve?: unknown };
     if (!parsed || parsed.v !== 3) return null;
@@ -476,16 +478,26 @@ function loadV3Layout(mode: TarkovGameMode): CollectionLayout | null {
   }
 }
 
+/** 先读 v2，没有再读旧版 v3。 */
+export function collectionLayoutFromStorage(
+  v2Raw: string | null | undefined,
+  v3Raw: string | null | undefined,
+  mode: TarkovGameMode,
+): CollectionLayout | null {
+  const store = parseLayoutStore(v2Raw);
+  const current = mode === "pve" ? store.pve : store.pvp;
+  return current || parseV3Layout(v3Raw, mode);
+}
+
 export function loadCollectionLayout(
   mode: TarkovGameMode,
 ): CollectionLayout | null {
   try {
-    const store = parseLayoutStore(
+    return collectionLayoutFromStorage(
       localStorage.getItem(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY),
+      localStorage.getItem(TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY),
+      mode,
     );
-    const current = mode === "pve" ? store.pve : store.pvp;
-    if (current) return current;
-    return loadV3Layout(mode);
   } catch {
     return null;
   }

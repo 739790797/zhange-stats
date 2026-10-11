@@ -21,7 +21,7 @@ const FACTION_LABEL: Record<TarkovPmcFaction, string> = {
   usec: "USEC",
 };
 
-type FactionMap = Partial<Record<TarkovGameMode, TarkovPmcFaction>>;
+export type FactionMap = Partial<Record<TarkovGameMode, TarkovPmcFaction>>;
 
 let cachedRaw: string | null = null;
 let cachedMap: FactionMap = {};
@@ -59,7 +59,7 @@ export function filterTasksByFaction<
   return rows.filter((row) => taskVisibleForFaction(row.faction_name, selected));
 }
 
-function parseMap(raw: string | null): FactionMap {
+export function parseTarkovPmcFactionMap(raw: string | null): FactionMap {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -86,7 +86,7 @@ function readMap(): FactionMap {
     const raw = window.localStorage.getItem(TARKOV_PMC_FACTION_STORAGE_KEY);
     if (raw === cachedRaw) return cachedMap;
     cachedRaw = raw;
-    cachedMap = parseMap(raw);
+    cachedMap = parseTarkovPmcFactionMap(raw);
     return cachedMap;
   } catch {
     return cachedMap;

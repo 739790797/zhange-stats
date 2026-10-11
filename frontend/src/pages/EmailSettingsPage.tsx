@@ -11,10 +11,21 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { fetchEmailSettings, testEmailSettings, updateEmailSettings } from "@/api/client";
+import type { EmailSettings } from "@/api/client";
 import { PageHeader } from "@/components/PageHeader";
+import { SecretFormItem } from "@/components/SecretFormItem";
+import { hydrateForm, useHydrateUntouchedForm } from "@/hooks/useFormHydration";
 import { apiError } from "@/lib/apiError";
+
+/** 与后端发码时的上限一致（auth helpers MAX_CODE_EXPIRE_MINUTES）。 */
+const CODE_EXPIRE_MAX_MINUTES = 30;
+
+function clampCodeExpire(value: unknown): number {
+  const n = Math.round(Number(value) || 15);
+  return Math.min(CODE_EXPIRE_MAX_MINUTES, Math.max(1, n));
+}
 
 type FormValues = {
   enabled: boolean;
@@ -28,17 +39,32 @@ type FormValues = {
   code_expire_minutes: number;
 };
 
-function toPayload(values: FormValues) {
+function toPayload(values: FormValues, clearPassword: boolean) {
   return {
     enabled: !!values.enabled,
     smtp_user: values.smtp_user || "",
     smtp_from: values.smtp_from || "",
-    smtp_password: values.smtp_password || null,
+    smtp_password: clearPassword ? null : values.smtp_password || null,
+    clear_smtp_password: clearPassword,
     display_name: values.display_name || "",
     smtp_host: values.smtp_host || "",
     smtp_port: Number(values.smtp_port) || 465,
     encryption: values.encryption || "SSL",
-    code_expire_minutes: Number(values.code_expire_minutes) || 15,
+    code_expire_minutes: clampCodeExpire(values.code_expire_minutes),
+  };
+}
+
+function formValuesOf(data: EmailSettings): FormValues {
+  return {
+    enabled: data.enabled,
+    smtp_user: data.smtp_user,
+    smtp_from: data.smtp_from,
+    smtp_password: "",
+    display_name: data.display_name,
+    smtp_host: data.smtp_host,
+    smtp_port: data.smtp_port,
+    encryption: data.encryption || "SSL",
+    code_expire_minutes: clampCodeExpire(data.code_expire_minutes),
   };
 }
 
@@ -47,33 +73,28 @@ export default function EmailSettingsPage() {
   const [form] = Form.useForm<FormValues>();
   const [testOpen, setTestOpen] = useState(false);
   const [testTo, setTestTo] = useState("");
+  const [clearPassword, setClearPassword] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["email-settings"],
     queryFn: fetchEmailSettings,
   });
+  const passwordSet = Boolean(data?.smtp_password_set);
 
-  useEffect(() => {
-    if (!data) return;
-    form.setFieldsValue({
-      enabled: data.enabled,
-      smtp_user: data.smtp_user,
-      smtp_from: data.smtp_from,
-      smtp_password: data.smtp_password || "",
-      display_name: data.display_name,
-      smtp_host: data.smtp_host,
-      smtp_port: data.smtp_port,
-      encryption: data.encryption || "SSL",
-      code_expire_minutes: data.code_expire_minutes || 15,
-    });
-  }, [data, form]);
+  useHydrateUntouchedForm(form, data, formValuesOf);
+
+  const applySaved = (saved: EmailSettings) => {
+    queryClient.setQueryData(["email-settings"], saved);
+    hydrateForm(form, formValuesOf(saved));
+    setClearPassword(false);
+  };
 
   const save = useMutation({
     mutationFn: (payload: ReturnType<typeof toPayload>) =>
       updateEmailSettings(payload),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      applySaved(saved);
       message.success("邮箱设置已保存");
-      queryClient.invalidateQueries({ queryKey: ["email-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
@@ -86,11 +107,10 @@ export default function EmailSettingsPage() {
       payload: ReturnType<typeof toPayload>;
       to: string;
     }) => {
-      await updateEmailSettings(payload);
+      applySaved(await updateEmailSettings(payload));
       return testEmailSettings(to);
     },
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["email-settings"] });
       if (res.ok) message.success(res.message);
       else message.warning(res.message);
       setTestOpen(false);
@@ -107,7 +127,7 @@ export default function EmailSettingsPage() {
         requiredMark
         disabled={isLoading}
         onFinish={(values) => {
-          save.mutate(toPayload(values));
+          save.mutate(toPayload(values, clearPassword));
         }}
         initialValues={{
           enabled: false,
@@ -124,8 +144,14 @@ export default function EmailSettingsPage() {
           name="code_expire_minutes"
           label="验证码有效期（分钟）"
           rules={[{ required: true, message: "请填写有效期" }]}
+          extra={`最长 ${CODE_EXPIRE_MAX_MINUTES} 分钟`}
         >
-          <InputNumber min={1} max={1440} style={{ width: "100%" }} />
+          <InputNumber
+            min={1}
+            max={CODE_EXPIRE_MAX_MINUTES}
+            precision={0}
+            style={{ width: "100%" }}
+          />
         </Form.Item>
 
         <Form.Item noStyle shouldUpdate={(prev, cur) => prev.enabled !== cur.enabled}>
@@ -157,27 +183,32 @@ export default function EmailSettingsPage() {
                   <Input placeholder="noreply@example.com" />
                 </Form.Item>
 
-                <Form.Item
+                <SecretFormItem
                   name="smtp_password"
                   label="密码"
+                  required={enabled && !passwordSet}
                   rules={
                     enabled
                       ? [
                           {
                             validator: async (_, value) => {
+                              if (clearPassword) {
+                                throw new Error("启用时不能清除密码，可直接输入新密码替换");
+                              }
                               if (value && String(value).trim()) return;
+                              if (passwordSet) return;
                               throw new Error("请输入密码");
                             },
                           },
                         ]
                       : undefined
                   }
-                >
-                  <Input.Password
-                    placeholder="请输入 SMTP 密码"
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
+                  set={passwordSet}
+                  clearing={clearPassword}
+                  onClearingChange={setClearPassword}
+                  emptyPlaceholder="请输入 SMTP 密码"
+                  clearText="清除密码"
+                />
 
                 <Form.Item name="display_name" label="显示名称">
                   <Input placeholder="站点名称" />
@@ -217,7 +248,7 @@ export default function EmailSettingsPage() {
                     options={[
                       { value: "SSL", label: "SSL" },
                       { value: "STARTTLS", label: "STARTTLS" },
-                      { value: "NONE", label: "无" },
+                      { value: "NONE", label: "无（仅本机 SMTP）" },
                     ]}
                   />
                 </Form.Item>
@@ -255,13 +286,17 @@ export default function EmailSettingsPage() {
             message.error("请填写收件邮箱");
             return;
           }
-          void form.validateFields().then((values) => {
-            const payload = toPayload(values);
-            test.mutate({
-              payload,
-              to: testTo.trim(),
+          form
+            .validateFields()
+            .then((values) => {
+              test.mutate({
+                payload: toPayload(values, clearPassword),
+                to: testTo.trim(),
+              });
+            })
+            .catch(() => {
+              /* 校验错误已标在表单栏上 */
             });
-          });
         }}
         confirmLoading={test.isPending}
         okText="发送测试"

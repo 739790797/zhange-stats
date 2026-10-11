@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Select,
   Space,
   Switch,
@@ -15,12 +16,13 @@ import {
   theme,
 } from "antd";
 import { Link } from "react-router-dom";
-import { useEffect } from "react";
 import { fetchAuthSettings, fetchSiteSettings, updateAuthSettings, updateSiteSettings } from "@/api/client";
-import type { AuthSettingsUpdate } from "@/api/settingsApi";
+import type { AuthSettings, AuthSettingsUpdate, SiteSettings } from "@/api/settingsApi";
 import { PageHeader } from "@/components/PageHeader";
+import { hydrateForm, useHydrateUntouchedForm } from "@/hooks/useFormHydration";
 import { SITE_PUBLIC_QUERY_KEY } from "@/hooks/useSitePublic";
 import { apiError } from "@/lib/apiError";
+import { useAuthStore } from "@/stores/authStore";
 
 type SessionForm = {
   access_token_expire_days: number;
@@ -36,15 +38,47 @@ type SiteForm = {
   icp_beian_no: string;
 };
 
+const AUTH_SETTINGS_KEY = ["auth-settings"];
+/** 弱口令探测要跑 bcrypt 字典，单独一个键；保存配置不应连带重跑。 */
+const AUTH_WEAK_KEY = ["auth-settings", "weak"];
+
+/** 与后端 MAX_ACCESS_TOKEN_MINUTES（30 天）一致。 */
+const MAX_SESSION_DAYS = 30;
+
+function clampSessionDays(value: unknown): number {
+  const days = Number(value) || 1;
+  return Math.min(MAX_SESSION_DAYS, Math.max(1, days));
+}
+
+function sessionValuesOf(data: AuthSettings): SessionForm {
+  return { access_token_expire_days: clampSessionDays(data.access_token_expire_days) };
+}
+
+function policyValuesOf(data: AuthSettings): PolicyForm {
+  let reject_mode: PolicyForm["reject_mode"] = "follow";
+  if (data.reject_weak_admin_password === true) reject_mode = "reject";
+  if (data.reject_weak_admin_password === false) reject_mode = "warn";
+  return {
+    min_password_length: data.min_password_length || 8,
+    reject_mode,
+    enforce_single_admin: Boolean(data.enforce_single_admin),
+  };
+}
+
+function siteValuesOf(data: SiteSettings): SiteForm {
+  return { icp_beian_no: data.icp_beian_no || "" };
+}
+
 export default function AuthSettingsPage() {
   const queryClient = useQueryClient();
   const { token } = theme.useToken();
+  const me = useAuthStore((s) => s.user);
   const [sessionForm] = Form.useForm<SessionForm>();
   const [policyForm] = Form.useForm<PolicyForm>();
   const [siteForm] = Form.useForm<SiteForm>();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["auth-settings"],
+    queryKey: AUTH_SETTINGS_KEY,
     queryFn: () => fetchAuthSettings(),
   });
 
@@ -54,78 +88,107 @@ export default function AuthSettingsPage() {
   });
 
   const weakCheck = useQuery({
-    queryKey: ["auth-settings", "weak"],
+    queryKey: AUTH_WEAK_KEY,
     queryFn: () => fetchAuthSettings({ check_weak: true }),
     enabled: Boolean(data),
     staleTime: 60_000,
   });
 
-  useEffect(() => {
-    if (!weakCheck.data) return;
-    queryClient.setQueryData(["auth-settings"], weakCheck.data);
-  }, [weakCheck.data, queryClient]);
-
-  useEffect(() => {
-    if (!data) return;
-    sessionForm.setFieldsValue({
-      access_token_expire_days: data.access_token_expire_days || 1,
-    });
-    let reject_mode: PolicyForm["reject_mode"] = "follow";
-    if (data.reject_weak_admin_password === true) reject_mode = "reject";
-    if (data.reject_weak_admin_password === false) reject_mode = "warn";
-    policyForm.setFieldsValue({
-      min_password_length: data.min_password_length || 8,
-      reject_mode,
-      enforce_single_admin: Boolean(data.enforce_single_admin),
-    });
-  }, [data, sessionForm, policyForm]);
-
-  useEffect(() => {
-    if (!siteQuery.data) return;
-    siteForm.setFieldsValue({
-      icp_beian_no: siteQuery.data.icp_beian_no || "",
-    });
-  }, [siteQuery.data, siteForm]);
+  useHydrateUntouchedForm(sessionForm, data, sessionValuesOf);
+  useHydrateUntouchedForm(policyForm, data, policyValuesOf);
+  useHydrateUntouchedForm(siteForm, siteQuery.data, siteValuesOf);
 
   const saveSession = useMutation({
     mutationFn: (payload: AuthSettingsUpdate) => updateAuthSettings(payload),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      queryClient.setQueryData(AUTH_SETTINGS_KEY, saved);
+      hydrateForm(sessionForm, sessionValuesOf(saved));
       message.success("登录有效期已保存（仅影响之后新登录的 token）");
-      queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const savePolicy = useMutation({
     mutationFn: (payload: AuthSettingsUpdate) => updateAuthSettings(payload),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      queryClient.setQueryData(AUTH_SETTINGS_KEY, saved);
+      hydrateForm(policyForm, policyValuesOf(saved));
       message.success("口令策略已保存");
-      queryClient.invalidateQueries({ queryKey: ["auth-settings"] });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
   const saveSite = useMutation({
     mutationFn: updateSiteSettings,
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["site-settings"], saved);
+      hydrateForm(siteForm, siteValuesOf(saved));
       message.success("备案号已保存");
-      queryClient.invalidateQueries({ queryKey: ["site-settings"] });
-      queryClient.invalidateQueries({ queryKey: SITE_PUBLIC_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: SITE_PUBLIC_QUERY_KEY, exact: true });
     },
     onError: (e: unknown) => message.error(apiError(e, "保存失败")),
   });
 
-  const checkWeak = useMutation({
-    mutationFn: () => fetchAuthSettings({ check_weak: true }),
-    onSuccess: (res) => {
-      queryClient.setQueryData(["auth-settings"], res);
-      queryClient.setQueryData(["auth-settings", "weak"], res);
-      const n = (res.admins || []).filter((a) => a.weak_password).length;
-      if (n > 0) message.warning(`发现 ${n} 个管理员弱口令`);
-      else message.success("未发现常见弱口令");
-    },
-    onError: (e: unknown) => message.error(apiError(e, "检查失败")),
-  });
+  const recheckWeak = async () => {
+    const res = await weakCheck.refetch();
+    if (res.error) {
+      message.error(apiError(res.error, "检查失败"));
+      return;
+    }
+    const n = (res.data?.admins || []).filter((a) => a.weak_password).length;
+    if (n > 0) message.warning(`发现 ${n} 个管理员弱口令`);
+    else message.success("未发现常见弱口令");
+  };
+
+  const submitPolicy = async (values: PolicyForm) => {
+    const reject =
+      values.reject_mode === "follow" ? null : values.reject_mode === "reject";
+    const payload: AuthSettingsUpdate = {
+      min_password_length: values.min_password_length,
+      reject_weak_admin_password: reject,
+      enforce_single_admin: values.enforce_single_admin,
+    };
+    if (!values.enforce_single_admin) {
+      savePolicy.mutate(payload);
+      return;
+    }
+    let admins: AuthSettings["admins"];
+    try {
+      admins = (await fetchAuthSettings()).admins;
+    } catch (e) {
+      message.error(apiError(e, "读取管理员列表失败"));
+      return;
+    }
+    const demoted = (admins || []).filter((a) => a.id !== me?.id);
+    if (!demoted.length) {
+      savePolicy.mutate(payload);
+      return;
+    }
+    Modal.confirm({
+      title: "只保留你一名管理员？",
+      content: (
+        <>
+          <Typography.Paragraph style={{ marginBottom: 8 }}>
+            保存后以下 {demoted.length} 名管理员会被降为普通用户；之后再给别人提权，也会自动降级其他管理员。
+          </Typography.Paragraph>
+          <ul style={{ paddingLeft: 20, margin: 0 }}>
+            {demoted.map((a) => (
+              <li key={a.id}>
+                {a.display_name || a.username}
+                {a.email ? ` · ${a.email}` : ""}
+              </li>
+            ))}
+          </ul>
+        </>
+      ),
+      okText: "降级并保存",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: () => {
+        savePolicy.mutate(payload);
+      },
+    });
+  };
 
   const cardStyle = {
     marginBottom: 16,
@@ -133,10 +196,12 @@ export default function AuthSettingsPage() {
     background: token.colorFillAlter,
   } as const;
 
-  const weakAdmins = (data?.admins || []).filter((a) => a.weak_password);
-  const weakChecked = Boolean(data?.weak_password_checked);
-  const weakChecking =
-    Boolean(data) && !weakChecked && (weakCheck.isFetching || weakCheck.isPending);
+  const admins = data?.admins || [];
+  const probe = weakCheck.data;
+  const weakChecked = Boolean(probe?.weak_password_checked);
+  const weakById = new Map((probe?.admins || []).map((a) => [a.id, a.weak_password]));
+  const weakAdmins = weakChecked ? admins.filter((a) => weakById.get(a.id)) : [];
+  const weakChecking = Boolean(data) && weakCheck.isFetching;
 
   return (
     <div>
@@ -163,7 +228,7 @@ export default function AuthSettingsPage() {
           layout="vertical"
           disabled={isLoading}
           onFinish={(values) => {
-            const days = Number(values.access_token_expire_days) || 30;
+            const days = clampSessionDays(values.access_token_expire_days);
             saveSession.mutate({
               access_token_expire_minutes: Math.round(days * 24 * 60),
             });
@@ -172,15 +237,20 @@ export default function AuthSettingsPage() {
           <Form.Item
             name="access_token_expire_days"
             label="登录有效期（天）"
-            extra="修改后仅对新登录生效；已发出的 token 仍按原过期时间。"
+            extra={`最长 ${MAX_SESSION_DAYS} 天。修改后仅对新登录生效；已发出的 token 仍按原过期时间。`}
             rules={[
               { required: true, message: "请填写有效期" },
-              { type: "number", min: 1, max: 365, message: "范围 1～365 天" },
+              {
+                type: "number",
+                min: 1,
+                max: MAX_SESSION_DAYS,
+                message: `范围 1～${MAX_SESSION_DAYS} 天`,
+              },
             ]}
           >
             <InputNumber
               min={1}
-              max={365}
+              max={MAX_SESSION_DAYS}
               step={1}
               precision={0}
               style={{ width: "100%" }}
@@ -208,16 +278,7 @@ export default function AuthSettingsPage() {
           layout="vertical"
           disabled={isLoading}
           onFinish={(values) => {
-            const reject =
-              values.reject_mode === "follow"
-                ? null
-                : values.reject_mode === "reject";
-            const payload: AuthSettingsUpdate = {
-              min_password_length: values.min_password_length,
-              reject_weak_admin_password: reject,
-              enforce_single_admin: values.enforce_single_admin,
-            };
-            savePolicy.mutate(payload);
+            void submitPolicy(values);
           }}
         >
           <Form.Item
@@ -313,8 +374,8 @@ export default function AuthSettingsPage() {
           <Space size={8}>
             <Button
               size="small"
-              loading={checkWeak.isPending || weakChecking}
-              onClick={() => checkWeak.mutate()}
+              loading={weakChecking}
+              onClick={() => void recheckWeak()}
             >
               重新检查弱口令
             </Button>
@@ -327,7 +388,7 @@ export default function AuthSettingsPage() {
           <Link to="/profile">个人中心</Link>。全新部署请通过安装向导创建首位管理员。
         </Typography.Paragraph>
         <Space direction="vertical" size={8} style={{ width: "100%" }}>
-          {(data?.admins || []).map((admin) => (
+          {admins.map((admin) => (
             <div
               key={admin.id}
               style={{
@@ -345,16 +406,16 @@ export default function AuthSettingsPage() {
               </span>
               {weakChecking ? (
                 <Tag>检查中…</Tag>
-              ) : !weakChecked ? (
+              ) : !weakChecked || !weakById.has(admin.id) ? (
                 <Tag>未检查</Tag>
-              ) : admin.weak_password ? (
+              ) : weakById.get(admin.id) ? (
                 <Tag color="warning">弱口令</Tag>
               ) : (
                 <Tag color="success">口令正常</Tag>
               )}
             </div>
           ))}
-          {!data?.admins?.length ? (
+          {!admins.length ? (
             <Typography.Text type="secondary">暂无管理员</Typography.Text>
           ) : null}
         </Space>

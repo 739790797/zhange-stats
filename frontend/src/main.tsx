@@ -25,6 +25,10 @@ import {
   QUERY_PERSIST_MAX_AGE_MS,
   shouldDehydratePersistedQuery,
 } from "@/lib/queryCache";
+import {
+  browserLocalStorage,
+  claimTarkovProgressOwner,
+} from "@/lib/tarkovProgressOwner";
 import { useAuthStore } from "@/stores/authStore";
 
 dayjs.extend(utc);
@@ -58,6 +62,7 @@ function sessionStorageOrNull(): Storage | null {
 }
 
 const persistStorage = sessionStorageOrNull();
+const progressStorage = browserLocalStorage();
 const queryPersister = persistStorage
   ? createSyncStoragePersister({
       storage: persistStorage,
@@ -70,10 +75,15 @@ let cachedUserId = useAuthStore.getState().user?.id ?? null;
 if (persistStorage && claimQueryPersistOwner(persistStorage, cachedUserId)) {
   void queryPersister?.removeClient();
 }
+if (progressStorage) claimTarkovProgressOwner(progressStorage, cachedUserId);
 useAuthStore.subscribe((state) => {
   const nextUserId = state.user?.id ?? null;
   if (nextUserId === cachedUserId) return;
+  const prevUserId = cachedUserId;
   cachedUserId = nextUserId;
+  if (progressStorage) {
+    claimTarkovProgressOwner(progressStorage, nextUserId, prevUserId);
+  }
   queryClient.clear();
   if (persistStorage) claimQueryPersistOwner(persistStorage, nextUserId);
   void queryPersister?.removeClient();

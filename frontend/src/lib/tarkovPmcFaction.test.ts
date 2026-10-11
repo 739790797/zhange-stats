@@ -5,6 +5,7 @@ import {
   filterTasksByFaction,
   loadTarkovPmcFaction,
   parseTarkovPmcFaction,
+  parseTarkovPmcFactionMap,
   persistTarkovPmcFaction,
   resetTarkovPmcFactionRuntime,
   taskVisibleForFaction,
@@ -24,6 +25,15 @@ describe("tarkovPmcFaction parse", () => {
     expect(tarkovPmcFactionLabel("bear")).toBe("BEAR");
     expect(tarkovPmcFactionLabel("usec")).toBe("USEC");
     expect(tarkovPmcFactionLabel("")).toBe("");
+  });
+
+  it("reads stored per-mode maps and the older single value", () => {
+    expect(parseTarkovPmcFactionMap('{"pvp":"usec","pve":"any"}')).toEqual({
+      pvp: "usec",
+    });
+    expect(parseTarkovPmcFactionMap('"bear"')).toEqual({ pvp: "bear", pve: "bear" });
+    expect(parseTarkovPmcFactionMap("usec")).toEqual({ pvp: "usec", pve: "usec" });
+    expect(parseTarkovPmcFactionMap(null)).toEqual({});
   });
 });
 
