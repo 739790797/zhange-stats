@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.api.auth.schemas import PASSWORD_INPUT_MAX
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.rate_limit import auth_limiter
+from app.core.rate_limit import (
+    auth_limiter,
+    clear_login_failures,
+    client_ip,
+    ensure_login_not_locked,
+    record_login_failure,
+)
 from app.core.security import bump_token_version, hash_password, verify_login_password
 from app.core.session_cookies import issue_session
 from app.models.user import User
@@ -71,9 +77,13 @@ def change_password(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> dict:
+    ip = client_ip(request)
+    ensure_login_not_locked(current.username, ip)
     auth_limiter.hit(f"change-password:uid:{current.id}", limit=10, window_sec=600)
     if not verify_login_password(body.current_password, current.password_hash):
+        record_login_failure(current.username, ip)
         raise HTTPException(status_code=400, detail="当前密码不正确")
+    clear_login_failures(current.username, ip)
     try:
         new_password = validate_password(
             body.new_password,
@@ -101,9 +111,13 @@ def change_username(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ) -> ChangeUsernameResponse:
+    ip = client_ip(request)
+    ensure_login_not_locked(current.username, ip)
     auth_limiter.hit(f"change-username:uid:{current.id}", limit=10, window_sec=600)
     if not verify_login_password(body.current_password, current.password_hash):
+        record_login_failure(current.username, ip)
         raise HTTPException(status_code=400, detail="当前密码不正确")
+    clear_login_failures(current.username, ip)
     new_username = _normalize_username(body.new_username)
     if new_username.lower() == current.username.lower():
         raise HTTPException(status_code=400, detail="新用户名与当前相同")

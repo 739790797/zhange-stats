@@ -16,7 +16,7 @@ from app.core.security import (
 )
 from app.models.member import Member
 from app.models.user import User, UserRole
-from app.schemas import MemberProfileOut, MemberProfileUpdate, UserBrief
+from app.schemas import MemberProfileOut, UserBrief
 
 
 class BindError(HTTPException):

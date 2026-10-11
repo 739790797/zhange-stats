@@ -35,14 +35,14 @@ class UserBrief(OrmModel):
 class UserAdminCreate(BaseModel):
     email: str = Field(min_length=3, max_length=128)
     display_name: str = Field(min_length=1, max_length=64)
-    password: str = Field(min_length=8, max_length=72)
+    password: str = Field(min_length=1, max_length=256)
     steam_id: str | None = Field(default=None, max_length=512)
 
 
 class UserAdminUpdate(BaseModel):
     email: str | None = Field(default=None, min_length=3, max_length=128)
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
-    password: str | None = Field(default=None, min_length=8, max_length=72)
+    password: str | None = Field(default=None, min_length=1, max_length=256)
     steam_id: str | None = Field(default=None, max_length=512)
     role: str | None = Field(default=None, description="user | admin")
     is_admin: bool | None = None

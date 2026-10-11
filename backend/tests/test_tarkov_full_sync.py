@@ -5,14 +5,11 @@ from __future__ import annotations
 import json
 
 from app.services import scheduler_config as scheduler_config_svc
-from app.services.tarkov import bosses as bosses_svc
-from app.services.tarkov import guides as guides_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import overlay as overlay_svc
 from app.services.tarkov import sync as full_sync
 from app.services.tarkov import tasks as tasks_svc
-from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import upstream as upstream_svc
 
 

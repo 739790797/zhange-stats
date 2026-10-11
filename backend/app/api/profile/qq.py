@@ -6,21 +6,18 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    File,
     HTTPException,
     Query,
     Request,
     Response,
-    UploadFile,
 )
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 import urllib.parse
 
 from app.core.biz_logging import log_until_change
-from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user
 from app.core.public_url import resolve_backend_base, resolve_frontend_base
 from app.core.rate_limit import auth_limiter, client_ip
 from app.core.security import create_user_access_token, hash_password, strip_markup_chars
@@ -33,33 +30,13 @@ from app.models.member import Member
 from app.models.user import User, UserRole
 from app.schemas import (
     MemberProfileOut,
-    MemberProfileUpdate,
     QqOAuthStartResponse,
-    SteamBindPreviewRequest,
-    SteamBindPreviewResponse,
-    SteamOpenIdStartResponse,
-    UserAdminCreate,
-    UserAdminUpdate,
-    UserBrief,
 )
 from app.services.avatar_store import (
-    delete_avatar_file,
     is_custom_avatar_url,
-    save_avatar_upload,
 )
 from app.services.email import NOTICE_QQ_LINKED, notify_account_event
-from app.services.member_sync import delete_user_with_member, ensure_user_member
-from app.services.steam.bind import (
-    PRIVACY_HINT,
-    require_public_steam_profile,
-    steam_profile_public_dict,
-)
-from app.services.steam.openid import (
-    build_steam_login_url,
-    create_openid_state,
-    decode_openid_state,
-    verify_steam_openid_assertion,
-)
+from app.services.member_sync import ensure_user_member
 from app.services.qq_oauth import (
     PURPOSE_BIND,
     PURPOSE_LOGIN,
@@ -73,15 +50,10 @@ from app.services.qq_oauth import (
     oauth_nonce_matches,
 )
 from app.api.profile.helpers import (
-    _apply_profile_fields,
     _frontend_from_state,
     _is_admin_user,
-    _normalize_email,
     _profile_from_member,
-    _require_steam_feature,
     _set_qq_profile,
-    _set_steam_id,
-    _user_brief,
 )
 
 logger = logging.getLogger(__name__)

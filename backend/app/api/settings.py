@@ -76,12 +76,12 @@ class EmailSettingsUpdate(BaseModel):
     """smtp_password 空或缺省保留原口令；clear_smtp_password=true 才清空（优先于新值）。"""
 
     enabled: bool = False
-    smtp_user: str = ""
-    smtp_from: str = ""
-    smtp_password: str | None = None
+    smtp_user: str = Field(default="", max_length=128)
+    smtp_from: str = Field(default="", max_length=256)
+    smtp_password: str | None = Field(default=None, max_length=256)
     clear_smtp_password: bool = False
-    display_name: str = ""
-    smtp_host: str = ""
+    display_name: str = Field(default="", max_length=64)
+    smtp_host: str = Field(default="", max_length=255)
     smtp_port: int = Field(default=465, ge=1, le=65535)
     encryption: str = Field(default="SSL", pattern="^(SSL|STARTTLS|NONE)$")
     code_expire_minutes: int = Field(default=15, ge=1, le=MAX_CODE_EXPIRE_MINUTES)

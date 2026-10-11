@@ -30,7 +30,6 @@ class _FakeQuery:
         for expr in args:
             left = getattr(expr, "left", None)
             key = getattr(left, "key", None) or getattr(left, "name", None)
-            op = getattr(getattr(expr, "operator", None), "__name__", "")
             right = getattr(expr, "right", None)
             value = getattr(right, "value", right)
             if key == "icon_link":

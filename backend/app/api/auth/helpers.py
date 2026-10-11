@@ -8,7 +8,6 @@ from datetime import timedelta
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.timeutil import now_naive, to_naive
 from app.models.register_challenge import RegisterChallenge
 from app.models.user import User, UserRole

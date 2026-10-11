@@ -28,7 +28,7 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
     "qq",
 )
 
-_LOG_CONTEXT: ContextVar[dict[str, str]] = ContextVar("zhange_log_context", default={})
+_LOG_CONTEXT: ContextVar[dict[str, str] | None] = ContextVar("zhange_log_context", default=None)
 _CONFIGURED = False
 _REPEAT_LOCK = threading.Lock()
 _REPEAT_LAST: dict[str, str] = {}
@@ -103,7 +103,7 @@ def log_context(**fields: str | int | None) -> Iterator[None]:
     if not normalized:
         yield
         return
-    token = _LOG_CONTEXT.set({**_LOG_CONTEXT.get(), **normalized})
+    token = _LOG_CONTEXT.set({**(_LOG_CONTEXT.get() or {}), **normalized})
     try:
         yield
     finally:
@@ -111,7 +111,7 @@ def log_context(**fields: str | int | None) -> Iterator[None]:
 
 
 def current_log_context() -> dict[str, str]:
-    return dict(_LOG_CONTEXT.get())
+    return dict(_LOG_CONTEXT.get() or {})
 
 
 class BizTagFilter(logging.Filter):

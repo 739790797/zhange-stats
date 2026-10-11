@@ -15,6 +15,8 @@ ignore = [
     "B008",
     "B904",
     "B905",
+    # 参数名 timeout 是超时秒数，不是 asyncio.timeout
+    "ASYNC109",
 ]
 
 [lint.per-file-ignores]

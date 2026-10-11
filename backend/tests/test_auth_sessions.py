@@ -164,6 +164,27 @@ def test_change_password_refuses_more_than_72_bytes(env) -> None:
     assert _login(TestClient(api)).status_code == 200
 
 
+def test_wrong_current_password_uses_the_login_lock(env) -> None:
+    api, _, _ = env
+    client = TestClient(api)
+    _login(client)
+    last = None
+    for _ in range(LOGIN_FAILURES_BEFORE_LOCK + 1):
+        last = client.post(
+            "/api/auth/change-password",
+            json={"current_password": "not-the-password", "new_password": "An0ther-Strong!"},
+            headers=_csrf(client),
+        )
+    assert last is not None and last.status_code == 400
+    locked = client.post(
+        "/api/auth/change-password",
+        json={"current_password": PASSWORD, "new_password": "An0ther-Strong!"},
+        headers=_csrf(client),
+    )
+    assert locked.status_code == 429
+    assert _login(TestClient(api)).status_code == 429
+
+
 def test_change_username_reissues_the_cookie_without_a_token_in_the_body(env) -> None:
     api, _, uid = env
     client = TestClient(api)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
 
 from app.services.qq_oauth import QqOAuthError, exchange_code_for_profile
 
