@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Any, TypeVar
 
 from sqlalchemy import exists, func, or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
@@ -51,6 +51,10 @@ RESERVED_PUBLIC_IDS = frozenset({"solo"})
 PUBLIC_ID_LEN = 8
 MAX_MEMBERS = 8
 MEMBER_IDLE_SECONDS = 2 * 60
+# WS 心跳最快 15s 一跳：同一个人别再按心跳频率写库，留足余量仍远小于空闲回收窗口。
+MEMBER_TOUCH_MIN_INTERVAL_SEC = 45.0
+# MariaDB 1020：本事务读过的行被别的事务改掉了，重读重试即可（不是并发冲突，也不是唯一键冲突）。
+_RECORD_CHANGED_ERRNO = 1020
 MAX_ROOM_TITLE_LEN = 40
 MIN_ROOM_PASSWORD_LEN = 4
 MAX_ROOM_PASSWORD_LEN = 32
@@ -196,6 +200,17 @@ def apply_room_effects(effects: dict[str, list[Any]]) -> None:
         hub.close_room(public_id, payload=final_event)
 
 
+def _is_record_changed_error(exc: Exception) -> bool:
+    """是否 MariaDB 1020：同一行被另一笔事务改过（Record has changed since last read）。
+
+    只按错误号判定，不认文案。这不是数据冲突而是「重读该行再重试即可」的瞬时错，
+    但默认会冒成裸 500（starlette 纯文本 Internal Server Error），用户只看到「服务暂时不可用」。
+    """
+    orig = getattr(exc, "orig", None)
+    args = getattr(orig, "args", None) or ()
+    return bool(args) and args[0] == _RECORD_CHANGED_ERRNO
+
+
 def run_in_room_tx(
     db: Session,
     fn: Callable[[], _T],
@@ -208,6 +223,9 @@ def run_in_room_tx(
 
     撞唯一键（别的进程刚写了同一座位 / 声明）时整笔重跑一次，读到已存在的行即按幂等成功处理。
     不用 SAVEPOINT：pysqlite 下 SAVEPOINT 若开启了事务，RELEASE 就等于提前 COMMIT。
+
+    同一房间的写入都在 `room_lock` 里串行，但 WS 心跳等旁路仍可能碰到同一行，
+    MariaDB 会回 1020；这类瞬时错也整笔重跑一次，不外泄成 500。
 
     `key` 是房间号：同一房间串行，不同房间并发；建房（房间号未知）传空串走 "create" 桶。
     `on_commit` 在 commit 之后、**仍持有房间锁**时调用：广播必须在锁内入队，
@@ -227,6 +245,11 @@ def run_in_room_tx(
                 db.rollback()
                 discard_room_effects(db)
                 if attempt:
+                    raise
+            except OperationalError as exc:
+                db.rollback()
+                discard_room_effects(db)
+                if attempt or not _is_record_changed_error(exc):
                     raise
             except Exception:
                 db.rollback()
@@ -1507,16 +1530,30 @@ def touch_member(
     *,
     now: datetime | None = None,
 ) -> None:
+    """WS 心跳刷新 last_seen，让「连着 WS 但不发写操作」的人不被回收座位。
+
+    必须在房间锁内改这一行：HTTP 写路径的 `_require_active_member` 也会改同一行的
+    `last_seen_at`，两个来源并发更新同一行时 MariaDB 会回 1020
+    （Record has changed since last read），整笔写事务就变成 500。
+    心跳很密（前端 25s、这里最快 15s 一次），所以按 `last_seen_at` 的落库间隔节流，
+    没必要每跳一次都写库。
+    """
     stamp = to_naive(now or now_naive())
-    try:
-        room = _get_room(db, public_id)
-    except RaidRoomError:
-        return
-    row = _member(db, room.id, user.id)
-    if row is None:
-        return
-    row.last_seen_at = stamp
-    db.flush()
+    with room_lock(public_id):
+        try:
+            room = _get_room(db, public_id)
+        except RaidRoomError:
+            return
+        row = _member(db, room.id, user.id)
+        if row is None:
+            return
+        seen = to_naive(row.last_seen_at) if row.last_seen_at else None
+        if seen is not None and stamp - seen < timedelta(
+            seconds=MEMBER_TOUCH_MIN_INTERVAL_SEC
+        ):
+            return
+        row.last_seen_at = stamp
+        db.flush()
 
 
 def prune_stale_members(

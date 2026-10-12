@@ -229,16 +229,17 @@ def _publish_vacated(vacated: list[dict], user_id: int) -> None:
         vacated_id = str(snap.get("public_id") or "").strip()
         if not vacated_id:
             continue
-        # 腾出的旧房不在本请求的房间锁里：进它的锁里占 seq，排在该房已有帧之后。
+        # 腾出的旧房不在本请求的房间锁里。占号与入队都要在它的锁里一次做完：
+        # 先出锁再 publish 的话，该房一笔并发写可以抢先推进 sent_seq，
+        # 这帧就带着更小的 seq 被判成旧帧直接丢掉，旧房成员看不到人已经走了。
         with rooms_svc.room_lock(vacated_id):
-            seq = hub.next_seq(vacated_id)
-        _publish(
-            vacated_id,
-            "member_leave",
-            snap,
-            extra={"user_id": user_id},
-            seq=seq,
-        )
+            _publish(
+                vacated_id,
+                "member_leave",
+                snap,
+                extra={"user_id": user_id},
+                seq=hub.next_seq(vacated_id),
+            )
 
 
 @router.get(

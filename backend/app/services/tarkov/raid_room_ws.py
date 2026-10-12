@@ -86,7 +86,6 @@ def _touch_ws_member(public_id: str, user: User) -> None:
         return
     try:
         rooms_svc.touch_member(db, public_id, user)
-        db.commit()
     except Exception:  # noqa: BLE001
         db.rollback()
     finally:

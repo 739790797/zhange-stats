@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
@@ -1919,3 +1919,96 @@ def test_claims_resolve_view_map_catalog_once_per_request(monkeypatch) -> None:
         rooms.claim_task(db, pid, host, "elsewhere", now=now)
     assert "本地图" in caught.value.message
     assert lookups == ["customs", "customs"]
+
+
+def test_record_changed_error_detected_by_errno_only() -> None:
+    """1020 只按错误号识别，别的 OperationalError 一律照旧上抛。"""
+    changed = OperationalError(
+        "UPDATE tarkov_raid_room_members SET last_seen_at=%s",
+        {},
+        Exception(1020, "Record has changed since last read in table 'x'"),
+    )
+    assert rooms._is_record_changed_error(changed) is True
+    deadlock = OperationalError(
+        "UPDATE x SET y=%s", {}, Exception(1213, "Deadlock found when trying to get lock")
+    )
+    assert rooms._is_record_changed_error(deadlock) is False
+    assert rooms._is_record_changed_error(RuntimeError("boom")) is False
+
+
+def test_run_in_room_tx_retries_record_changed_once() -> None:
+    """1020 是「本事务读过的行被别的事务改过」：重读重试一次即可，不该冒成 500。
+
+    其它 OperationalError 不重试：连不上库重跑也是白跑。
+    """
+    calls: list[int] = []
+
+    def flaky() -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise OperationalError(
+                "UPDATE tarkov_raid_room_members SET last_seen_at=%s",
+                {},
+                Exception(1020, "Record has changed"),
+            )
+
+    db = _session()
+    rooms.run_in_room_tx(db, flaky)
+    assert len(calls) == 2
+
+    failing: list[int] = []
+
+    def always_dead() -> None:
+        failing.append(1)
+        raise OperationalError(
+            "SELECT 1", {}, Exception(2013, "Lost connection to MySQL server")
+        )
+
+    with pytest.raises(OperationalError):
+        rooms.run_in_room_tx(db, always_dead)
+    assert len(failing) == 1
+
+
+def test_touch_member_throttles_but_keeps_seat_alive() -> None:
+    """WS 心跳不再每跳都写库（HTTP 写路径也改这一行，撞上就是 1020）。
+
+    节流窗口内不动；超过窗口要落库，但间隔远小于空闲回收窗口，座位不会被误收。
+    """
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    room_id = rooms._get_room(db, pid).id
+    stamp = lambda: rooms.to_naive(
+        db.query(TarkovRaidRoomMember.last_seen_at)
+        .filter(
+            TarkovRaidRoomMember.room_id == room_id,
+            TarkovRaidRoomMember.user_id == host.id,
+        )
+        .scalar()
+    )
+    assert stamp() == now
+
+    soon = now + timedelta(seconds=rooms.MEMBER_TOUCH_MIN_INTERVAL_SEC - 5)
+    rooms.touch_member(db, pid, host, now=soon)
+    assert stamp() == now  # 窗口内不写
+
+    after = now + timedelta(seconds=rooms.MEMBER_TOUCH_MIN_INTERVAL_SEC + 5)
+    rooms.touch_member(db, pid, host, now=after)
+    assert stamp() == after
+
+    # 节流间隔必须明显小于空闲回收窗口，否则心跳刷不动 last_seen 就会被收座位
+    assert rooms.MEMBER_TOUCH_MIN_INTERVAL_SEC < rooms.MEMBER_IDLE_SECONDS / 2
+
+
+def test_room_lock_is_reentrant_across_shared_registry() -> None:
+    """同一房间取两次锁只占一个登记项：嵌套调用（路由 -> 心跳）不会自锁。"""
+    pid = "deadbeef"
+    with rooms.room_lock(pid):
+        with rooms.room_lock(pid):
+            entry = rooms._ROOM_LOCKS.get(pid)
+            assert entry is not None
+            assert entry[1] == 2
+        assert rooms._ROOM_LOCKS[pid][1] == 1
+    assert pid not in rooms._ROOM_LOCKS
+
