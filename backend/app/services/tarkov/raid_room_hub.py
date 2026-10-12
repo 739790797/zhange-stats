@@ -39,6 +39,11 @@ class RaidRoomHub:
         self._log_phases: dict[str, dict[int, dict[str, Any]]] = {}
         self._player_fixes: dict[str, dict[int, dict[str, Any]]] = {}
         self._view_maps: dict[str, dict[int, str]] = {}
+        # 按 seq 升序发送：HTTP 线程提交的顺序与物化 payload 的时刻可能错开，
+        # 这里先把 payload 按 seq 排队，再一条条按序广播，客户端不会先收到旧状态。
+        self._pending: dict[str, dict[int, dict[str, Any]]] = {}
+        self._sent_seq: dict[str, int] = {}
+        self._flushing: dict[str, bool] = {}
         # HTTP 工作线程和事件循环都会读写；临界区里不 await。
         self._lock = threading.RLock()
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -48,9 +53,15 @@ class RaidRoomHub:
         self._loop = loop
 
     def next_seq(self, public_id: str) -> int:
+        """占一个广播序号。房间写事务在锁内调用，序号顺序即提交顺序。"""
         with self._lock:
             self._seq[public_id] = int(self._seq.get(public_id) or 0) + 1
             return self._seq[public_id]
+
+    def current_seq(self, public_id: str) -> int:
+        """最近一次已占用的序号；读快照带上它，客户端据此丢弃更旧的帧。"""
+        with self._lock:
+            return int(self._seq.get(public_id) or 0)
 
     def known_public_ids(self) -> set[str]:
         with self._lock:
@@ -177,6 +188,9 @@ class RaidRoomHub:
             self._log_phases,
             self._player_fixes,
             self._view_maps,
+            self._pending,
+            self._sent_seq,
+            self._flushing,
         ):
             bucket.pop(public_id, None)
 
@@ -273,7 +287,46 @@ class RaidRoomHub:
         await asyncio.gather(*(close_quietly(ws, CLOSE_SLOW_CONSUMER) for ws in dead))
 
     def publish(self, public_id: str, payload: dict[str, Any]) -> None:
-        self._spawn(self.broadcast(public_id, payload))
+        """按 seq 排队后广播：早提交的帧先落盘，晚到的高 seq 帧不会插到前面。"""
+        message = dict(payload)
+        with self._lock:
+            if not self._rooms.get(public_id):
+                # 空房没人听：不占序号、不建状态，否则一份临时 dict 会一直留在 _seq / _pending。
+                return
+            if "seq" not in message:
+                message["seq"] = self.next_seq(public_id)
+            seq = int(message["seq"] or 0)
+            sent = int(self._sent_seq.get(public_id) or 0)
+            if seq and seq <= sent:
+                return
+            self._pending.setdefault(public_id, {})[seq] = message
+            if self._flushing.get(public_id):
+                return
+            self._flushing[public_id] = True
+        self._spawn(self._flush(public_id))
+
+    async def _flush(self, public_id: str) -> None:
+        """一条条等前一条发完再发下一条；某条失败只关掉慢消费者，不阻塞后续帧。"""
+        try:
+            while True:
+                with self._lock:
+                    pending = self._pending.get(public_id)
+                    if not pending:
+                        self._flushing.pop(public_id, None)
+                        return
+                    seq = min(pending)
+                    message = pending.pop(seq)
+                    if not pending:
+                        self._pending.pop(public_id, None)
+                    self._sent_seq[public_id] = seq
+                try:
+                    await self.broadcast(public_id, message)
+                except Exception:  # noqa: BLE001
+                    logger.debug("raid room broadcast failed", exc_info=True)
+        finally:
+            with self._lock:
+                if not self._pending.get(public_id):
+                    self._flushing.pop(public_id, None)
 
     def _spawn(self, coro: Coroutine[Any, Any, Any]) -> None:
         try:

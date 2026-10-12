@@ -1240,22 +1240,28 @@ def list_catalog(
     q: str | None = None,
     page: int = 1,
     page_size: int = CATALOG_PAGE_SIZE_DEFAULT,
+    all_rows: bool = False,
 ) -> dict[str, Any]:
     cats = [c.strip() for c in (category_ids or []) if c and c.strip()]
     type_filters = [t.strip() for t in (types or []) if t and t.strip()]
     if not cats and not type_filters:
         raise TarkovItemsError("请指定 category_ids 或 types")
 
-    source, all_rows, synced_at, note = load_parsed_catalog(db)
+    source, all_items, synced_at, note = load_parsed_catalog(db)
     rows = search_catalog_items(
         filter_catalog_items(
-            all_rows,
+            all_items,
             category_ids=cats,
             types=type_filters,
         ),
         q,
     )
-    paged = paginate_catalog_items(rows, page=page, page_size=page_size)
+    # layout=all：前端本地排序要整份，一次给完，别让它并发拉几十页。
+    paged = (
+        {"items": rows, "item_count": len(rows), "page": 1, "page_size": len(rows)}
+        if all_rows
+        else paginate_catalog_items(rows, page=page, page_size=page_size)
+    )
     return {
         "items": paged["items"],
         "item_count": paged["item_count"],

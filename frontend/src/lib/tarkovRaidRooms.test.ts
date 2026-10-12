@@ -28,8 +28,6 @@ import {
   parseRaidRoomPublicId,
   parseRaidRoomLogPhases,
   overlayRaidRoomLocalPhase,
-  raidRoomActingHostUserId,
-  raidRoomCanAutoSwitchMap,
   raidRoomHostLogMapId,
   raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
@@ -42,9 +40,9 @@ import {
   mergeLocalPresenceClient,
   raidRoomSocketClient,
   raidRoomMemberRegionLabel,
-  RAID_ROOM_SLOT_IDS,
+  isNewerRoomSnapshot,
   mergeRaidLobbySeats,
-  raidRoomSlotIdsForMode,
+  raidRoomSlotPublicId,
   parseStrokePoints,
   partitionRaidLobbyRooms,
   raidRoomReturnHref,
@@ -52,6 +50,7 @@ import {
   defaultRaidRoomTitle,
   raidRoomJoinNeedsPassword,
   RAID_ROOM_WS_PING_MS,
+  raidRoomLogPhaseSig,
   raidRoomWsCloseReason,
   raidRoomWsRetryDelayMs,
   remainMs,
@@ -154,14 +153,23 @@ describe("raid room helpers", () => {
     ).toBe(false);
     expect(isSoloRaidSession("solo")).toBe(true);
     expect(isSoloRaidSession("3")).toBe(false);
-    expect(RAID_ROOM_SLOT_IDS).toEqual(["1", "2", "3", "4", "5"]);
-    expect(raidRoomSlotIdsForMode("pve")).toEqual([
-      "pve-1",
-      "pve-2",
-      "pve-3",
-      "pve-4",
-      "pve-5",
-    ]);
+    expect(raidRoomSlotPublicId(3, "pve")).toBe("pve-3");
+    expect(raidRoomSlotPublicId(3)).toBe("3");
+    expect(raidRoomSlotPublicId(6)).toBe("");
+    // 同一相位在同一条连接上只发一次；重连（wsGen 变）后必须再补推一遍。
+    const phase = { kind: "raid_started", raidId: "ab12", at: "1000" };
+    expect(raidRoomLogPhaseSig(phase, 1)).toBe(raidRoomLogPhaseSig(phase, 1));
+    expect(raidRoomLogPhaseSig(phase, 1)).not.toBe(raidRoomLogPhaseSig(phase, 2));
+    expect(raidRoomLogPhaseSig({ ...phase, at: "2000" }, 1)).not.toBe(
+      raidRoomLogPhaseSig(phase, 1),
+    );
+    expect(isNewerRoomSnapshot({ seq: 5 }, { seq: 4 })).toBe(true);
+    expect(isNewerRoomSnapshot({ seq: 4 }, { seq: 4 })).toBe(true);
+    expect(isNewerRoomSnapshot({ seq: 3 }, { seq: 4 })).toBe(false);
+    // 没有序号（老服务端 / 本地草稿）一律接受，别把状态卡死。
+    expect(isNewerRoomSnapshot({}, { seq: 4 })).toBe(true);
+    expect(isNewerRoomSnapshot({ seq: 4 }, {})).toBe(true);
+    expect(isNewerRoomSnapshot({ seq: 1 }, null)).toBe(true);
     expect(raidRoomLiveStatus([1, 2], [])).toBe("preparing");
     expect(
       raidRoomLiveStatus(
@@ -175,28 +183,6 @@ describe("raid room helpers", () => {
         [{ userId: 2, kind: "raid_exited", mapId: "", mapLabel: "", raidId: "", at: "" }],
       ),
     ).toBe("preparing");
-    expect(raidRoomActingHostUserId(1, [
-      { user_id: 1, online: true, joined_at: "2026-09-01T00:00:00" },
-      { user_id: 2, online: true, joined_at: "2026-09-01T00:01:00" },
-    ])).toBe(1);
-    expect(raidRoomActingHostUserId(1, [
-      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
-      { user_id: 2, online: true, joined_at: "2026-09-01T00:02:00" },
-      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
-    ])).toBe(3);
-    expect(raidRoomCanAutoSwitchMap(3, 1, [
-      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
-      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
-    ])).toBe(true);
-    expect(raidRoomCanAutoSwitchMap(2, 1, [
-      { user_id: 1, online: false, joined_at: "2026-09-01T00:00:00" },
-      { user_id: 2, online: true, joined_at: "2026-09-01T00:02:00" },
-      { user_id: 3, online: true, joined_at: "2026-09-01T00:01:00" },
-    ])).toBe(false);
-    expect(raidRoomCanAutoSwitchMap(2, 1, [
-      { user_id: 1, online: true, joined_at: "2026-09-01T00:00:00" },
-      { user_id: 2, online: true, joined_at: "2026-09-01T00:01:00" },
-    ])).toBe(false);
     expect(
       raidRoomSharedRaidMapId({
         myUserId: 2,
@@ -431,7 +417,7 @@ describe("raid room helpers", () => {
           { public_id: "1", member_count: 3 },
           { public_id: "pve-1", member_count: 2, map_slug: "customs" },
         ],
-        raidRoomSlotIdsForMode("pve").map((id) => ({
+        ["pve-1", "pve-2", "pve-3", "pve-4", "pve-5"].map((id) => ({
           public_id: id,
           member_count: 0,
           map_slug: "",

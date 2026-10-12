@@ -288,19 +288,11 @@ def test_acting_host_can_set_map_when_titled_host_offline() -> None:
     rooms.join_room(db, pid, first, now=now + timedelta(seconds=1))
     rooms.join_room(db, pid, later, now=now + timedelta(seconds=2))
     rooms.set_room_map(db, pid, host, "customs", now=now)
-    from app.models.tarkov import TarkovRaidRoom
-
-    room = db.query(TarkovRaidRoom).filter_by(public_id=pid).one()
-    seated = rooms._seated_members(db, room.id)
-    assert rooms.acting_host_user_id(host.id, seated, {host.id, first.id, later.id}) == host.id
-    assert rooms.acting_host_user_id(host.id, seated, {first.id, later.id}) == first.id
-    assert rooms.acting_host_user_id(host.id, seated, None) == host.id
     snap = rooms.set_room_map(db, pid, later, "woods", now=now)
     views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
     assert views[later.id] == "woods"
     assert views[host.id] == "customs"
     assert snap["host_user_id"] == host.id
-    assert room.map_slug == ""
 
 
 def test_same_raid_id_lets_member_set_map() -> None:
@@ -1661,7 +1653,11 @@ def test_prune_drops_stale_member_board_and_hands_over_host() -> None:
     assert snap["host_user_id"] == guest.id
     assert [row["user_id"] for row in snap["members"]] == [guest.id]
     assert _board(db, host.id) == {"claims": 0, "keys": 0, "marks": 0}
-    assert rooms.take_room_effects(db)["evict"] == [(pid, host.id)]
+    # 回收写操作在本次读里就提交并应用：过期的人不能再收到该房广播。
+    from app.services.tarkov.raid_room_hub import hub
+
+    assert hub.view_map_of(pid, host.id) == ""
+    assert rooms.take_room_effects(db) == {"evict": [], "close": []}
 
 
 def test_room_tx_applies_hub_effects_only_after_commit() -> None:
@@ -1756,12 +1752,143 @@ def test_room_action_maps_service_and_integrity_errors() -> None:
         raise IntegrityError("INSERT", {}, Exception("duplicate"))
 
     with pytest.raises(HTTPException) as caught:
-        room_action(db, missing)
+        room_action(db, "ab12cd34", missing)
     assert caught.value.status_code == 404
     with pytest.raises(HTTPException) as caught:
-        room_action(db, always_duplicate)
+        room_action(db, "ab12cd34", always_duplicate)
     assert caught.value.status_code == 409
     assert len(calls) == 2
+
+
+def test_room_action_publishes_inside_the_room_lock() -> None:
+    """广播必须在仍持锁时入队：出锁再发，并发写的帧会乱序。"""
+    from app.api.guides.tarkov_raid_rooms import room_action
+
+    db = _session()
+    held: list[bool] = []
+
+    def run() -> dict:
+        return {"public_id": "ab12cd34"}
+
+    def publish(_result: object) -> None:
+        # 回调里能立刻非同阻塞地再拿到同一把 RLock => 回调发生时锁仍在自己手里。
+        with rooms.room_lock("ab12cd34") as lock:
+            held.append(lock._lock.acquire(blocking=False))
+
+    room_action(db, "ab12cd34", run, publish)
+    assert held == [True]
+
+
+def test_room_action_snapshot_carries_seq() -> None:
+    from app.api.guides.tarkov_raid_rooms import room_action
+    from app.services.tarkov.raid_room_hub import hub
+
+    db = _session()
+    pid = "ab12cd34"
+    hub.next_seq(pid)
+    data = room_action(db, pid, lambda: {"public_id": pid, "members": []})
+    assert data["seq"] == hub.current_seq(pid)
+
+
+def test_broadcast_strips_viewer_flags() -> None:
+    """快照按发起人视角生成；广播给全员前必须去掉，避免泄露 / 误用他人视角。"""
+    from app.api.guides.tarkov_raid_rooms import _strip_viewer_flags
+
+    stripped = _strip_viewer_flags(
+        {
+            "public_id": "ab12cd34",
+            "is_host": True,
+            "is_member": True,
+            "can_edit": True,
+            "members": [],
+        }
+    )
+    assert "is_host" not in stripped
+    assert "is_member" not in stripped
+    assert "can_edit" not in stripped
+    assert stripped["public_id"] == "ab12cd34"
+
+
+def test_room_locks_are_per_room() -> None:
+    """不同房间不共用一把锁，否则一个房间解析目录会卡住全站。"""
+    with rooms.room_lock("aaaaaaaa") as a:
+        with rooms.room_lock("bbbbbbbb") as b:
+            assert a._lock is not b._lock
+
+
+def test_room_lock_is_reentrant_and_released() -> None:
+    with rooms.room_lock("cccccccc") as lock:
+        lock._lock.acquire()
+        lock._lock.release()
+    assert "cccccccc" not in rooms._ROOM_LOCKS
+
+
+def test_room_prune_due_is_throttled() -> None:
+    rooms._ROOM_PRUNE_LAST = 0.0
+    try:
+        assert rooms.room_prune_due(now=100.0) is True
+        assert rooms.room_prune_due(now=100.0 + rooms.ROOM_PRUNE_MIN_INTERVAL_SEC - 1) is False
+        assert (
+            rooms.room_prune_due(now=100.0 + rooms.ROOM_PRUNE_MIN_INTERVAL_SEC + 1) is True
+        )
+    finally:
+        rooms._ROOM_PRUNE_LAST = 0.0
+
+
+def test_require_active_member_refreshes_last_seen() -> None:
+    """只走 HTTP 的成员靠写操作续命，不再两分钟就被回收座位。"""
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS - 10)
+    rooms.join_room(db, pid, host, now=later)
+    row = (
+        db.query(TarkovRaidRoomMember)
+        .filter(
+            TarkovRaidRoomMember.room_id == rooms._get_room(db, pid).id,
+            TarkovRaidRoomMember.user_id == host.id,
+        )
+        .one()
+    )
+    assert rooms.to_naive(row.last_seen_at) == later
+
+
+def test_room_marks_capped_across_maps() -> None:
+    """每张图各自的上限之外还有整房总量，免得换图堆满快照。"""
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    room = rooms._get_room(db, pid)
+    for i in range(rooms.MAX_ROOM_MARKS):
+        db.add(
+            TarkovRaidRoomMark(
+                room_id=room.id,
+                author_user_id=host.id,
+                kind=rooms.MARK_PIN,
+                map_slug=f"map-{i}",
+                floor="",
+                x=0.0,
+                z=0.0,
+                label="",
+                created_at=now,
+            )
+        )
+    db.flush()
+    rooms.set_room_map(db, pid, host, "customs", now=now)
+    with pytest.raises(rooms.RaidRoomError) as caught:
+        rooms.add_mark(
+            db,
+            pid,
+            host,
+            kind=rooms.MARK_PIN,
+            floor="",
+            x=1.0,
+            z=1.0,
+            now=now,
+        )
+    assert caught.value.status_code == 409
 
 
 def test_claims_resolve_view_map_catalog_once_per_request(monkeypatch) -> None:

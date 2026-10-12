@@ -8,6 +8,7 @@ import math
 import re
 import secrets
 import threading
+import time
 from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from typing import Any, TypeVar
@@ -59,6 +60,11 @@ JOIN_RATE_LIMIT = 10
 JOIN_RATE_WINDOW_SEC = 600
 LOBBY_RATE_LIMIT = 40
 LOBBY_RATE_WINDOW_SEC = 60
+ROOM_GET_RATE_LIMIT = 60
+ROOM_GET_RATE_WINDOW_SEC = 60
+WRITE_RATE_LIMIT = 120
+WRITE_RATE_WINDOW_SEC = 60
+MAX_ROOM_MARKS = 600
 MAX_UNIQUE_TASKS = 40
 MAX_STARTED_TASKS = 400
 MAX_STARTED_DONE = 800
@@ -89,8 +95,67 @@ class RaidRoomError(Exception):
 
 _T = TypeVar("_T")
 _EFFECTS_KEY = "tarkov_raid_room_effects"
-# 入座 / 离座 / 回收在进程内串行到 commit 为止（单 app 副本）；join 另对房间行加锁。
-_ROOM_TX_LOCK = threading.RLock()
+# 按房间加锁：同一房间的写入串行到 commit 为止，不同房间互不阻塞（单 app 副本）。
+# 进程内不再用一把全局锁，否则一个房间解析目录 / 校验口令会卡住全站所有房间。
+_ROOM_LOCKS_LOCK = threading.Lock()
+_ROOM_LOCKS: dict[str, tuple[threading.RLock, int]] = {}
+_ROOM_LOCKS_MAX = 512
+
+
+class _RoomLock:
+    """房间锁的持有凭据：refcount 保证只在不被任何线程持有时回收。"""
+
+    __slots__ = ("_key", "_lock")
+
+    def __init__(self, key: str, lock: threading.RLock) -> None:
+        self._key = key
+        self._lock = lock
+
+    def __enter__(self) -> _RoomLock:
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self._lock.release()
+        self._unref()
+
+    def release(self) -> None:
+        self._lock.release()
+        self._unref()
+
+    def _unref(self) -> None:
+        with _ROOM_LOCKS_LOCK:
+            entry = _ROOM_LOCKS.get(self._key)
+            if entry is None:
+                return
+            lock, refs = entry
+            if refs <= 1:
+                _ROOM_LOCKS.pop(self._key, None)
+            else:
+                _ROOM_LOCKS[self._key] = (lock, refs - 1)
+
+
+def room_lock(public_id: str) -> _RoomLock:
+    """房间级写锁。可重入：同一线程嵌套调用（路由 -> 服务）不会自锁。"""
+    key = normalize_public_id(public_id) or "create"
+    with _ROOM_LOCKS_LOCK:
+        entry = _ROOM_LOCKS.get(key)
+        if entry is None:
+            entry = (threading.RLock(), 0)
+        lock, refs = entry
+        _ROOM_LOCKS[key] = (lock, refs + 1)
+        if len(_ROOM_LOCKS) > _ROOM_LOCKS_MAX:
+            _prune_room_locks_locked()
+    return _RoomLock(key, lock)
+
+
+def _prune_room_locks_locked() -> None:
+    """只丢掉没人持有的空闲锁；持有中（refs > 1）的一律留着，否则临界区失效。"""
+    for key, (_lock, refs) in list(_ROOM_LOCKS.items()):
+        if len(_ROOM_LOCKS) <= _ROOM_LOCKS_MAX:
+            break
+        if refs <= 1:
+            _ROOM_LOCKS.pop(key, None)
 
 
 def _effects(db: Session) -> dict[str, list[Any]]:
@@ -131,13 +196,28 @@ def apply_room_effects(effects: dict[str, list[Any]]) -> None:
         hub.close_room(public_id, payload=final_event)
 
 
-def run_in_room_tx(db: Session, fn: Callable[[], _T]) -> _T:
+def run_in_room_tx(
+    db: Session,
+    fn: Callable[[], _T],
+    *,
+    key: str = "",
+    on_commit: Callable[[_T], None] | None = None,
+    snapshot_read: bool = False,
+) -> _T:
     """跑一次房间事务：失败回滚并丢弃待办；commit 之后才动 WS hub。
 
     撞唯一键（别的进程刚写了同一座位 / 声明）时整笔重跑一次，读到已存在的行即按幂等成功处理。
     不用 SAVEPOINT：pysqlite 下 SAVEPOINT 若开启了事务，RELEASE 就等于提前 COMMIT。
+
+    `key` 是房间号：同一房间串行，不同房间并发；建房（房间号未知）传空串走 "create" 桶。
+    `on_commit` 在 commit 之后、**仍持有房间锁**时调用：广播必须在锁内入队，
+    否则两笔并发写的广播会按「谁先抢到 CPU」而不是「谁先提交」的顺序发出，
+    后到的旧快照会盖掉新状态。
+    `snapshot_read=True` 表示只是读快照：不加写锁、不提交、不跑待办。
     """
-    with _ROOM_TX_LOCK:
+    if snapshot_read:
+        return fn()
+    with room_lock(key or "create"):
         for attempt in range(2):
             try:
                 result = fn()
@@ -152,8 +232,17 @@ def run_in_room_tx(db: Session, fn: Callable[[], _T]) -> _T:
                 db.rollback()
                 discard_room_effects(db)
                 raise
-    apply_room_effects(take_room_effects(db))
+        apply_room_effects(take_room_effects(db))
+        if on_commit is not None:
+            on_commit(result)
     return result
+
+
+def snapshot_seq(public_id: str) -> int:
+    """读数据之前取当前广播序号：快照至少包含 seq 及之前的所有广播。"""
+    from app.services.tarkov.raid_room_hub import hub
+
+    return hub.current_seq(public_id)
 
 
 def normalize_room_map_slug(raw: str) -> str:
@@ -183,14 +272,8 @@ def slot_index(public_id: str) -> int:
     return int(matched.group(1)) if matched else 0
 
 
-def slot_mode(public_id: str) -> str:
-    key = (public_id or "").strip().lower()
-    if key.startswith("pve-"):
-        return "pve"
-    return "pvp"
-
-
 def slot_ids_for_mode(game_mode: str | None = None) -> tuple[str, ...]:
+    """旧的 1–5 / pve-N 席位号；新房间改用随机码，这里只为兼容旧数据。"""
     mode = parse_game_mode(game_mode) if game_mode is not None else current_game_mode()
     return tuple(slot_public_id(n, mode) for n in range(1, SLOT_COUNT + 1))
 
@@ -277,6 +360,11 @@ def _clean_create_visibility(
     if len(raw) > MAX_ROOM_PASSWORD_LEN:
         raise RaidRoomError(f"密码最多 {MAX_ROOM_PASSWORD_LEN} 个字符", 400)
     return False, raw
+
+
+def clean_create_visibility(listed: bool, password: str | None) -> tuple[bool, str]:
+    """建房时确定公开 / 私密并校验口令长度（供路由在事务外先算密码哈希）。"""
+    return _clean_create_visibility(listed, password)
 
 
 def _assert_join_password(room: TarkovRaidRoom, password: str | None) -> None:
@@ -910,25 +998,6 @@ def _seated_members(db: Session, room_id: int) -> list[TarkovRaidRoomMember]:
     )
 
 
-def acting_host_user_id(
-    host_user_id: int | None,
-    seated: list[TarkovRaidRoomMember],
-    online_user_ids: set[int] | None,
-) -> int:
-    """房主在线则仍是房主；房主离线（未交权）则最早入座的在线成员代行换图。"""
-    host_id = int(host_user_id) if host_user_id else 0
-    seated_ids = {int(row.user_id) for row in seated}
-    if online_user_ids is None:
-        return host_id if host_id in seated_ids else host_id
-    if host_id and host_id in seated_ids and host_id in online_user_ids:
-        return host_id
-    for row in seated:
-        uid = int(row.user_id)
-        if uid in online_user_ids:
-            return uid
-    return 0
-
-
 def _transfer_or_clear(db: Session, room: TarkovRaidRoom) -> dict[str, Any] | None:
     nxt = (
         db.query(TarkovRaidRoomMember)
@@ -992,11 +1061,20 @@ def _require_active_member(
     user: User,
     *,
     now: datetime | None = None,
+    touch: bool = True,
 ) -> TarkovRaidRoomMember:
+    """要求操作者已入座；写操作顺手刷新 last_seen（HTTP 侧也算活跃）。
+
+    只走 HTTP（反代没开 WS）的成员以前 2 分钟就被回收座位，写操作刷新后就只剩
+    「完全不再操作也不轮询」的人会被收。纯读（GET 房间）不刷新，避免读请求放大写库。
+    """
     row = _member(db, room.id, user.id)
     if row is None:
         raise RaidRoomError("尚未加入该房间", 403)
-    del now
+    if touch:
+        stamp = to_naive(now or now_naive())
+        if not row.last_seen_at or to_naive(row.last_seen_at) < stamp:
+            row.last_seen_at = stamp
     return row
 
 
@@ -1447,13 +1525,12 @@ def prune_stale_members(
     *,
     now: datetime,
     online_user_ids: set[int] | None = None,
-    keep_user_id: int | None = None,
-) -> None:
-    """WS 在线集合里的人不踢；其余看 last_seen（WS 心跳），断线满 2 分钟才收座位。
+) -> list[int]:
+    """WS 在线集合里的人不踢；其余看 last_seen（WS 心跳 / 成员写操作），断线满 2 分钟才收座位。
 
-    HTTP 拉房间不算心跳。keep_user_id 仅为调用方兼容，不再豁免过期成员。
+    HTTP 轮询不算心跳，但成员发起的写操作会刷新 last_seen，所以「正在操作的人」不会被收走。
+    返回被收走的 user_id 列表；空列表表示本次没有任何写库。
     """
-    del keep_user_id
     stamp = to_naive(now)
     cutoff = stamp - timedelta(seconds=MEMBER_IDLE_SECONDS)
     online = online_user_ids or set()
@@ -1475,6 +1552,7 @@ def prune_stale_members(
         _remove_member(db, room, row)
     if dropped:
         _settle_room(db, room, departed=dropped)
+    return dropped
 
 
 def set_room_game_mode(
@@ -1505,7 +1583,8 @@ def get_my_live_room(
     now: datetime | None = None,
     online_by_public_id: dict[str, set[int]] | None = None,
 ) -> dict[str, Any] | None:
-    stamp = to_naive(now or now_naive())
+    """只读：返回自己仍在座的房间。过期座位交给节流的 prune_idle_rooms 回收，这里不写库。"""
+    del now
     room_ids = _live_member_room_ids(db, viewer.id)
     if not room_ids:
         return None
@@ -1517,25 +1596,14 @@ def get_my_live_room(
     )
     online_map = online_by_public_id or {}
     for row in rows:
-        prune_stale_members(
-            db,
-            row,
-            now=stamp,
-            online_user_ids=online_map.get(row.public_id),
-            keep_user_id=viewer.id,
-        )
-        if not _room_alive(db, row):
-            continue
-        if _active_member_count(db, row.id) <= 0:
-            _dissolve_room(db, row)
-            continue
-        if row.id not in _live_member_room_ids(db, viewer.id):
+        count = _active_member_count(db, row.id)
+        if count <= 0:
             continue
         return serialize_lobby_item(
             db,
             row,
             is_member=True,
-            member_count=_active_member_count(db, row.id),
+            member_count=count,
             online_user_ids=online_map.get(row.public_id),
         )
     return None
@@ -1546,9 +1614,8 @@ def prune_idle_rooms(
     *,
     now: datetime,
     online_by_public_id: dict[str, set[int]] | None = None,
-    keep_user_id: int | None = None,
 ) -> None:
-    """只加载可能过期的房间，避免大厅列表全表 prune。"""
+    """只加载可能过期的房间，避免大厅列表全表 prune；调用方按 room_prune_due 节流。"""
     stamp = to_naive(now)
     cutoff = stamp - timedelta(seconds=MEMBER_IDLE_SECONDS)
     room_ids = [
@@ -1574,17 +1641,13 @@ def prune_idle_rooms(
         .all()
     )
     for row in rows:
-        prune_stale_members(
-            db,
-            row,
-            now=stamp,
-            online_user_ids=online_map.get(row.public_id),
-            keep_user_id=keep_user_id,
-        )
-        if not _room_alive(db, row):
-            continue
-        if _active_member_count(db, row.id) <= 0:
-            _dissolve_room(db, row)
+        with room_lock(row.public_id):
+            _prune_room_members(
+                db,
+                row,
+                stamp=stamp,
+                online_user_ids=online_map.get(row.public_id),
+            )
 
 
 def list_live_rooms(
@@ -1596,17 +1659,18 @@ def list_live_rooms(
     game_mode: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
+    prune: bool = True,
 ) -> dict[str, Any]:
     stamp = to_naive(now or now_naive())
     mode = parse_game_mode(game_mode) if game_mode is not None else current_game_mode()
     page_n, size_n = _clip_lobby_page(page, page_size)
     online_map = online_by_public_id or {}
-    prune_idle_rooms(
-        db,
-        now=stamp,
-        online_by_public_id=online_map,
-        keep_user_id=viewer.id if viewer is not None else None,
-    )
+    if prune:
+        prune_idle_rooms(
+            db,
+            now=stamp,
+            online_by_public_id=online_map,
+        )
     has_occupant = (
         exists()
         .where(TarkovRaidRoomMember.room_id == TarkovRaidRoom.id)
@@ -1727,6 +1791,46 @@ def publish_room_key_owns(db: Session, public_id: str) -> None:
     _publish_key_owns(db, room)
 
 
+ROOM_PRUNE_MIN_INTERVAL_SEC = 20.0
+_ROOM_PRUNE_LOCK = threading.Lock()
+_ROOM_PRUNE_LAST = 0.0
+
+
+def room_prune_due(*, now: float | None = None) -> bool:
+    """全进程节流：座位回收是写操作，HTTP 读路径不能每个请求都跑一遍。
+
+    超过 20 秒才允许一次；服务层函数本身不做节流，直接调服务层的测试与任务照常回收。
+    """
+    global _ROOM_PRUNE_LAST
+    stamp = float(now if now is not None else time.monotonic())
+    with _ROOM_PRUNE_LOCK:
+        if _ROOM_PRUNE_LAST and stamp - _ROOM_PRUNE_LAST < ROOM_PRUNE_MIN_INTERVAL_SEC:
+            return False
+        _ROOM_PRUNE_LAST = stamp
+        return True
+
+
+def _prune_room_members(
+    db: Session,
+    room: TarkovRaidRoom,
+    *,
+    stamp: datetime,
+    online_user_ids: set[int] | None,
+) -> None:
+    """回收过期座位；回收不到东西时不写库，读路径才能保持只读。"""
+    removed = prune_stale_members(
+        db,
+        room,
+        now=stamp,
+        online_user_ids=online_user_ids,
+    )
+    if not removed:
+        discard_room_effects(db)
+        return
+    db.commit()
+    apply_room_effects(take_room_effects(db))
+
+
 def get_room(
     db: Session,
     public_id: str,
@@ -1734,16 +1838,22 @@ def get_room(
     *,
     now: datetime | None = None,
     online_user_ids: set[int] | None = None,
+    prune: bool = True,
 ) -> dict[str, Any]:
+    """取房间视图。`prune=False` 时不回收过期座位（HTTP 路由按 room_prune_due 节流传入）。
+
+    只读路径不刷新 last_seen：GET 房间不是心跳，否则轮询就成了写放大。
+    """
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id)
-    prune_stale_members(
-        db,
-        room,
-        now=stamp,
-        online_user_ids=online_user_ids,
-        keep_user_id=user.id if user is not None else None,
-    )
+    if prune:
+        with room_lock(room.public_id):
+            _prune_room_members(
+                db,
+                room,
+                stamp=stamp,
+                online_user_ids=online_user_ids,
+            )
     if not _room_alive(db, room):
         raise RaidRoomError("房间不存在", 404)
     if user is None:
@@ -1752,7 +1862,10 @@ def get_room(
             member_count=_active_member_count(db, room.id),
             is_host=False,
         )
-    return serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
+    seq = snapshot_seq(room.public_id)
+    data = serialize_room(db, room, viewer=user, online_user_ids=online_user_ids)
+    data["seq"] = seq
+    return data
 
 
 def create_room(
@@ -1762,20 +1875,28 @@ def create_room(
     now: datetime | None = None,
     title: str | None = None,
     password: str | None = None,
+    password_hash: str | None = None,
     listed: bool = True,
     game_mode: str | None = None,
 ) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
+    """建房并立刻入座。
+
+    `password_hash` 由调用方在事务外算好（bcrypt 约百毫秒，不能占着房间锁跑）；
+    不传则按 `password` 现算。
+    """
     stamp = to_naive(now or now_naive())
     mode = parse_game_mode(game_mode) if game_mode is not None else current_game_mode()
     pid = allocate_public_id(db)
     is_listed, raw_password = _clean_create_visibility(bool(listed), password)
+    if password_hash is None and raw_password:
+        password_hash = hash_password(raw_password)
     room = TarkovRaidRoom(
         public_id=pid,
         title=_clean_room_title(title, user),
         map_slug="",
         game_mode=mode,
         listed=is_listed,
-        password_hash=hash_password(raw_password) if raw_password else None,
+        password_hash=password_hash,
         host_user_id=None,
         host_display_name="",
         created_at=stamp,
@@ -1788,7 +1909,21 @@ def create_room(
         user,
         now=stamp,
         password=raw_password or None,
+        password_checked=True,
     )
+
+
+def verify_join_password(db: Session, public_id: str, password: str | None) -> bool:
+    """事务外先校验房间口令（bcrypt 很慢，不能占着房间锁跑）。
+
+    返回是否真的比对过口令（房间未设密码时为 False）。密码在建房时确定、之后不可改，
+    所以锁外校验过之后，锁内只需要求房间行还在。
+    """
+    room = _get_room(db, public_id)
+    if not (room.password_hash or "").strip():
+        return False
+    _assert_join_password(room, password)
+    return True
 
 
 def join_room(
@@ -1799,13 +1934,15 @@ def join_room(
     now: datetime | None = None,
     game_mode: str | None = None,
     password: str | None = None,
+    password_checked: bool = False,
 ) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
+    """入座。`password_checked=True` 表示调用方已在事务外校验过口令（见 verify_join_password）。"""
     del game_mode
     stamp = to_naive(now or now_naive())
     room = _get_room(db, public_id, for_update=True)
     row = _member(db, room.id, user.id)
     already_in = row is not None
-    if not already_in:
+    if not already_in and not password_checked:
         _assert_join_password(room, password)
     vacated_rooms = _vacate_other_slots(db, user, room.id, now=stamp)
     row = _member(db, room.id, user.id)
@@ -1853,26 +1990,6 @@ def is_room_member(db: Session, public_id: str, user: User) -> bool:
     except RaidRoomError:
         return False
     return _member(db, room.id, user.id) is not None
-
-
-def can_user_edit_room(
-    db: Session,
-    public_id: str,
-    user: User,
-    *,
-    now: datetime | None = None,
-) -> bool:
-    del now
-    try:
-        room = _get_room(db, public_id)
-    except RaidRoomError:
-        return False
-    row = _member(db, room.id, user.id)
-    if row is None:
-        return False
-    from app.services.tarkov.raid_room_hub import hub
-
-    return bool(hub.view_map_of(room.public_id, user.id))
 
 
 def leave_room(
@@ -2427,6 +2544,15 @@ def add_mark(
         raise RaidRoomError("笔画已满", 409)
     if mark_kind == MARK_TEXT and _mark_count(db, room.id, MARK_TEXT, slug) >= MAX_TEXTS:
         raise RaidRoomError("文字已满", 409)
+    if (
+        db.query(func.count())
+        .select_from(TarkovRaidRoomMark)
+        .filter(TarkovRaidRoomMark.room_id == room.id)
+        .scalar()
+        or 0
+    ) >= MAX_ROOM_MARKS:
+        # 分图上限之外再加整房总量，否则每换一张图都能把画板堆满，快照随地图数膨胀。
+        raise RaidRoomError("本房记号已满", 409)
     text = normalize_mark_label(label) if mark_kind == MARK_TEXT else ""
     start_x = _coord(x, "x")
     start_z = _coord(z, "z")

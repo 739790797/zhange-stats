@@ -289,22 +289,30 @@ def guides_tarkov_item_catalog(
     q: str | None = Query(default=None, max_length=80),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
+    layout: str | None = Query(default="table", max_length=16),
     db: Session = Depends(get_db),
 ):
-    """手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。"""
+    """手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。
+
+    `layout=all` 不分页，一次返回筛选后的全量（供前端本地排序用，别再并发拉几十页）。
+    """
     try:
         items_svc.ensure_items(db)
     except items_svc.TarkovItemsError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    all_rows = layout == "all"
     etag, hit = _catalog_fresh(
         request,
         "items",
         _raw_synced(items_svc.get_items_raw(db)),
+        # 物品正文合 overlay：overlay 变了 ETag 就得变，否则浏览器一直吃旧 304。
+        overlay_svc.overlay_cache_token(db),
         category_ids,
         types,
         q,
         page,
         page_size,
+        layout,
     )
     if hit is not None:
         return hit
@@ -316,6 +324,7 @@ def guides_tarkov_item_catalog(
             q=q,
             page=page,
             page_size=page_size,
+            all_rows=all_rows,
         )
     except items_svc.TarkovItemsError as exc:
         msg = str(exc)
@@ -1693,6 +1702,7 @@ def guides_tarkov_key_packs(
         _raw_synced(items_svc.get_items_raw(db)),
         maps_svc.maps_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
+        overlay_svc.overlay_cache_token(db),
     )
     if hit is not None:
         return hit
@@ -1881,6 +1891,8 @@ def guides_tarkov_collection(
         "collection",
         _raw_synced(items_svc.get_items_raw(db)),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
+        # 3×4 的货物名与任务目标都合过 overlay。
+        overlay_svc.overlay_cache_token(db),
     )
     if hit is not None:
         return hit

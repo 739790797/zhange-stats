@@ -146,22 +146,21 @@ export async function fetchTarkovItemCatalogAll(opts: {
   types?: string[];
   q?: string;
 }) {
-  const pageSize = 100;
-  const first = await fetchTarkovItemCatalog({ ...opts, page: 1, pageSize });
-  const total = first.item_count;
-  if (total <= first.items.length) return first;
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  const rest = await Promise.all(
-    Array.from({ length: pages - 1 }, (_, i) =>
-      fetchTarkovItemCatalog({ ...opts, page: i + 2, pageSize }),
-    ),
-  );
-  return {
-    ...first,
-    items: first.items.concat(...rest.map((row) => row.items)),
-    page: 1,
-    page_size: total,
-  };
+  const { data } = await client.get<TarkovCatalog>("/guides/tarkov/items", {
+    params: {
+      ...((opts.categoryIds || []).filter(Boolean).length
+        ? { category_ids: (opts.categoryIds || []).filter(Boolean).join(",") }
+        : {}),
+      ...((opts.types || []).filter(Boolean).length
+        ? { types: (opts.types || []).filter(Boolean).join(",") }
+        : {}),
+      ...((opts.q || "").trim() ? { q: (opts.q || "").trim() } : {}),
+      // 本地排序用：服务端一次给全量，不再并发拉几十页。
+      layout: "all",
+    },
+    timeout: 120_000,
+  });
+  return data;
 }
 
 export async function fetchTarkovItemDetail(itemId: string) {

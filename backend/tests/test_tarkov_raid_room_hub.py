@@ -33,6 +33,37 @@ async def _drain(hub: RaidRoomHub) -> None:
             await asyncio.gather(*pending)
 
 
+def test_publish_sends_frames_in_seq_order() -> None:
+    """乱序入队的帧必须按 seq 升序到达，否则前端会被旧快照盖掉。"""
+    hub = RaidRoomHub()
+    ws = _FakeSocket()
+
+    async def run() -> None:
+        await hub.join("room", ws, 7)  # type: ignore[arg-type]
+        hub.publish("room", {"event": "snapshot", "seq": 2, "snapshot": {"public_id": "room"}})
+        hub.publish("room", {"event": "snapshot", "seq": 1, "snapshot": {"public_id": "room"}})
+        await _drain(hub)
+        assert [row["seq"] for row in ws.sent] == [1, 2]
+
+    asyncio.run(run())
+
+
+def test_publish_drops_already_sent_seq() -> None:
+    """比已发过的更旧的帧直接丢，重连补推时不回退状态。"""
+    hub = RaidRoomHub()
+    ws = _FakeSocket()
+
+    async def run() -> None:
+        await hub.join("room", ws, 7)  # type: ignore[arg-type]
+        hub.publish("room", {"event": "snapshot", "seq": 5, "snapshot": {"public_id": "room"}})
+        await _drain(hub)
+        hub.publish("room", {"event": "snapshot", "seq": 3, "snapshot": {"public_id": "room"}})
+        await _drain(hub)
+        assert [row["seq"] for row in ws.sent] == [5]
+
+    asyncio.run(run())
+
+
 def test_hub_remembers_player_fix_for_snapshot() -> None:
     hub = RaidRoomHub()
     stored = hub.set_player_fix(

@@ -28,6 +28,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_optional_user
 from app.core.platform_deps import require_feature
 from app.core.rate_limit import client_ip, platform_limiter
+from app.core.security import hash_password
 from app.core.ws_origin import CLOSE_ORIGIN_FORBIDDEN, websocket_origin_allowed
 from app.models.user import User
 from app.services.tarkov import raid_room_ws as room_ws_svc
@@ -43,15 +44,59 @@ def _raise(exc: rooms_svc.RaidRoomError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
-def room_action(db: Session, run: Callable[[], _T]) -> _T:
-    """房间事务统一出口：失败回滚；commit 后才踢离座者的 socket / 关解散的房，调用方随后再 publish。"""
+WRITE_LIMIT_PER_MINUTE = 120
+
+
+def _hit_room_write(user: User) -> None:
+    """房间写操作按账号限流：每次都要改库，还会给全房推一帧。"""
+    platform_limiter.hit(
+        f"tarkov-raid-write:uid:{user.id}",
+        limit=WRITE_LIMIT_PER_MINUTE,
+        window_sec=60,
+    )
+
+
+def _stamp_seq(result: _T) -> _T:
+    """响应给调用方：快照里带上本笔事务的 seq，前端据此丢弃更旧的帧。"""
+    target = result[0] if isinstance(result, tuple) and result else result
+    if isinstance(target, dict):
+        target["seq"] = hub.current_seq(str(target.get("public_id") or ""))
+    return result
+
+
+def room_action(
+    db: Session,
+    public_id: str,
+    run: Callable[[], _T],
+    publish: Callable[[_T], None] | None = None,
+) -> _T:
+    """房间写操作统一出口：按房间串行；失败回滚；commit 后才踢 socket / 关房。
+
+    `publish` 在 commit 之后、**仍持有房间锁**时调用：广播必须在锁内入队，否则并发写的
+    广播会按「谁先抢到 CPU」而不是「谁先提交」的顺序发出，后到的旧快照会盖掉新状态。
+    """
     try:
-        return rooms_svc.run_in_room_tx(db, run)
+        result = rooms_svc.run_in_room_tx(
+            db,
+            run,
+            key=public_id,
+            on_commit=publish,
+        )
     except rooms_svc.RaidRoomError as exc:
         _raise(exc)
         raise
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail="房间状态刚变过，请刷新后重试") from exc
+    return _stamp_seq(result)
+
+
+def read_action(run: Callable[[], _T]) -> _T:
+    """只读路径（大厅 / 我的房间 / 房间预览）：不占房间锁，只做错误映射与错误码转换。"""
+    try:
+        return run()
+    except rooms_svc.RaidRoomError as exc:
+        _raise(exc)
+        raise
 
 
 _SNAPSHOT_WS_EVENTS = frozenset({"member_join", "member_leave", "snapshot"})
@@ -92,24 +137,108 @@ def room_ws_payload(
     return payload
 
 
-def _publish(public_id: str, event: str, snapshot: dict, extra: dict | None = None) -> None:
-    hub.publish(
-        public_id,
-        room_ws_payload(
-            event,
-            snapshot,
-            extra,
-            online_user_ids=list(hub.online_user_ids(public_id)),
-            online_clients=hub.online_clients(public_id),
-        ),
+def _publish(
+    public_id: str,
+    event: str,
+    snapshot: dict,
+    extra: dict | None = None,
+    *,
+    seq: int | None = None,
+) -> None:
+    """广播房间事件。seq 缺省由 hub 现占，调用方在房间锁内传入帧的提交顺序。"""
+    payload = room_ws_payload(
+        event,
+        _strip_viewer_flags(snapshot),
+        extra,
+        online_user_ids=list(hub.online_user_ids(public_id)),
+        online_clients=hub.online_clients(public_id),
     )
+    if seq:
+        payload["seq"] = seq
+    hub.publish(public_id, payload)
+
+
+def _publisher(
+    public_id: str,
+    event: str,
+    extra_fn: Callable[[dict], dict | None] | None = None,
+    *,
+    when: Callable[[object], bool] | None = None,
+) -> Callable[[object], None]:
+    """包一层：事务 commit 后（仍在房间锁内）按快照发广播。
+
+    `when` 收到事务的完整返回值（通常是 `(snapshot, added)`）；返回 False 则不发。
+    """
+
+    def publish(result: object) -> None:
+        if when is not None and not when(result):
+            return
+        snapshot = _snapshot_of(result)
+        if snapshot is None:
+            return
+        extra = extra_fn(result) if extra_fn is not None else None
+        _publish(public_id, event, snapshot, extra=extra)
+
+    return publish
+
+
+def _result_item(index: int, result: object) -> object:
+    if isinstance(result, tuple) and len(result) > index:
+        return result[index]
+    return None
+
+
+def _result_mark(index: int) -> Callable[[object], dict | None]:
+    def extra(result: object) -> dict | None:
+        mark = _result_item(index, result)
+        return {"mark": mark} if isinstance(mark, dict) else None
+
+    return extra
+
+
+def _result_flag(index: int) -> Callable[[object], bool]:
+    """判断事务返回元组里第 index 项（added / removed 计数）是否为真。"""
+
+    def check(result: object) -> bool:
+        if isinstance(result, tuple) and len(result) > index:
+            return bool(result[index])
+        return False
+
+    return check
+
+
+def _snapshot_of(result: object) -> dict | None:
+    target = result[0] if isinstance(result, tuple) and result else result
+    if isinstance(target, dict):
+        return target
+    return None
+
+
+_VIEWER_FIELDS = ("is_host", "is_member", "can_edit")
+
+
+def _strip_viewer_flags(snapshot: dict) -> dict:
+    """快照按发起人视角生成；广播给全员前去掉视角字段，各端自己按 user_id 推导。"""
+    if not isinstance(snapshot, dict):
+        return snapshot
+    return {key: value for key, value in snapshot.items() if key not in _VIEWER_FIELDS}
 
 
 def _publish_vacated(vacated: list[dict], user_id: int) -> None:
     for snap in vacated:
         vacated_id = str(snap.get("public_id") or "").strip()
-        if vacated_id:
-            _publish(vacated_id, "member_leave", snap, extra={"user_id": user_id})
+        if not vacated_id:
+            continue
+        # 腾出的旧房不在本请求的房间锁里：进它的锁里占 seq，排在该房已有帧之后。
+        with rooms_svc.room_lock(vacated_id):
+            seq = hub.next_seq(vacated_id)
+        _publish(
+            vacated_id,
+            "member_leave",
+            snap,
+            extra={"user_id": user_id},
+            seq=seq,
+        )
 
 
 @router.get(
@@ -144,15 +273,15 @@ def list_tarkov_raid_rooms(
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
-    data = room_action(
-        db,
+    data = read_action(
         lambda: rooms_svc.list_live_rooms(
             db,
             viewer=user,
             online_by_public_id=online_by_public_id,
             page=page,
             page_size=page_size,
-        ),
+            prune=rooms_svc.room_prune_due(),
+        )
     )
     return TarkovRaidRoomLobbyOut.model_validate(data)
 
@@ -169,9 +298,8 @@ def get_my_tarkov_raid_room(
     online_by_public_id = {
         pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
     }
-    item = room_action(
-        db,
-        lambda: rooms_svc.get_my_live_room(db, user, online_by_public_id=online_by_public_id),
+    item = read_action(
+        lambda: rooms_svc.get_my_live_room(db, user, online_by_public_id=online_by_public_id)
     )
     return TarkovRaidRoomMineOut(item=item)
 
@@ -190,24 +318,43 @@ def create_tarkov_raid_room(
     ip = client_ip(request)
     platform_limiter.hit(f"tarkov-raid-create:ip:{ip}", limit=20, window_sec=600)
     platform_limiter.hit(f"tarkov-raid-create:uid:{user.id}", limit=10, window_sec=600)
-    data, _joined_now, vacated = room_action(
-        db,
-        lambda: rooms_svc.create_room(
+    # 密码哈希（bcrypt）在事务外先算：不能占着房间锁跑上百毫秒。
+    is_listed, raw_password = rooms_svc.clean_create_visibility(bool(body.listed), body.password)
+    password_hash = hash_password(raw_password) if raw_password else None
+    title = body.title
+    listed = is_listed
+    game_mode = body.game_mode
+    published: list[str] = []
+
+    def run() -> object:
+        return rooms_svc.create_room(
             db,
             user,
-            title=body.title,
-            password=body.password,
-            listed=body.listed,
-            game_mode=body.game_mode,
-        ),
-    )
+            title=title,
+            password=raw_password or None,
+            password_hash=password_hash,
+            listed=listed,
+            game_mode=game_mode,
+        )
+
+    def publish(result: object) -> None:
+        snapshot = _snapshot_of(result)
+        if snapshot is None:
+            return
+        pid = str(snapshot.get("public_id") or "")
+        published.append(pid)
+        if pid:
+            # 新房第一帧按真实房间号占 seq。
+            _publish(
+                pid,
+                "member_join",
+                snapshot,
+                extra={"user_id": user.id, "display_name": user.display_name},
+                seq=hub.next_seq(pid),
+            )
+
+    data, _joined_now, vacated = room_action(db, "", run, publish)
     _publish_vacated(vacated, user.id)
-    _publish(
-        data["public_id"],
-        "member_join",
-        data,
-        extra={"user_id": user.id, "display_name": user.display_name},
-    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -222,18 +369,20 @@ def set_tarkov_raid_room_map(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    map_slug = body.map
     data = room_action(
         db,
+        public_id,
         lambda: rooms_svc.set_room_map(
             db,
             public_id,
             user,
-            body.map,
+            map_slug,
             online_user_ids=hub.online_user_ids(public_id),
             log_phases=hub.log_phases(public_id),
         ),
+        _publisher(public_id, "snapshot"),
     )
-    _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -243,19 +392,28 @@ def set_tarkov_raid_room_map(
     dependencies=[_FEATURE],
 )
 def get_tarkov_raid_room(
+    request: Request,
     public_id: str,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ) -> TarkovRaidRoomDetailOut:
-    """取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。"""
-    data = room_action(
-        db,
+    """取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。
+
+    只读：过期座位回收改由节流的 prune 完成，这个接口不再写库（未登录也能打）。
+    """
+    platform_limiter.hit(
+        f"tarkov-raid-room-get:ip:{client_ip(request)}",
+        limit=rooms_svc.ROOM_GET_RATE_LIMIT,
+        window_sec=rooms_svc.ROOM_GET_RATE_WINDOW_SEC,
+    )
+    data = read_action(
         lambda: rooms_svc.get_room(
             db,
             public_id,
             user,
             online_user_ids=hub.online_user_ids(public_id),
-        ),
+            prune=rooms_svc.room_prune_due(),
+        )
     )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -288,24 +446,37 @@ def join_tarkov_raid_room(
         limit=rooms_svc.JOIN_RATE_LIMIT,
         window_sec=rooms_svc.JOIN_RATE_WINDOW_SEC,
     )
-    data, joined_now, vacated = room_action(
-        db,
-        lambda: rooms_svc.join_room(
+    # 口令（bcrypt）在锁外先校验：不能占着房间锁跑。
+    password = body.password
+    password_checked = read_action(
+        lambda: rooms_svc.verify_join_password(db, public_id, password)
+    )
+    announced: list[bool] = []
+
+    def run() -> object:
+        result = rooms_svc.join_room(
             db,
             public_id,
             user,
-            game_mode=body.game_mode,
-            password=body.password,
-        ),
-    )
-    _publish_vacated(vacated, user.id)
-    if joined_now:
+            game_mode=None,
+            password=password,
+            password_checked=password_checked,
+        )
+        announced.append(bool(result[1]))
+        return result
+
+    def publish(result: object) -> None:
+        if not announced or not announced[-1]:
+            return
         _publish(
             public_id,
             "member_join",
-            data,
+            _snapshot_of(result) or {},
             extra={"user_id": user.id, "display_name": user.display_name},
         )
+
+    data, joined_now, vacated = room_action(db, public_id, run, publish)
+    _publish_vacated(vacated, user.id)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -320,10 +491,14 @@ def set_tarkov_raid_room_game_mode(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    _hit_room_write(user)
+    mode = body.game_mode
     data = room_action(
-        db, lambda: rooms_svc.set_room_game_mode(db, public_id, user, body.game_mode)
+        db,
+        public_id,
+        lambda: rooms_svc.set_room_game_mode(db, public_id, user, mode),
+        _publisher(public_id, "snapshot"),
     )
-    _publish(public_id, "snapshot", data)
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -337,9 +512,20 @@ def leave_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, broadcast = room_action(db, lambda: rooms_svc.leave_room(db, public_id, user))
-    if broadcast is not None:
-        _publish(public_id, "member_leave", broadcast, extra={"user_id": user.id})
+    _hit_room_write(user)
+
+    def publish(result: object) -> None:
+        # 房间因此解散时没有广播对象，只留踢 socket 的副作用。
+        broadcast = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+        if isinstance(broadcast, dict):
+            _publish(public_id, "member_leave", broadcast, extra={"user_id": user.id})
+
+    data, _broadcast = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.leave_room(db, public_id, user),
+        publish,
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -353,7 +539,8 @@ def reset_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data = room_action(db, lambda: rooms_svc.reset_room(db, public_id, user))
+    _hit_room_write(user)
+    data = room_action(db, public_id, lambda: rooms_svc.reset_room(db, public_id, user))
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -368,8 +555,13 @@ def remove_tarkov_raid_room_member(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data = room_action(db, lambda: rooms_svc.remove_member(db, public_id, user, user_id))
-    _publish(public_id, "member_leave", data, extra={"user_id": user_id})
+    _hit_room_write(user)
+    data = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.remove_member(db, public_id, user, user_id),
+        _publisher(public_id, "member_leave", lambda _result: {"user_id": user_id}),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -385,8 +577,14 @@ def transfer_tarkov_raid_room_host(
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
     """房主把房主转让给在座成员。"""
-    data = room_action(db, lambda: rooms_svc.transfer_host(db, public_id, user, body.user_id))
-    _publish(public_id, "snapshot", data)
+    _hit_room_write(user)
+    target = body.user_id
+    data = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.transfer_host(db, public_id, user, target),
+        _publisher(public_id, "snapshot"),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -401,17 +599,20 @@ def put_tarkov_raid_room_task_progress(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    started_ids = body.started_ids
+    done_ids = body.done_ids
     data = room_action(
         db,
+        public_id,
         lambda: rooms_svc.set_member_task_progress(
             db,
             public_id,
             user,
-            body.started_ids,
-            body.done_ids,
+            started_ids,
+            done_ids,
         ),
+        _publisher(public_id, "task_progress", lambda _result: {"user_id": user.id}),
     )
-    _publish(public_id, "task_progress", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -426,14 +627,19 @@ def claim_tarkov_raid_room_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, added = room_action(db, lambda: rooms_svc.claim_task(db, public_id, user, task_id))
-    if added:
-        _publish(
+    _hit_room_write(user)
+    task = task_id
+    data, _added = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.claim_task(db, public_id, user, task),
+        _publisher(
             public_id,
             "claim_add",
-            data,
-            extra={"task_id": task_id, "user_id": user.id},
-        )
+            lambda _result: {"task_id": task, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -447,11 +653,18 @@ def seed_tarkov_raid_room_claims_from_progress(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, added = room_action(
-        db, lambda: rooms_svc.seed_claims_from_progress(db, public_id, user)
+    _hit_room_write(user)
+    data, _added = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.seed_claims_from_progress(db, public_id, user),
+        _publisher(
+            public_id,
+            "claim_add",
+            lambda _result: {"user_id": user.id},
+            when=_result_flag(1),
+        ),
     )
-    if added:
-        _publish(public_id, "claim_add", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -466,11 +679,19 @@ def claim_tarkov_raid_room_tasks(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, added = room_action(
-        db, lambda: rooms_svc.claim_tasks(db, public_id, user, body.task_ids[:40])
+    _hit_room_write(user)
+    task_ids = body.task_ids[:40]
+    data, _added = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.claim_tasks(db, public_id, user, task_ids),
+        _publisher(
+            public_id,
+            "claim_add",
+            lambda _result: {"user_id": user.id},
+            when=_result_flag(1),
+        ),
     )
-    if added:
-        _publish(public_id, "claim_add", data, extra={"user_id": user.id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -485,16 +706,19 @@ def unclaim_tarkov_raid_room_task(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, removed = room_action(
-        db, lambda: rooms_svc.unclaim_task(db, public_id, user, task_id)
-    )
-    if removed:
-        _publish(
+    _hit_room_write(user)
+    task = task_id
+    data, _removed = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.unclaim_task(db, public_id, user, task),
+        _publisher(
             public_id,
             "claim_remove",
-            data,
-            extra={"task_id": task_id, "user_id": user.id},
-        )
+            lambda _result: {"task_id": task, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -509,14 +733,19 @@ def bring_tarkov_raid_room_key(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, added = room_action(db, lambda: rooms_svc.bring_key(db, public_id, user, item_id))
-    if added:
-        _publish(
+    _hit_room_write(user)
+    item = item_id
+    data, _added = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.bring_key(db, public_id, user, item),
+        _publisher(
             public_id,
             "key_bring_add",
-            data,
-            extra={"item_id": item_id, "user_id": user.id},
-        )
+            lambda _result: {"item_id": item, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -531,16 +760,19 @@ def unbring_tarkov_raid_room_key(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, removed = room_action(
-        db, lambda: rooms_svc.unbring_key(db, public_id, user, item_id)
-    )
-    if removed:
-        _publish(
+    _hit_room_write(user)
+    item = item_id
+    data, _removed = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.unbring_key(db, public_id, user, item),
+        _publisher(
             public_id,
             "key_bring_remove",
-            data,
-            extra={"item_id": item_id, "user_id": user.id},
-        )
+            lambda _result: {"item_id": item, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -555,17 +787,24 @@ def mark_tarkov_raid_room_objectives_done(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    _hit_room_write(user)
     pairs = [(item.task_id, item.objective_id) for item in body.items]
-    data, added = room_action(
-        db, lambda: rooms_svc.mark_objectives_done(db, public_id, user, pairs)
+
+    def extra_of(result: object) -> dict | None:
+        added = result[1] if isinstance(result, tuple) and len(result) > 1 else None
+        if not added:
+            return None
+        return {
+            "items": [{"task_id": tid, "objective_id": oid} for tid, oid in added],
+            "user_id": user.id,
+        }
+
+    data, _added = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.mark_objectives_done(db, public_id, user, pairs),
+        _publisher(public_id, "objective_done_add", extra_of, when=_result_flag(1)),
     )
-    if added:
-        _publish(
-            public_id,
-            "objective_done_add",
-            data,
-            extra={"items": [{"task_id": tid, "objective_id": oid} for tid, oid in added], "user_id": user.id},
-        )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -581,21 +820,20 @@ def mark_tarkov_raid_room_objective_done(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, added = room_action(
+    _hit_room_write(user)
+    task = task_id
+    obj = objective_id
+    data, _added = room_action(
         db,
-        lambda: rooms_svc.mark_objective_done(db, public_id, user, task_id, objective_id),
-    )
-    if added:
-        _publish(
+        public_id,
+        lambda: rooms_svc.mark_objective_done(db, public_id, user, task, obj),
+        _publisher(
             public_id,
             "objective_done_add",
-            data,
-            extra={
-                "task_id": task_id,
-                "objective_id": objective_id,
-                "user_id": user.id,
-            },
-        )
+            lambda _result: {"task_id": task, "objective_id": obj, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -611,21 +849,20 @@ def unmark_tarkov_raid_room_objective_done(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, removed = room_action(
+    _hit_room_write(user)
+    task = task_id
+    obj = objective_id
+    data, _removed = room_action(
         db,
-        lambda: rooms_svc.unmark_objective_done(db, public_id, user, task_id, objective_id),
-    )
-    if removed:
-        _publish(
+        public_id,
+        lambda: rooms_svc.unmark_objective_done(db, public_id, user, task, obj),
+        _publisher(
             public_id,
             "objective_done_remove",
-            data,
-            extra={
-                "task_id": task_id,
-                "objective_id": objective_id,
-                "user_id": user.id,
-            },
-        )
+            lambda _result: {"task_id": task, "objective_id": obj, "user_id": user.id},
+            when=_result_flag(1),
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -640,23 +877,33 @@ def add_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, mark = room_action(
+    _hit_room_write(user)
+    kind = body.kind
+    floor = body.floor
+    x = body.x
+    z = body.z
+    x2 = body.x2
+    z2 = body.z2
+    points = body.points
+    label = body.label
+    data, _mark = room_action(
         db,
+        public_id,
         lambda: rooms_svc.add_mark(
             db,
             public_id,
             user,
-            kind=body.kind,
-            floor=body.floor,
-            x=body.x,
-            z=body.z,
-            x2=body.x2,
-            z2=body.z2,
-            points=body.points,
-            label=body.label,
+            kind=kind,
+            floor=floor,
+            x=x,
+            z=z,
+            x2=x2,
+            z2=z2,
+            points=points,
+            label=label,
         ),
+        _publisher(public_id, "mark_add", _result_mark(1)),
     )
-    _publish(public_id, "mark_add", data, extra={"mark": mark})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -672,11 +919,20 @@ def move_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, mark = room_action(
-        db, lambda: rooms_svc.move_text_mark(db, public_id, user, mark_id, x=body.x, z=body.z)
+    _hit_room_write(user)
+    x = body.x
+    z = body.z
+    data, _mark = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.move_text_mark(db, public_id, user, mark_id, x=x, z=z),
+        _publisher(
+            public_id,
+            "mark_move",
+            _result_mark(1),
+            when=lambda result: isinstance(_result_item(1, result), dict),
+        ),
     )
-    if mark is not None:
-        _publish(public_id, "mark_move", data, extra={"mark": mark})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -690,9 +946,18 @@ def undo_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, mark_id = room_action(db, lambda: rooms_svc.undo_own_mark(db, public_id, user))
-    if mark_id is not None:
-        _publish(public_id, "mark_remove", data, extra={"mark_id": mark_id})
+    _hit_room_write(user)
+    data, _mark_id = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.undo_own_mark(db, public_id, user),
+        _publisher(
+            public_id,
+            "mark_remove",
+            lambda result: {"mark_id": _result_item(1, result)},
+            when=lambda result: _result_item(1, result) is not None,
+        ),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -707,11 +972,18 @@ def remove_tarkov_raid_room_mark(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data, removed = room_action(
-        db, lambda: rooms_svc.remove_mark(db, public_id, user, mark_id)
+    _hit_room_write(user)
+    data, _removed = room_action(
+        db,
+        public_id,
+        lambda: rooms_svc.remove_mark(db, public_id, user, mark_id),
+        _publisher(
+            public_id,
+            "mark_remove",
+            lambda _result: {"mark_id": mark_id},
+            when=_result_flag(1),
+        ),
     )
-    if removed:
-        _publish(public_id, "mark_remove", data, extra={"mark_id": mark_id})
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -725,12 +997,17 @@ def clear_tarkov_raid_room_marks(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
-    data = room_action(db, lambda: rooms_svc.clear_marks(db, public_id, user))
-    _publish(
+    _hit_room_write(user)
+    cleared_map = read_action(lambda: hub.view_map_of(public_id, user.id))
+    data = room_action(
+        db,
         public_id,
-        "board_clear",
-        data,
-        extra={"map_slug": hub.view_map_of(public_id, user.id)},
+        lambda: rooms_svc.clear_marks(db, public_id, user),
+        _publisher(
+            public_id,
+            "board_clear",
+            lambda _result: {"map_slug": cleared_map},
+        ),
     )
     return TarkovRaidRoomDetailOut.model_validate(data)
 

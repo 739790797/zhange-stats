@@ -1839,6 +1839,8 @@ class TarkovRaidRoomMineOut(BaseModel):
 
 
 class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
+    # 广播序号：客户端据此丢弃比手上更旧的帧。
+    seq: int = 0
     is_host: bool = False
     is_member: bool = False
     can_edit: bool = False

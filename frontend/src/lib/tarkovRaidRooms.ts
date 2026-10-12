@@ -37,10 +37,10 @@ export function raidRoomJoinNeedsPassword(error: unknown): boolean {
 export { tarkovRaidRoomHref, colorForUserId };
 
 export const RAID_ROOM_SLOT_COUNT = 5;
-export const RAID_ROOM_SLOT_IDS = ["1", "2", "3", "4", "5"] as const;
 
 const RAID_ROOM_PUBLIC_ID_RE = /^(?:(?:pve-)?[1-5]|[a-z0-9]{8,16})$/i;
 
+/** 旧的 1–5 / pve-N 席位号：新房间改用随机码，但旧房间码仍要能粘进输入框。 */
 export function raidRoomSlotPublicId(
   slot: number,
   gameMode: string = "pvp",
@@ -50,12 +50,6 @@ export function raidRoomSlotPublicId(
   return String(gameMode || "").trim().toLowerCase() === "pve"
     ? `pve-${n}`
     : String(n);
-}
-
-export function raidRoomSlotIdsForMode(gameMode: string = "pvp"): string[] {
-  return RAID_ROOM_SLOT_IDS.map((id) =>
-    raidRoomSlotPublicId(Number(id), gameMode),
-  );
 }
 
 /** 按 public_id 对齐大厅条目；缺的用占位补上。 */
@@ -209,6 +203,17 @@ export function raidRoomWsCloseReason(code: number): string | null {
 /** 房间占用心跳：只要这条 WS 还在，服务端就不收座位；断线满 2 分钟才踢。 */
 export const RAID_ROOM_WS_PING_MS = 25_000;
 
+/**
+ * 本机相位广播的去重键：同一相位（kind + 局号 + 时间戳）在**同一条连接**上只发一次；
+ * 重连后 wsGen 变，同一相位要再补推一遍给服务端。
+ */
+export function raidRoomLogPhaseSig(
+  phase: Pick<RaidRoomLogPhase, "kind" | "raidId" | "at">,
+  wsGen: number,
+): string {
+  return `${phase.kind}:${phase.raidId}:${phase.at}:${wsGen}`;
+}
+
 export const RAID_ROOM_OTHER_FLOOR_OPACITY = 0.28;
 
 /** 房间内截图定位：超过此时长没有新点就从地图上拿掉。 */
@@ -309,41 +314,6 @@ export type RaidRoomActingMemberLike = {
   joined_at?: string | null;
   in_room?: boolean;
 };
-
-/** 房主在线则仍是房主；房主离线未交权时，最早入座的在线成员代行换图。 */
-export function raidRoomActingHostUserId(
-  hostUserId: number | null | undefined,
-  members: readonly RaidRoomActingMemberLike[],
-): number {
-  const seated = members.filter(
-    (row) => Number(row.user_id) > 0 && row.in_room !== false,
-  );
-  const hostId = Number(hostUserId);
-  const host = Number.isFinite(hostId) && hostId > 0
-    ? seated.find((row) => row.user_id === hostId)
-    : undefined;
-  if (host?.online) return host.user_id;
-  const online = seated.filter((row) => row.online);
-  if (!online.length) return 0;
-  return [...online].sort((a, b) => {
-    const left = (a.joined_at || "").trim();
-    const right = (b.joined_at || "").trim();
-    if (left && right && left !== right) return left.localeCompare(right);
-    if (left && !right) return -1;
-    if (!left && right) return 1;
-    return a.user_id - b.user_id;
-  })[0]!.user_id;
-}
-
-export function raidRoomCanAutoSwitchMap(
-  viewerUserId: number | null | undefined,
-  hostUserId: number | null | undefined,
-  members: readonly RaidRoomActingMemberLike[],
-): boolean {
-  const viewer = Number(viewerUserId);
-  if (!Number.isFinite(viewer) || viewer <= 0) return false;
-  return raidRoomActingHostUserId(hostUserId, members) === viewer;
-}
 
 /** 房主按自己的日志换图：已有图也跟开战相位；空房可垫上一场。 */
 export function raidRoomHostLogMapId(opts: {
@@ -678,6 +648,8 @@ export function formatRaidRoomMemberChipLine(opts: {
 
 export type RaidRoomSnapshotLike = {
   public_id: string;
+  /** 广播序号：0 / 缺省表示服务端没给（按可接受处理）。 */
+  seq?: number;
   title?: string;
   map_slug: string;
   view_maps?: RaidRoomViewMapLike[];
@@ -1138,6 +1110,22 @@ export function keepRaidRoomPresence<T extends RaidRoomSnapshotLike>(
   };
 }
 
+/** 快照新旧只看 seq：新序号覆盖旧的，序号相同或缺失按可接受处理。 */
+export function isNewerRoomSnapshot(
+  next: object | null | undefined,
+  current: object | null | undefined,
+): boolean {
+  if (!current) return true;
+  const nextSeq = Number(
+    (next as { seq?: number } | null | undefined)?.seq || 0,
+  );
+  const curSeq = Number(
+    (current as { seq?: number } | null | undefined)?.seq || 0,
+  );
+  if (!nextSeq || !curSeq) return true;
+  return nextSeq >= curSeq;
+}
+
 export function raidRoomLiveSig(
   room: RaidRoomSnapshotLike | null | undefined,
 ): string {
@@ -1184,6 +1172,7 @@ export type RaidRoomOnlineClient = {
 
 export type RaidRoomWsEvent<T extends RaidRoomSnapshotLike = RaidRoomSnapshotLike> = {
   event?: string;
+  seq?: number;
   snapshot?: T;
   online_user_ids?: number[];
   online_clients?: readonly RaidRoomOnlineClient[] | null;
@@ -1204,6 +1193,10 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   event: RaidRoomWsEvent<T>,
   userId?: number | null,
 ): (T & { is_host: boolean; is_member: boolean; can_edit: boolean }) | null {
+  // 比手上更旧的帧直接丢：服务端按提交顺序发，但重连 / 补推仍可能交错。
+  if (current && event.seq && !isNewerRoomSnapshot(event, current)) {
+    return withRaidRoomViewerFlags(current, userId);
+  }
   const online = event.online_user_ids;
   const clientMap = event.online_clients
     ? new Map(
@@ -1214,7 +1207,8 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
       )
     : null;
   const withPresence = (room: T) => {
-    if (!online && !clientMap) return withRaidRoomViewerFlags(room, userId);
+    const next = event.seq ? { ...room, seq: event.seq } : room;
+    if (!online && !clientMap) return withRaidRoomViewerFlags(next, userId);
     const ids = online ? new Set(online) : null;
     const patch = <R extends { user_id: number; online?: boolean; clients?: readonly string[] | null }>(
       rows: R[] | undefined,
@@ -1232,9 +1226,9 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
       });
     return withRaidRoomViewerFlags(
       {
-        ...room,
-        occupants: patch(room.occupants) ?? room.occupants,
-        members: patch(room.members) ?? room.members,
+        ...next,
+        occupants: patch(next.occupants) ?? next.occupants,
+        members: patch(next.members) ?? next.members,
       },
       userId,
     );

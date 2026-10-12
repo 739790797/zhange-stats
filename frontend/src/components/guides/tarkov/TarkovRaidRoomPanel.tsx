@@ -28,7 +28,6 @@ import {
   removeTarkovRaidRoomMember,
   resetTarkovRaidRoom,
   setTarkovRaidRoomMap,
-  tarkovRaidRoomWsUrl,
   transferTarkovRaidRoomHost,
   removeTarkovKeyOwn,
   unbringTarkovRaidRoomKey,
@@ -38,7 +37,7 @@ import {
 } from "@/api/guidesApi";
 import { apiError } from "@/lib/apiError";
 import { isAssistantEmbed } from "@/lib/assistantShell";
-import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { parseTarkovGameMode, useTarkovGameMode, useTarkovGameModeControls } from "@/lib/tarkovGameMode";
 import { useTarkovPmcFaction } from "@/lib/tarkovPmcFaction";
 import { mergeRaidPrepGuideTasks } from "@/lib/eftarkovGuide";
 import { TARKOV_HOME_PATH, TARKOV_RAID_PREP_PATH } from "@/lib/tarkovHomeNav";
@@ -91,7 +90,7 @@ import {
   mapFullscreenEnabled,
   TarkovMapFullscreenRootContext,
 } from "@/lib/tarkovMapFullscreen";
-import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
+import { useRaidRoomSession } from "@/lib/useRaidRoomSession";
 import { applyTarkovKeyOwnsCache } from "@/lib/tarkovKeyPacks";
 import {
   commitTaskObjective,
@@ -103,16 +102,15 @@ import {
   taskProgressQueryData,
 } from "@/lib/tarkovTaskTree";
 import {
-  applyRoomWsEvent,
+  isNewerRoomSnapshot,
   keepRaidRoomPresence,
   mergeLocalPresenceClient,
-  raidRoomSocketClient,
   groupClaimsByTask,
   raidRoomTasksCountingTowardMapCap,
   claimTaskIdsForUser,
-  parseRaidRoomLogPhases,
   overlayRaidRoomLocalPhase,
   raidRoomPickDockMapId,
+  raidRoomSocketClient,
   raidRoomViewerMapSlug,
   readRaidRoomViewMap,
   writeRaidRoomViewMap,
@@ -122,18 +120,10 @@ import {
   isTypingTarget,
   mergeBoardMarks,
   normalizeMarkLabel,
-  parsePlayerFixEvent,
-  parsePlayerFixEvents,
-  parseStrokePoints,
-  playerFixIsFresh,
   shouldSuppressLocalPlayerFix,
-  RAID_ROOM_WS_PING_MS,
-  raidRoomWsCloseReason,
-  raidRoomWsRetryDelayMs,
   withRaidRoomViewerFlags,
-  type RaidRoomMarkLike,
-  type RaidRoomWsEvent,
   type RaidRoomLogPhase,
+  type RaidRoomMarkLike,
   type StrokePoint,
   type TarkovMapDrawMode,
 } from "@/lib/tarkovRaidRooms";
@@ -249,6 +239,7 @@ function RaidMapFullscreenButton() {
 
 export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const gameMode = useTarkovGameMode();
+  const { setMode: setGameMode } = useTarkovGameModeControls();
   const { faction } = useTarkovPmcFaction();
   const navigate = useNavigate();
   const token = Boolean(useAuthStore((s) => s.user));
@@ -262,15 +253,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const meIdRef = useRef(me?.id);
   meIdRef.current = me?.id;
   const [pendingMarks, setPendingMarks] = useState<RaidRoomMarkLike[]>([]);
-  const [wsGen, setWsGen] = useState(0);
-  const [wsLive, setWsLive] = useState(false);
-  const [wsStopReason, setWsStopReason] = useState("");
   const hidden = useDocumentHidden();
-  const [logPhases, setLogPhases] = useState<RaidRoomLogPhase[]>([]);
   const lastLogMapId = useTarkovLastLogMapId();
   const lastLogPhase = useTarkovLastLogPhase();
   const logSync = useTarkovLogSyncDialog();
-  const lastLogPhaseSigRef = useRef("");
   const autoClaimKeyRef = useRef("");
   const [error, setError] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
@@ -300,12 +286,10 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const objSeedKeyRef = useRef("");
   const focusSeqRef = useRef(0);
   const locateIndexRef = useRef<Record<string, number>>({});
-  const wsRef = useRef<WebSocket | null>(null);
   const lastProgressKeyRef = useRef("");
   const autoMapSigRef = useRef("");
   const accountPhaseSigRef = useRef("");
   const accountPhaseReadyRef = useRef(false);
-  const logPhaseRoomRef = useRef("");
   const publishViewSigRef = useRef("");
 
   const roomQuery = useQuery({
@@ -325,13 +309,21 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       const next = withRaidRoomViewerFlags(roomQuery.data, meIdRef.current);
       setRoom((current) => {
         if (!current) return next;
-        const currentMarks = current.marks?.length || 0;
-        const nextMarks = next.marks?.length || 0;
-        if (currentMarks > nextMarks) return current;
+        // 只按 seq 判新旧：以前「本地标记更多就保留本地」会把服务端权威快照
+        // （别人删标记 / 房主清板 / 改模式清空）整份挡掉，断线重连后永远对齐不上。
+        if (!isNewerRoomSnapshot(next, current)) return current;
         return keepRaidRoomPresence(next, current);
       });
     }
   }, [roomQuery.data]);
+
+  // 房间的 PVP/PVE 在建房时定死；进房后把顶栏切到房间模式，
+  // 否则任务目录、进度重叠、房间码都会按另一个模式算。
+  const roomMode = room?.game_mode ? parseTarkovGameMode(room.game_mode) : null;
+  useEffect(() => {
+    if (!roomMode || !room?.is_member || roomMode === gameMode) return;
+    setGameMode(roomMode);
+  }, [gameMode, room?.is_member, roomMode, setGameMode]);
 
   const mapId = viewMapId;
   const canEdit = Boolean(room?.is_member && mapId);
@@ -367,216 +359,34 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
 
   /* 只跟 token / 房间身份重连，快照更新不要拆掉 WS */
   const isMember = Boolean(roomQuery.data?.is_member || room?.is_member);
-  useEffect(() => {
-    if (!token || !publicId || !isMember) {
-      return undefined;
-    }
-    let stopped = false;
-    let retry = 0;
-    let ws: WebSocket | null = null;
-    let ping = 0;
-    let retryTimer = 0;
-
-    useRaidRoomLiveStore.getState().bind(publicId);
-
-    const connect = () => {
-      if (stopped) return;
-      ws = new WebSocket(tarkovRaidRoomWsUrl(publicId));
-      wsRef.current = ws;
-      ws.onopen = () => {
-        retry = 0;
-        ws?.send(
-          JSON.stringify({
-            event: "auth",
-            client: raidRoomSocketClient(isAssistantEmbed()),
-          }),
-        );
-      };
-      ws.onmessage = (event) => {
-        let payload: RaidRoomWsEvent<TarkovRaidRoomDetail> & {
-          user_id?: number;
-          floor?: string;
-          points?: unknown;
-          x?: unknown;
-          y?: unknown;
-          z?: unknown;
-          yaw?: unknown;
-          map_id?: unknown;
-          map_slug?: unknown;
-          file_name?: unknown;
-          at?: unknown;
-          log_phases?: unknown;
-          player_fixes?: unknown;
-        };
-        try {
-          payload = JSON.parse(String(event.data || ""));
-        } catch {
-          return;
-        }
-        if (payload.event === "snapshot") {
-          setWsLive(true);
-          setWsGen((n) => n + 1);
-          logPhaseRoomRef.current = publicId;
-          setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
-          const store = useRaidRoomLiveStore.getState();
-          store.bind(publicId);
-          for (const fix of parsePlayerFixEvents(payload.player_fixes)) {
-            if (playerFixIsFresh(fix.at)) store.upsertFix(fix);
-          }
-          if (payload.online_user_ids) {
-            store.dropFixesNotIn(new Set(payload.online_user_ids));
-          }
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ event: "ping" }));
-            const mine = mapIdRef.current;
-            if (mine) {
-              ws.send(JSON.stringify({ event: "view_map", map_id: mine }));
-            }
-          }
-        }
-        if (payload.event === "log_phase") {
-          logPhaseRoomRef.current = publicId;
-          setLogPhases(parseRaidRoomLogPhases(payload.log_phases));
-        }
-        if (payload.event === "player_fix") {
-          const parsed = parsePlayerFixEvent(payload);
-          if (!parsed || !playerFixIsFresh(parsed.at)) return;
-          useRaidRoomLiveStore.getState().upsertFix(parsed);
-          return;
-        }
-        if (payload.event === "presence" && payload.online_user_ids) {
-          const online = new Set(payload.online_user_ids);
-          useRaidRoomLiveStore.getState().dropFixesNotIn(online);
-        }
-        if (payload.event === "draw_draft") {
-          const uid = Number(payload.user_id);
-          if (!uid || uid === meIdRef.current) return;
-          const points = parseStrokePoints(payload.points);
-          useRaidRoomLiveStore.getState().setDraft(
-            points.length
-              ? {
-                  userId: uid,
-                  floor: String(payload.floor || ""),
-                  points,
-                  color: colorForUserId(uid),
-                  mapId: String(payload.map_id || ""),
-                }
-              : null,
-            uid,
-          );
-          return;
-        }
-        if (payload.event === "mark_add") {
-          const uid = Number(payload.mark?.author_user_id);
-          if (uid) useRaidRoomLiveStore.getState().setDraft(null, uid);
-        }
-        if (payload.event === "board_clear") {
-          const cleared = String(payload.map_slug || "");
-          if (cleared) {
-            useRaidRoomLiveStore.getState().dropDraftsOnMap(cleared);
-            if (
-              mapIdRef.current &&
-              raidPrepMapsEquivalent(cleared, mapIdRef.current)
-            ) {
-              setPendingMarks([]);
-            }
-          } else {
-            useRaidRoomLiveStore.getState().clearDrafts();
-            setPendingMarks([]);
-          }
-        }
-        if (payload.event === "reset") {
-          navigate(TARKOV_HOME_PATH);
-          return;
-        }
-        if (payload.event === "member_leave") {
-          const uid = Number(payload.user_id);
-          if (uid) useRaidRoomLiveStore.getState().dropFixUser(uid);
-          if (uid && uid === meIdRef.current) {
-            navigate(TARKOV_RAID_PREP_PATH);
-            return;
-          }
-        }
-        setRoom((current) =>
-          applyRoomWsEvent(current, payload, meIdRef.current),
-        );
-      };
-      ws.onclose = (event) => {
-        setWsLive(false);
-        if (stopped) return;
-        void refetchRoomRef.current();
-        const reason = raidRoomWsCloseReason(event.code);
-        if (reason) {
-          setWsStopReason(reason);
-          return;
-        }
-        retryTimer = window.setTimeout(() => {
-          connect();
-        }, raidRoomWsRetryDelayMs(retry));
-        retry += 1;
-      };
-    };
-
-    connect();
-    ping = window.setInterval(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ event: "ping" }));
-      }
-    }, RAID_ROOM_WS_PING_MS);
-    const onVisible = () => {
-      if (
-        document.visibilityState === "visible" &&
-        wsRef.current?.readyState === WebSocket.OPEN
-      ) {
-        wsRef.current.send(JSON.stringify({ event: "ping" }));
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      stopped = true;
-      document.removeEventListener("visibilitychange", onVisible);
-      window.clearInterval(ping);
-      window.clearTimeout(retryTimer);
-      setWsLive(false);
-      setWsStopReason("");
-      wsRef.current?.close();
-      wsRef.current = null;
-    };
-  }, [token, publicId, isMember, navigate]);
+  const clearPendingMarks = useCallback(() => setPendingMarks([]), []);
+  const {
+    wsRef,
+    wsGen,
+    wsLive,
+    wsStopReason,
+    logPhases,
+    logPhaseRoomRef,
+    sendLogPhase,
+  } = useRaidRoomSession({
+    publicId,
+    token,
+    isMember,
+    meId: me?.id,
+    mapIdRef,
+    setRoom,
+    refetch: () => void refetchRoomRef.current(),
+    clearPendingMarks,
+  });
 
   useEffect(() => {
-    lastLogPhaseSigRef.current = "";
     accountPhaseSigRef.current = "";
     accountPhaseReadyRef.current = false;
-    logPhaseRoomRef.current = "";
-    setLogPhases([]);
   }, [publicId]);
 
   useEffect(() => {
-    const ws = wsRef.current;
-    if (
-      !room?.is_member ||
-      !lastLogPhase ||
-      !wsLive ||
-      !ws ||
-      ws.readyState !== WebSocket.OPEN
-    ) {
-      return;
-    }
-    const sig = `${lastLogPhase.kind}:${lastLogPhase.raidId}:${lastLogPhase.at}:${wsGen}`;
-    if (lastLogPhaseSigRef.current === sig) return;
-    lastLogPhaseSigRef.current = sig;
-    ws.send(
-      JSON.stringify({
-        event: "log_phase",
-        kind: lastLogPhase.kind,
-        map_id: lastLogPhase.mapId,
-        map_label: lastLogPhase.mapLabel,
-        raid_id: lastLogPhase.raidId,
-        at: lastLogPhase.at,
-      }),
-    );
-  }, [lastLogPhase, room?.is_member, wsGen, wsLive]);
+    if (room?.is_member && lastLogPhase) sendLogPhase(lastLogPhase);
+  }, [lastLogPhase, room?.is_member, sendLogPhase]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1105,7 +915,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       writeRaidRoomViewMap(publicId, "");
       setViewMapId("");
     }
-  }, [logPhases, me?.id, publicId, room?.is_member]);
+  }, [logPhases, logPhaseRoomRef, me?.id, publicId, room?.is_member]);
 
   useEffect(() => {
     autoMapSigRef.current = "";

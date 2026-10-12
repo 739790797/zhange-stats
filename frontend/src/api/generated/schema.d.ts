@@ -2815,6 +2815,8 @@ export interface paths {
         /**
          * Get Tarkov Raid Room
          * @description 取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。
+         *
+         *     只读：过期座位回收改由节流的 prune 完成，这个接口不再写库（未登录也能打）。
          */
         get: operations["get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get"];
         put?: never;
@@ -3196,6 +3198,8 @@ export interface paths {
         /**
          * Guides Tarkov Item Catalog
          * @description 手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。
+         *
+         *     `layout=all` 不分页，一次返回筛选后的全量（供前端本地排序用，别再并发拉几十页）。
          */
         get: operations["guides_tarkov_item_catalog_api_guides_tarkov_items_get"];
         put?: never;
@@ -5144,6 +5148,23 @@ export interface paths {
          * @description 存活/就绪探测；数据库不通时 HTTP 503（编排器可摘流量）。未选库时 200 + setup。
          */
         get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/{full_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spa Fallback */
+        get: operations["spa_fallback__full_path__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14653,6 +14674,11 @@ export interface components {
             /** Occupants */
             occupants?: components["schemas"]["TarkovRaidRoomOccupantOut"][];
             /**
+             * Seq
+             * @default 0
+             */
+            seq: number;
+            /**
              * Is Host
              * @default false
              */
@@ -23626,6 +23652,7 @@ export interface operations {
                 q?: string | null;
                 page?: number;
                 page_size?: number;
+                layout?: string | null;
                 /** @description PVP（regular）或 PVE */
                 game_mode?: string;
             };
@@ -27895,6 +27922,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    spa_fallback__full_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                full_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -61,7 +61,11 @@ def _snapshot(public_id: str, user: User) -> dict[str, Any]:
                 public_id,
                 user,
                 online_user_ids=hub.online_user_ids(public_id),
+                # 座位回收走全进程节流，WS 重连也不会把回收变成写放大。
+                prune=rooms_svc.room_prune_due(),
             ),
+            key=public_id,
+            snapshot_read=True,
         )
     finally:
         db.close()

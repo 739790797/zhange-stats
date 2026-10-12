@@ -8422,7 +8422,7 @@
           "guides"
         ],
         "summary": "Get Tarkov Raid Room",
-        "description": "取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。",
+        "description": "取房间详情。未入座只返回标题、模式、人数、是否要密码，不含地图、查看图、棋盘与人员名单。\n\n只读：过期座位回收改由节流的 prune 完成，这个接口不再写库（未登录也能打）。",
         "operationId": "get_tarkov_raid_room_api_guides_tarkov_raid_rooms__public_id__get",
         "parameters": [
           {
@@ -10061,7 +10061,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Item Catalog",
-        "description": "手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。",
+        "description": "手册物品目录：按 handbook 分类 / types 过滤，分页返回（读 raw）。\n\n`layout=all` 不分页，一次返回筛选后的全量（供前端本地排序用，别再并发拉几十页）。",
         "operationId": "guides_tarkov_item_catalog_api_guides_tarkov_items_get",
         "parameters": [
           {
@@ -10134,6 +10134,24 @@
               "minimum": 1,
               "default": 50,
               "title": "Page Size"
+            }
+          },
+          {
+            "name": "layout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "table",
+              "title": "Layout"
             }
           },
           {
@@ -17386,6 +17404,43 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{full_path}": {
+      "get": {
+        "summary": "Spa Fallback",
+        "operationId": "spa_fallback__full_path__get",
+        "parameters": [
+          {
+            "name": "full_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Full Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -37096,6 +37151,11 @@
             },
             "type": "array",
             "title": "Occupants"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "default": 0
           },
           "is_host": {
             "type": "boolean",
