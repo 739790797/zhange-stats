@@ -305,7 +305,11 @@ function Install-PythonDeps {
   & $PythonExe -m pip install -r $req @lockArgs
   if ($LASTEXITCODE -ne 0) { throw "pip install -r requirements.txt failed" }
   # Screenshot OCR is retired: drop torch / easyocr / rapidocr / opencv left in old venvs (no-op when absent).
+  # Windows PowerShell 5 treats native stderr as a terminating error when $ErrorActionPreference is Stop.
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   & $PythonExe -m pip uninstall -y easyocr rapidocr torch torchvision opencv-python opencv-python-headless 2>&1 | Out-Null
+  $ErrorActionPreference = $prevEap
 }
 
 function Ensure-Venv {

@@ -214,7 +214,7 @@ export function formatLiveLogBackfillHint(
   sessionCount: number,
   kind: "incremental" | "backfill",
   delta: QuestProgressDelta,
-  extras?: { questEvents?: number },
+  extras?: { questEvents?: number; parsedQuests?: number },
 ): string {
   if (sessionCount <= 0) return "这个目录里没有启动记录。";
   let line = `${formatQuestSyncDeltaLine(kind, delta)}（${sessionCount} 次启动）`;
@@ -225,7 +225,9 @@ export function formatLiveLogBackfillHint(
     (delta.failed ?? 0) === 0
   ) {
     line +=
-      "。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）";
+      (extras.parsedQuests ?? 0) > 0
+        ? "。这些启动里的任务都早于回放下限，没有写回"
+        : "。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）";
   }
   return line;
 }

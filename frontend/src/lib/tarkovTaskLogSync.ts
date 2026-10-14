@@ -102,7 +102,7 @@ function earliestProfileAt(
 }
 
 /**
- * 转生会换 ProfileId。正在回放的如果是该模式最新角色，且和账上记的不是同一个，
+ * ProfileId 是这次选中的角色，不是转生。正在回放的如果是该模式最新角色，且和账上记的不是同一个，
  * 先清空再重放。回放更早的角色、或日志里只有这一个角色时保持合并。
  */
 export function questProfileResetPlan(input: {
@@ -160,8 +160,8 @@ export type ClearedQuestReplayPlan = {
 
 /**
  * 清空后再同步。
- * ProfileId 变了：从新角色第一次出现重放，转生前的日志不写回。
- * ProfileId 没变（转生常常不换 id）：从清空时刻起，更早的完成日志不写回。
+ * ProfileId 变了：从新角色第一次出现重放，换角色之前的日志不写回。
+ * ProfileId 没变：从清空时刻起，更早的完成日志不写回。转生不靠 ProfileId 判断。
  */
 export function planClearedQuestReplay(input: {
   gameMode: TarkovGameMode;

@@ -307,9 +307,10 @@ def clear_progress(
     game_mode: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """玩家点「清空进度」：清掉本模式完成 / 进行中 / 失败 / 小步骤，记下待定的清空时刻。
+    """玩家点「清空进度」：清掉本模式完成 / 进行中 / 失败 / 小步骤，记下待定的清空。
 
-    下一次带日志的同步把它定成回放下限（换了角色或识别出转生时取转生点，否则取清空时刻）。
+    下一次带日志的同步整表替换进度。已有回放下限就沿用，没有则从该角色第一次出现回放；
+    不把点击时刻抬成下限。要丢掉更早的日志，由玩家在同步日历里选定转生归档。
     """
     mode = _mode(game_mode)
     stamp = _stamp(now)
@@ -369,7 +370,8 @@ def apply_reset(
 ) -> dict[str, Any]:
     """推进回放下限（只增不减），并用本次日志回放结果整表替换本模式进度账。
 
-    reason=clear 时下限不早于待定的清空时刻；prestige / profile 可以早于清空（转生之后、清空之前打的任务保留）。
+    下限只相对已记下的 reset_at 只增不减。pending_clear_at 只表示账已清空、等这次同步定下限，
+    不把点击时刻抬成下限。prestige 是玩家选定的启动断点。
     """
     mode = _mode(game_mode)
     if reason not in RESET_REASONS:
@@ -385,8 +387,6 @@ def apply_reset(
     row = _reset_row(db, user.id, mode, create=True, lock=True)
     assert row is not None
     check_epoch(db, user.id, epoch, game_mode=mode)
-    if reason == "clear" and row.pending_clear_at is not None:
-        target = max(target, to_naive(row.pending_clear_at))
     current = to_naive(row.reset_at) if row.reset_at is not None else None
     if current is not None and target < current:
         raise TarkovTaskDonesError("回放下限不能早于已记下的清空 / 转生时刻", 409)
@@ -413,6 +413,31 @@ def apply_reset(
     # 整表替换拿掉的旧完成不另记标记：那是回放结果，不是玩家手动取消，记成「现在」会把
     # 别的设备上下限之后的真实完成也挡掉。
     _drop_cleared(db, user.id, mode, upto=target)
+    db.flush()
+    return task_boundary(db, user.id, game_mode=mode)
+
+
+def release_reset_floor(
+    db: Session,
+    user: User,
+    *,
+    game_mode: str | None = None,
+    epoch: int | None = None,
+) -> dict[str, Any]:
+    """取消转生归档：清掉回放下限，任务账保持不动。之后同步可以再读这段日志。
+
+    还有下限时必须带上当前 epoch，对不上就不动，避免旧页面清掉别处刚记下的下限。
+    已经没有下限时直接返回，重复点击也成功。
+    """
+    mode = _mode(game_mode)
+    row = _reset_row(db, user.id, mode, create=False, lock=True)
+    if row is None or row.reset_at is None:
+        return task_boundary(db, user.id, game_mode=mode)
+    check_epoch(db, user.id, epoch, game_mode=mode, required=True)
+    row.reset_at = None
+    row.reason = ""
+    row.epoch = int(row.epoch or 0) + 1
+    row.updated_at = _stamp()
     db.flush()
     return task_boundary(db, user.id, game_mode=mode)
 

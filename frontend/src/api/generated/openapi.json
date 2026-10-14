@@ -13634,7 +13634,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Clear",
-        "description": "清空进度：清掉当前模式全部任务进度，记下清空时刻。之后的日志同步不会把清空之前的任务写回。",
+        "description": "清空进度：清掉当前模式的任务账，并记下这次清空还没被同步定下来。\n\n下一次带日志的同步会按日志把任务补回来，不把点击时刻当成回放下限。\n要丢掉更早的日志，在同步日历里对某一局点「转生归档」。",
         "operationId": "guides_tarkov_task_dones_clear_api_guides_tarkov_task_dones_clear_post",
         "security": [
           {
@@ -13742,13 +13742,84 @@
         }
       }
     },
+    "/api/guides/tarkov/task-dones/reset/release": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Reset Release",
+        "description": "取消转生归档：清掉回放下限，任务进度保留。之后同步可以再读下限之前的日志。",
+        "operationId": "guides_tarkov_task_dones_reset_release_api_guides_tarkov_task_dones_reset_release_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expect_epoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "本页任务账基于的 reset_epoch；账号还有回放下限时必带，对不上回 409",
+              "title": "Expect Epoch"
+            },
+            "description": "本页任务账基于的 reset_epoch；账号还有回放下限时必带，对不上回 409"
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/task-dones/reset": {
       "post": {
         "tags": [
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Reset",
-        "description": "带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。\n\nreason：clear 兑现玩家的清空；prestige 日志里识别出同一角色转生；profile 日志里换了 ProfileId。",
+        "description": "带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。\n\nreason：clear 兑现玩家的清空（下限由这次同步给定，不抬到点击时刻）；prestige 玩家选定的启动断点；profile 日志里换了 ProfileId。",
         "operationId": "guides_tarkov_task_dones_reset_api_guides_tarkov_task_dones_reset_post",
         "security": [
           {

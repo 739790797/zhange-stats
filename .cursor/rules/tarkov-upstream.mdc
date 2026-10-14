@@ -11,6 +11,7 @@ alwaysApply: false
 ## 必须
 
 - 新栏目、新标点、新同步从 **maps/items/tasks 等 dump** 投影，locale 走同资源 `_zh`
+- 超过 4MiB 的 `raw_json` 以 `gz1:`（gzip 后再 base64）落库；读取走 `decode_raw_json` / `load_raw`，不要 `json.loads(row.raw_json)`
 - extras（技能 / 跳蚤 / 成就 / 容器目录等）从已下载 dump **抽出**，不另打 GraphQL
 - 任务 / 物品 / 制作在 **parse 前**与 `tarkov_overlay_raws`（[tarkov-data-overlay](https://github.com/MiwiDots/tarkov-data-overlay)，原 tarkovtracker-org 仓 2026-10 起匿名 404；`TARKOV_OVERLAY_URL` 可换源）内存合入，不改 json 各表、不落合并表
 - 互动地图底图仍用 `frontend/src/data/tarkov-dev-maps.json` + `assets.tarkov.dev`（SVG/瓦片）；容器格仓轮廓用 `frontend/src/data/tarkov-item-grids.json`。二者都是展示资源，不是图鉴 API

@@ -352,9 +352,9 @@ class TarkovUserTaskObjectiveDone(Base):
 class TarkovUserTaskReset(Base):
     """任务账的清空边界：清空进度 / 转生之后，早于 reset_at 的游戏日志不得再写回。
 
-    按 PVP/PVE 分开。reset_at 只增不减；profile_id 记下边界所属的游戏角色。
+    按 PVP/PVE 分开。reset_at 在同步时只增不减，取消归档可以清掉；profile_id 记下边界所属的游戏角色。
     pending_clear_at：玩家点了清空、还没被带日志的设备定下边界的时刻。
-    epoch：每次清空或推进边界加 1；带旧 epoch 的批量写入被拒，挡住别的标签页 / 设备把旧进度并回来。
+    epoch：每次清空、推进边界或取消归档加 1；带旧 epoch 的批量写入被拒，挡住别的标签页 / 设备把旧进度并回来。
     """
 
     __tablename__ = "tarkov_user_task_resets"

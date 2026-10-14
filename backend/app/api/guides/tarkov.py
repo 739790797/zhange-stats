@@ -2009,7 +2009,11 @@ def guides_tarkov_task_dones_clear(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """清空进度：清掉当前模式全部任务进度，记下清空时刻。之后的日志同步不会把清空之前的任务写回。"""
+    """清空进度：清掉当前模式的任务账，并记下这次清空还没被同步定下来。
+
+    下一次带日志的同步会按日志把任务补回来，不把点击时刻当成回放下限。
+    要丢掉更早的日志，在同步日历里对某一局点「转生归档」。
+    """
     task_dones_svc.clear_progress(db, user)
     db.commit()
     return _task_progress_out(db, user)
@@ -2035,6 +2039,30 @@ def guides_tarkov_task_dones_profile(
 
 
 @router.post(
+    "/task-dones/reset/release",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_reset_release(
+    expect_epoch: int | None = Query(
+        None,
+        ge=0,
+        description="本页任务账基于的 reset_epoch；账号还有回放下限时必带，对不上回 409",
+    ),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """取消转生归档：清掉回放下限，任务进度保留。之后同步可以再读下限之前的日志。"""
+    try:
+        task_dones_svc.release_reset_floor(db, user, epoch=expect_epoch)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return _task_progress_out(db, user)
+
+
+@router.post(
     "/task-dones/reset",
     response_model=TarkovTaskDonesOut,
     dependencies=[Depends(require_feature("guides.tarkov"))],
@@ -2046,7 +2074,7 @@ def guides_tarkov_task_dones_reset(
 ):
     """带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。
 
-    reason：clear 兑现玩家的清空；prestige 日志里识别出同一角色转生；profile 日志里换了 ProfileId。
+    reason：clear 兑现玩家的清空（下限由这次同步给定，不抬到点击时刻）；prestige 玩家选定的启动断点；profile 日志里换了 ProfileId。
     """
     try:
         task_dones_svc.apply_reset(

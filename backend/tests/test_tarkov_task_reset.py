@@ -90,8 +90,8 @@ def test_clear_survives_as_server_state_not_client_state() -> None:
     )
 
 
-def test_reset_clear_floor_never_earlier_than_pending_clear() -> None:
-    """同一角色清空：哪怕客户端算出更早的时刻，下限也不早于玩家点清空的那一刻。"""
+def test_reset_clear_floor_keeps_the_sync_time() -> None:
+    """清空只表示账先空着。这次同步给出的下限可以早于点击时刻，用来按日志把任务补回来。"""
     db = _session()
     user = _user(db)
     dones.clear_progress(db, user, game_mode="pvp", now=T_CLEAR)
@@ -108,15 +108,65 @@ def test_reset_clear_floor_never_earlier_than_pending_clear() -> None:
         objective_dones=[],
         game_mode="pvp",
     )
-    assert out["reset_at"] == "2026-10-13 15:00:00"
+    assert out["reset_at"] == "2026-06-01 10:00:00"
     assert out["pending_clear_at"] is None
     assert out["profile_id"] == "aa11"
     assert out["epoch"] == 2
     assert dones.list_task_ids(db, user.id, game_mode="pvp") == ["new-done"]
 
 
+def test_release_reset_floor_keeps_tasks() -> None:
+    """取消转生归档只清下限，不改任务账。"""
+    db = _session()
+    user = _user(db)
+    dones.apply_reset(
+        db,
+        user,
+        reset_at="2026-09-09 00:08:13",
+        profile_id="aa11",
+        reason="prestige",
+        epoch=0,
+        task_ids=["kept"],
+        started_ids=["going"],
+        failed_ids=[],
+        objective_dones=[],
+        game_mode="pvp",
+    )
+    out = dones.release_reset_floor(db, user, game_mode="pvp", epoch=1)
+    assert out["reset_at"] is None
+    assert out["epoch"] == 2
+    assert dones.list_task_ids(db, user.id, game_mode="pvp") == ["kept"]
+    again = dones.release_reset_floor(db, user, game_mode="pvp", epoch=0)
+    assert again["reset_at"] is None
+    assert again["epoch"] == 2
+
+
+def test_release_reset_floor_rejects_stale_epoch() -> None:
+    """旧页面的取消归档不能清掉别处刚记下的下限。"""
+    db = _session()
+    user = _user(db)
+    dones.apply_reset(
+        db,
+        user,
+        reset_at="2026-09-09 00:08:13",
+        profile_id="aa11",
+        reason="prestige",
+        epoch=0,
+        task_ids=["kept"],
+        started_ids=[],
+        failed_ids=[],
+        objective_dones=[],
+        game_mode="pvp",
+    )
+    with pytest.raises(dones.TarkovTaskDonesError) as raised:
+        dones.release_reset_floor(db, user, game_mode="pvp", epoch=0)
+    assert raised.value.status_code == 409
+    assert dones.task_boundary(db, user.id, game_mode="pvp")["reset_at"] == "2026-09-09 00:08:13"
+    assert dones.list_task_ids(db, user.id, game_mode="pvp") == ["kept"]
+
+
 def test_reset_prestige_may_precede_the_clear() -> None:
-    """识别出转生：下限取转生点；转生之后、清空之前打的任务保留。"""
+    """玩家选定的启动可以早于清空点击：下限取那次启动，之后的任务保留。"""
     db = _session()
     user = _user(db)
     dones.clear_progress(db, user, game_mode="pvp", now=T_CLEAR)

@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { TarkovLogPhasePayload, TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
+import type { TarkovLogPhasePayload, TarkovLogPreviewRaid, TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
 import type { QuestLogSyncReview } from "@/lib/tarkovTaskLogSync";
 import type { TarkovLogSyncOpts } from "@/lib/tarkovLogSyncRange";
 import type { TarkovScreenshotPos } from "@/lib/tarkovScreenshotPos";
@@ -30,7 +30,7 @@ export type TarkovLiveWatchValue = {
   logSyncScan: { done: number; total: number } | null;
   enableShots: () => Promise<void>;
   resume: () => Promise<void>;
-  /** 只列启动文件夹，不打开日志文件。 */
+  /** 读每次启动的 application.log，带上身份和战局；结束时间可能还空着。 */
   previewLogSessions: () => Promise<{
     ok: boolean;
     hint: string;
@@ -43,6 +43,15 @@ export type TarkovLiveWatchValue = {
     review?: QuestLogSyncReview;
   }>;
   cancelLogSync: () => void;
+  /** 账号上已记下的回放下限；没有则空字符串。 */
+  readQuestFloor: () => Promise<string>;
+  /** 补读这一次启动的通知日志，取该局结束时间。没有则空字符串。 */
+  resolveRaidEndedAt: (
+    folder: string,
+    raid: Pick<TarkovLogPreviewRaid, "raidId" | "startedAt">,
+  ) => Promise<string>;
+  /** 取消已写入账号的转生归档。 */
+  releaseQuestFloor: () => Promise<void>;
 };
 
 export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
@@ -67,12 +76,20 @@ export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
   previewLogSessions: async () => ({ ok: false, hint: "", sessions: [] }),
   syncLogs: async () => ({ ok: false, hint: "" }),
   cancelLogSync: () => undefined,
+  readQuestFloor: async () => "",
+  resolveRaidEndedAt: async () => "",
+  releaseQuestFloor: async () => undefined,
 };
 
 /** 日志回填按钮只关心这几项；与总 value 分开，免得 lastLogAt / 截图坐标一变就重绘备战页。 */
 export type TarkovLogSyncValue = Pick<
   TarkovLiveWatchValue,
-  "previewLogSessions" | "syncLogs" | "cancelLogSync"
+  | "previewLogSessions"
+  | "syncLogs"
+  | "cancelLogSync"
+  | "readQuestFloor"
+  | "resolveRaidEndedAt"
+  | "releaseQuestFloor"
 > & {
   busy: boolean;
   scan: { done: number; total: number } | null;
@@ -84,6 +101,9 @@ export const EMPTY_LOG_SYNC: TarkovLogSyncValue = {
   previewLogSessions: EMPTY_LIVE_WATCH.previewLogSessions,
   syncLogs: EMPTY_LIVE_WATCH.syncLogs,
   cancelLogSync: EMPTY_LIVE_WATCH.cancelLogSync,
+  readQuestFloor: async () => "",
+  resolveRaidEndedAt: async () => "",
+  releaseQuestFloor: async () => undefined,
 };
 
 export type TarkovLiveShotMeta = {

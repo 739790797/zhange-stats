@@ -96,7 +96,7 @@ export type TarkovTaskDonesState = {
   objectives?: { pvp?: TaskObjectivePair[]; pve?: TaskObjectivePair[] };
   /** 用户从已完成改走的任务 id → 北京墙钟；日志回放不得用更早的完成事件粘回去。 */
   clearedDone?: { pvp?: Record<string, string>; pve?: Record<string, string> };
-  /** 当前模式日志里的游戏 ProfileId。换 id（转生）后清空任务账再重放。 */
+  /** 当前模式日志里选中的游戏 ProfileId。用来认出是哪个角色，不是转生标记。 */
   questProfileId?: { pvp?: string; pve?: string };
   /** 转生清空已写本机、账号整表替换还没成功。这段时间以本机账为准。 */
   questProfileResetPending?: { pvp?: boolean; pve?: boolean };
@@ -1111,6 +1111,41 @@ export function taskProgressQueryData(
   };
 }
 
+type TaskDonesCacheFields = {
+  cleared?: ReadonlyArray<{ task_id?: string | null; cleared_at?: string | null }> | null;
+  reset_at?: string | null;
+  pending_clear_at?: string | null;
+  reset_profile_id?: string | null;
+  reset_epoch?: number | null;
+};
+
+/**
+ * 进度写回查询缓存时只盖完成 / 进行中 / 失败 / 小步骤。
+ * 取消记录和回放边界留在原缓存上；账号回包带了 cleared 时用回包换掉。
+ */
+export function overlayTaskProgressCache<T>(
+  prev: T,
+  progress: {
+    task_ids: string[];
+    started_ids: string[];
+    failed_ids: string[];
+    objective_dones: TaskObjectivePair[];
+  },
+  server?: TaskDonesCacheFields | null,
+): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    prev && typeof prev === "object" ? { ...(prev as Record<string, unknown>) } : {};
+  const next: Record<string, unknown> = { ...base, ...progress };
+  if (server && Array.isArray(server.cleared)) {
+    next.cleared = server.cleared;
+    next.reset_at = server.reset_at ?? null;
+    next.pending_clear_at = server.pending_clear_at ?? null;
+    next.reset_profile_id = server.reset_profile_id ?? "";
+    if (typeof server.reset_epoch === "number") next.reset_epoch = server.reset_epoch;
+  }
+  return next;
+}
+
 /** 进度账是冗余 id；目录里没有的（overlay disabled 等）只隐藏。catalog 空则原样。 */
 export function keepCatalogTaskProgress(
   doneIds: readonly string[],
@@ -1156,6 +1191,47 @@ export function clearedDoneAfter(
   return out;
 }
 
+/**
+ * 日志回放要认的取消记录。
+ * wipeAt 是记下的清空时刻，整表打上的那一笔不算逐条手动取消。
+ * server 为 null：缓存里没有账号取消列表，只用本机，不按「同一秒出现两次」猜测。
+ * server 有列表：以账号为准。本机多出来、且同一个时刻出现在两个以上任务上的，是旧版清空留下的，丢掉。
+ * 账号上同一秒取消的两个任务仍保留。
+ */
+export function clearedMarksForReplay(
+  local: ReadonlyMap<string, string>,
+  server: ReadonlyMap<string, string> | null,
+  wipeAt = "",
+): Map<string, string> {
+  const stamp = asClock(wipeAt);
+  const out = new Map<string, string>();
+  const put = (id: string, at: string) => {
+    if (!id || !at || (stamp && at === stamp)) return;
+    out.set(id, laterBeijingClock(out.get(id) || "", at));
+  };
+  if (server == null) {
+    for (const [id, at] of local) put(id, at);
+    return out;
+  }
+  for (const [id, at] of server) put(id, at);
+  const localOnly: Array<[string, string]> = [];
+  for (const [id, at] of local) {
+    if (!id || !at || (stamp && at === stamp)) continue;
+    if (server.has(id)) {
+      put(id, at);
+      continue;
+    }
+    localOnly.push([id, at]);
+  }
+  const counts = new Map<string, number>();
+  for (const [, at] of localOnly) counts.set(at, (counts.get(at) || 0) + 1);
+  for (const [id, at] of localOnly) {
+    if ((counts.get(at) || 0) >= 2) continue;
+    put(id, at);
+  }
+  return out;
+}
+
 export function loadQuestProfileId(mode: TarkovGameMode): string {
   return asProfileId(readState().questProfileId?.[mode]);
 }
@@ -1181,6 +1257,14 @@ export function loadQuestProgressFloor(mode: TarkovGameMode): string {
 }
 
 /** 本机缓存的回放下限只增不减：更早的时刻会把清空 / 转生之前的旧任务放回来。 */
+/** 取消转生归档：本机下限清掉，之后同步可以再读更早的日志。 */
+export function clearQuestProgressFloor(mode: TarkovGameMode): void {
+  const state = readState();
+  if (!state.questProgressFloor?.[mode]) return;
+  state.questProgressFloor = { ...state.questProgressFloor, [mode]: "" };
+  writeState(state);
+}
+
 export function saveQuestProgressFloor(mode: TarkovGameMode, at: string): void {
   const stamp = asClock(at);
   if (!stamp) return;
@@ -1278,7 +1362,7 @@ export function questLedgerIsStale(
 }
 
 /**
- * 以账号为准整份替换本模式本机账（别处清空 / 重置过）。清除标记取账号的，再留本机比账号下限更晚的。
+ * 以账号为准整份替换本模式本机账（别处清空 / 重置过）。取消标记也只留账号上的。
  */
 export function adoptServerTaskLedger(
   mode: TarkovGameMode,
@@ -1293,15 +1377,10 @@ export function adoptServerTaskLedger(
 ): void {
   const state = readState();
   const cleaned = cleanTaskProgress(data.done, data.started, data.failed);
-  const floor = asClock(data.boundary.resetAt);
   const modeCleared: Record<string, string> = {};
-  for (const [id, at] of Object.entries(state.clearedDone?.[mode] || {})) {
-    if (floor && compareBeijingClock(at, floor) <= 0) continue;
-    modeCleared[id] = at;
-  }
   for (const [id, at] of data.cleared) {
-    const prev = modeCleared[id] || "";
-    modeCleared[id] = laterBeijingClock(prev, at);
+    if (!id || !at) continue;
+    modeCleared[id] = at;
   }
   for (const id of cleaned.done) delete modeCleared[id];
   state[mode] = cleaned.done;
@@ -1358,29 +1437,17 @@ export function releaseClearedTasks(
 
 /**
  * 清空当前模式的任务账，并记下待同步的清空。
- * 下一次带日志的同步：识别出转生或换了角色就从那一刻回放，否则从清空时刻回放；
- * 定下来的下限写回账号（登录时），之后任何设备都不会把它之前的任务写回。
- * 本机的回放下限不在这里设：未登录时由同步定，登录时以账号为准。
+ * 完成、进行中、失败、小步骤和逐条取消标记都清掉，避免这些取消时间挡住之后的日志回放。
+ * 下限由随后的同步定。本机回放下限不在这里设：登录时以账号为准。
  */
 export function clearTaskProgressForResync(mode: TarkovGameMode): void {
   const state = readState();
   const stamp = nowBeijingStamp();
-  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
-  const wiped = new Set<string>([
-    ...asIdList(state[mode]),
-    ...asIdList(state.started?.[mode]),
-    ...asIdList(state.failed?.[mode]),
-  ]);
-  for (const taskId of wiped) {
-    const existing = modeCleared[taskId] || "";
-    modeCleared[taskId] =
-      existing && compareBeijingClock(existing, stamp) > 0 ? existing : stamp;
-  }
   state[mode] = [];
   state.started = { ...state.started, [mode]: [] };
   state.failed = { ...state.failed, [mode]: [] };
   state.objectives = { ...state.objectives, [mode]: [] };
-  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  state.clearedDone = { ...state.clearedDone, [mode]: {} };
   state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: true };
   state.questClearedAt = { ...state.questClearedAt, [mode]: stamp };
   state.questProfileResetPending = {
@@ -1476,7 +1543,7 @@ export function clearQuestProfileResetPending(mode: TarkovGameMode): void {
   writeState(state);
 }
 
-/** 转生换了 ProfileId：清掉本模式任务账，并用新角色出现的时刻挡住更早的完成日志。 */
+/** 换成另一个选中角色：清掉本模式任务账，并用新角色出现的时刻挡住更早的完成日志。不是转生。 */
 export function resetTaskProgressForProfile(
   mode: TarkovGameMode,
   profileId: string,

@@ -4113,7 +4113,10 @@ export interface paths {
         put?: never;
         /**
          * Guides Tarkov Task Dones Clear
-         * @description 清空进度：清掉当前模式全部任务进度，记下清空时刻。之后的日志同步不会把清空之前的任务写回。
+         * @description 清空进度：清掉当前模式的任务账，并记下这次清空还没被同步定下来。
+         *
+         *     下一次带日志的同步会按日志把任务补回来，不把点击时刻当成回放下限。
+         *     要丢掉更早的日志，在同步日历里对某一局点「转生归档」。
          */
         post: operations["guides_tarkov_task_dones_clear_api_guides_tarkov_task_dones_clear_post"];
         delete?: never;
@@ -4142,6 +4145,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/tarkov/task-dones/reset/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guides Tarkov Task Dones Reset Release
+         * @description 取消转生归档：清掉回放下限，任务进度保留。之后同步可以再读下限之前的日志。
+         */
+        post: operations["guides_tarkov_task_dones_reset_release_api_guides_tarkov_task_dones_reset_release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/tarkov/task-dones/reset": {
         parameters: {
             query?: never;
@@ -4155,7 +4178,7 @@ export interface paths {
          * Guides Tarkov Task Dones Reset
          * @description 带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。
          *
-         *     reason：clear 兑现玩家的清空；prestige 日志里识别出同一角色转生；profile 日志里换了 ProfileId。
+         *     reason：clear 兑现玩家的清空（下限由这次同步给定，不抬到点击时刻）；prestige 玩家选定的启动断点；profile 日志里换了 ProfileId。
          */
         post: operations["guides_tarkov_task_dones_reset_api_guides_tarkov_task_dones_reset_post"];
         delete?: never;
@@ -25379,6 +25402,40 @@ export interface operations {
                 "application/json": components["schemas"]["TarkovTaskProfileIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TarkovTaskDonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guides_tarkov_task_dones_reset_release_api_guides_tarkov_task_dones_reset_release_post: {
+        parameters: {
+            query?: {
+                /** @description 本页任务账基于的 reset_epoch；账号还有回放下限时必带，对不上回 409 */
+                expect_epoch?: number | null;
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

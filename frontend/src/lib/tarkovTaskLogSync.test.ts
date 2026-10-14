@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearedDoneAfter } from "./tarkovTaskTree";
+import { clearedDoneAfter, clearedMarksForReplay } from "./tarkovTaskTree";
 import {
   accountHasQuestState,
   applyQuestLogState,
@@ -889,6 +889,40 @@ describe("buildQuestLogSyncReview", () => {
         taskName: "惩罚者 - 1",
         change: "进行中→已完成",
       },
+    ]);
+  });
+
+  it("does not keep every row at 未完成 when a blanket clear stamped the ledger", () => {
+    const stamp = "2026-10-14 12:00:00";
+    const cleared = clearedMarksForReplay(
+      new Map([
+        ["t1", stamp],
+        ["t2", stamp],
+      ]),
+      new Map(),
+      "",
+    );
+    const rows = buildQuestLogSyncReview(
+      [
+        {
+          kind: "started",
+          taskId: "t1",
+          at: "2026-09-09 00:10:00",
+          line: "2026-09-09 00:10:00.000|x|Info|Got notification | ChatMessageReceived",
+        },
+        {
+          kind: "completed",
+          taskId: "t1",
+          at: "2026-09-09 00:20:00",
+          line: "2026-09-09 00:20:00.000|x|Info|Got notification | ChatMessageReceived",
+        },
+      ],
+      { done: [], started: [], failed: [] },
+      { items: [{ id: "t1", name: "惩罚者 - 1" }], clearedDone: cleared },
+    );
+    expect(rows.map((row) => row.change)).toEqual([
+      "未完成→进行中",
+      "进行中→已完成",
     ]);
   });
 });

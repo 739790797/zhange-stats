@@ -386,6 +386,94 @@ def test_persist_raw_keeps_synced_at_when_payload_unchanged(monkeypatch) -> None
     assert changed["synced_at"] == "2026-01-01T12:00:10"
 
 
+def test_pack_raw_json_leaves_small_payload_plain() -> None:
+    text = json.dumps({"data": {"ok": True}}, ensure_ascii=False)
+    assert upstream_svc._pack_raw_json(text) == text
+    assert upstream_svc._RAW_JSON_GZIP_MIN_BYTES <= upstream_svc._RAW_JSON_PACKET_BUDGET
+    assert upstream_svc._RAW_JSON_PACKET_BUDGET <= 12 * 1024 * 1024
+
+
+def test_persist_raw_roundtrips_compressed_json(monkeypatch) -> None:
+    """超过包预算的物品 dump 落成 gz1，读回仍是原对象；字节不变则不刷新 synced_at。"""
+    from datetime import datetime
+
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    monkeypatch.setattr(upstream_svc, "_RAW_JSON_GZIP_MIN_BYTES", 64)
+    ticks = iter(
+        [
+            datetime(2026, 10, 15, 1, 31, 30),
+            datetime(2026, 10, 15, 1, 32, 0),
+        ]
+    )
+    monkeypatch.setattr(upstream_svc, "now_naive", lambda: next(ticks))
+    db = _RawDb()
+    payload = {"data": {"items": {"a1": {"name": "手枪式握把" * 40}}}}
+    with game_mode_scope("pvp"):
+        first = upstream_svc.persist_raw(
+            db, "items", payload, source="json", note="n", changed=True
+        )
+        stored = _stored(db, "items")
+        assert stored.startswith("gz1:")
+        assert "手枪式握把" not in stored
+        assert upstream_svc.load_raw(db, "items") == payload
+        assert upstream_svc.decode_raw_json(json.dumps(payload, ensure_ascii=False)) == payload
+        assert upstream_svc.decode_raw_json("gz1:@@@@") is None
+        second = upstream_svc.persist_raw(db, "items", payload, source="json", note="n2")
+    assert second["synced_at"] == first["synced_at"]
+
+
+def test_pack_raw_json_refuses_packet_that_stays_oversized(monkeypatch) -> None:
+    monkeypatch.setattr(upstream_svc, "_RAW_JSON_GZIP_MIN_BYTES", 1)
+    monkeypatch.setattr(upstream_svc, "_RAW_JSON_PACKET_BUDGET", 8)
+    with pytest.raises(upstream_svc.TarkovUpstreamError, match="单包上限"):
+        upstream_svc._pack_raw_json("{" + ("x" * 40) + "}")
+
+
+def test_persist_site_json_keeps_other_files_when_one_raw_exceeds_packet(
+    monkeypatch,
+) -> None:
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    real = upstream_svc._pack_raw_json
+
+    def pack(text: str) -> str:
+        if "ONLY-ITEMS" in text:
+            raise upstream_svc.TarkovUpstreamError("图鉴 raw 超过数据库单包上限")
+        return real(text)
+
+    monkeypatch.setattr(upstream_svc, "_pack_raw_json", pack)
+    db = _RawDb()
+    dump = _sample_dump()
+    dump["items"] = {"data": {"items": {"a1": {"id": "ONLY-ITEMS"}}}}
+    with game_mode_scope("pvp"):
+        rows = upstream_svc.persist_site_json(db, dump)
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["dump:items"]["ok"] is False
+    assert "单包上限" in (by_id["dump:items"]["error"] or "")
+    assert by_id["dump:maps"]["ok"] is True
+    assert json.loads(_stored(db, "maps"))["data"]["maps"]["customs"]["normalizedName"] == "customs"
+
+
+def test_persist_site_json_commit_failure_stays_short() -> None:
+    from sqlalchemy.exc import OperationalError
+
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+
+    def boom() -> None:
+        raise OperationalError("UPDATE", {}, Exception(2006, "MySQL server has gone away"))
+
+    db.commit = boom  # type: ignore[method-assign]
+    db.rollback = lambda: None  # type: ignore[method-assign]
+    with (
+        game_mode_scope("pvp"),
+        pytest.raises(upstream_svc.TarkovUpstreamError, match="连接被断开"),
+    ):
+        upstream_svc.persist_site_json(db, _sample_dump())
+
+
 def test_persist_site_json_records_upstream_last_modified() -> None:
     from app.services.tarkov.game_mode import game_mode_scope
 

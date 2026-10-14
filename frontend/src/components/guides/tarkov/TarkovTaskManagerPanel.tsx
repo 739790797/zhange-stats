@@ -12,7 +12,6 @@ import {
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { TarkovTaskFlowBoard } from "@/components/guides/tarkov/TarkovTaskFlowBoard";
 import { apiError } from "@/lib/apiError";
-import { nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -37,11 +36,8 @@ import {
   clearedMapFromServer,
   questBoundaryFromServer,
 } from "@/lib/tarkovQuestBoundary";
-import { defaultLogSyncRange } from "@/lib/tarkovLogSyncRange";
-import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
 import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
-import { confirmTarkovQuestReset } from "@/lib/tarkovQuestResetConfirm";
 import {
   describeTaskMap,
   displayTaskProgressName,
@@ -59,7 +55,6 @@ import {
   resolveAccountTaskProgress,
   resolveTaskStatus,
   saveTaskProgress,
-  saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
   adoptServerTaskLedger,
@@ -68,6 +63,7 @@ import {
   taskIsAvailable,
   taskMatchesQuery,
   taskProgressQueryData,
+  overlayTaskProgressCache,
   TASK_STATUS_KINDS,
   TASK_STATUS_LABELS,
   type TaskProgressSummary,
@@ -300,7 +296,6 @@ export function TarkovTaskManagerPanel() {
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const { faction } = useTarkovPmcFaction();
   const logSync = useTarkovLogSyncDialog();
-  const live = useTarkovLiveWatch();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const trader = (searchParams.get("trader") || "").trim();
@@ -322,7 +317,6 @@ export function TarkovTaskManagerPanel() {
   doneIdsRef.current = doneIds;
   startedIdsRef.current = startedIds;
   failedIdsRef.current = failedIds;
-  const [saving, setSaving] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(() => loadTaskSyncAt(gameMode));
   const [flowHighlightTrader, setFlowHighlightTrader] = useState("");
   const [flowHighlightTask, setFlowHighlightTask] = useState("");
@@ -371,12 +365,16 @@ export function TarkovTaskManagerPanel() {
       );
       queryClient.setQueryData(
         ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(
-          cleaned.done,
-          cleaned.started,
-          objectives ?? loadTaskObjectivePairs(gameMode),
-          cleaned.failed,
-        ),
+        (prev) =>
+          overlayTaskProgressCache(
+            prev,
+            taskProgressQueryData(
+              cleaned.done,
+              cleaned.started,
+              objectives ?? loadTaskObjectivePairs(gameMode),
+              cleaned.failed,
+            ),
+          ),
       );
     },
     [gameMode, queryClient],
@@ -460,6 +458,20 @@ export function TarkovTaskManagerPanel() {
         data.objective_dones,
         payload.failed,
       );
+      if (Array.isArray(data.cleared)) {
+        queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+          overlayTaskProgressCache(
+            prev,
+            taskProgressQueryData(
+              payload.done,
+              payload.started,
+              data.objective_dones ?? loadTaskObjectivePairs(gameMode),
+              payload.failed,
+            ),
+            data,
+          ),
+        );
+      }
       const extras = ledgerIdsToClear(
         {
           done: data.task_ids,
@@ -829,51 +841,6 @@ export function TarkovTaskManagerPanel() {
     });
   };
 
-  const stampSync = () => {
-    const syncedAt = nowBeijingStamp();
-    const marked = saveTaskSyncMark(gameMode, syncedAt);
-    setLastSyncAt(marked.syncedAt);
-    notifyTarkovTaskProgress({
-      mode: gameMode,
-      done: doneIdsRef.current,
-      started: startedIdsRef.current,
-      failed: failedIdsRef.current,
-      syncedAt: marked.syncedAt,
-      changed: false,
-      source: "user",
-    });
-    return marked;
-  };
-
-  const saveProgress = () => {
-    if (saving || writeMut.isPending) return;
-    setSaving(true);
-    touchedRef.current = true;
-    applyProgress(
-      doneIdsRef.current,
-      startedIdsRef.current,
-      true,
-      false,
-      undefined,
-      failedIdsRef.current,
-    );
-    stampSync();
-    writeMut.mutate(
-      {
-        done: doneIdsRef.current,
-        started: startedIdsRef.current,
-        failed: failedIdsRef.current,
-        prevDone: doneIdsRef.current,
-        prevStarted: startedIdsRef.current,
-        prevFailed: failedIdsRef.current,
-      },
-      {
-        onSettled: () => setSaving(false),
-      },
-    );
-    message.success("已保存进度");
-  };
-
   if (catalogQuery.isLoading && !catalogQuery.data) {
     return (
       <div className={trade.status}>
@@ -1026,7 +993,7 @@ export function TarkovTaskManagerPanel() {
                         Modal.confirm({
                           title: "清空任务进度",
                           content:
-                            "会清掉当前模式下的已完成、进行中、失败和小步骤。清空记在账号上：之后不论换浏览器、登出再登录还是用战鸽助手同步，都不会把这次清空之前的任务再记回来。若日志里识别到转生或已换成新角色，则从那一刻开始。",
+                            "会清掉当前模式下的已完成、进行中、失败、小步骤和逐条取消记录。游戏日志里没有转生记录。之后同步会按日志把任务补回来；若要转生，在同步日历里对某一局点「转生归档」，从那一局结束之后重新解析。",
                           okText: "清空",
                           okButtonProps: { danger: true },
                           cancelText: "取消",
@@ -1069,26 +1036,11 @@ export function TarkovTaskManagerPanel() {
                               Modal.confirm({
                                 title: "同步任务",
                                 content:
-                                  "进度已清空。要现在同步吗？同一个角色只会计清空之后新打的任务；日志里识别到转生或换了角色的话，从那一刻开始。",
-                                okText: "同步",
+                                  "进度已清空。要现在打开同步日历吗？不对某一局点「转生归档」的话，同步会按日志把任务补回来，不会把刚才的点击时刻当成起点。",
+                                okText: "去选启动",
                                 cancelText: "稍后",
                                 onOk: () => {
-                                  void live
-                                    .syncLogs({
-                                      ...defaultLogSyncRange(),
-                                      confirmReset: confirmTarkovQuestReset,
-                                    })
-                                    .then((result) => {
-                                      if (
-                                        result.review?.rows.length ||
-                                        result.review?.dropHint
-                                      ) {
-                                        return;
-                                      }
-                                      if (!result.hint) return;
-                                      if (result.ok) message.success(result.hint);
-                                      else message.error(result.hint);
-                                    });
+                                  void logSync.openDialog();
                                 },
                               });
                             }, 0);
@@ -1101,17 +1053,7 @@ export function TarkovTaskManagerPanel() {
                   </td>
                 </tr>
                 <tr>
-                  <td>
-                    <button
-                      type="button"
-                      className={styles.saveBtn}
-                      disabled={saving}
-                      onClick={saveProgress}
-                    >
-                      {saving ? "正在保存…" : "保存进度"}
-                    </button>
-                  </td>
-                  <td>
+                  <td colSpan={2}>
                     <button
                       type="button"
                       className={styles.syncBtn}

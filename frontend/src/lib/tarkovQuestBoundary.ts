@@ -1,15 +1,15 @@
 /**
- * 任务账的日志回放边界：清空进度 / 转生 / 换角色之后，从哪一刻起回放游戏日志。
+ * 任务账的日志回放边界：清空进度或玩家选定转生起点之后，从哪一刻起回放游戏日志。
  *
  * 边界的权威在账号（`GET …/task-dones` 的 reset_at / pending_clear_at / reset_profile_id / reset_epoch）。
  * 本机 localStorage 只做缓存与访客兜底，登出、换浏览器、战鸽助手都读同一份服务端边界。
  *
- * 游戏日志里没有「转生」事件（TarkovMonitor 也只认 ProfileId），同一 ProfileId 的转生只能推断：
- * 图鉴里的非重复任务已经完成过，之后又收到「开始」，说明进度被重置了。
+ * 游戏日志里没有转生事件。`SelectProfile` 的 ProfileId 只说明这次启动选的是哪个角色，
+ * 转生不会另写一个 ProfileId。新起点只能由玩家在同步日历里对某一局点「转生归档」。
  */
 
 import type { TarkovGameMode } from "@/lib/tarkovGameMode";
-import type { TarkovLogIdentity, TarkovLogQuestEvent } from "@/lib/tarkovGameLogs";
+import type { TarkovLogIdentity } from "@/lib/tarkovGameLogs";
 import { breakpointMatchesGameMode } from "@/lib/tarkovLogBreakpoints";
 import { compareBeijingClock, laterBeijingClock, parseBeijing } from "@/lib/time";
 
@@ -24,9 +24,6 @@ export type QuestBoundary = {
 };
 
 export type QuestResetReason = "clear" | "prestige" | "profile";
-
-/** 同一转生至少要这么多个不同任务「完成后又开始」才认。单个任务可能是日志噪声。 */
-export const PRESTIGE_MIN_TASKS = 2;
 
 export function emptyQuestBoundary(): QuestBoundary {
   return { resetAt: "", pendingClearAt: "", profileId: "", epoch: 0 };
@@ -117,107 +114,6 @@ function before(a: string, b: string): boolean {
   return compareBeijingClock(a, b) < 0;
 }
 
-export type QuestPrestigeCatalog = {
-  knownIds?: ReadonlySet<string>;
-  restartableIds: ReadonlySet<string>;
-};
-
-export type QuestPrestige = {
-  /** 回放下限：转生点（最后一次旧进度之后、第一次「完成后又开始」之前的那次选角）。 */
-  at: string;
-  /** 第一次「完成后又开始」的时刻。 */
-  startedAt: string;
-  taskIds: string[];
-};
-
-type Regression = { id: string; at: string; undoneAt: string };
-
-/**
- * 在同一 ProfileId 的任务事件里找最近一次转生。只看日志，不看账号：
- * 网站上先勾了完成、进游戏才接任务很常见，拿账号当「之前完成过」会把正常游玩误判成转生、整账清掉。
- * - 只看图鉴里有、且不可重开的任务（每日 / 每周不在图鉴里，可重开任务本来就能再开）；
- * - 日志里「完成（或不可重开的失败）之后又开始」记一次回退；
- * - 回退按转生分组：被撤销的那次完成早于本组第一次回退，就算同一次转生；
- * - 取最近一组达到 minTasks 的；下限取组内第一次回退之前、最后一次旧完成之后的最近一次选角，没有就取第一次回退本身。
- */
-export function detectQuestPrestige(input: {
-  events: readonly TarkovLogQuestEvent[];
-  identities: readonly TarkovLogIdentity[];
-  gameMode: TarkovGameMode;
-  profileId: string;
-  catalog: QuestPrestigeCatalog;
-  floor?: string;
-  minTasks?: number;
-}): QuestPrestige | null {
-  const known = input.catalog.knownIds;
-  if (!known?.size) return null;
-  const restartable = input.catalog.restartableIds;
-  const profileId = (input.profileId || "").trim();
-  if (!profileId) return null;
-  const floor = (input.floor || "").trim();
-  const minTasks = Math.max(1, input.minTasks ?? PRESTIGE_MIN_TASKS);
-
-  const state = new Map<string, { kind: TarkovLogQuestEvent["kind"]; at: string }>();
-  const ordered = [...input.events]
-    .filter((event) => {
-      if ((event.profileId || "").trim() && event.profileId !== profileId) return false;
-      if (floor && before(event.at || "", floor)) return false;
-      return true;
-    })
-    .sort((a, b) => compareBeijingClock(a.at || "", b.at || ""));
-
-  const regressions: Regression[] = [];
-  for (const event of ordered) {
-    const id = (event.taskId || "").trim().toLowerCase();
-    if (!id || !known.has(id) || restartable.has(id)) continue;
-    const prev = state.get(id);
-    if (
-      event.kind === "started" &&
-      prev &&
-      (prev.kind === "completed" || prev.kind === "failed")
-    ) {
-      regressions.push({ id, at: event.at || "", undoneAt: prev.at });
-    }
-    state.set(id, { kind: event.kind, at: event.at || "" });
-  }
-  if (!regressions.length) return null;
-
-  type Cluster = { startAt: string; lastUndone: string; ids: Set<string> };
-  const clusters: Cluster[] = [];
-  for (const row of regressions) {
-    const current = clusters[clusters.length - 1];
-    if (current && before(row.undoneAt, current.startAt)) {
-      current.ids.add(row.id);
-      current.lastUndone = laterBeijingClock(current.lastUndone, row.undoneAt);
-      continue;
-    }
-    clusters.push({ startAt: row.at, lastUndone: row.undoneAt, ids: new Set([row.id]) });
-  }
-  let chosen: Cluster | null = null;
-  for (let i = clusters.length - 1; i >= 0; i -= 1) {
-    if (clusters[i].ids.size >= minTasks) {
-      chosen = clusters[i];
-      break;
-    }
-  }
-  if (!chosen) return null;
-
-  let at = "";
-  for (const row of input.identities) {
-    if ((row.profileId || "").trim() !== profileId) continue;
-    if (!breakpointMatchesGameMode(row, input.gameMode)) continue;
-    const rowAt = (row.at || "").trim();
-    if (!rowAt || before(chosen.startAt, rowAt)) continue;
-    if (chosen.lastUndone && !before(chosen.lastUndone, rowAt)) continue;
-    if (!at || before(at, rowAt)) at = rowAt;
-  }
-  return {
-    at: at || chosen.startAt,
-    startedAt: chosen.startAt,
-    taskIds: [...chosen.ids].sort(),
-  };
-}
-
 export type QuestReplayPlan = {
   profileId: string;
   /** 回放下限；空 = 从该角色全部日志。 */
@@ -225,12 +121,8 @@ export type QuestReplayPlan = {
   /** true：用本次回放结果整表替换账号进度，并把下限写到服务端。false：在现有进度上增量合并。 */
   reset: boolean;
   reason: QuestResetReason | null;
-  /**
-   * 重置只是推断出来的（日志猜转生；账号不知道旧 ProfileId、日志里另有角色），玩家也没点清空：
-   * 整表重置不可撤销，要先问。不答应就按 resetAt 增量合并。
-   */
+  /** 保留给调用方；转生不再靠推断，玩家勾选断点时这里是 false。 */
   confirm: boolean;
-  prestige: QuestPrestige | null;
 };
 
 function firstSighting(
@@ -261,88 +153,43 @@ function latestProfile(
   return (found?.profileId || "").trim();
 }
 
-function hasOtherProfile(
-  identities: readonly TarkovLogIdentity[],
-  gameMode: TarkovGameMode,
-  profileId: string,
-): boolean {
-  return identities.some((row) => {
-    const id = (row.profileId || "").trim();
-    return Boolean(id) && id !== profileId && breakpointMatchesGameMode(row, gameMode);
-  });
-}
-
 /**
  * 决定这次同步从哪一刻回放、要不要整表替换账号进度。
  *
- * 规则（下限只增不减，永远不早于服务端 resetAt）：
- * - 玩家点过清空（pendingClearAt）：有转生 / 明确换角色的证据就取证据时刻（保留转生之后、清空之前打的任务），
- *   否则取清空时刻。账号上不知道旧 ProfileId 时，日志里的别的角色不算换角色——那可能是上个赛季的号，
- *   拿它的首次出现当下限会把同一角色转生前的任务全放回来。
- * - 没点清空：识别出转生、或换了角色（账号记的 ProfileId 不同；账号没记而日志里有别的角色也算）就整表重置；
- *   否则从 resetAt 起增量合并。
+ * 下限只增不减，不早于服务端 resetAt。日志里没有转生，ProfileId 也不代表转生。
+ * - restartAt：玩家在日历里把某一局标成转生归档之后的时刻（该局本身不写回）。晚于已有下限才整表替换，reason=prestige。
+ * - 只点过清空、没有新断点：从该角色第一次出现（或已有下限）回放，reason=clear。
+ *   不用点击时刻当下限，否则清空之后立刻同步会把历史任务全部丢掉。
+ * - 其余：从 resetAt 起增量合并。
  */
 export function planQuestReplay(input: {
   gameMode: TarkovGameMode;
   identities: readonly TarkovLogIdentity[];
-  events: readonly TarkovLogQuestEvent[];
   boundary: QuestBoundary;
-  catalog: QuestPrestigeCatalog;
+  restartAt?: string;
 }): QuestReplayPlan | null {
   const profileId = latestProfile(input.identities, input.gameMode);
   if (!profileId) return null;
   const { resetAt, pendingClearAt } = input.boundary;
-  const known = (input.boundary.profileId || "").trim();
-  const sighted = firstSighting(input.identities, input.gameMode, profileId);
-  const explicitSwitch = Boolean(known) && known !== profileId;
-  const implicitSwitch =
-    !known && hasOtherProfile(input.identities, input.gameMode, profileId);
-
-  const prestige = detectQuestPrestige({
-    events: input.events,
-    identities: input.identities,
-    gameMode: input.gameMode,
-    profileId,
-    catalog: input.catalog,
-    floor: resetAt,
-  });
-
-  /** inferred：只是推断（猜转生；账号不知道旧角色、日志里另有角色），整表重置前要问。 */
-  type Evidence = { at: string; reason: QuestResetReason; inferred: boolean };
-  const evidence: Evidence[] = [];
-  if (prestige?.at) {
-    evidence.push({ at: clockToSecond(prestige.at), reason: "prestige", inferred: true });
-  }
-  if (sighted && (explicitSwitch || (implicitSwitch && !pendingClearAt))) {
-    evidence.push({ at: clockToSecond(sighted), reason: "profile", inferred: !explicitSwitch });
-  }
-  let latest: Evidence | null = null;
-  for (const row of evidence) {
-    if (!latest || before(latest.at, row.at)) latest = row;
-  }
-  if (latest && resetAt && !before(resetAt, latest.at)) latest = null;
-
-  if (pendingClearAt) {
-    // 玩家点过清空，整表重置是他要的；证据只决定从哪一刻起，不用再问
-    const pick = latest || { at: pendingClearAt, reason: "clear" as const };
+  const restartAt = clockToSecond((input.restartAt || "").trim());
+  if (restartAt && (!resetAt || before(resetAt, restartAt))) {
     return {
       profileId,
-      fromAt: laterBeijingClock(pick.at, resetAt),
+      fromAt: laterBeijingClock(restartAt, resetAt),
       reset: true,
-      reason: pick.reason,
+      reason: "prestige",
       confirm: false,
-      prestige,
     };
   }
-  if (latest) {
+  if (pendingClearAt) {
+    const sighted = firstSighting(input.identities, input.gameMode, profileId);
     return {
       profileId,
-      fromAt: laterBeijingClock(latest.at, resetAt),
+      fromAt: resetAt || sighted,
       reset: true,
-      reason: latest.reason,
-      confirm: latest.inferred,
-      prestige,
+      reason: "clear",
+      confirm: false,
     };
   }
-  return { profileId, fromAt: resetAt, reset: false, reason: null, confirm: false, prestige };
+  return { profileId, fromAt: resetAt, reset: false, reason: null, confirm: false };
 }

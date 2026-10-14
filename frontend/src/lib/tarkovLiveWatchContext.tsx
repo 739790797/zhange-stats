@@ -12,6 +12,7 @@ import {
   fetchTarkovTasks,
   importTarkovRaidLogs,
   recordTarkovTaskProfile,
+  releaseTarkovTaskReset,
   resetTarkovTaskProgress,
   writeTaskProgressLedger,
   type TarkovTaskDones,
@@ -84,6 +85,7 @@ import {
   latestIdentityForMode,
   sessionStubMatchesBreakpoint,
 } from "@/lib/tarkovLogBreakpoints";
+import { launchOverlapsArchive, previewRaidsFromParsed } from "@/lib/tarkovLogSyncCalendar";
 import {
   loadOfflineMapId,
   resolveOfflineLogMapId,
@@ -117,11 +119,12 @@ import {
 } from "@/lib/tarkovLiveWatchContexts";
 import { parseTarkovScreenshotName } from "@/lib/tarkovScreenshotPos";
 import { keepLogPhase } from "@/lib/tarkovStableValues";
-import { formatBeijing, laterBeijingClock, nowBeijingStamp } from "@/lib/time";
+import { compareBeijingClock, formatBeijing, laterBeijingClock, nowBeijingStamp } from "@/lib/time";
 import { useTarkovGameMode, type TarkovGameMode } from "@/lib/tarkovGameMode";
 import {
   adoptQuestBoundary,
   adoptServerTaskLedger,
+  clearQuestProgressFloor,
   applyQuestReplayReset,
   loadTabQuestEpoch,
   questLedgerIsStale,
@@ -132,6 +135,8 @@ import {
   loadTaskObjectivePairs,
   loadTaskStartedIds,
   clearedDoneAfter,
+  clearedMarksForReplay,
+  loadQuestClearedAt,
   loadTaskClearedDone,
   loadQuestProfileId,
   loadQuestProfileResetPending,
@@ -144,6 +149,7 @@ import {
   saveTaskProgress,
   saveTaskSyncMark,
   taskProgressQueryData,
+  overlayTaskProgressCache,
   unionTaskProgress,
   ledgerIdsToClear,
 } from "@/lib/tarkovTaskTree";
@@ -454,18 +460,17 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         source: "log",
       });
       if (!write) return;
-      const cached = queryClient.getQueryData([TASK_DONES_QUERY_KEY, mode]);
-      if (cached) {
-        queryClient.setQueryData(
-          [TASK_DONES_QUERY_KEY, mode],
-          taskProgressQueryData(
-            next.done,
-            next.started,
-            loadTaskObjectivePairs(mode),
-            next.failed,
-          ),
-        );
-      }
+      const progressPatch = taskProgressQueryData(
+        next.done,
+        next.started,
+        loadTaskObjectivePairs(mode),
+        next.failed,
+      );
+      queryClient.setQueryData([TASK_DONES_QUERY_KEY, mode], (prev) =>
+        prev && typeof prev === "object"
+          ? overlayTaskProgressCache(prev, progressPatch)
+          : prev,
+      );
       if (opts?.put === false) return;
       void writeTaskProgressLedger(
         {
@@ -513,13 +518,16 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             objectives,
             cleaned.failed,
           );
-          queryClient.setQueryData(
-            [TASK_DONES_QUERY_KEY, mode],
-            taskProgressQueryData(
-              cleaned.done,
-              cleaned.started,
-              objectives,
-              cleaned.failed,
+          queryClient.setQueryData([TASK_DONES_QUERY_KEY, mode], (prev) =>
+            overlayTaskProgressCache(
+              prev,
+              taskProgressQueryData(
+                cleaned.done,
+                cleaned.started,
+                objectives,
+                cleaned.failed,
+              ),
+              data,
             ),
           );
           notifyTarkovTaskProgress({
@@ -872,6 +880,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           parsed: row.parsed,
         }));
         const mode = gameModeRef.current;
+        // 清空还没被玩家选的启动定下来。轮询不写任务，避免把点击时刻当成回放下限。
+        if (loadQuestSyncFromLatest(mode)) return;
         const polledProfile = (
           latestIdentityForMode(
             sessionRows.flatMap((row) => identitiesFromParsed(row.parsed, row.folder)),
@@ -879,11 +889,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           )?.profileId || ""
         ).trim();
         const knownProfile = loadQuestProfileId(mode);
-        // 待兑现的清空，或日志里换了角色 / 头一次见到角色：交给完整同步（读账号边界、识别换角色、写回账号）。
-        // 失败就隔一阵再试；等待期间不做增量合并（边界没定下来，合并可能把清空前的任务写回去）。
-        const needsFullSync =
-          loadQuestSyncFromLatest(mode) ||
-          (Boolean(polledProfile) && polledProfile !== knownProfile);
+        // 日志里换了角色 / 头一次见到角色：交给完整同步，记下 ProfileId。转生不在这里猜。
+        const needsFullSync = Boolean(polledProfile) && polledProfile !== knownProfile;
         if (needsFullSync) {
           const key = `${mode}|${polledProfile}`;
           const retryAt = fullSyncRetryAtRef.current.get(key) || 0;
@@ -1059,9 +1066,11 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       for (const stub of sessions) {
         const read = await readSessionApplicationLogs(ready.handle, stub.folder, historyCache);
         const parsed = parseTarkovLogBundle(read.files);
+        const identities = identitiesFromParsed(parsed, stub.folder);
         withIdentities.push({
           ...sessionStubInBeijing(stub, parsed),
-          identities: identitiesFromParsed(parsed, stub.folder),
+          identities,
+          raids: previewRaidsFromParsed(parsed, identities),
         });
         scanned += 1;
         if (scanned % 8 === 0) await yieldLogSyncQueue();
@@ -1076,6 +1085,55 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       return { ok: false, hint: text, sessions: [] };
     }
   }, [ensureLogsHandle]);
+
+  const readQuestFloor = useCallback(async (): Promise<string> => {
+    const boundary = await loadQuestBoundary(gameModeRef.current);
+    return boundary?.resetAt || "";
+  }, [loadQuestBoundary]);
+
+  const resolveRaidEndedAt = useCallback(
+    async (
+      folder: string,
+      raid: { raidId?: string; startedAt?: string },
+    ): Promise<string> => {
+      const ready = await ensureLogsHandle();
+      if (!ready.ok) return "";
+      try {
+        const read = await readSessionLogs(ready.handle, folder);
+        const parsed = parseTarkovLogBundle(read.files);
+        const wantId = (raid.raidId || "").trim();
+        const wantStart = (raid.startedAt || "").trim();
+        const hit = (parsed.raids || []).find((row) => {
+          if (wantId && row.raidId === wantId) return true;
+          return Boolean(wantStart) && (row.startedAt || "") === wantStart;
+        });
+        return (hit?.endedAt || "").trim();
+      } catch {
+        return "";
+      }
+    },
+    [ensureLogsHandle],
+  );
+
+  const releaseQuestFloor = useCallback(async () => {
+    const mode = gameModeRef.current;
+    if (!loggedInRef.current) {
+      clearQuestProgressFloor(mode);
+      return;
+    }
+    const data = await releaseTarkovTaskReset(mode);
+    adoptServerTaskLedger(mode, {
+      done: data.task_ids || [],
+      started: data.started_ids || [],
+      failed: data.failed_ids || [],
+      objectives: data.objective_dones || [],
+      cleared: clearedMapFromServer(data.cleared),
+      boundary: questBoundaryFromServer(data),
+    });
+    // 账号边界只把下限往后挪。取消成功后再清本机，失败时本机下限还在。
+    clearQuestProgressFloor(mode);
+    queryClient.setQueryData([TASK_DONES_QUERY_KEY, mode], data);
+  }, [queryClient]);
 
   const cancelLogSync = useCallback(() => {
     syncAbortRef.current?.abort();
@@ -1120,7 +1178,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             catalogRef.current = buildQuestLogCatalog(data.items || []);
             if (data.items?.length) catalogItemsRef.current = data.items;
           } catch {
-            /* 无图鉴时仍回放，失败一律记 failed；没有图鉴也就不猜转生 */
+            /* 无图鉴时仍回放，失败一律记 failed */
           }
         }
         const mode = gameModeRef.current;
@@ -1133,15 +1191,24 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         if (abort.signal.aborted) return { ok: false, hint: "已取消同步。" };
         const historyCache = createTarkovLogReadCache();
         const { sessions } = await readLogsIndex(handle, historyCache);
-        // 身份与任务事件一律读全部启动记录：换角色 / 转生 / 清空要整表重置时，必须拿完整历史回放，
-        // 只用所选几天的日志重置会把更早的正常进度永远挡在下限之外。所选日期与断点只用来筛增量回放。
-        const clearing = Boolean(boundary.pendingClearAt);
-        const pickedRange = clearing
-          ? defaultLogSyncRange()
-          : opts?.from && opts?.to
-            ? opts
-            : defaultLogSyncRange();
-        const breakpoint = clearing ? undefined : pickedRange.breakpoint;
+        // 身份与任务事件读全部启动记录。日期和断点只决定这次回放从哪次启动起算。
+        const pickedRange = opts?.from && opts?.to ? opts : defaultLogSyncRange();
+        const breakpoint = pickedRange.breakpoint;
+        if (opts?.restart) {
+          const restartAt = (breakpoint?.at || "").trim();
+          if (!restartAt) {
+            return { ok: false, hint: "请先在日历里选一局作为转生归档。" };
+          }
+          if (
+            boundary.resetAt &&
+            compareBeijingClock(boundary.resetAt, restartAt) >= 0
+          ) {
+            return {
+              ok: false,
+              hint: "这次启动不晚于已记下的进度起点，更早的任务不能再写回。",
+            };
+          }
+        }
         const ranged = takeSessionStubs(sessions, 0);
         // 先读每次启动的身份，再整段读一遍任务事件：转生识别要看下限之前的完成
         const considered: Array<{
@@ -1172,6 +1239,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         const latestSeen = (
           latestIdentityForMode(seenIdentities, mode)?.profileId || ""
         ).trim();
+        const clearing = Boolean(boundary.pendingClearAt);
         if (!latestSeen) {
           return {
             ok: clearing ? false : true,
@@ -1188,27 +1256,38 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             hint: "这份启动记录不是当前角色。任务进度仍按当前角色保留，请改选最新的那条启动记录。",
           };
         }
-        const targets = considered
+        const profileRows = considered
           .filter((row) => sessionHasProfile(row.identities, latestSeen, mode))
-          .filter((row) =>
-            sessionStubMatchesBreakpoint(
+          .sort((a, b) =>
+            (a.stub.startedAt || a.stub.folder).localeCompare(
+              b.stub.startedAt || b.stub.folder,
+            ),
+          );
+        const archiveFloor = laterBeijingClock(
+          opts?.restart ? breakpoint?.at || "" : "",
+          boundary.resetAt || "",
+        );
+        const targets = profileRows
+          .filter((row, index) => {
+            if (archiveFloor) {
+              return launchOverlapsArchive(
+                row.stub.startedAt || "",
+                profileRows[index + 1]?.stub.startedAt || "",
+                archiveFloor,
+              );
+            }
+            return sessionStubMatchesBreakpoint(
               { ...row.stub, identities: row.identities },
               breakpoint,
-            ),
-          )
-          .map((row) => row.stub)
-          .sort((a, b) =>
-            (a.startedAt || a.folder).localeCompare(b.startedAt || b.folder),
-          );
+            );
+          })
+          .map((row) => row.stub);
 
-        // 当前角色的全部任务事件（不截下限），用来识别同一 ProfileId 的转生
-        const profileFilter: QuestReplayFilter = { gameMode: mode, profileId: latestSeen };
         const parsedTargets: Array<{
           folder: string;
           parsed: ReturnType<typeof parseTarkovLogBundle>;
           fileTimes: number[];
         }> = [];
-        const allEvents: TarkovLogQuestEvent[] = [];
         const newestFolder = sessions[0]?.folder || "";
         setLogSyncScan({ done: 0, total: targets.length });
         let processed = 0;
@@ -1222,7 +1301,6 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             parsed,
             fileTimes: read.files.map((file) => file.lastModified),
           });
-          allEvents.push(...questsMatchingReplay(parsed, profileFilter));
           processed += 1;
           setLogSyncScan({ done: processed, total: targets.length });
           await yieldLogSyncQueue();
@@ -1236,21 +1314,20 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         let plan = planQuestReplay({
           gameMode: mode,
           identities: seenIdentities,
-          events: allEvents,
           boundary,
-          catalog: catalogRef.current,
+          restartAt: opts?.restart ? breakpoint?.at : "",
         });
         if (!plan) {
           return { ok: false, hint: "日志里还没有读到当前角色，任务进度保持清空。" };
         }
-        // 只是推断出来的重置（猜转生 / 账号不知道旧角色），玩家也没点清空：整表重置不可撤销，先问；
+        // 旧路径里推断出来的重置会先问。玩家勾选的转生断点 confirm 为 false，不会进这里。
         // 轮询（没有 confirmReset）或玩家说不是，就当普通增量同步
         if (plan.reset && plan.confirm && plan.reason && plan.reason !== "clear") {
           const yes = opts?.confirmReset
             ? await opts.confirmReset({
                 reason: plan.reason,
                 at: plan.fromAt,
-                taskCount: plan.prestige?.taskIds.length || 0,
+                taskCount: 0,
               })
             : false;
           if (abort.signal.aborted) return { ok: false, hint: "已取消同步。" };
@@ -1283,6 +1360,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
 
         let folded: Map<string, FoldedQuestEntry> = new Map();
         let questEvents = 0;
+        let parsedQuests = 0;
         const raidRows: TarkovRaidLogImportRow[] = [];
         const reviewEvents: TarkovLogQuestEvent[] = [];
         const reviewDrops: TarkovLogQuestDrop[] = [];
@@ -1292,6 +1370,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           const step = foldSessionQuests(folded, row.parsed, filter);
           folded = step.next;
           questEvents += step.eventCount;
+          parsedQuests += row.parsed.quests?.length || 0;
           reviewEvents.push(...questsMatchingReplay(row.parsed, filter));
           reviewDrops.push(...collectQuestReplayDrops(row.parsed, filter));
           raidRows.push(...toRaidLogImportRows([{ folder: row.folder, parsed: row.parsed }]));
@@ -1316,6 +1395,24 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         const base = plan.reset
           ? { done: [] as string[], started: [] as string[], failed: [] as string[] }
           : loadQuestBase();
+        const cachedDones = queryClient.getQueryData<TarkovTaskDones>([
+          TASK_DONES_QUERY_KEY,
+          mode,
+        ]);
+        const serverCleared =
+          loggedInRef.current && Array.isArray(cachedDones?.cleared)
+            ? clearedMapFromServer(cachedDones.cleared)
+            : null;
+        const localCleared = loadTaskClearedDone(mode);
+        const replayCleared = clearedMarksForReplay(
+          plan.reset ? clearedDoneAfter(localCleared, fromAt) : localCleared,
+          serverCleared == null
+            ? null
+            : plan.reset
+              ? clearedDoneAfter(serverCleared, fromAt)
+              : serverCleared,
+          loadQuestClearedAt(mode),
+        );
         const merged = mergeQuestProgressFromFolded(
           base.done,
           base.started,
@@ -1323,10 +1420,8 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           questEvents,
           catalogRef.current,
           base.failed,
-          // 重置也要认晚于下限的手动取消，否则重放会把玩家亲手取消的任务带回来
-          plan.reset
-            ? clearedDoneAfter(loadTaskClearedDone(mode), fromAt)
-            : loadTaskClearedDone(mode),
+          // 账号上的逐条取消要认。缓存没带取消列表时改看本机，不用空列表代替。
+          replayCleared,
         );
         let hint = "";
         if (plan.reset && plan.reason) {
@@ -1386,21 +1481,17 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
             prevFailed,
             nextFailed,
           ),
-          { questEvents },
+          { questEvents, parsedQuests },
         );
         if (plan.reason === "prestige") {
-          hint = `日志里识别到转生（${formatBeijing(plan.fromAt)}），已从转生后重新同步。${hint}`;
-        } else if (plan.reason === "profile") {
-          hint = `日志里换了游戏角色，已从新角色同步。${hint}`;
+          hint = `已从所选战局之后重新开始（${formatBeijing(plan.fromAt)}），更早的任务不再写回。${hint}`;
         } else if (plan.reason === "clear") {
-          hint = `已跳过清空前的旧任务。${hint}`;
+          hint = `已按日志回填，没有把清空时刻当成新起点。${hint}`;
         }
         const rows = buildQuestLogSyncReview(reviewEvents, base, {
           catalog: catalogRef.current,
           items: catalogItemsRef.current,
-          clearedDone: plan.reset
-            ? clearedDoneAfter(loadTaskClearedDone(mode), fromAt)
-            : loadTaskClearedDone(mode),
+          clearedDone: replayCleared,
         });
         const dropHint = formatQuestLogDropHint(reviewDrops);
         const review: QuestLogSyncReview | undefined =
@@ -1467,6 +1558,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       previewLogSessions,
       syncLogs,
       cancelLogSync,
+      readQuestFloor,
+      resolveRaidEndedAt,
+      releaseQuestFloor,
     }),
     [
       cancelLogSync,
@@ -1483,6 +1577,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       logSyncBusy,
       logSyncScan,
       previewLogSessions,
+      readQuestFloor,
+      releaseQuestFloor,
+      resolveRaidEndedAt,
       resume,
       shotBusy,
       shotLabel,
@@ -1512,8 +1609,20 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       previewLogSessions,
       syncLogs,
       cancelLogSync,
+      readQuestFloor,
+      resolveRaidEndedAt,
+      releaseQuestFloor,
     }),
-    [cancelLogSync, logSyncBusy, logSyncScan, previewLogSessions, syncLogs],
+    [
+      cancelLogSync,
+      logSyncBusy,
+      logSyncScan,
+      previewLogSessions,
+      readQuestFloor,
+      releaseQuestFloor,
+      resolveRaidEndedAt,
+      syncLogs,
+    ],
   );
 
   return (

@@ -1,41 +1,61 @@
-import { DatePicker, Modal } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { Modal } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dayjs } from "dayjs";
-import { datePickerLocale } from "@/locales/zhCN";
-import { nowBeijing, parseBeijing } from "@/lib/time";
+import { apiError } from "@/lib/apiError";
 import type { TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
-import {
-  collectLogBreakpoints,
-  defaultLogBreakpoint,
-  formatLogBreakpointLabel,
-  latestIdentityForMode,
-  sessionStubMatchesBreakpoint,
-  type TarkovLogBreakpoint,
-} from "@/lib/tarkovLogBreakpoints";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
+import { TARKOV_MAPS } from "@/lib/tarkovHomeNav";
 import {
-  filterSessionStubsByRange,
-  formatCrossWipeHint,
-  formatLogSyncRangeDays,
-  formatLogSyncSessionCount,
-  rangeStartsBeforeCurrentWipe,
-  resolveLogSyncRange,
-  sessionStubDateBounds,
-  wipeStartBeijingClock,
-  wipesTouchedBySessions,
-  type TarkovLogSyncPreset,
-  type TarkovLogSyncRange,
-} from "@/lib/tarkovLogSyncRange";
-import { currentWipeStart } from "@/lib/tarkovWipeLength";
+  accountArchiveFromFloor,
+  launchCountByDay,
+  logSyncCalendarLaunches,
+  raidArchiveAllowed,
+  raidArchiveFrom,
+  type LogSyncCalendarLaunch,
+  type LogSyncCalendarRaid,
+} from "@/lib/tarkovLogSyncCalendar";
+import { defaultLogSyncRange } from "@/lib/tarkovLogSyncRange";
+import type { TarkovLogSyncRange } from "@/lib/tarkovLogSyncRange";
+import { useTarkovLogSync } from "@/lib/useTarkovLiveWatch";
+import { compareBeijingClock, formatBeijing, nowBeijing, parseBeijing } from "@/lib/time";
 import styles from "./TarkovLogSyncRangeModal.module.css";
 
-const PRESETS: Array<{ id: TarkovLogSyncPreset; label: string }> = [
-  { id: "all", label: "全部" },
-  { id: "wipe", label: "本赛季" },
-  { id: "7d", label: "近 7 天" },
-  { id: "30d", label: "近 30 天" },
-  { id: "custom", label: "自定义" },
-];
+const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+
+function clockOnly(at: string | undefined): string {
+  const text = (at || "").trim();
+  if (!text) return "";
+  const formatted = formatBeijing(text, "HH:mm:ss");
+  return formatted === "—" ? "" : formatted;
+}
+
+function raidTimeSpan(start?: string, end?: string): string {
+  const opened = clockOnly(start);
+  const closed = clockOnly(end);
+  if (opened && closed) return `${opened} ~ ${closed}`;
+  return opened || closed || "—";
+}
+
+function raidMapIcon(raid: { mapId?: string; mapLabel: string }): string {
+  const id = raid.mapId === "night-factory" ? "factory" : raid.mapId || "";
+  const byId = id ? TARKOV_MAPS.find((row) => row.id === id) : undefined;
+  if (byId?.icon) return byId.icon;
+  return TARKOV_MAPS.find((row) => row.label === raid.mapLabel)?.icon || "";
+}
+
+function RaidMapName({ raid }: { raid: { mapId?: string; mapLabel: string } }) {
+  const icon = raidMapIcon(raid);
+  return (
+    <span className={styles.mapCell}>
+      {icon ? (
+        <svg className={styles.mapIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+          <path d={icon} fill="currentColor" />
+        </svg>
+      ) : null}
+      <span>{raid.mapLabel}</span>
+    </span>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -44,8 +64,29 @@ type Props = {
   onConfirm: (range: TarkovLogSyncRange) => void;
 };
 
-function breakpointValue(row: TarkovLogBreakpoint): string {
-  return `${row.version}|${row.profileId}|${row.sessionMode}|${row.at}`;
+type ArchivePick = {
+  key: string;
+  at: string;
+  /** 被归档那一局的开始时间，用来藏起更早的按钮。 */
+  raidAt: string;
+  /** 这一局所在的日历日。 */
+  day: string;
+  approximate: boolean;
+  profileId: string;
+  sessionMode: string;
+  version: string;
+  label: string;
+};
+
+function monthCells(month: Dayjs): Array<Dayjs | null> {
+  const start = month.startOf("month");
+  const lead = (start.day() + 6) % 7;
+  const cells: Array<Dayjs | null> = [];
+  for (let i = 0; i < lead; i += 1) cells.push(null);
+  const days = start.daysInMonth();
+  for (let day = 1; day <= days; day += 1) cells.push(start.date(day));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
 export function TarkovLogSyncRangeModal({
@@ -55,67 +96,108 @@ export function TarkovLogSyncRangeModal({
   onConfirm,
 }: Props) {
   const gameMode = useTarkovGameMode();
-  const wipe = useMemo(() => currentWipeStart(), []);
-  const bounds = useMemo(() => sessionStubDateBounds(sessions), [sessions]);
-  const today = nowBeijing().format("YYYY-MM-DD");
-  const [preset, setPreset] = useState<TarkovLogSyncPreset>("all");
-  const [customFrom, setCustomFrom] = useState(today);
-  const [customTo, setCustomTo] = useState(today);
-  const [breakpointKey, setBreakpointKey] = useState("");
-  const [lackedDefault, setLackedDefault] = useState(false);
-
-  const identities = useMemo(
-    () => sessions.flatMap((stub) => stub.identities || []),
-    [sessions],
+  const logSync = useTarkovLogSync();
+  const launches = useMemo(
+    () => logSyncCalendarLaunches(sessions, gameMode),
+    [gameMode, sessions],
   );
-  const breakpoints = useMemo(
-    () => collectLogBreakpoints(identities),
-    [identities],
-  );
+  const counts = useMemo(() => launchCountByDay(launches), [launches]);
+  const [month, setMonth] = useState(() => nowBeijing().startOf("month"));
+  const [selectedDay, setSelectedDay] = useState("");
+  const [floorAt, setFloorAt] = useState("");
+  const [archive, setArchive] = useState<ArchivePick | null>(null);
+  const [archiveNote, setArchiveNote] = useState("");
+  const [resolvedEnds, setResolvedEnds] = useState<Record<string, string>>({});
+  const [resolvingKey, setResolvingKey] = useState("");
+  const chooseSeq = useRef(0);
+  const readQuestFloor = logSync.readQuestFloor;
 
   useEffect(() => {
     if (!open) return;
-    setPreset("all");
-    setCustomFrom(bounds.min || today);
-    setCustomTo(bounds.max || today);
-    const picked = defaultLogBreakpoint(breakpoints, {
-      gameMode,
-      wipeFrom: wipeStartBeijingClock(wipe),
-      latest: latestIdentityForMode(identities, gameMode),
+    const latest = launches[launches.length - 1]?.startedAt;
+    const parsed = latest ? parseBeijing(latest) : nowBeijing();
+    setMonth((parsed.isValid() ? parsed : nowBeijing()).startOf("month"));
+    setSelectedDay("");
+    setArchive(null);
+    setArchiveNote("");
+    setResolvedEnds({});
+    setResolvingKey("");
+    let cancelled = false;
+    void readQuestFloor().then((at) => {
+      if (!cancelled) setFloorAt(at || "");
     });
-    setBreakpointKey(picked ? breakpointValue(picked) : "");
-    setLackedDefault(!picked);
-  }, [bounds.max, bounds.min, breakpoints, gameMode, identities, open, today, wipe]);
+    return () => {
+      cancelled = true;
+    };
+  }, [launches, open, readQuestFloor]);
 
-  const range = useMemo(
-    () =>
-      resolveLogSyncRange({
-        preset,
-        customFrom,
-        customTo,
-      }),
-    [customFrom, customTo, preset],
+  const cells = useMemo(() => monthCells(month), [month]);
+  const dayLaunches = useMemo(
+    () => launches.filter((row) => row.day === selectedDay),
+    [launches, selectedDay],
   );
-  const selectedBreakpoint = useMemo(
-    () => breakpoints.find((row) => breakpointValue(row) === breakpointKey) || null,
-    [breakpointKey, breakpoints],
+  const accountArchive = useMemo(
+    () => accountArchiveFromFloor(launches, floorAt),
+    [floorAt, launches],
   );
-  const matched = useMemo(
-    () =>
-      filterSessionStubsByRange(sessions, range).filter((stub) =>
-        sessionStubMatchesBreakpoint(stub, selectedBreakpoint),
-      ),
-    [range, selectedBreakpoint, sessions],
-  );
-  const priorWipe = rangeStartsBeforeCurrentWipe(range);
-  const crossWipes = useMemo(
-    () => wipesTouchedBySessions(matched),
-    [matched],
-  );
-  const crossWipeHint = formatCrossWipeHint(crossWipes);
-  const pickerValue = useMemo((): [Dayjs, Dayjs] => {
-    return [parseBeijing(customFrom), parseBeijing(customTo)];
-  }, [customFrom, customTo]);
+  const shownArchive = archive
+    ? { day: archive.day, raidAt: archive.raidAt, raidKey: archive.key, draft: true }
+    : accountArchive
+      ? { ...accountArchive, draft: false }
+      : null;
+
+  function clearArchive() {
+    setArchive(null);
+    setArchiveNote("");
+  }
+
+  async function cancelShownArchive(persisted: boolean) {
+    clearArchive();
+    if (!persisted) return;
+    try {
+      await logSync.releaseQuestFloor();
+      setFloorAt("");
+    } catch (error) {
+      setArchiveNote(apiError(error, "取消归档失败"));
+    }
+  }
+
+  async function chooseRaid(launch: LogSyncCalendarLaunch, raid: LogSyncCalendarRaid) {
+    const pickKey = `${launch.folder}|${raid.key}`;
+    const seq = ++chooseSeq.current;
+    let endedAt = resolvedEnds[pickKey] || raid.endedAt;
+    if (!endedAt) {
+      setResolvingKey(pickKey);
+      try {
+        endedAt = await logSync.resolveRaidEndedAt(launch.folder, raid);
+      } finally {
+        if (seq === chooseSeq.current) setResolvingKey("");
+      }
+      if (seq !== chooseSeq.current) return;
+      if (endedAt) {
+        setResolvedEnds((current) => ({ ...current, [pickKey]: endedAt }));
+      }
+    }
+    if (seq !== chooseSeq.current) return;
+    const floor = raidArchiveFrom({ ...raid, endedAt });
+    if (!floor || !raidArchiveAllowed(floor.at, floorAt)) {
+      setArchiveNote("这一局不晚于已记下的进度起点，不能再往前归档。");
+      return;
+    }
+    const when = formatBeijing(raid.startedAt || launch.startedAt);
+    setArchiveNote("");
+    setArchive({
+      key: pickKey,
+      at: floor.at,
+      raidAt: raid.startedAt || launch.startedAt,
+      day: launch.day,
+      approximate: floor.approximate,
+      profileId: launch.profileId,
+      sessionMode: launch.sessionMode,
+      version: launch.version,
+      label: `${raid.mapLabel} · ${when}`,
+    });
+  }
 
   return (
     <Modal
@@ -124,22 +206,19 @@ export function TarkovLogSyncRangeModal({
       onCancel={onCancel}
       footer={
         <div className={styles.footer}>
-          <button type="button" className={styles.cancel} onClick={onCancel}>
-            取消
-          </button>
           <button
             type="button"
             className={styles.ok}
-            disabled={!matched.length}
             onClick={() =>
               onConfirm({
-                ...range,
-                breakpoint: selectedBreakpoint
+                ...defaultLogSyncRange(),
+                restart: Boolean(archive),
+                breakpoint: archive
                   ? {
-                      version: selectedBreakpoint.version,
-                      profileId: selectedBreakpoint.profileId,
-                      sessionMode: selectedBreakpoint.sessionMode,
-                      at: selectedBreakpoint.at,
+                      at: archive.at,
+                      profileId: archive.profileId,
+                      sessionMode: archive.sessionMode,
+                      version: archive.version,
                     }
                   : undefined,
               })
@@ -149,91 +228,168 @@ export function TarkovLogSyncRangeModal({
           </button>
         </div>
       }
-      width={520}
+      width={840}
       destroyOnClose
       classNames={{ body: styles.body }}
     >
-      <p className={styles.lead}>
-        本机解析启动文件夹，只把任务状态回填到账号，不会上传日志原文。默认从当前
-        {gameMode === "pve" ? " PvE" : " 正式"}角色在本赛季第一次出现的启动读到现在
-        {wipe?.name ? `（${wipe.name}）` : ""}
-        。
-      </p>
-      {breakpoints.length ? (
-        <label className={styles.breakLabel}>
-          从这次启动起
-          <select
-            className={styles.breakSelect}
-            value={breakpointKey}
-            onChange={(event) => setBreakpointKey(event.target.value)}
-          >
-            <option value="">不按角色过滤</option>
-            {breakpoints.map((row) => (
-              <option key={breakpointValue(row)} value={breakpointValue(row)}>
-                {formatLogBreakpointLabel(row)}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <p className={styles.meta}>这些日志里还没有读到 ProfileId / Session mode。</p>
-      )}
-      <div className={styles.presets} role="radiogroup" aria-label="日期范围">
-        {PRESETS.map((row) => (
-          <button
-            key={row.id}
-            type="button"
-            role="radio"
-            aria-checked={preset === row.id}
-            className={`${styles.preset}${preset === row.id ? ` ${styles.presetOn}` : ""}`}
-            onClick={() => {
-              if (row.id === "custom") {
-                setCustomFrom(parseBeijing(range.from).format("YYYY-MM-DD"));
-                setCustomTo(parseBeijing(range.to).format("YYYY-MM-DD"));
-              }
-              setPreset(row.id);
-            }}
-          >
-            {row.id === "wipe" && wipe?.name
-              ? `${row.label}（${wipe.name}）`
-              : row.label}
-          </button>
+      <div className={styles.calHead}>
+        <button
+          type="button"
+          className={styles.nav}
+          aria-label="上个月"
+          onClick={() => setMonth((current) => current.subtract(1, "month"))}
+        >
+          ‹
+        </button>
+        <span className={styles.month}>{month.format("YYYY年M月")}</span>
+        <button
+          type="button"
+          className={styles.nav}
+          aria-label="下个月"
+          onClick={() => setMonth((current) => current.add(1, "month"))}
+        >
+          ›
+        </button>
+      </div>
+      <div className={styles.week} aria-hidden>
+        {WEEKDAYS.map((label) => (
+          <span key={label}>{label}</span>
         ))}
       </div>
-      {preset === "custom" ? (
-        <DatePicker.RangePicker
-          className={styles.picker}
-          locale={datePickerLocale}
-          allowClear={false}
-          value={pickerValue}
-          disabledDate={(day) => day.isAfter(nowBeijing(), "day")}
-          onChange={(next) => {
-            if (!next?.[0] || !next[1]) return;
-            setCustomFrom(next[0].format("YYYY-MM-DD"));
-            setCustomTo(next[1].format("YYYY-MM-DD"));
-          }}
-        />
+      <div className={styles.grid} role="grid" aria-label="启动日历">
+        {cells.map((day, index) => {
+          if (!day) return <span key={`empty-${index}`} className={styles.empty} />;
+          const key = day.format("YYYY-MM-DD");
+          const count = counts.get(key) || 0;
+          const selected = key === selectedDay;
+          const prestigeDay = shownArchive?.day === key;
+          const archivedDay = Boolean(
+            shownArchive && count > 0 && key < shownArchive.day,
+          );
+          const mark = prestigeDay ? "转生日" : archivedDay ? "已归档" : count ? `启动${count}次` : "";
+          return (
+            <button
+              key={key}
+              type="button"
+              role="gridcell"
+              className={`${styles.day}${count ? ` ${styles.dayOn}` : ""}${
+                selected ? ` ${styles.daySelected}` : ""
+              }${archivedDay ? ` ${styles.dayArchived}` : ""}`}
+              disabled={!count}
+              aria-selected={selected}
+              aria-label={
+                prestigeDay
+                  ? `${key}，转生日`
+                  : archivedDay
+                    ? `${key}，已归档`
+                    : count
+                      ? `${key}，启动 ${count} 次`
+                      : `${key}，没有启动`
+              }
+              onClick={() => setSelectedDay((current) => (current === key ? "" : key))}
+            >
+              <span className={styles.dayNum}>{day.date()}</span>
+              {mark ? <span className={styles.dayCount}>{mark}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {!launches.length ? (
+        <p className={styles.meta}>这些日志里还没有当前角色的启动记录。</p>
       ) : null}
-      <p className={styles.count}>{formatLogSyncSessionCount(matched.length)}</p>
-      <p className={styles.meta}>
-        范围 {formatLogSyncRangeDays(range)}
-        {bounds.min && bounds.max
-          ? `。目录最早 ${bounds.min}，最晚 ${bounds.max}`
-          : sessions.length
-            ? "。这些文件夹没有可识别的启动日期"
-            : "。这个目录里没有启动记录"}
-      </p>
-      {crossWipeHint ? <p className={styles.warn}>{crossWipeHint}</p> : null}
-      {lackedDefault && !selectedBreakpoint ? (
-        <p className={styles.warn}>
-          日志里没有当前模式的角色断点，这次按日期范围读，仍只写入本页正式 / PvE
-          账，赛季进度不会并进来。
-        </p>
-      ) : null}
-      {priorWipe ? (
-        <p className={styles.warn}>
-          自定义范围早于本赛季，会带上旧赛季完成记录。
-        </p>
+      {selectedDay && dayLaunches.length ? (
+        <div className={styles.detail}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>第几次启动</th>
+                <th>地图</th>
+                <th>时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dayLaunches.map((launch) => {
+                const rows = launch.raids.length ? launch.raids : [null];
+                return rows.map((raid, raidIndex) => {
+                  const pickKey = raid ? `${launch.folder}|${raid.key}` : "";
+                  const endedAt = raid ? resolvedEnds[pickKey] || raid.endedAt : "";
+                  const knownEnd = Boolean(endedAt);
+                  const floor = raid && knownEnd ? raidArchiveFrom({ ...raid, endedAt }) : null;
+                  const allowed = !knownEnd || (floor ? raidArchiveAllowed(floor.at, floorAt) : false);
+                  const picked = Boolean(pickKey) && archive?.key === pickKey;
+                  const raidAt = raid?.startedAt || launch.startedAt;
+                  const beforeArchive = Boolean(
+                    shownArchive &&
+                      raid &&
+                      pickKey !== shownArchive.raidKey &&
+                      compareBeijingClock(raidAt, shownArchive.raidAt) < 0,
+                  );
+                  const alreadyOnAccount =
+                    Boolean(pickKey) &&
+                    !archive &&
+                    accountArchive?.raidKey === pickKey;
+                  return (
+                    <tr key={raid ? pickKey : `${launch.folder}-empty`}>
+                      {raidIndex === 0 ? (
+                        <td rowSpan={rows.length}>第 {launch.index} 次启动</td>
+                      ) : null}
+                      <td>{raid ? <RaidMapName raid={raid} /> : "未进入战局"}</td>
+                      <td>{raidTimeSpan(raid?.startedAt || launch.startedAt, endedAt)}</td>
+                      <td>
+                        {raid && !beforeArchive ? (
+                          <button
+                            type="button"
+                            className={`${styles.archive}${
+                              picked || alreadyOnAccount ? ` ${styles.archiveOn}` : ""
+                            }`}
+                            disabled={
+                              (!picked && !alreadyOnAccount && !allowed) ||
+                              resolvingKey === pickKey
+                            }
+                            title={
+                              picked || alreadyOnAccount
+                                ? "取消后，同步不再跳过该局及更早的日志"
+                                : allowed
+                                  ? "该局及之前的日志不参与同步"
+                                  : "这次不晚于已记下的进度起点"
+                            }
+                            onClick={() => {
+                              if (picked) {
+                                clearArchive();
+                                return;
+                              }
+                              if (alreadyOnAccount) {
+                                void cancelShownArchive(true);
+                                return;
+                              }
+                              void chooseRaid(launch, raid);
+                            }}
+                          >
+                            {resolvingKey === pickKey
+                              ? "正在读取…"
+                              : picked || alreadyOnAccount
+                                ? "取消归档"
+                                : "转生归档"}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                });
+              })}
+            </tbody>
+          </table>
+          {archive ? (
+            <p className={styles.meta}>
+              转生归档：{archive.label}。
+              {archive.approximate
+                ? "这一局还没有结束时间，将从开局的下一秒起解析，局内任务可能仍会计入。"
+                : "这一局以及更早的日志不写回。"}
+            </p>
+          ) : null}
+          {archiveNote ? <p className={styles.meta}>{archiveNote}</p> : null}
+        </div>
       ) : null}
     </Modal>
   );

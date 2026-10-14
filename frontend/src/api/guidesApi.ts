@@ -659,7 +659,7 @@ async function writeTarkovTaskDones(
   }
 }
 
-/** 清空进度：服务端清掉本模式任务账并记下清空时刻，之后任何设备同步都不会把清空前的任务写回。 */
+/** 清空进度：服务端清掉本模式任务账。随后的日志同步按日志补回，不把点击时刻当成起点。 */
 export async function clearTarkovTaskProgress() {
   const { data } = await client.post<TarkovTaskDones>(
     "/guides/tarkov/task-dones/clear",
@@ -675,6 +675,27 @@ export async function recordTarkovTaskProfile(profileId: string, gameMode: Tarko
     "/guides/tarkov/task-dones/profile",
     { profile_id: profileId },
     { timeout: 30_000, params: { game_mode: gameMode } },
+  );
+  return data;
+}
+
+/** 取消转生归档：清掉回放下限，任务进度保留。带本页 epoch，旧页面清不掉别处刚记下的下限。 */
+export async function releaseTarkovTaskReset(gameMode: TarkovGameMode) {
+  const epoch = loadTabQuestEpoch(gameMode);
+  const { data } = await guardStaleLedger(
+    client
+      .post<TarkovTaskDones>(
+        "/guides/tarkov/task-dones/reset/release",
+        {},
+        {
+          timeout: 30_000,
+          params: {
+            game_mode: gameMode,
+            ...(epoch !== undefined ? { expect_epoch: epoch } : {}),
+          },
+        },
+      )
+      .then((response) => response.data),
   );
   return data;
 }

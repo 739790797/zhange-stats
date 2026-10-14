@@ -20,13 +20,20 @@ export type TarkovLogSyncRange = {
   to: string;
   /** 全部启动记录，含没有 startedAt 的文件夹。 */
   all?: boolean;
-  /** Read Past Logs：版本 + ProfileId + Session mode。 */
+  /** Read Past Logs：版本 + ProfileId + Session mode。ProfileId 只认出角色。 */
   breakpoint?: {
     version: string;
     profileId: string;
     sessionMode: string;
     at: string;
   };
+  /** 玩家把某一局标成转生归档：该局及更早的日志不写回。 */
+  restart?: boolean;
+  /**
+   * 第几次转生。现在不填，日历只记下切点。
+   * 以后要累计次数时从这里带上序号，不必改「转生归档 / 取消归档」的点击流程。
+   */
+  prestigeCount?: number;
 };
 
 export type TarkovLogSyncRangeInput = {
@@ -43,8 +50,8 @@ export type TarkovLogSyncOpts = TarkovLogSyncRange & {
   /** 自动重置不弹出同步结果表。 */
   quiet?: boolean;
   /**
-   * 整表重置只是推断出来的（日志猜转生；账号不知道旧角色、日志里另有角色），玩家又没点清空时，先问一句。
-   * 返回 false 就按普通增量同步。不给（实时轮询）则不做这类重置，只增量合并。
+   * 旧的推断式重置会问一句。转生改由玩家勾选断点，正常同步不再走到这里。
+   * 返回 false 就按普通增量同步。不给（实时轮询）则不做这类重置。
    */
   confirmReset?: (info: {
     reason: "prestige" | "profile";

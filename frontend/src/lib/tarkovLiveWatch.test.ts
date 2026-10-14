@@ -66,6 +66,16 @@ describe("formatLiveLogBackfillHint", () => {
     ).toBe(
       "已从日志回填 已完成 0，进行中 0，失败 0，未完成 0（2 次启动）。通知日志里没有解析到任务事件，请确认选的是游戏 Logs 目录（含 notifications.log）",
     );
+    expect(
+      formatLiveLogBackfillHint(
+        2,
+        "backfill",
+        { done: 0, started: 0, failed: 0, unfinished: 0 },
+        { questEvents: 0, parsedQuests: 12 },
+      ),
+    ).toBe(
+      "已从日志回填 已完成 0，进行中 0，失败 0，未完成 0（2 次启动）。这些启动里的任务都早于回放下限，没有写回",
+    );
   });
 });
 

@@ -4,7 +4,7 @@
 
 ## Linux LXC（推荐）
 
-单副本源码部署。`install` / `run` **不**自动装 MariaDB。首次启动进入安装向导：可选 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。存量 LXC 若根上还有 `.env` 的 `DATABASE_URL`，启动会迁入 `config/database.json`，不会重跑选库；迁完可以删掉 `.env`。可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。塔科夫物品 raw 约 20MB，外部 MariaDB 建议 `max_allowed_packet ≥ 64M`。
+单副本源码部署。`install` / `run` **不**自动装 MariaDB。首次启动进入安装向导：可选 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。存量 LXC 若根上还有 `.env` 的 `DATABASE_URL`，启动会迁入 `config/database.json`，不会重跑选库；迁完可以删掉 `.env`。可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。塔科夫物品 dump 约 20MB，落库前会压到数 MB，外部库用默认 `max_allowed_packet`（16M）即可；本机 MariaDB 仍按 64M 配。
 
 ```bash
 git clone https://github.com/739790797/zhange-stats.git /opt/zhange-stats

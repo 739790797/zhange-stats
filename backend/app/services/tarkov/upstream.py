@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import logging
 from collections.abc import Callable
@@ -11,6 +13,7 @@ from email.utils import format_datetime
 from typing import Any
 
 from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, SessionTransaction, undefer
 
 from app.core.timeutil import now_naive
@@ -96,6 +99,51 @@ class TarkovUpstreamError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+# MariaDB / MySQL 默认 max_allowed_packet 是 16MiB，协议单帧上限也是 16MiB-1。
+# 物品 dump 已超过这个数；SSL 连接上多帧包会被对端直接掐掉（2006 gone away / SSLEOFError）。
+# 超过阈值的 raw 压成 gz1:（gzip 后再 base64），读的时候再展开。明文旧行仍按 JSON 读。
+_RAW_JSON_GZIP_PREFIX = "gz1:"
+_RAW_JSON_GZIP_MIN_BYTES = 4 * 1024 * 1024
+_RAW_JSON_PACKET_BUDGET = 12 * 1024 * 1024
+
+
+def _gzip_b64(encoded: bytes, *, compresslevel: int) -> str:
+    blob = gzip.compress(encoded, compresslevel=compresslevel, mtime=0)
+    return _RAW_JSON_GZIP_PREFIX + base64.b64encode(blob).decode("ascii")
+
+
+def _pack_raw_json(text: str) -> str:
+    """大 JSON 压到单包预算以内。小文档保持明文，方便直接看库。"""
+    encoded = text.encode("utf-8")
+    if len(encoded) < _RAW_JSON_GZIP_MIN_BYTES:
+        return text
+    packed = _gzip_b64(encoded, compresslevel=6)
+    if len(packed.encode("utf-8")) >= len(encoded):
+        packed = text
+    if len(packed.encode("utf-8")) > _RAW_JSON_PACKET_BUDGET and packed != text:
+        tighter = _gzip_b64(encoded, compresslevel=9)
+        if len(tighter) < len(packed):
+            packed = tighter
+    stored_bytes = len(packed.encode("utf-8"))
+    if stored_bytes > _RAW_JSON_PACKET_BUDGET:
+        raise TarkovUpstreamError(
+            "图鉴 raw 压缩后仍超过数据库单包上限，已中止写入，库里的旧数据还在"
+        )
+    if packed.startswith(_RAW_JSON_GZIP_PREFIX):
+        logger.debug("tarkov raw packed %s bytes -> %s", len(encoded), stored_bytes)
+    return packed
+
+
+def _unpack_raw_json(stored: str) -> str:
+    if not stored.startswith(_RAW_JSON_GZIP_PREFIX):
+        return stored
+    try:
+        blob = base64.b64decode(stored[len(_RAW_JSON_GZIP_PREFIX):], validate=True)
+        return gzip.decompress(blob).decode("utf-8")
+    except (OSError, ValueError, EOFError, UnicodeDecodeError) as exc:
+        raise ValueError("invalid gz1 raw_json") from exc
 
 
 @dataclass(frozen=True)
@@ -277,8 +325,8 @@ def _drop_session_memo(session: Session, transaction: SessionTransaction) -> Non
 
 def decode_raw_json(raw_json: str | None) -> dict[str, Any] | None:
     try:
-        payload = json.loads(raw_json or "")
-    except (TypeError, json.JSONDecodeError):
+        payload = json.loads(_unpack_raw_json(raw_json or ""))
+    except (TypeError, json.JSONDecodeError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -412,11 +460,14 @@ def persist_raw(
     upstream_at: str | None = None,
     changed: bool | None = None,
 ) -> dict[str, Any]:
-    """changed=True 表示上游确实换了字节（带校验头请求后仍 200）：跳过 17MB 旧 blob 比对。"""
+    """changed=True 表示上游确实换了字节（带校验头请求后仍 200）：跳过旧 blob 比对。
+
+    超过 4MiB 的 JSON 先压成 gz1:，避免单条 UPDATE 冲过 16MiB 包上限。
+    """
     now = now_naive()
     if upstream_at:
         note = f"{note} · 上游 {upstream_at}"
-    raw_json = json.dumps(payload, ensure_ascii=False)
+    raw_json = _pack_raw_json(json.dumps(payload, ensure_ascii=False))
     mode_id = raw_row_id()
     lang_key = normalize_raw_lang(lang)
     model = raw_model(resource)
@@ -737,22 +788,45 @@ def persist_site_json(
                 }
             )
             continue
-        saved = persist_raw(
-            db,
-            resource,
-            payload,
-            lang=res_lang,
-            source=SOURCE_JSON_API,
-            note=f"json.tarkov.dev/{prefix}/{key}",
-            commit=False,
-            upstream_at=times.get(key),
-            changed=key in modified,
-        )
+        try:
+            saved = persist_raw(
+                db,
+                resource,
+                payload,
+                lang=res_lang,
+                source=SOURCE_JSON_API,
+                note=f"json.tarkov.dev/{prefix}/{key}",
+                commit=False,
+                upstream_at=times.get(key),
+                changed=key in modified,
+            )
+        except TarkovUpstreamError as exc:
+            logger.warning("tarkov dump %s/%s persist failed: %s", prefix, key, exc)
+            rows.append(
+                {
+                    "id": domain_id,
+                    "ok": False,
+                    "status": "error",
+                    "source": None,
+                    "synced_at": None,
+                    "upstream_at": None,
+                    "mode": mode,
+                    "error": str(exc),
+                }
+            )
+            continue
         saved["id"] = domain_id
         saved["mode"] = mode
         saved["status"] = "ok" if saved.get("ok") else "error"
         rows.append(saved)
-    db.commit()
+    try:
+        db.commit()
+    except OperationalError as exc:
+        db.rollback()
+        logger.exception("tarkov raw commit failed")
+        raise TarkovUpstreamError(
+            "图鉴 raw 写入时数据库连接被断开。请重试；仍失败的话把 max_allowed_packet 调到 64M"
+        ) from exc
     return rows
 
 

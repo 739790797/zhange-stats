@@ -183,10 +183,22 @@ export type TarkovLogParseResult = {
   clockOffset?: string;
 };
 
+/** 打开同步弹窗时从 application.log 抽出的一局，结束时间可能要等通知日志补上。 */
+export type TarkovLogPreviewRaid = {
+  key: string;
+  mapId: string;
+  mapLabel: string;
+  startedAt: string;
+  endedAt: string;
+  raidId: string;
+  sessionMode: string;
+};
+
 export type TarkovLogSessionStub = {
   folder: string;
   startedAt: string | null;
   identities?: TarkovLogIdentity[];
+  raids?: TarkovLogPreviewRaid[];
 };
 
 export type TarkovLogRootKind = "logs" | "install" | "session" | "unknown";

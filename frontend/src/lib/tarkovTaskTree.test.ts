@@ -46,8 +46,9 @@ import {
   adoptQuestBoundary,
   adoptServerTaskLedger,
   applyQuestReplayReset,
-  releaseClearedTasks,
   clearTaskProgressForResync,
+  clearedMarksForReplay,
+  overlayTaskProgressCache,
   resetTaskProgressForProfile,
   summarizeTaskProgress,
   taskHitsMap,
@@ -469,15 +470,64 @@ describe("task dones storage", () => {
     expect(loadQuestSyncFromLatest("pve")).toBe(false);
     // 清空只记待同步的清空时刻；下限由随后的同步定（可能早于清空：识别出转生时）
     expect(loadQuestProgressFloor("pvp")).toBe("");
-    expect(loadQuestClearedAt("pvp")).toBe(loadTaskClearedDone("pvp").get("old-done"));
+    expect(loadTaskClearedDone("pvp").size).toBe(0);
+    expect(loadQuestClearedAt("pvp")).not.toBe("");
     expect(loadLocalQuestBoundary("pvp")).toMatchObject({
       resetAt: "",
       pendingClearAt: loadQuestClearedAt("pvp"),
     });
     expect(loadQuestProgressFloor("pve")).toBe("");
-    releaseClearedTasks("pvp", ["old-start"]);
-    expect(loadTaskClearedDone("pvp").has("old-start")).toBe(false);
-    expect(loadTaskClearedDone("pvp").has("old-done")).toBe(true);
+  });
+
+  it("keeps account cancels that share a timestamp and drops leftover local wipe stamps", () => {
+    const stamp = "2026-10-14 12:00:00";
+    const local = new Map([
+      ["a", stamp],
+      ["b", stamp],
+      ["manual", "2026-10-14 13:00:00"],
+    ]);
+    const againstAccount = clearedMarksForReplay(local, new Map(), "");
+    expect(againstAccount.has("a")).toBe(false);
+    expect(againstAccount.has("b")).toBe(false);
+    expect(againstAccount.get("manual")).toBe("2026-10-14 13:00:00");
+    const sameSecond = clearedMarksForReplay(
+      new Map(),
+      new Map([
+        ["a", stamp],
+        ["b", stamp],
+      ]),
+      "",
+    );
+    expect(sameSecond.get("a")).toBe(stamp);
+    expect(sameSecond.get("b")).toBe(stamp);
+    const noAccountList = clearedMarksForReplay(local, null, "");
+    expect(noAccountList.get("a")).toBe(stamp);
+    expect(noAccountList.get("b")).toBe(stamp);
+    expect(noAccountList.get("manual")).toBe("2026-10-14 13:00:00");
+  });
+
+  it("keeps cleared marks when progress is written back onto the task cache", () => {
+    const next = overlayTaskProgressCache(
+      {
+        task_ids: ["old"],
+        started_ids: [],
+        failed_ids: [],
+        objective_dones: [],
+        cleared: [{ task_id: "manual", cleared_at: "2026-10-14 13:00:00" }],
+        reset_epoch: 2,
+      },
+      {
+        task_ids: ["new"],
+        started_ids: [],
+        failed_ids: [],
+        objective_dones: [],
+      },
+    );
+    expect(next.task_ids).toEqual(["new"]);
+    expect(next.cleared).toEqual([
+      { task_id: "manual", cleared_at: "2026-10-14 13:00:00" },
+    ]);
+    expect(next.reset_epoch).toBe(2);
   });
 
   it("clears quest progress when the game profile changes", () => {

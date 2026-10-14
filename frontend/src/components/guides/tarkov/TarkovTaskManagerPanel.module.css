@@ -167,7 +167,6 @@
   border-left: 0;
 }
 
-.saveBtn,
 .syncBtn,
 .clearBtn,
 .viewBtn {
@@ -189,7 +188,6 @@
   box-sizing: border-box;
 }
 
-.saveBtn:hover:not(:disabled),
 .syncBtn:hover:not(:disabled),
 .clearBtn:hover:not(:disabled),
 .viewBtn:hover {
@@ -206,7 +204,6 @@
   background: #1a160c;
 }
 
-.saveBtn:disabled,
 .syncBtn:disabled,
 .clearBtn:disabled {
   opacity: 0.6;

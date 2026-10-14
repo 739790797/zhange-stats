@@ -16,6 +16,7 @@ import {
   loadTaskFailedIds,
   loadTaskStartedIds,
   taskProgressQueryData,
+  overlayTaskProgressCache,
 } from "@/lib/tarkovTaskTree";
 import {
   mergeObjectivePairs,
@@ -134,13 +135,15 @@ export function useTarkovRaidTaskActions({
             failed: loadTaskFailedIds(gameMode),
             objectives: pairs,
           };
-      queryClient.setQueryData(
-        ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(
-          progress.done,
-          progress.started,
-          progress.objectives,
-          progress.failed,
+      queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+        overlayTaskProgressCache(
+          prev,
+          taskProgressQueryData(
+            progress.done,
+            progress.started,
+            progress.objectives,
+            progress.failed,
+          ),
         ),
       );
       const applyServer = (data: {
@@ -148,15 +151,23 @@ export function useTarkovRaidTaskActions({
         started_ids?: string[];
         failed_ids?: string[];
         objective_dones?: typeof pairs;
-      }) => {
-        if (seq !== objToggleSeqRef.current) return;
-        queryClient.setQueryData(
-          ["guides-tarkov-task-dones", gameMode],
-          taskProgressQueryData(
-            data.task_ids || loadTaskDoneIds(gameMode),
-            data.started_ids || loadTaskStartedIds(gameMode),
-            data.objective_dones || pairs,
-            data.failed_ids || loadTaskFailedIds(gameMode),
+        cleared?: Array<{ task_id?: string | null; cleared_at?: string | null }> | null;
+        reset_at?: string | null;
+        pending_clear_at?: string | null;
+        reset_profile_id?: string | null;
+        reset_epoch?: number | null;
+      } | null) => {
+        if (!data || seq !== objToggleSeqRef.current) return;
+        queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+          overlayTaskProgressCache(
+            prev,
+            taskProgressQueryData(
+              data.task_ids || loadTaskDoneIds(gameMode),
+              data.started_ids || loadTaskStartedIds(gameMode),
+              data.objective_dones || pairs,
+              data.failed_ids || loadTaskFailedIds(gameMode),
+            ),
+            data,
           ),
         );
       };
@@ -213,13 +224,15 @@ export function useTarkovRaidTaskActions({
           })),
         );
       }
-      queryClient.setQueryData(
-        ["guides-tarkov-task-dones", gameMode],
-        taskProgressQueryData(
-          next.done,
-          next.started,
-          next.objectives,
-          next.failed,
+      queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+        overlayTaskProgressCache(
+          prev,
+          taskProgressQueryData(
+            next.done,
+            next.started,
+            next.objectives,
+            next.failed,
+          ),
         ),
       );
       void writeTaskProgressLedger(
@@ -234,13 +247,16 @@ export function useTarkovRaidTaskActions({
         .then((data) => {
           // 账号那份是权威：合并 PUT 只加不删，先按回包对账再补 DELETE。
           const objectives = data.objective_dones || next.objectives;
-          queryClient.setQueryData(
-            ["guides-tarkov-task-dones", gameMode],
-            taskProgressQueryData(
-              next.done,
-              next.started,
-              objectives,
-              next.failed,
+          queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+            overlayTaskProgressCache(
+              prev,
+              taskProgressQueryData(
+                next.done,
+                next.started,
+                objectives,
+                next.failed,
+              ),
+              data,
             ),
           );
           const extras = ledgerIdsToClear(
