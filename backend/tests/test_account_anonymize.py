@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from sqlalchemy import Integer, create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -125,7 +127,7 @@ def test_anonymize_is_idempotent() -> None:
     assert again.username == f"deleted_{user.id}"
 
 
-_FILL = {str: "x", int: 1, dict: {}, object: {}, bool: False}
+_FILL = {str: "x", int: 1, dict: {}, object: {}, bool: False, datetime: datetime(2026, 1, 1)}
 
 
 def _personal_row(model, user_id: int):

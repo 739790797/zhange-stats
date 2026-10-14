@@ -1,4 +1,8 @@
-/** 日志回填：按启动文件夹 startedAt 筛日期，默认全部。 */
+/**
+ * 日志回填：按启动文件夹 startedAt 筛日期，默认全部。
+ * startedAt 来自文件夹名，是游戏本机墙钟；调用方读过该次日志后应先用 sessionStubInBeijing 换成北京墙钟再比。
+ * 只列了目录、还没读日志的 stub 仍是本机墙钟（非东八区时与北京日期边界会差几个小时）。
+ */
 
 import type { TarkovLogSessionStub } from "@/lib/tarkovGameLogs";
 import { compareBeijingClock, parseBeijing } from "@/lib/time";
@@ -34,10 +38,19 @@ export type TarkovLogSyncRangeInput = {
 
 export type TarkovLogSyncOpts = TarkovLogSyncRange & {
   signal?: AbortSignal;
-  /** 实时轮询里发现转生时接着回放，不要和轮询抢同一把锁。 */
+  /** 实时轮询里发现换角色 / 待兑现的清空时接着回放，不要和轮询抢同一把锁。 */
   duringTick?: boolean;
   /** 自动重置不弹出同步结果表。 */
   quiet?: boolean;
+  /**
+   * 整表重置只是推断出来的（日志猜转生；账号不知道旧角色、日志里另有角色），玩家又没点清空时，先问一句。
+   * 返回 false 就按普通增量同步。不给（实时轮询）则不做这类重置，只增量合并。
+   */
+  confirmReset?: (info: {
+    reason: "prestige" | "profile";
+    at: string;
+    taskCount: number;
+  }) => Promise<boolean>;
 };
 
 function beijingDayStart(input: Date | string): string {

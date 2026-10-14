@@ -20,7 +20,7 @@ alwaysApply: false
 
 截图目录与游戏日志的**读盘**交给助手：列目录、读日志文本 `{name,text,lastModified,size}`、读最新截图的文件名与字节、按页面剪枝偏好删旧图、目录变更通知。展示路径用真实路径，不必再存 FileSystemHandle。
 
-解析留在站点：`tarkovGameLogs`、`tarkovScreenshotPos`、`tarkovTaskLogSync`。战局只走现有摘要 `POST /api/guides/tarkov/raid-logs`；房间定位只走 WS `player_fix` 的数字。钥匙箱与局前任务 OCR 仍 POST 现有 `recognize`，图只进服务器内存。
+解析留在站点：`tarkovGameLogs`、`tarkovScreenshotPos`、`tarkovTaskLogSync`。战局只走现有摘要 `POST /api/guides/tarkov/raid-logs`；房间定位只走 WS `player_fix` 的数字。截图只读文件名，不上传图片。
 
 ## 禁止
 

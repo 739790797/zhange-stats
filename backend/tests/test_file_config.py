@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.file_config import read_json, write_json
+from app.core.file_config import config_dir, read_json, write_json
 from app.services.config_import import import_legacy_dotenv
 
 
@@ -170,7 +170,7 @@ def test_import_legacy_system_configs() -> None:
         assert integ["pelican_server_uuid"] == "c903b918-4c4d-41cf-9827-9af061e431f0"
         assert integ["minecraft_public_host"] == "zhange.space"
         assert read_json("auth")["icp_beian_no"] == "测ICP备1号"
-        assert read_json("ocr")["paddle_profile"] == "v6_medium"
+        assert not (config_dir() / "ocr.json").exists()
         assert read_json("jobs")["features"]["skland"] is False
     finally:
         db.close()

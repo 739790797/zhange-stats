@@ -207,3 +207,58 @@ def test_evaluate_skips_durability_and_flags_max_mag():
     assert "min_durability" not in check["unmet_constraints"]
     assert "max_width" not in check["unmet_constraints"]
     assert "max_mag_capacity" in check["unmet_constraints"]
+
+
+def test_gunsmith_tasks_reuse_cached_projection(monkeypatch):
+    """GET 与求解共用一份投影：任务 raw 表头没变就不再解析任务 dump。"""
+    from datetime import datetime
+
+
+    class _Row:
+        source = "json.tarkov.dev"
+        note = "note"
+        synced_at = datetime(2026, 1, 1, 12, 0, 0)
+
+    calls = {"load": 0}
+
+    def fake_load(_db):  # noqa: ANN001
+        calls["load"] += 1
+        return "json.tarkov.dev", _gunsmith_payload(), "2026-01-01T12:00:00", "note"
+
+    gs._tasks_cache.clear()
+    monkeypatch.setattr(gs.tasks_svc, "ensure_tasks", lambda _db: None)
+    monkeypatch.setattr(gs.tasks_svc, "get_tasks_raw", lambda _db: _Row())
+    monkeypatch.setattr(gs.tasks_svc, "_load_payload", fake_load)
+
+    first = gs.collect_gunsmith_tasks_cached(object())
+    second = gs.collect_gunsmith_tasks_cached(object())
+
+    assert calls["load"] == 1
+    assert first[0] == second[0]
+    assert [row["task_id"] for row in first[3]] == ["gs"]
+    # 取出来的是副本：就地改名字不该污染缓存里的那份
+    first[3][0]["task_name"] = "脏"
+    third = gs.collect_gunsmith_tasks_cached(object())
+    gs._tasks_cache.clear()
+    assert third[3][0]["task_name"] == "Gunsmith - Part 1"
+
+
+def _gunsmith_payload() -> dict:
+    return {
+        "tasks": {
+            "gs": {
+                "id": "gs",
+                "name": "Gunsmith - Part 1",
+                "trader": PRAPOR,
+                "objectives": [
+                    {
+                        "id": "o-b",
+                        "type": "buildWeapon",
+                        "item": "gun1",
+                        "containsAll": ["grip1"],
+                    }
+                ],
+            }
+        },
+        "locale": {"gun1 Name": "测试步枪", "grip1 Name": "握把甲"},
+    }

@@ -1,6 +1,6 @@
 """Pin third-party library caches inside the install tree.
 
-Hugging Face / Torch / EasyOCR / pip / Playwright default to the user home
+Hugging Face / pip / Playwright default to the user home
 directory. The app process (and host scripts) override those env vars so
 writes stay under ``data/cache`` and ``data/tmp``.
 
@@ -19,8 +19,6 @@ from app.core.paths import DEFAULT_MODELS_DIR, resolve_install_dir, runtime_root
 
 _CACHE_ENV: tuple[tuple[str, str], ...] = (
     ("HF_HOME", "huggingface"),
-    ("TORCH_HOME", "torch"),
-    ("EASYOCR_MODULE_PATH", "easyocr"),
     ("MPLCONFIGDIR", "matplotlib"),
     ("XDG_CACHE_HOME", "xdg"),
     ("PIP_CACHE_DIR", "pip"),
@@ -42,17 +40,10 @@ TEXTTELLER_FILES = (
     "decoder_model.onnx",
     "REVISION",
 )
-EASYOCR_WEIGHT_FILES = (
-    "craft_mlt_25k.pth",
-    "zh_sim_g2.pth",
-    "english_g2.pth",
-)
 _OUTSIDE_ENV_KEYS = (
     "HF_HOME",
     "HF_HUB_CACHE",
     "HUGGINGFACE_HUB_CACHE",
-    "TORCH_HOME",
-    "EASYOCR_MODULE_PATH",
 )
 
 
@@ -195,8 +186,6 @@ def migrate_spilled_library_caches(
     copied: list[str] = []
 
     dest_hf = cache / "huggingface"
-    dest_easy = cache / "easyocr"
-    dest_paddle = cache / "paddleocr"
 
     for hf_root in _huggingface_roots(home_root, extra_roots):
         repo = hf_root / "hub" / TEXTTELLER_HUB_DIR
@@ -204,28 +193,6 @@ def migrate_spilled_library_caches(
             repo = hf_root / TEXTTELLER_HUB_DIR
         copied.extend(_copy_tree_missing(repo, dest_hf / "hub" / TEXTTELLER_HUB_DIR))
         copied.extend(_hydrate_texteller(repo, models / "texteller"))
-
-    easy_roots = [home_root / ".EasyOCR"]
-    torch_roots = [home_root / ".cache" / "torch"]
-    paddle_roots = [home_root / ".paddleocr"]
-    for path in extra_roots:
-        lowered = path.name.lower()
-        if "easyocr" in lowered:
-            easy_roots.append(path)
-        elif "paddle" in lowered:
-            paddle_roots.append(path)
-        elif "torch" in lowered:
-            torch_roots.append(path)
-
-    for root in easy_roots + torch_roots:
-        for name in EASYOCR_WEIGHT_FILES:
-            for candidate in (root / name, root / "model" / name, root / "hub" / name):
-                if _copy_file_if_missing(candidate, models / "easyocr" / name):
-                    copied.append(str(models / "easyocr" / name))
-        copied.extend(_copy_tree_missing(root / "user_network", dest_easy / "user_network"))
-
-    for root in paddle_roots:
-        copied.extend(_copy_tree_missing(root, dest_paddle))
 
     return copied
 

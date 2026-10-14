@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -22,26 +21,21 @@ from app.services.tarkov.game_mode import (
     current_game_mode,
     game_mode_scope,
     json_api_prefix,
-    json_resource_url,
     parse_game_mode,
     run_for_modes,
 )
 from app.services.tarkov.overlay import OVERLAY_PARSE_REV, parsed_cache_key
-from app.services.tarkov.http import download_bytes
 from app.services.tarkov.parse_cache import ModeCache, ModeKeyedCache
 from app.services.tarkov.task_lines import index_task_lines, stamp_task_line_fields
 
 logger = logging.getLogger(__name__)
 
-TASKS_JOB_KEY = "tarkov_tasks_sync"
 TASKS_PAGE_SIZE_DEFAULT = 50
 TASKS_PAGE_SIZE_MAX = 100
 TASKS_LAYOUT_TABLE = "table"
 TASKS_LAYOUT_ALL = "all"
 DOWNLOAD_TIMEOUT = 180
 
-TARKOV_JSON_TASKS_URL = "https://json.tarkov.dev/regular/tasks"
-TARKOV_JSON_TASKS_LOCALE_URL = "https://json.tarkov.dev/regular/tasks_{lang}"
 
 
 # BSG 商人 id → slug / 英文名
@@ -100,6 +94,14 @@ _raid_prep_cache: ModeKeyedCache[
 _raid_prep_index_cache: ModeCache[dict[str, dict[str, dict[str, str]]]] = ModeCache()
 # canon_map → 本图任务用得上的钥匙 id
 _raid_prep_key_cache: ModeKeyedCache[frozenset[str]] = ModeKeyedCache()
+# 任务详情要的 (tasks_by_id, quest_items, locale)；详情每次都要这三份，别再整份解码
+_detail_base_cache: ModeCache[
+    tuple[
+        dict[str, dict[str, Any]],
+        dict[str, dict[str, Any]],
+        dict[str, Any],
+    ]
+] = ModeCache()
 
 
 class TarkovTasksError(Exception):
@@ -117,24 +119,6 @@ class TasksUpstreamBundle:
     source: str
     payload: dict[str, Any]
     note: str
-
-
-def _http_request(
-    url: str,
-    *,
-    method: str = "GET",
-    body: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DOWNLOAD_TIMEOUT,
-) -> bytes:
-    return download_bytes(
-        url,
-        method=method,
-        body=body,
-        headers=headers,
-        timeout=timeout,
-        error_cls=TarkovTasksError,
-    )
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -422,29 +406,13 @@ def normalize_objective_exit(obj: dict[str, Any]) -> tuple[list[str], str]:
 
 
 def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
-    raw = _http_request(json_resource_url("tasks"), timeout=90)
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovTasksError("json.tarkov.dev tasks 解析失败") from exc
-    if not isinstance(payload, dict) or not _tasks_map(payload):
+    from app.services.tarkov import upstream as upstream_svc
+
+    payload = upstream_svc.download_resource_with_locale(
+        "tasks", lang=lang, timeout=90, error_cls=TarkovTasksError
+    )
+    if not _tasks_map(payload):
         raise TarkovTasksError("json.tarkov.dev 未解析到任务")
-
-    try:
-        loc_raw = _http_request(
-            json_resource_url("tasks", lang=lang),
-            timeout=60,
-        )
-        loc_payload = json.loads(loc_raw.decode("utf-8"))
-        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
-        if isinstance(loc_data, dict) and loc_data:
-            payload = dict(payload)
-            payload["locale"] = loc_data
-    except TarkovTasksError:
-        logger.warning("json.tarkov.dev tasks_%s locale unavailable", lang)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("json.tarkov.dev tasks_%s locale parse failed", lang)
-
     return TasksUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=payload,
@@ -1853,6 +1821,31 @@ def get_tasks_raw(db: Session) -> TarkovTasksRaw | None:
     return upstream_svc.load_raw_row(db, "tasks")
 
 
+def task_detail_base(
+    db: Session,
+) -> tuple[str, str | None, str | None, dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
+    """详情要的三份解析（tasks_by_id / quest_items / locale）；表头键未变直接用缓存。
+
+    返回 (source, synced_at, note, tasks_by_id, quest_items, locale)。
+    """
+    from app.services.tarkov import upstream as upstream_svc
+
+    ensure_tasks(db)
+    row = get_tasks_raw(db)
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _detail_base_cache.get(parsed_cache_key(db, synced, resource="tasks"))
+        if hit is not None:
+            return source or "", synced, note, hit[0], hit[1], hit[2]
+    source, payload, synced_at, note = _load_payload(db)
+    tasks = _tasks_map(payload)
+    payload_base = (tasks, _quest_items_map(payload), _locale_map(payload))
+    _detail_base_cache.put(
+        parsed_cache_key(db, synced_at, resource="tasks"), payload_base
+    )
+    return source, synced_at, note, payload_base[0], payload_base[1], payload_base[2]
+
+
 def _store_tasks_raw_payload(payload: dict[str, Any]) -> dict[str, Any]:
     store = {k: v for k, v in payload.items() if k != "locale"}
     if isinstance(store.get("data"), dict):
@@ -1894,6 +1887,7 @@ def persist_tasks_bundle(db: Session, bundle: TasksUpstreamBundle) -> dict[str, 
     _raid_prep_cache.clear()
     _raid_prep_index_cache.clear()
     _raid_prep_key_cache.clear()
+    _detail_base_cache.clear()
     return {
         "task_count": len(rows),
         "source": bundle.source,
@@ -1963,13 +1957,13 @@ def load_parsed_tasks(
     row = get_tasks_raw(db)
     if row is not None:
         source, synced, note = upstream_svc.raw_row_header(row)
-        hit = _parsed_cache.get(parsed_cache_key(db, synced))
+        hit = _parsed_cache.get(parsed_cache_key(db, synced, resource="tasks"))
         if hit is not None:
             return source or "", hit[0], hit[1], synced, note
     source, payload, synced_at, note = _load_payload(db)
     rows = parse_task_rows(payload)
     locale = _locale_map(payload)
-    _parsed_cache.put(parsed_cache_key(db, synced_at), (rows, locale))
+    _parsed_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), (rows, locale))
     return source, rows, locale, synced_at, note
 
 
@@ -2186,7 +2180,7 @@ RAID_PREP_CATALOG_KEYS = (
 
 
 def strip_raid_prep_catalog(row: dict[str, Any]) -> dict[str, Any]:
-    """目录行：列表 / 筛选 / OCR 够用，不含目标正文和区轮廓。"""
+    """目录行：列表 / 筛选够用，不含目标正文和区轮廓。"""
     out: dict[str, Any] = {key: row.get(key) for key in RAID_PREP_CATALOG_KEYS}
     out.setdefault("id", "")
     out.setdefault("name", "")
@@ -2329,7 +2323,7 @@ def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, dict[str, str]]
     if row is None:
         return empty
     synced = row.synced_at.isoformat() if row.synced_at else None
-    hit = _raid_prep_index_cache.get(parsed_cache_key(db, synced))
+    hit = _raid_prep_index_cache.get(parsed_cache_key(db, synced, resource="tasks"))
     if hit is not None:
         return hit
     try:
@@ -2337,7 +2331,7 @@ def raid_prep_map_task_index(db: Session) -> dict[str, dict[str, dict[str, str]]
     except TarkovTasksError:
         return empty
     index = collect_raid_prep_task_index(payload)
-    _raid_prep_index_cache.put(parsed_cache_key(db, synced_at), index)
+    _raid_prep_index_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), index)
     return index
 
 
@@ -2365,7 +2359,7 @@ def load_raid_prep_rows(
     if not ids:
         raise TarkovTasksError("地图无效")
     source, synced, note = upstream_svc.raw_row_header(row)
-    hit = _raid_prep_cache.get(parsed_cache_key(db, synced), canon)
+    hit = _raid_prep_cache.get(parsed_cache_key(db, synced, resource="tasks"), canon)
     if hit is not None:
         map_name, rows, quest_items = hit
         return source or "", map_name, rows, synced, note, quest_items
@@ -2373,7 +2367,7 @@ def load_raid_prep_rows(
     map_name, rows = collect_raid_prep_rows(payload, canon)
     quest_items = _quest_items_map(payload)
     _raid_prep_cache.put(
-        parsed_cache_key(db, synced_at), canon, (map_name, rows, quest_items)
+        parsed_cache_key(db, synced_at, resource="tasks"), canon, (map_name, rows, quest_items)
     )
     return source, map_name, rows, synced_at, note, quest_items
 
@@ -2431,7 +2425,7 @@ def raid_prep_key_ids_for_map(db: Session, map_slug: str) -> frozenset[str] | No
         return None
     canon = canonical_raid_map_slug(map_slug)
     _source, synced, _note = upstream_svc.raw_row_header(raw_row)
-    hit = _raid_prep_key_cache.get(parsed_cache_key(db, synced), canon)
+    hit = _raid_prep_key_cache.get(parsed_cache_key(db, synced, resource="tasks"), canon)
     if hit is not None:
         return hit
     try:
@@ -2452,7 +2446,7 @@ def raid_prep_key_ids_for_map(db: Session, map_slug: str) -> frozenset[str] | No
             for group in obj.get("required_keys") or []:
                 found |= _ref_ids(group)
     out = frozenset(found)
-    _raid_prep_key_cache.put(parsed_cache_key(db, synced), canon, out)
+    _raid_prep_key_cache.put(parsed_cache_key(db, synced, resource="tasks"), canon, out)
     return out
 
 
@@ -2553,6 +2547,30 @@ def list_raid_prep(
     }
 
 
+def task_detail_cache_parts(db: Session) -> tuple[str, ...]:
+    """任务详情 ETag 的表头部分：任务 / items / 藏身处 / overlay / extras，任一重新同步即失效。"""
+    from app.services.tarkov import upstream as upstream_svc
+    from app.services.tarkov import items as items_svc
+    from app.services.tarkov.guides import guides_cache_token
+    from app.services.tarkov.overlay import overlay_cache_token
+
+    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(
+        get_tasks_raw(db)
+    )
+    _items_source, items_synced, _note = items_svc.items_raw_header(db)
+    return (
+        tasks_synced or "",
+        upstream_svc.locale_synced(db, "tasks"),
+        items_synced or "",
+        guides_cache_token(db),
+        overlay_cache_token(db),
+        upstream_svc.raw_row_header(
+            upstream_svc.load_raw_row(db, upstream_svc.EXTRAS_RESOURCE)
+        )[1]
+        or "",
+    )
+
+
 def get_task_detail(
     db: Session,
     task_id: str,
@@ -2560,25 +2578,20 @@ def get_task_detail(
     task_id = (task_id or "").strip()
     if not task_id:
         raise TarkovTasksError("任务 id 无效")
-    ensure_tasks(db)
-    source, payload, _synced, _note = _load_payload(db)
-    tasks = _tasks_map(payload)
+    source, _synced, _note, tasks, quest_items, locale = task_detail_base(db)
     raw = tasks.get(task_id)
     if not isinstance(raw, dict):
         raise TarkovTasksError(f"未找到任务: {task_id}")
     detail = project_task_detail(
         raw,
-        _locale_map(payload),
-        quest_items=_quest_items_map(payload),
+        locale,
+        quest_items=quest_items,
         tasks_by_id=tasks,
     )
     if detail is None:
         raise TarkovTasksError(f"未找到任务: {task_id}")
-    detail = stamp_task_line_fields(
-        detail, index_task_lines(tasks, _locale_map(payload))
-    )
+    detail = stamp_task_line_fields(detail, index_task_lines(tasks, locale))
     detail["source"] = source
-    quest_items = _quest_items_map(payload)
     _enrich_items_from_catalog(db, detail, quest_items=quest_items)
     _enrich_stations_from_hideout(db, detail)
     _enrich_crafts_from_guides(db, detail)
@@ -2938,32 +2951,3 @@ def _enrich_image_refs_from_extras(db: Session, detail: dict[str, Any]) -> None:
         if level is not None and kind == "prestige" and not ref.get("prestige_level"):
             ref["prestige_level"] = _as_int(level)
 
-
-def tasks_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=TASKS_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "task_count": result.get("task_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov tasks sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()

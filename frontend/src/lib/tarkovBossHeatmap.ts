@@ -262,15 +262,6 @@ export function hoverUsesLocationCounts(
   return blocks.some((row) => (row.locations || []).length > 0);
 }
 
-export function hoverSquadCountForLocation(
-  blocks: readonly HeatmapHoverBlock[],
-  name: string,
-): string {
-  const block = blocks.find((row) => (row.locations || []).includes(name));
-  if (!block?.squadSizes.length) return "";
-  return formatHoverSquadCount(block.squadSizes, block.showChance);
-}
-
 export type HoverEscortScheme = {
   index: number;
   line: string;

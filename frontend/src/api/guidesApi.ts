@@ -1,11 +1,11 @@
 import { getTarkovGameMode } from "@/lib/tarkovGameMode";
-import { readCsrfToken } from "@/lib/csrfCookie";
 import {
-  parseKeyOcrNdjsonLine,
-  type KeyOcrProgress,
-} from "@/lib/tarkovKeyOcrProgress";
-import { ledgerIdsToClear } from "@/lib/tarkovTaskTree";
-import { client, notifyUnauthorized } from "./http";
+  ledgerIdsToClear,
+  loadTabQuestEpoch,
+  notifyTaskLedgerStale,
+} from "@/lib/tarkovTaskTree";
+import type { TarkovGameMode } from "@/lib/tarkovGameMode";
+import { client } from "./http";
 import type { components } from "./generated/schema";
 
 export type TarkovAmmoCatalog = components["schemas"]["TarkovAmmoCatalogOut"];
@@ -224,9 +224,6 @@ export async function fetchTarkovTasks(opts: {
 
 export type TarkovRaidPrep = components["schemas"]["TarkovRaidPrepOut"];
 export type TarkovRaidPrepTask = components["schemas"]["TarkovRaidPrepTaskOut"];
-export type TarkovRaidPrepOcr = components["schemas"]["TarkovRaidPrepOcrOut"];
-export type TarkovRaidPrepOcrMatch =
-  components["schemas"]["TarkovRaidPrepOcrMatchOut"];
 
 export async function fetchTarkovRaidPrep(opts: {
   map: string;
@@ -251,27 +248,6 @@ export async function fetchTarkovRaidPrep(opts: {
     },
     timeout: 120_000,
   });
-  return data;
-}
-
-const RAID_PREP_OCR_TIMEOUT_MS = 180_000;
-
-export async function recognizeTarkovRaidPrep(
-  file: Blob,
-  mapSlug: string,
-  options?: { signal?: AbortSignal },
-) {
-  const form = new FormData();
-  form.append("file", file, "raid-prep.png");
-  const { data } = await client.post<TarkovRaidPrepOcr>(
-    "/guides/tarkov/raid-prep/recognize",
-    form,
-    {
-      params: { map: mapSlug },
-      timeout: RAID_PREP_OCR_TIMEOUT_MS,
-      signal: options?.signal,
-    },
-  );
   return data;
 }
 
@@ -375,10 +351,6 @@ export type TarkovKeyPackMap = components["schemas"]["TarkovKeyPackMapOut"];
 export type TarkovKeyPackKey = components["schemas"]["TarkovKeyPackKeyOut"];
 export type TarkovKeyOwns = components["schemas"]["TarkovKeyOwnsOut"];
 export type TarkovKeyOwn = components["schemas"]["TarkovKeyOwnOut"];
-export type TarkovKeyOcr = components["schemas"]["TarkovKeyOcrOut"];
-export type TarkovKeyOcrMatch = components["schemas"]["TarkovKeyOcrMatchOut"];
-export type TarkovKeyOcrOverlay = components["schemas"]["TarkovKeyOcrOverlayOut"];
-export type TarkovKeyOcrBox = components["schemas"]["TarkovKeyOcrBoxOut"];
 export type TarkovCollection = components["schemas"]["TarkovCollectionOut"];
 export type TarkovCollectionLayout = components["schemas"]["TarkovCollectionLayoutOut"];
 export type TarkovCollectionLayoutIn = components["schemas"]["TarkovCollectionLayoutIn"];
@@ -559,151 +531,6 @@ export async function mergeTarkovKeyOwns(itemIds: string[]) {
   return data;
 }
 
-const KEY_OCR_TIMEOUT_MS = 300_000;
-
-export async function recognizeTarkovKeyOwns(
-  file: Blob,
-  options?: {
-    onProgress?: (progress: KeyOcrProgress) => void;
-    signal?: AbortSignal;
-  },
-) {
-  const form = new FormData();
-  form.append("file", file, "keybox.png");
-  const path = "/guides/tarkov/key-owns/recognize";
-  const url = `/api${path}?game_mode=${encodeURIComponent(getTarkovGameMode())}`;
-  // axios 会缓冲整段响应；进度必须走 fetch 读 NDJSON。凭证 / CSRF 与 client 拦截器对齐。
-  const controller = new AbortController();
-  const onAbort = () => controller.abort();
-  options?.signal?.addEventListener("abort", onAbort);
-  let timedOut = false;
-  const timer = window.setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, KEY_OCR_TIMEOUT_MS);
-  const headers: Record<string, string> = {
-    Accept: "application/x-ndjson",
-    "X-Recognize-Progress": "1",
-  };
-  const csrf = readCsrfToken();
-  if (csrf) headers["X-CSRF-Token"] = csrf;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      body: form,
-      credentials: "include",
-      headers,
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw await keyOcrHttpError(res, path);
-    }
-    const ctype = (res.headers.get("content-type") || "").toLowerCase();
-    if (ctype.includes("application/json") && !ctype.includes("ndjson")) {
-      return (await res.json()) as TarkovKeyOcr;
-    }
-    return await readKeyOcrNdjson(res, path, options?.onProgress);
-  } catch (err) {
-    if (timedOut) {
-      throw { code: "ECONNABORTED", message: "timeout" };
-    }
-    throw err;
-  } finally {
-    window.clearTimeout(timer);
-    options?.signal?.removeEventListener("abort", onAbort);
-  }
-}
-
-async function readKeyOcrNdjson(
-  res: Response,
-  path: string,
-  onProgress?: (progress: KeyOcrProgress) => void,
-): Promise<TarkovKeyOcr> {
-  if (!res.body) {
-    const text = await res.text();
-    return finishKeyOcrNdjson(text, path, onProgress);
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    const finished = takeKeyOcrNdjsonLines(lines, path, onProgress);
-    if (finished) {
-      await reader.cancel().catch(() => undefined);
-      return finished;
-    }
-  }
-  buf += decoder.decode();
-  return finishKeyOcrNdjson(buf, path, onProgress);
-}
-
-function finishKeyOcrNdjson(
-  text: string,
-  path: string,
-  onProgress?: (progress: KeyOcrProgress) => void,
-): TarkovKeyOcr {
-  const finished = takeKeyOcrNdjsonLines(text.split("\n"), path, onProgress);
-  if (finished) return finished;
-  throw {
-    response: { status: 502, data: { detail: "识别未完成，请重试" } },
-  };
-}
-
-function takeKeyOcrNdjsonLines(
-  lines: string[],
-  path: string,
-  onProgress?: (progress: KeyOcrProgress) => void,
-): TarkovKeyOcr | null {
-  for (const line of lines) {
-    const event = parseKeyOcrNdjsonLine(line);
-    if (!event) continue;
-    if (event.event === "progress") {
-      onProgress?.({
-        message: event.message,
-        percent: event.percent,
-        phase: event.phase,
-      });
-      continue;
-    }
-    if (event.event === "done") {
-      return event.result as TarkovKeyOcr;
-    }
-    notifyUnauthorized(event.status_code, path);
-    throw {
-      response: {
-        status: event.status_code,
-        data: { detail: event.detail },
-      },
-    };
-  }
-  return null;
-}
-
-async function keyOcrHttpError(res: Response, path: string) {
-  notifyUnauthorized(res.status, path);
-  let detail = `识别失败（${res.status}）`;
-  const ctype = (res.headers.get("content-type") || "").toLowerCase();
-  try {
-    if (ctype.includes("application/json")) {
-      const body = (await res.json()) as { detail?: unknown };
-      if (typeof body.detail === "string" && body.detail.trim()) {
-        detail = body.detail.trim();
-      }
-    } else {
-      const text = (await res.text()).trim();
-      if (text) detail = text;
-    }
-  } catch {
-    /* 保持状态码兜底 */
-  }
-  return { response: { status: res.status, data: { detail } } };
-}
-
 export async function addTarkovKeyOwn(itemId: string) {
   const { data } = await client.put<TarkovKeyOwns>(
     `/guides/tarkov/key-owns/${encodeURIComponent(itemId)}`,
@@ -747,12 +574,54 @@ export async function saveTarkovCollectionLayout(body: TarkovCollectionLayoutIn)
 }
 
 export type TarkovTaskDones = components["schemas"]["TarkovTaskDonesOut"];
+export type TarkovTaskResetIn = components["schemas"]["TarkovTaskResetIn"];
 
 export async function fetchTarkovTaskDones() {
   const { data } = await client.get<TarkovTaskDones>("/guides/tarkov/task-dones", {
     timeout: 30_000,
   });
   return data;
+}
+
+/** 指定模式读账号进度账（同步中途切了 PVP/PVE 也读同步开始时那个模式）。 */
+export async function fetchTarkovTaskDonesFor(gameMode: TarkovGameMode) {
+  const { data } = await client.get<TarkovTaskDones>("/guides/tarkov/task-dones", {
+    timeout: 30_000,
+    params: { game_mode: gameMode },
+  });
+  return data;
+}
+
+/**
+ * 批量写入带上本标签页内存账基于的 reset_epoch：清空 / 转生之后，
+ * 别的标签页或设备还拿着旧账的写入会被服务端 409 拒掉，不会把旧进度并回来。
+ * 本页还没和账号对过就不带；账号记过边界时服务端也会 409，促使本页先拉一遍账号。
+ */
+function currentLedgerEpoch(): number | undefined {
+  return loadTabQuestEpoch(getTarkovGameMode());
+}
+
+/** 单任务 / 小步骤写入也带本页 epoch：清空之前的旧页面发来的勾选、取消同样被服务端 409 挡住。 */
+function ledgerEpochParams(): { expect_epoch?: number } {
+  const epoch = currentLedgerEpoch();
+  return epoch !== undefined ? { expect_epoch: epoch } : {};
+}
+
+async function guardStaleLedger<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request;
+  } catch (error) {
+    if (isStaleLedgerError(error)) notifyTaskLedgerStale();
+    throw error;
+  }
+}
+
+function isStaleLedgerError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { response?: { status?: number } }).response?.status === 409
+  );
 }
 
 /** 默认 merge：只补账号里没有的完成/进行中/小步骤，不会整表清空。replace 仅测试或显式快照。 */
@@ -765,22 +634,68 @@ async function writeTarkovTaskDones(
     objectiveDones?: Array<{ task_id: string; objective_id: string }>;
   },
 ) {
-  const { data } = await client.put<TarkovTaskDones>(
-    "/guides/tarkov/task-dones",
-    {
-      task_ids: taskIds,
-      replace: Boolean(opts?.replace),
-      ...(opts?.startedIds !== undefined
-        ? { started_ids: opts.startedIds }
-        : {}),
-      ...(opts?.failedIds !== undefined ? { failed_ids: opts.failedIds } : {}),
-      ...(opts?.objectiveDones !== undefined
-        ? { objective_dones: opts.objectiveDones }
-        : {}),
-    },
+  const epoch = currentLedgerEpoch();
+  try {
+    const { data } = await client.put<TarkovTaskDones>(
+      "/guides/tarkov/task-dones",
+      {
+        task_ids: taskIds,
+        replace: Boolean(opts?.replace),
+        ...(epoch !== undefined ? { expect_epoch: epoch } : {}),
+        ...(opts?.startedIds !== undefined
+          ? { started_ids: opts.startedIds }
+          : {}),
+        ...(opts?.failedIds !== undefined ? { failed_ids: opts.failedIds } : {}),
+        ...(opts?.objectiveDones !== undefined
+          ? { objective_dones: opts.objectiveDones }
+          : {}),
+      },
+      { timeout: 30_000 },
+    );
+    return data;
+  } catch (error) {
+    if (isStaleLedgerError(error)) notifyTaskLedgerStale();
+    throw error;
+  }
+}
+
+/** 清空进度：服务端清掉本模式任务账并记下清空时刻，之后任何设备同步都不会把清空前的任务写回。 */
+export async function clearTarkovTaskProgress() {
+  const { data } = await client.post<TarkovTaskDones>(
+    "/guides/tarkov/task-dones/clear",
+    {},
     { timeout: 30_000 },
   );
   return data;
+}
+
+/** 记下日志里当前模式的游戏 ProfileId（不动下限、不加 epoch）。 */
+export async function recordTarkovTaskProfile(profileId: string, gameMode: TarkovGameMode) {
+  const { data } = await client.put<TarkovTaskDones>(
+    "/guides/tarkov/task-dones/profile",
+    { profile_id: profileId },
+    { timeout: 30_000, params: { game_mode: gameMode } },
+  );
+  return data;
+}
+
+/** 带日志的同步定下回放下限（只增不减），并整表替换该模式进度账。409 = 别处已清空 / 重置，要重拉账号。 */
+export async function resetTarkovTaskProgress(
+  body: TarkovTaskResetIn,
+  gameMode: TarkovGameMode,
+) {
+  try {
+    const { data } = await client.post<TarkovTaskDones>(
+      "/guides/tarkov/task-dones/reset",
+      body,
+      // 模式随同步开始时定死：同步途中切了 PVP/PVE 也不能写到另一个模式
+      { timeout: 30_000, params: { game_mode: gameMode } },
+    );
+    return data;
+  } catch (error) {
+    if (isStaleLedgerError(error)) notifyTaskLedgerStale();
+    throw error;
+  }
 }
 
 export async function writeTaskProgressLedger(
@@ -818,9 +733,11 @@ export async function writeTaskProgressLedger(
 }
 
 export async function removeTarkovTaskDone(taskId: string) {
-  const { data } = await client.delete<TarkovTaskDones>(
-    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}`,
-    { timeout: 30_000 },
+  const { data } = await guardStaleLedger(
+    client.delete<TarkovTaskDones>(
+      `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}`,
+      { timeout: 30_000, params: ledgerEpochParams() },
+    ),
   );
   return data;
 }
@@ -829,10 +746,12 @@ export async function addTarkovTaskObjectiveDone(
   taskId: string,
   objectiveId: string,
 ) {
-  const { data } = await client.put<TarkovTaskDones>(
-    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
-    {},
-    { timeout: 30_000 },
+  const { data } = await guardStaleLedger(
+    client.put<TarkovTaskDones>(
+      `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
+      {},
+      { timeout: 30_000, params: ledgerEpochParams() },
+    ),
   );
   return data;
 }
@@ -841,9 +760,11 @@ export async function removeTarkovTaskObjectiveDone(
   taskId: string,
   objectiveId: string,
 ) {
-  const { data } = await client.delete<TarkovTaskDones>(
-    `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
-    { timeout: 30_000 },
+  const { data } = await guardStaleLedger(
+    client.delete<TarkovTaskDones>(
+      `/guides/tarkov/task-dones/${encodeURIComponent(taskId)}/objectives/${encodeURIComponent(objectiveId)}`,
+      { timeout: 30_000, params: ledgerEpochParams() },
+    ),
   );
   return data;
 }
@@ -1017,15 +938,6 @@ export async function putTarkovRaidRoomTaskProgress(
   const { data } = await client.put<TarkovRaidRoomDetail>(
     `${RAID_ROOMS}/${encodeURIComponent(publicId)}/task-progress`,
     body,
-    { timeout: 30_000 },
-  );
-  return data;
-}
-
-export async function seedTarkovRaidRoomClaimsFromProgress(publicId: string) {
-  const { data } = await client.post<TarkovRaidRoomDetail>(
-    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/claims/from-progress`,
-    {},
     { timeout: 30_000 },
   );
   return data;

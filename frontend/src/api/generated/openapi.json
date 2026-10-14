@@ -2087,76 +2087,6 @@
         ]
       }
     },
-    "/api/settings/ocr": {
-      "get": {
-        "tags": [
-          "settings"
-        ],
-        "summary": "Get Ocr Settings",
-        "operationId": "get_ocr_settings_api_settings_ocr_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OcrSettingsOut"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "put": {
-        "tags": [
-          "settings"
-        ],
-        "summary": "Update Ocr Settings",
-        "operationId": "update_ocr_settings_api_settings_ocr_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OcrSettingsUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OcrSettingsOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/settings/integrations/status": {
       "get": {
         "tags": [
@@ -8542,76 +8472,6 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-rooms/{public_id}/game-mode": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Set Tarkov Raid Room Game Mode",
-        "operationId": "set_tarkov_raid_room_game_mode_api_guides_tarkov_raid_rooms__public_id__game_mode_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "public_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Public Id"
-            }
-          },
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TarkovRaidRoomGameModeIn"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/raid-rooms/{public_id}/leave": {
       "post": {
         "tags": [
@@ -9038,66 +8898,6 @@
             "schema": {
               "type": "string",
               "title": "Task Id"
-            }
-          },
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovRaidRoomDetailOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/guides/tarkov/raid-rooms/{public_id}/claims/from-progress": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Seed Tarkov Raid Room Claims From Progress",
-        "operationId": "seed_tarkov_raid_room_claims_from_progress_api_guides_tarkov_raid_rooms__public_id__claims_from_progress_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "public_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Public Id"
             }
           },
           {
@@ -11257,78 +11057,6 @@
         }
       }
     },
-    "/api/guides/tarkov/raid-prep/recognize": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Guides Tarkov Raid Prep Recognize",
-        "description": "局前任务页截图识别；图只进内存。裁列表区后按配置引擎读任务名，对照当前地图闭集匹配。",
-        "operationId": "guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "map",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64,
-              "title": "Map"
-            }
-          },
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovRaidPrepOcrOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/raid-prep/state": {
       "get": {
         "tags": [
@@ -11466,7 +11194,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Detail",
-        "description": "任务详情：目标、奖励（投影，不含多边形）。",
+        "description": "任务详情：目标、奖励（投影，不含多边形）。相关 raw 表头未变时 304。",
         "operationId": "guides_tarkov_task_detail_api_guides_tarkov_tasks__task_id__get",
         "parameters": [
           {
@@ -13285,68 +13013,6 @@
         }
       }
     },
-    "/api/guides/tarkov/key-owns/recognize": {
-      "post": {
-        "tags": [
-          "guides"
-        ],
-        "summary": "Guides Tarkov Key Owns Recognize",
-        "description": "钥匙箱截图识别短名；图只进内存。多引擎交叉验证后返回命中与文本框坐标，确认后才合并拥有。",
-        "operationId": "guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "game_mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 16,
-              "description": "PVP（regular）或 PVE",
-              "default": "pvp",
-              "title": "Game Mode"
-            },
-            "description": "PVP（regular）或 PVE"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TarkovKeyOcrOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/guides/tarkov/key-owns/{item_id}": {
       "put": {
         "tags": [
@@ -13856,7 +13522,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones List",
-        "description": "当前模式的账号进度账：已完成、进行中与小步骤勾选。",
+        "description": "当前模式的账号进度账：已完成、进行中、小步骤，以及日志回放下限。",
         "operationId": "guides_tarkov_task_dones_list_api_guides_tarkov_task_dones_get",
         "security": [
           {
@@ -13906,7 +13572,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Write",
-        "description": "合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。",
+        "description": "合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。\n\n带 expect_epoch 且与服务端不同时回 409：调用方的本机账是在清空 / 转生之前算的。\n账号记过边界（reset_epoch>0）后，不带 expect_epoch 的写入同样回 409（还没和账号对过的页面）。",
         "operationId": "guides_tarkov_task_dones_write_api_guides_tarkov_task_dones_put",
         "security": [
           {
@@ -13962,6 +13628,182 @@
         }
       }
     },
+    "/api/guides/tarkov/task-dones/clear": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Clear",
+        "description": "清空进度：清掉当前模式全部任务进度，记下清空时刻。之后的日志同步不会把清空之前的任务写回。",
+        "operationId": "guides_tarkov_task_dones_clear_api_guides_tarkov_task_dones_clear_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/task-dones/profile": {
+      "put": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Profile",
+        "description": "记下日志里当前模式的游戏 ProfileId。不动回放下限、不加 reset_epoch。",
+        "operationId": "guides_tarkov_task_dones_profile_api_guides_tarkov_task_dones_profile_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovTaskProfileIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/task-dones/reset": {
+      "post": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Guides Tarkov Task Dones Reset",
+        "description": "带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。\n\nreason：clear 兑现玩家的清空；prestige 日志里识别出同一角色转生；profile 日志里换了 ProfileId。",
+        "operationId": "guides_tarkov_task_dones_reset_api_guides_tarkov_task_dones_reset_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarkovTaskResetIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TarkovTaskDonesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/tarkov/task-dones/{task_id}": {
       "put": {
         "tags": [
@@ -13983,6 +13825,25 @@
               "type": "string",
               "title": "Task Id"
             }
+          },
+          {
+            "name": "expect_epoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+              "title": "Expect Epoch"
+            },
+            "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409"
           },
           {
             "name": "game_mode",
@@ -14026,6 +13887,7 @@
           "guides"
         ],
         "summary": "Guides Tarkov Task Dones Remove",
+        "description": "取消完成会记一笔清除时刻：清空之前的旧页面发来的取消同样要被 409 挡住。",
         "operationId": "guides_tarkov_task_dones_remove_api_guides_tarkov_task_dones__task_id__delete",
         "security": [
           {
@@ -14041,6 +13903,25 @@
               "type": "string",
               "title": "Task Id"
             }
+          },
+          {
+            "name": "expect_epoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+              "title": "Expect Epoch"
+            },
+            "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409"
           },
           {
             "name": "game_mode",
@@ -14112,6 +13993,25 @@
             }
           },
           {
+            "name": "expect_epoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+              "title": "Expect Epoch"
+            },
+            "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409"
+          },
+          {
             "name": "game_mode",
             "in": "query",
             "required": false,
@@ -14177,6 +14077,25 @@
               "type": "string",
               "title": "Objective Id"
             }
+          },
+          {
+            "name": "expect_epoch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+              "title": "Expect Epoch"
+            },
+            "description": "本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409"
           },
           {
             "name": "game_mode",
@@ -19520,34 +19439,6 @@
           "file"
         ],
         "title": "Body_files_upload_api_settings_files_upload_post"
-      },
-      "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_guides_tarkov_key_owns_recognize_api_guides_tarkov_key_owns_recognize_post"
-      },
-      "Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_guides_tarkov_raid_prep_recognize_api_guides_tarkov_raid_prep_recognize_post"
       },
       "Body_minecraft_files_upload_api_guides_minecraft_files_upload_post": {
         "properties": {
@@ -27778,199 +27669,6 @@
         ],
         "title": "MinecraftStatusOut"
       },
-      "OcrEngineMetaOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "hint": {
-            "type": "string",
-            "title": "Hint",
-            "default": ""
-          },
-          "has_profiles": {
-            "type": "boolean",
-            "title": "Has Profiles",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "label"
-        ],
-        "title": "OcrEngineMetaOut"
-      },
-      "OcrEngineStatusOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "installed": {
-            "type": "boolean",
-            "title": "Installed"
-          },
-          "models_ready": {
-            "type": "boolean",
-            "title": "Models Ready"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "installed",
-          "models_ready"
-        ],
-        "title": "OcrEngineStatusOut"
-      },
-      "OcrOptionOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "hint": {
-            "type": "string",
-            "title": "Hint",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "label"
-        ],
-        "title": "OcrOptionOut"
-      },
-      "OcrSettingsOut": {
-        "properties": {
-          "paddle_profile": {
-            "type": "string",
-            "title": "Paddle Profile"
-          },
-          "engines": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object",
-            "title": "Engines"
-          },
-          "use_cases": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/OcrUseCaseSettings"
-            },
-            "type": "object",
-            "title": "Use Cases"
-          },
-          "engine_status": {
-            "items": {
-              "$ref": "#/components/schemas/OcrEngineStatusOut"
-            },
-            "type": "array",
-            "title": "Engine Status"
-          },
-          "paddle_profiles": {
-            "items": {
-              "$ref": "#/components/schemas/OcrOptionOut"
-            },
-            "type": "array",
-            "title": "Paddle Profiles"
-          },
-          "easyocr_profiles": {
-            "items": {
-              "$ref": "#/components/schemas/OcrOptionOut"
-            },
-            "type": "array",
-            "title": "Easyocr Profiles"
-          },
-          "engine_meta": {
-            "items": {
-              "$ref": "#/components/schemas/OcrEngineMetaOut"
-            },
-            "type": "array",
-            "title": "Engine Meta"
-          },
-          "use_case_meta": {
-            "items": {
-              "$ref": "#/components/schemas/OcrOptionOut"
-            },
-            "type": "array",
-            "title": "Use Case Meta"
-          },
-          "engine_labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Engine Labels"
-          }
-        },
-        "type": "object",
-        "required": [
-          "paddle_profile",
-          "engines",
-          "use_cases"
-        ],
-        "title": "OcrSettingsOut"
-      },
-      "OcrSettingsUpdate": {
-        "properties": {
-          "paddle_profile": {
-            "type": "string",
-            "title": "Paddle Profile",
-            "default": "v5_server"
-          },
-          "engines": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object",
-            "title": "Engines"
-          },
-          "use_cases": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/OcrUseCaseSettings"
-            },
-            "type": "object",
-            "title": "Use Cases"
-          }
-        },
-        "type": "object",
-        "title": "OcrSettingsUpdate"
-      },
-      "OcrUseCaseSettings": {
-        "properties": {
-          "engines": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Engines"
-          },
-          "cross_check": {
-            "type": "boolean",
-            "title": "Cross Check",
-            "default": false
-          }
-        },
-        "type": "object",
-        "title": "OcrUseCaseSettings"
-      },
       "PasswordPolicyOut": {
         "properties": {
           "min_password_length": {
@@ -34083,147 +33781,6 @@
         ],
         "title": "TarkovItemsSyncOut"
       },
-      "TarkovKeyOcrBoxOut": {
-        "properties": {
-          "x": {
-            "type": "number",
-            "title": "X"
-          },
-          "y": {
-            "type": "number",
-            "title": "Y"
-          },
-          "width": {
-            "type": "number",
-            "title": "Width"
-          },
-          "height": {
-            "type": "number",
-            "title": "Height"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "item_id": {
-            "type": "string",
-            "title": "Item Id",
-            "default": ""
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "default": "miss"
-          }
-        },
-        "type": "object",
-        "required": [
-          "x",
-          "y",
-          "width",
-          "height"
-        ],
-        "title": "TarkovKeyOcrBoxOut"
-      },
-      "TarkovKeyOcrMatchOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "short_name": {
-            "type": "string",
-            "title": "Short Name",
-            "default": ""
-          },
-          "icon_link": {
-            "type": "string",
-            "title": "Icon Link",
-            "default": ""
-          },
-          "ocr_text": {
-            "type": "string",
-            "title": "Ocr Text",
-            "default": ""
-          },
-          "confidence": {
-            "type": "string",
-            "title": "Confidence",
-            "default": "fuzzy"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "title": "TarkovKeyOcrMatchOut"
-      },
-      "TarkovKeyOcrOut": {
-        "properties": {
-          "matches": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovKeyOcrMatchOut"
-            },
-            "type": "array",
-            "title": "Matches"
-          },
-          "tile_count": {
-            "type": "integer",
-            "title": "Tile Count",
-            "default": 0
-          },
-          "overlay": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TarkovKeyOcrOverlayOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "engines": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Engines"
-          }
-        },
-        "type": "object",
-        "title": "TarkovKeyOcrOut"
-      },
-      "TarkovKeyOcrOverlayOut": {
-        "properties": {
-          "width": {
-            "type": "integer",
-            "title": "Width"
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height"
-          },
-          "boxes": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovKeyOcrBoxOut"
-            },
-            "type": "array",
-            "title": "Boxes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "width",
-          "height"
-        ],
-        "title": "TarkovKeyOcrOverlayOut"
-      },
       "TarkovKeyOwnOut": {
         "properties": {
           "item_id": {
@@ -36611,79 +36168,6 @@
         ],
         "title": "TarkovRaidPrepObjectiveDoneIn"
       },
-      "TarkovRaidPrepOcrMatchOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          },
-          "ocr_text": {
-            "type": "string",
-            "title": "Ocr Text",
-            "default": ""
-          },
-          "trader_slug": {
-            "type": "string",
-            "title": "Trader Slug",
-            "default": ""
-          },
-          "trader_name": {
-            "type": "string",
-            "title": "Trader Name",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "id"
-        ],
-        "title": "TarkovRaidPrepOcrMatchOut"
-      },
-      "TarkovRaidPrepOcrOut": {
-        "properties": {
-          "matches": {
-            "items": {
-              "$ref": "#/components/schemas/TarkovRaidPrepOcrMatchOut"
-            },
-            "type": "array",
-            "title": "Matches"
-          },
-          "width": {
-            "type": "integer",
-            "title": "Width",
-            "default": 0
-          },
-          "height": {
-            "type": "integer",
-            "title": "Height",
-            "default": 0
-          },
-          "widescreen": {
-            "type": "boolean",
-            "title": "Widescreen",
-            "default": false
-          },
-          "preferred_size": {
-            "type": "boolean",
-            "title": "Preferred Size",
-            "default": false
-          },
-          "engines": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Engines"
-          }
-        },
-        "type": "object",
-        "title": "TarkovRaidPrepOcrOut"
-      },
       "TarkovRaidPrepOut": {
         "properties": {
           "map_slug": {
@@ -37199,21 +36683,6 @@
           "public_id"
         ],
         "title": "TarkovRaidRoomDetailOut"
-      },
-      "TarkovRaidRoomGameModeIn": {
-        "properties": {
-          "game_mode": {
-            "type": "string",
-            "maxLength": 16,
-            "minLength": 1,
-            "title": "Game Mode"
-          }
-        },
-        "type": "object",
-        "required": [
-          "game_mode"
-        ],
-        "title": "TarkovRaidRoomGameModeIn"
       },
       "TarkovRaidRoomHostIn": {
         "properties": {
@@ -38165,6 +37634,24 @@
         ],
         "title": "TarkovTaskCatalogOut"
       },
+      "TarkovTaskClearedOut": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "cleared_at": {
+            "type": "string",
+            "title": "Cleared At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "cleared_at"
+        ],
+        "title": "TarkovTaskClearedOut"
+      },
       "TarkovTaskCraftUnlockOut": {
         "properties": {
           "id": {
@@ -38538,6 +38025,18 @@
             "type": "boolean",
             "title": "Replace",
             "default": false
+          },
+          "expect_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expect Epoch",
+            "description": "调用方读到的 reset_epoch。与服务端不同则 409、不写入；账号记过边界（reset_epoch>0）后省略也 409。"
           }
         },
         "type": "object",
@@ -38572,6 +38071,50 @@
             },
             "type": "array",
             "title": "Objective Dones"
+          },
+          "reset_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reset At",
+            "description": "回放下限（北京墙钟）。早于它的游戏日志任务事件一律不写回；清空进度 / 转生后只增不减。"
+          },
+          "pending_clear_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Clear At",
+            "description": "玩家点了清空、还没被带日志的同步定成下限的时刻；有值时本机账以空为准。"
+          },
+          "reset_profile_id": {
+            "type": "string",
+            "title": "Reset Profile Id",
+            "description": "定下 reset_at 时日志里当前模式的游戏 ProfileId。",
+            "default": ""
+          },
+          "reset_epoch": {
+            "type": "integer",
+            "title": "Reset Epoch",
+            "description": "每次清空或推进下限加 1。批量写入带上它；对不上回 409，说明本机账已过期。",
+            "default": 0
+          },
+          "cleared": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskClearedOut"
+            },
+            "type": "array",
+            "title": "Cleared",
+            "description": "手动从已完成改走的任务与时刻；日志里更早的完成不得把它粘回去。"
           }
         },
         "type": "object",
@@ -39532,6 +39075,21 @@
         "type": "object",
         "title": "TarkovTaskPrestigeOut"
       },
+      "TarkovTaskProfileIn": {
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Profile Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile_id"
+        ],
+        "title": "TarkovTaskProfileIn"
+      },
       "TarkovTaskRequirementOut": {
         "properties": {
           "id": {
@@ -39576,6 +39134,71 @@
           "id"
         ],
         "title": "TarkovTaskRequirementOut"
+      },
+      "TarkovTaskResetIn": {
+        "properties": {
+          "reset_at": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 10,
+            "title": "Reset At"
+          },
+          "profile_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Profile Id",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "^(clear|prestige|profile)$",
+            "title": "Reason"
+          },
+          "expect_epoch": {
+            "type": "integer",
+            "title": "Expect Epoch"
+          },
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 800,
+            "title": "Task Ids"
+          },
+          "started_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 800,
+            "title": "Started Ids"
+          },
+          "failed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 800,
+            "title": "Failed Ids"
+          },
+          "objective_dones": {
+            "items": {
+              "$ref": "#/components/schemas/TarkovTaskObjectiveDonePair"
+            },
+            "type": "array",
+            "maxItems": 8000,
+            "title": "Objective Dones"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reset_at",
+          "reason",
+          "expect_epoch"
+        ],
+        "title": "TarkovTaskResetIn",
+        "description": "带日志的同步定下回放下限，并用回放结果整表替换本模式进度账。"
       },
       "TarkovTaskRewardItemOut": {
         "properties": {

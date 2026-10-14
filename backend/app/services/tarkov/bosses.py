@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -17,20 +16,15 @@ from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     cache_key,
     json_api_prefix,
-    json_resource_url,
     parse_game_mode,
     run_for_modes,
 )
-from app.services.tarkov.http import download_bytes
 from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
-BOSSES_JOB_KEY = "tarkov_bosses_sync"
 DOWNLOAD_TIMEOUT = 180
 
-TARKOV_JSON_MAPS_URL = "https://json.tarkov.dev/regular/maps"
-TARKOV_JSON_MAPS_LOCALE_URL = "https://json.tarkov.dev/regular/maps_{lang}"
 
 SLUG_ALIASES = {
     "goons": "knight",
@@ -409,24 +403,6 @@ class BossesUpstreamBundle:
     source: str
     payload: dict[str, Any]
     note: str
-
-
-def _http_request(
-    url: str,
-    *,
-    method: str = "GET",
-    body: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DOWNLOAD_TIMEOUT,
-) -> bytes:
-    return download_bytes(
-        url,
-        method=method,
-        body=body,
-        headers=headers,
-        timeout=timeout,
-        error_cls=TarkovBossesError,
-    )
 
 
 def _as_int(value: Any, default: int | None = 0) -> int | None:
@@ -1207,31 +1183,13 @@ def slim_maps_payload(
 
 
 def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
-    raw = _http_request(json_resource_url("maps"), timeout=180)
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovBossesError("json.tarkov.dev maps 解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovBossesError("json.tarkov.dev maps 格式无效")
+    from app.services.tarkov import upstream as upstream_svc
+
+    payload = upstream_svc.download_resource_with_locale(
+        "maps", lang=lang, timeout=180, error_cls=TarkovBossesError
+    )
     if not _maps_blob(payload) or not _mobs_blob(payload):
         raise TarkovBossesError("json.tarkov.dev 未解析到地图 / BOSS")
-
-    try:
-        loc_raw = _http_request(
-            json_resource_url("maps", lang=lang),
-            timeout=60,
-        )
-        loc_payload = json.loads(loc_raw.decode("utf-8"))
-        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
-        if isinstance(loc_data, dict) and loc_data:
-            payload = dict(payload)
-            payload["locale"] = loc_data
-    except TarkovBossesError:
-        logger.warning("json.tarkov.dev maps_%s locale unavailable", lang)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("json.tarkov.dev maps_%s locale parse failed", lang)
-
     return BossesUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=payload,
@@ -1825,26 +1783,10 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
-    if not item_ids:
-        return {}
-    try:
-        from app.services.tarkov import catalog as catalog_svc
+    """BOSS 配装的物品名 / 图标；与藏身处侧共用 catalog.lookup_item_rows。"""
+    from app.services.tarkov import catalog as catalog_svc
 
-        index = catalog_svc.load_items_index(db)
-        if not index.full:
-            return {}
-        out: dict[str, dict[str, Any]] = {}
-        for ident in item_ids:
-            raw = index.get(ident)
-            if raw is None:
-                continue
-            row = catalog_svc._row_from_raw(ident, raw, index.locale)
-            if row:
-                out[ident] = row
-        return out
-    except Exception:  # noqa: BLE001
-        logger.warning("boss equipment: items catalog unavailable", exc_info=True)
-        return {}
+    return catalog_svc.lookup_item_rows(db, item_ids)
 
 
 def get_maps_raw(db: Session) -> TarkovMapsRaw | None:
@@ -1888,6 +1830,10 @@ def persist_maps_bundle(db: Session, bundle: BossesUpstreamBundle) -> dict[str, 
     )
     db.commit()
     _parsed_cache.clear()
+
+    from app.services.tarkov.maps import clear_maps_caches
+
+    clear_maps_caches()
     return {
         "boss_count": len(rows),
         "source": bundle.source,
@@ -2055,32 +2001,3 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
         "note": note,
     }
 
-
-def bosses_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=BOSSES_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "boss_count": result.get("boss_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov bosses sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()

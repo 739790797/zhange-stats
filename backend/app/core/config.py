@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     EFTFORGE_BASE_URL: str = "https://eftforge.com"
     # 必须无头，避免给用户弹出第三方出图站。仅排障可设 false
     TARKOV_WORKBENCH_IMAGE_HEADLESS: bool = True
+    # tarkov-data-overlay 源；留空用内置回退列表（原 tarkovtracker-org 仓 2026-10 起匿名 404）
+    TARKOV_OVERLAY_URL: str = ""
     # 运行时数据目录（密钥/日志等；相对路径相对安装根，默认 data/runtime）
     DATA_DIR: str = DEFAULT_DATA_DIR
     # 应用日志：级别 / 内存环缓冲 / JSONL 持久化（DATA_DIR/logs/app.jsonl）

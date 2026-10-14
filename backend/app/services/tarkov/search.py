@@ -33,10 +33,18 @@ def search_tokens(text: str) -> list[str]:
     return [m.group(0).lower() for m in _TOKEN_RE.finditer(text or "")]
 
 
-def hit_rank(needle: str, *fields: str) -> int | None:
+PreparedQuery = tuple[str, tuple[str, ...]]
+
+
+def prepare_query(needle: str) -> PreparedQuery:
+    """压缩串 + 分词只算一次：命中排序要对每一行每一列调用 hit_rank。"""
+    return compact_text(needle), tuple(search_tokens(needle))
+
+
+def hit_rank_prepared(
+    compact_q: str, tokens: tuple[str, ...], *fields: str
+) -> int | None:
     """越小越靠前：0 精确压缩、1 前缀、2 包含、3 分词全中。"""
-    compact_q = compact_text(needle)
-    tokens = search_tokens(needle)
     if not compact_q and not tokens:
         return None
     best: int | None = None
@@ -59,6 +67,10 @@ def hit_rank(needle: str, *fields: str) -> int | None:
     return best
 
 
+def hit_rank(needle: str, *fields: str) -> int | None:
+    return hit_rank_prepared(*prepare_query(needle), *fields)
+
+
 def pick_hits(
     rows: Iterable[dict[str, Any]],
     needle: str,
@@ -66,9 +78,12 @@ def pick_hits(
     *,
     limit: int = SEARCH_LIMIT,
 ) -> tuple[list[dict[str, Any]], int]:
+    prepared = prepare_query(needle)
     scored: list[tuple[int, str, dict[str, Any]]] = []
     for row in rows:
-        rank = hit_rank(needle, *(str(row.get(key) or "") for key in fields))
+        rank = hit_rank_prepared(
+            *prepared, *(str(row.get(key) or "") for key in fields)
+        )
         if rank is None:
             continue
         name = str(row.get("name") or row.get("label") or "")

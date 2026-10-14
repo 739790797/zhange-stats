@@ -26,8 +26,6 @@ TMP_DIR="${REPO_ROOT}/data/tmp"
 
 export PYTHONPYCACHEPREFIX="${CACHE_DIR}/pycache"
 export HF_HOME="${CACHE_DIR}/huggingface"
-export TORCH_HOME="${CACHE_DIR}/torch"
-export EASYOCR_MODULE_PATH="${CACHE_DIR}/easyocr"
 export PIP_CACHE_DIR="${CACHE_DIR}/pip"
 export XDG_CACHE_HOME="${CACHE_DIR}/xdg"
 export TMPDIR="${TMP_DIR}"
@@ -70,7 +68,7 @@ python_is_supported() {
 ensure_runtime_dirs() {
   mkdir -p "${DATA_DIR}" "${UPLOAD_DIR}" "${MODELS_DIR}" "${STATIC_DIR}" "${DEV_DIR}" \
     "${REPO_ROOT}/data/backups" "${CACHE_DIR}" "${TMP_DIR}" \
-    "${PYTHONPYCACHEPREFIX}" "${HF_HOME}" "${TORCH_HOME}" "${PIP_CACHE_DIR}" \
+    "${PYTHONPYCACHEPREFIX}" "${HF_HOME}" "${PIP_CACHE_DIR}" \
     "${REPO_ROOT}/config"
   chmod 700 "${REPO_ROOT}/config" 2>/dev/null || true
 }
@@ -129,8 +127,6 @@ pip_install_backend() {
   local python="$1"
   local req="${BACKEND_DIR}/requirements.txt"
   local lock="${BACKEND_DIR}/constraints.txt"
-  local index="https://download.pytorch.org/whl/cpu"
-  local constraint
   local pinned=()
   [[ -f "${req}" ]] || die "缺少 ${req}"
   if [[ -f "${lock}" ]]; then
@@ -139,20 +135,9 @@ pip_install_backend() {
   if pip_is_outdated "${python}"; then
     as_service_user "${python}" -m pip install -U pip
   fi
-  as_service_user "${python}" -m pip install torch torchvision --index-url "${index}"
-  mkdir -p "${TMP_DIR}"
-  constraint="$(mktemp "${TMP_DIR}/zhange-torch.XXXXXX")"
-  chmod 0644 "${constraint}"
-  as_service_user "${python}" -m pip freeze | grep -E '^(torch|torchvision)==' > "${constraint}" || true
-  if [[ -s "${constraint}" ]]; then
-    as_service_user "${python}" -m pip install -r "${req}" -c "${constraint}" ${pinned[@]+"${pinned[@]}"}
-  else
-    as_service_user "${python}" -m pip install -r "${req}" ${pinned[@]+"${pinned[@]}"}
-  fi
-  rm -f "${constraint}"
-  as_service_user "${python}" -m pip uninstall -y opencv-python >/dev/null 2>&1 || true
-  as_service_user "${python}" -m pip install -q --force-reinstall --no-deps \
-    "opencv-python-headless>=4.8.0" ${pinned[@]+"${pinned[@]}"}
+  as_service_user "${python}" -m pip install -r "${req}" ${pinned[@]+"${pinned[@]}"}
+  # 截图文字识别已下线：卸掉老 venv 里的 torch / easyocr / rapidocr / opencv（没装就跳过）
+  as_service_user "${python}" -m pip uninstall -y easyocr rapidocr torch torchvision opencv-python opencv-python-headless >/dev/null 2>&1 || true
 }
 
 ensure_python_deps() {
@@ -160,7 +145,7 @@ ensure_python_deps() {
   if [[ "${ZHANGE_FORCE_PIP:-0}" != "1" ]] && pip_stamp_matches; then
     return 0
   fi
-  log "安装 Python 依赖（CPU torch）…"
+  log "安装 Python 依赖…"
   pip_install_backend "${VENV_PY}"
   write_pip_stamp
 }

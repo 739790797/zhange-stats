@@ -187,7 +187,10 @@ class TarkovRaidRoom(Base):
     """联机大厅房间：登录用户创建；空房删除不留档。"""
 
     __tablename__ = "tarkov_raid_rooms"
-    __table_args__ = (Index("ix_tarkov_raid_rooms_map_slug", "map_slug"),)
+    __table_args__ = (
+        # 大厅列表：listed + 当前模式 + 按创建时间倒序翻页。
+        Index("ix_tarkov_raid_rooms_lobby", "listed", "game_mode", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     public_id: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
@@ -236,6 +239,7 @@ class TarkovRaidRoomMember(Base):
         nullable=False,
         default=now_naive,
         server_default=text("CURRENT_TIMESTAMP"),
+        index=True,
     )
     started_task_ids_json: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
@@ -343,6 +347,52 @@ class TarkovUserTaskObjectiveDone(Base):
         nullable=False,
         default=now_naive,
     )
+
+
+class TarkovUserTaskReset(Base):
+    """任务账的清空边界：清空进度 / 转生之后，早于 reset_at 的游戏日志不得再写回。
+
+    按 PVP/PVE 分开。reset_at 只增不减；profile_id 记下边界所属的游戏角色。
+    pending_clear_at：玩家点了清空、还没被带日志的设备定下边界的时刻。
+    epoch：每次清空或推进边界加 1；带旧 epoch 的批量写入被拒，挡住别的标签页 / 设备把旧进度并回来。
+    """
+
+    __tablename__ = "tarkov_user_task_resets"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pending_clear_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    profile_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    reason: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=now_naive,
+        onupdate=now_naive,
+    )
+
+
+class TarkovUserTaskCleared(Base):
+    """手动从已完成改走的任务：日志里早于 cleared_at 的完成事件不得再把它粘回去。按 PVP/PVE 分开。"""
+
+    __tablename__ = "tarkov_user_task_cleareds"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cleared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class TarkovUserKeyOwn(Base):

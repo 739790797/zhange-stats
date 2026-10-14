@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base
 from app.core.timeutil import now_naive
+from app.models.tarkov import TarkovUserRaidPrep
 from app.models.user import User, UserRole
 from app.api.guides.schemas import TarkovUserRaidPrepStateIn
 from app.services.tarkov import raid_prep_state as prep
@@ -83,6 +84,33 @@ def test_invalid_map_rejected() -> None:
     user = _user(db)
     with pytest.raises(prep.TarkovRaidPrepStateError):
         prep.get_state(db, user, "Nope!")
+
+
+def test_unknown_but_wellformed_map_slug_rejected() -> None:
+    """只归一化不校验的话，任何形似 slug 的串都能在库里落一行。"""
+    db = _session()
+    user = _user(db)
+    for bad in ("fake-map", "not-a-real-map", "ab12cd34"):
+        with pytest.raises(prep.TarkovRaidPrepStateError) as caught:
+            prep.put_state(db, user, bad, selected=["t1"])
+        assert caught.value.status_code == 400
+        with pytest.raises(prep.TarkovRaidPrepStateError):
+            prep.get_state(db, user, bad)
+    assert db.query(TarkovUserRaidPrep).count() == 0
+
+
+def test_known_room_map_slugs_accepted() -> None:
+    """归一化后的短 id（含等价写法）照常收：the-lab -> lab、streets-of-tarkov -> streets。"""
+    db = _session()
+    user = _user(db)
+    for raw, expected in (
+        ("customs", "customs"),
+        ("the-lab", "lab"),
+        ("streets-of-tarkov", "streets"),
+        ("factory-night", "night-factory"),
+    ):
+        saved = prep.put_state(db, user, raw, selected=["t1"])
+        assert saved["map"] == expected
 
 
 def test_state_in_clips_oversize_and_drops_invalid() -> None:

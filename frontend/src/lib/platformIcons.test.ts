@@ -11,7 +11,7 @@ describe("featureIconName", () => {
 describe("featureTreeIcon", () => {
   it("uses the site brand mark for 战鸽数据", () => {
     expect(featureTreeIcon("zhange", "platform")).toBe("brand");
-    expect(featureTreeIcon("zhange.ocr_model", "job")).toBeNull();
+    expect(featureTreeIcon("zhange.texteller_model", "job")).toBeNull();
   });
 
   it("keeps third-party platform icons", () => {

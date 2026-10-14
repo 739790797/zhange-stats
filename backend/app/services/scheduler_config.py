@@ -23,7 +23,6 @@ JOB_IDS = (
     "kujiequ_checkin",
     "mihoyo_checkin",
     "tarkov_full_sync",
-    "ocr_model_sync",
     "texteller_model_sync",
     "job_runs_prune",
 )
@@ -62,7 +61,6 @@ def _code_defaults() -> dict[str, dict[str, Any]]:
         "game_schedule_arknights_sync": {"enabled": True, "hour": 5, "minute": 0},
         "game_schedule_endfield_sync": {"enabled": True, "hour": 5, "minute": 0},
         "tarkov_full_sync": {"enabled": True, "hour": 4, "minute": 25},
-        "ocr_model_sync": {"enabled": True, "hour": 5, "minute": 10},
         "texteller_model_sync": {"enabled": True, "hour": 4, "minute": 50},
         "taygedo_checkin": {"enabled": True, "hour": 0, "minute": 1},
         "exilium_checkin": {"enabled": True, "hour": 0, "minute": 1},
@@ -116,10 +114,6 @@ def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any
             "game_schedule_endfield_sync",
         ):
             legacy = stored.get("game_schedule_sync")
-            if isinstance(legacy, dict):
-                item = legacy
-        if not isinstance(item, dict) and jid == "ocr_model_sync":
-            legacy = stored.get("tarkov_key_ocr_sync")
             if isinstance(legacy, dict):
                 item = legacy
         if isinstance(item, dict):

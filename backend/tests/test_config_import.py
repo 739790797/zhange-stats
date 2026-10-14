@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config_sync import sync_site_config
 from app.core.crypto_secret import encrypt_secret
 from app.core.database import Base
-from app.core.file_config import read_json, write_json
+from app.core.file_config import config_dir, read_json, write_json
 from app.models.system_config import SystemConfig
 from app.services import config_import as ci
 from app.services.auth_config import load_auth_config
@@ -52,7 +52,9 @@ def _rows(db: Session, **rows: dict) -> None:
 
 
 def test_template_created_files_do_not_block_the_import(install: Path, db: Session) -> None:
-    assert {"email", "integrations", "auth", "ocr", "jobs"} <= set(sync_site_config())
+    synced = set(sync_site_config())
+    assert {"email", "integrations", "auth", "jobs"} <= synced
+    assert "ocr" not in synced
     _rows(
         db,
         integrations={
@@ -70,7 +72,6 @@ def test_template_created_files_do_not_block_the_import(install: Path, db: Sessi
         },
         auth_session={"access_token_expire_minutes": 60},
         site={"icp_beian_no": "测ICP备1号"},
-        ocr={"paddle_profile": "v5_mobile", "engines": {"paddle": True, "easyocr": False}},
         scheduler_jobs={"steam_presence": {"enabled": False, "interval_minutes": 5}},
         platform_features={"features": {"skland": False}},
     )
@@ -84,7 +85,8 @@ def test_template_created_files_do_not_block_the_import(install: Path, db: Sessi
     assert (email["encryption"], email["smtp_password"]) == ("STARTTLS", "smtp-pw")
     auth = load_auth_config()
     assert (auth["access_token_expire_minutes"], auth["icp_beian_no"]) == (60, "测ICP备1号")
-    assert read_json("ocr")["engines"] == {"paddle": True, "easyocr": False}
+    # 截图文字识别已下线：不再有 ocr 配置文件
+    assert not (config_dir() / "ocr.json").exists()
     assert load_scheduler_config()["steam_presence"] == {"enabled": False, "interval_minutes": 5}
     assert read_json("jobs")["features"] == {"skland": False}
     assert read_json("integrations")["_version"] == 1

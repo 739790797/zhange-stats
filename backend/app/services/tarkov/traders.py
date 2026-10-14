@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -15,23 +14,18 @@ from app.services.tarkov import sync_lock
 from app.services.tarkov.ammo import SOURCE_JSON_API
 from app.services.tarkov.game_mode import (
     json_api_prefix,
-    json_resource_url,
     parse_game_mode,
     run_for_modes,
 )
-from app.services.tarkov.http import download_bytes
 from app.services.tarkov.overlay import parsed_cache_key
 from app.services.tarkov.parse_cache import ModeCache
 
 logger = logging.getLogger(__name__)
 
-TRADERS_JOB_KEY = "tarkov_traders_sync"
 TRADERS_PAGE_SIZE_DEFAULT = 50
 TRADERS_PAGE_SIZE_MAX = 100
 DOWNLOAD_TIMEOUT = 180
 
-TARKOV_JSON_TRADERS_URL = "https://json.tarkov.dev/regular/traders"
-TARKOV_JSON_TRADERS_LOCALE_URL = "https://json.tarkov.dev/regular/traders_{lang}"
 
 # slug → 英文展示名。社区昵称只进 search_alias，不进 name / chinese。
 TRADER_LABELS: dict[str, str] = {
@@ -95,24 +89,6 @@ class TradersUpstreamBundle:
     note: str
 
 
-def _http_request(
-    url: str,
-    *,
-    method: str = "GET",
-    body: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DOWNLOAD_TIMEOUT,
-) -> bytes:
-    return download_bytes(
-        url,
-        method=method,
-        body=body,
-        headers=headers,
-        timeout=timeout,
-        error_cls=TarkovTradersError,
-    )
-
-
 def _as_int(value: Any, default: int | None = 0) -> int | None:
     if value is None or value == "":
         return default
@@ -174,27 +150,17 @@ def trader_portrait_url(slug: str) -> str:
 
 
 def download_json_api_traders(*, lang: str = "zh") -> TradersUpstreamBundle:
-    raw = _http_request(json_resource_url("traders"), timeout=60)
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovTradersError("json.tarkov.dev traders 解析失败") from exc
-    if not isinstance(payload, dict) or not _traders_map(payload):
+    from app.services.tarkov import upstream as upstream_svc
+
+    payload = upstream_svc.download_resource_with_locale(
+        "traders",
+        lang=lang,
+        timeout=60,
+        locale_timeout=30,
+        error_cls=TarkovTradersError,
+    )
+    if not _traders_map(payload):
         raise TarkovTradersError("json.tarkov.dev 未解析到商人")
-    try:
-        loc_raw = _http_request(
-            json_resource_url("traders", lang=lang),
-            timeout=30,
-        )
-        loc_payload = json.loads(loc_raw.decode("utf-8"))
-        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
-        if isinstance(loc_data, dict) and loc_data:
-            payload = dict(payload)
-            payload["locale"] = loc_data
-    except TarkovTradersError:
-        logger.warning("json.tarkov.dev traders_%s locale unavailable", lang)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("json.tarkov.dev traders_%s locale parse failed", lang)
     return TradersUpstreamBundle(
         source=SOURCE_JSON_API,
         payload=payload,
@@ -551,33 +517,3 @@ def get_trader_detail(
         "note": note,
     }
 
-
-def traders_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=TRADERS_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "trader_count": result.get("trader_count"),
-                "offer_count": result.get("offer_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov traders sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()

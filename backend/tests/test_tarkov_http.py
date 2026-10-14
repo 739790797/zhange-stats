@@ -76,3 +76,68 @@ def test_download_bytes_with_meta_reports_on_bytes(monkeypatch) -> None:
     assert raw == b"abcd"
     assert stamp == "2026-08-26T09:01:54+00:00"
     assert seen == [(1, 4), (4, 4)]
+
+
+def test_download_dump_passes_the_64mib_cap_to_http_request(monkeypatch) -> None:
+    """生产 8MiB 默认上限曾把 items ~17MB / maps ~8.6MB 全卡死；上限必须一路带下去。"""
+    from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_dump
+
+    seen: dict[str, object] = {}
+
+    def fake_request(method, url, **kwargs):  # noqa: ANN001
+        seen.update(method=method, url=url, **kwargs)
+        return _Resp(200, b'{"a":1}')
+
+    monkeypatch.setattr("app.services.tarkov.http.http_request", fake_request)
+    raw, _stamp = download_dump("https://json.tarkov.dev/regular/items")
+    assert raw == b'{"a":1}'
+    assert seen["max_bytes"] == TARKOV_DUMP_MAX_BYTES
+    assert TARKOV_DUMP_MAX_BYTES > 8 * 1024 * 1024
+
+
+def test_download_dump_passes_the_64mib_cap_to_http_download(monkeypatch) -> None:
+    from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_dump
+
+    seen: dict[str, object] = {}
+
+    def fake_download(method, url, **kwargs):  # noqa: ANN001
+        seen.update(method=method, url=url, **kwargs)
+        return 200, b'{"a":1}', {}
+
+    monkeypatch.setattr("app.services.tarkov.http.http_download", fake_download)
+    raw, _stamp = download_dump(
+        "https://json.tarkov.dev/regular/maps", on_bytes=lambda _n, _t: None
+    )
+    assert raw == b'{"a":1}'
+    assert seen["max_bytes"] == TARKOV_DUMP_MAX_BYTES
+
+
+def test_tarkov_dump_and_overlay_wrappers_all_send_the_64mib_cap(monkeypatch) -> None:
+    """生产 8MiB 默认上限曾把 items ~17MB / maps ~8.6MB 全卡死。
+
+    各栏目下载包装（download_json_resource / overlay）最终都要经过 download_response，
+    这里断言它们送出的上限就是塔科夫 64MiB，而不是 http_client 的 8MiB 默认。
+    """
+    from types import SimpleNamespace
+
+    from app.services.tarkov import http as tarkov_http
+    from app.services.tarkov import overlay as overlay_svc
+    from app.services.tarkov import upstream as upstream_svc
+
+    caps: list[int | None] = []
+
+    def fake_response(url, *, method="GET", on_bytes=None, max_bytes=None, **_k):  # noqa: ANN001
+        caps.append(max_bytes)
+        if on_bytes:
+            on_bytes(4, 4)
+        return SimpleNamespace(status_code=200, content=b'{"data": {}}', headers={})
+
+    monkeypatch.setattr(tarkov_http, "download_response", fake_response)
+    monkeypatch.setattr(
+        overlay_svc, "overlay_urls", lambda: ("https://example.test/overlay.json",)
+    )
+    assert tarkov_http.TARKOV_DUMP_MAX_BYTES == 64 * 1024 * 1024
+
+    upstream_svc.download_json_resource("items")
+    overlay_svc.download_overlay()
+    assert caps == [tarkov_http.TARKOV_DUMP_MAX_BYTES] * 2

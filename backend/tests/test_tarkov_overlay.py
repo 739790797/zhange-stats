@@ -402,3 +402,71 @@ def test_disabled_overlay_task_hidden_from_progress_not_deleted() -> None:
     assert shown_started == ["live"]
     assert shown_failed == []
     assert dones.list_task_ids(db, user.id) == ["gone", "keep"]
+
+
+def test_download_overlay_falls_back_to_next_source(monkeypatch) -> None:
+    """tarkovtracker-org 仓转私有后匿名 404：要按列表回退，不能直接放弃。"""
+    seen: list[str] = []
+
+    def fake_download(url, **_kwargs):  # noqa: ANN001
+        seen.append(url)
+        if url == overlay_svc.OVERLAY_URLS[0]:
+            raise overlay_svc.TarkovOverlayError("下载失败 HTTP 404")
+        return b'{"tasks": {"t1": {"disabled": true}}}', None
+
+    monkeypatch.setattr(overlay_svc, "overlay_urls", lambda: overlay_svc.OVERLAY_URLS)
+    monkeypatch.setattr(overlay_svc, "download_bytes_with_meta", fake_download)
+    payload, _upstream_at = overlay_svc.download_overlay()
+    assert payload["tasks"]["t1"]["disabled"] is True
+    assert seen == list(overlay_svc.OVERLAY_URLS[:2])
+
+
+def test_download_overlay_raises_with_all_sources_listed(monkeypatch) -> None:
+    def fake_download(url, **_kwargs):  # noqa: ANN001
+        raise overlay_svc.TarkovOverlayError(f"下载失败 HTTP 404: {url}")
+
+    monkeypatch.setattr(overlay_svc, "overlay_urls", lambda: ("https://a.test/o.json", "https://b.test/o.json"))
+    monkeypatch.setattr(overlay_svc, "download_bytes_with_meta", fake_download)
+    try:
+        overlay_svc.download_overlay()
+    except overlay_svc.TarkovOverlayError as exc:
+        assert "a.test" in str(exc) and "b.test" in str(exc)
+    else:
+        raise AssertionError("expected TarkovOverlayError")
+
+
+def test_overlay_urls_puts_the_configured_source_first(monkeypatch) -> None:
+    class _Settings:
+        TARKOV_OVERLAY_URL = "https://mine.test/overlay.json"
+
+    monkeypatch.setattr(overlay_svc, "get_settings", lambda: _Settings())
+    urls = overlay_svc.overlay_urls()
+    assert urls[0] == "https://mine.test/overlay.json"
+    assert overlay_svc.OVERLAY_URLS[0] in urls
+
+
+def test_overlay_status_reports_age_and_staleness(monkeypatch) -> None:
+    """同步结果要能看出 overlay 有多旧（源挂了只剩上一份好数据时尤其重要）。"""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    db = sessionmaker(bind=engine)()
+    old = datetime.now(timezone.utc) - timedelta(days=90)
+    overlay_svc._last_success.clear()
+    with game_mode_scope("pvp"):
+        overlay_svc.persist_overlay(db, {"tasks": {}})
+        row = upstream_svc.load_raw_row(db, overlay_svc.OVERLAY_RESOURCE)
+        # 刚同步完：库里是北京墙钟（无时区），年龄应接近 0，而不是 -8 小时
+        fresh = overlay_svc.overlay_status(db)
+        assert 0 <= fresh["age_seconds"] < 120
+        assert fresh["stale"] is False
+        row.synced_at = old
+        db.commit()
+        status = overlay_svc.overlay_status(db)
+    assert status["stale"] is True
+    assert status["age_seconds"] > overlay_svc.OVERLAY_STALE_AFTER_SEC
+    assert status["synced_at"]

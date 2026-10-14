@@ -34,6 +34,18 @@ import {
   loadQuestProfileResetPending,
   loadQuestProgressFloor,
   loadQuestSyncFromLatest,
+  loadQuestClearedAt,
+  loadLocalQuestBoundary,
+  loadQuestServerEpoch,
+  loadTabQuestEpoch,
+  followStoredQuestEpoch,
+  resetTabQuestEpochsForTests,
+  saveQuestProgressFloor,
+  saveQuestServerEpoch,
+  questLedgerIsStale,
+  adoptQuestBoundary,
+  adoptServerTaskLedger,
+  applyQuestReplayReset,
   releaseClearedTasks,
   clearTaskProgressForResync,
   resetTaskProgressForProfile,
@@ -455,9 +467,13 @@ describe("task dones storage", () => {
     expect(loadTaskDoneIds("pve")).toEqual(["keep"]);
     expect(loadQuestSyncFromLatest("pvp")).toBe(true);
     expect(loadQuestSyncFromLatest("pve")).toBe(false);
-    expect(loadQuestProgressFloor("pvp")).toBe(
-      loadTaskClearedDone("pvp").get("old-done"),
-    );
+    // 清空只记待同步的清空时刻；下限由随后的同步定（可能早于清空：识别出转生时）
+    expect(loadQuestProgressFloor("pvp")).toBe("");
+    expect(loadQuestClearedAt("pvp")).toBe(loadTaskClearedDone("pvp").get("old-done"));
+    expect(loadLocalQuestBoundary("pvp")).toMatchObject({
+      resetAt: "",
+      pendingClearAt: loadQuestClearedAt("pvp"),
+    });
     expect(loadQuestProgressFloor("pve")).toBe("");
     releaseClearedTasks("pvp", ["old-start"]);
     expect(loadTaskClearedDone("pvp").has("old-start")).toBe(false);
@@ -720,6 +736,141 @@ describe("task dones storage", () => {
     ]);
     expect(loadQuestProfileResetPending("pvp")).toBe(false);
     expect(loadTaskClearedDone("pvp").has("acct-done")).toBe(false);
+  });
+
+  it("does not merge guest tasks into a mode the account has cleared or reset", () => {
+    const guest = parseTaskDonesStateRaw(
+      JSON.stringify({
+        v: 1,
+        pvp: ["pre-prestige"],
+        pve: ["pve-guest"],
+        objectives: { pvp: [{ task_id: "pre-prestige", objective_id: "a" }] },
+      }),
+    );
+    const merged = mergeGuestTaskProgress(
+      parseTaskDonesStateRaw(JSON.stringify({ v: 1, pvp: ["after"] })),
+      guest,
+      new Set(["pvp"]),
+    );
+    expect(merged.pvp).toEqual(["after"]);
+    expect(merged.objectives?.pvp ?? []).toEqual([]);
+    expect(merged.pve).toEqual(["pve-guest"]);
+  });
+
+  it("never moves the cached replay floor earlier", () => {
+    saveQuestProgressFloor("pvp", "2026-10-13 15:00:00");
+    saveQuestProgressFloor("pvp", "2026-06-01 10:00:00");
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-13 15:00:00");
+    resetTaskProgressForProfile("pvp", "profile-b", "2026-06-01 09:00:00");
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-13 15:00:00");
+    adoptQuestBoundary("pvp", {
+      resetAt: "2026-01-01 00:00:00",
+      pendingClearAt: "",
+      profileId: "",
+      epoch: 3,
+    });
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-13 15:00:00");
+    adoptQuestBoundary("pvp", {
+      resetAt: "2026-10-14 08:00:00",
+      pendingClearAt: "",
+      profileId: "profile-c",
+      epoch: 4,
+    });
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-14 08:00:00");
+    expect(loadQuestProfileId("pvp")).toBe("profile-c");
+  });
+
+  it("an account clear made elsewhere marks this browser's ledger stale", () => {
+    // never synced with the account: only stale once the account has User boundary
+    expect(questLedgerIsStale(undefined, 0)).toBe(false);
+    expect(questLedgerIsStale(undefined, 1)).toBe(true);
+    saveQuestServerEpoch("pvp", 2);
+    expect(loadQuestServerEpoch("pvp")).toBe(2);
+    expect(questLedgerIsStale(loadQuestServerEpoch("pvp"), 2)).toBe(false);
+    expect(questLedgerIsStale(loadQuestServerEpoch("pvp"), 3)).toBe(true);
+  });
+
+  it("bulk writes carry this tab's epoch, not the one another tab left in localStorage", () => {
+    resetTabQuestEpochsForTests();
+    saveQuestServerEpoch("pvp", 1); // this tab hydrated at epoch 1
+    expect(loadTabQuestEpoch("pvp")).toBe(1);
+    // another tab clears: it writes epoch 2 straight into the shared ledger
+    const raw = JSON.parse(mem.get("zhange.guides.tarkov.taskDones.v1") || "{}");
+    raw.questServerEpoch = { pvp: 2 };
+    mem.set("zhange.guides.tarkov.taskDones.v1", JSON.stringify(raw));
+    expect(loadQuestServerEpoch("pvp")).toBe(2);
+    // this tab still holds pre-clear progress in memory → must still send 1 (server answers 409)
+    expect(loadTabQuestEpoch("pvp")).toBe(1);
+    expect(questLedgerIsStale(loadTabQuestEpoch("pvp"), 2)).toBe(true);
+    // the storage event lets the tab follow and reload from the shared ledger
+    expect(followStoredQuestEpoch("pvp")).toBe(true);
+    expect(loadTabQuestEpoch("pvp")).toBe(2);
+    expect(followStoredQuestEpoch("pvp")).toBe(false);
+  });
+
+  it("a fresh tab has no epoch until it reads the account", () => {
+    resetTabQuestEpochsForTests();
+    expect(loadTabQuestEpoch("pve")).toBeUndefined();
+  });
+
+  it("adopting the account ledger replaces local progress instead of unioning it", () => {
+    saveTaskProgress("pvp", ["pre-prestige-1", "pre-prestige-2"], ["pre-start"]);
+    adoptServerTaskLedger("pvp", {
+      done: ["after"],
+      started: [],
+      failed: [],
+      objectives: [],
+      cleared: new Map([["manual", "2026-10-14 09:00:00"]]),
+      boundary: {
+        resetAt: "2026-10-13 15:00:00",
+        pendingClearAt: "",
+        profileId: "aa11",
+        epoch: 2,
+      },
+    });
+    expect(loadTaskDoneIds("pvp")).toEqual(["after"]);
+    expect(loadTaskStartedIds("pvp")).toEqual([]);
+    expect(loadQuestServerEpoch("pvp")).toBe(2);
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-13 15:00:00");
+    // local marks older than the account floor are covered by the floor and dropped
+    expect(loadTaskClearedDone("pvp").has("pre-prestige-1")).toBe(false);
+    expect(loadTaskClearedDone("pvp").get("manual")).toBe("2026-10-14 09:00:00");
+    expect(loadQuestSyncFromLatest("pvp")).toBe(false);
+  });
+
+  it("an unresolved account clear keeps the next sync pinned to the latest profile", () => {
+    adoptServerTaskLedger("pvp", {
+      done: [],
+      started: [],
+      failed: [],
+      objectives: [],
+      cleared: new Map(),
+      boundary: {
+        resetAt: "",
+        pendingClearAt: "2026-10-13 15:00:00",
+        profileId: "",
+        epoch: 1,
+      },
+    });
+    expect(loadQuestSyncFromLatest("pvp")).toBe(true);
+    expect(loadLocalQuestBoundary("pvp").pendingClearAt).toBe("2026-10-13 15:00:00");
+  });
+
+  it("guests apply User replay reset locally and clear the pending flag", () => {
+    saveTaskProgress("pvp", ["old"], []);
+    clearTaskProgressForResync("pvp");
+    applyQuestReplayReset("pvp", {
+      profileId: "aa11",
+      fromAt: "2026-10-13 15:00:00",
+      done: ["new"],
+      started: [],
+      failed: [],
+    });
+    expect(loadTaskDoneIds("pvp")).toEqual(["new"]);
+    expect(loadQuestProgressFloor("pvp")).toBe("2026-10-13 15:00:00");
+    expect(loadQuestSyncFromLatest("pvp")).toBe(false);
+    expect(loadQuestClearedAt("pvp")).toBe("");
+    expect(loadQuestProfileId("pvp")).toBe("aa11");
   });
 });
 

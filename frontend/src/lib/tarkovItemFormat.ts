@@ -1,7 +1,6 @@
 import { formatCaliberLabel } from "@/lib/tarkovAmmoCategories";
 import {
   formatArmorMaterial,
-  formatArmorSlotLabel,
   formatArmorType,
   formatArmorZoneList,
 } from "@/lib/tarkovArmorLabels";
@@ -14,6 +13,10 @@ import {
   isGenericItemCategoryId,
   itemHrefFromTypes,
 } from "@/lib/tarkovItemTypes";
+import { formatMoney } from "@/lib/tarkovMoney";
+
+/** formatMoney 在轻模块 tarkovMoney（钥匙包等外壳常驻代码用）；这里保留再导出。 */
+export { formatMoney };
 
 export type CatalogPriceRow = {
   last_low_price?: number | null;
@@ -478,16 +481,6 @@ export function formatDurationSeconds(
   if (m) parts.push(`${m} 分`);
   if (s && !h) parts.push(`${s} 秒`);
   return parts.join(" ") || "即时";
-}
-
-export function formatMoney(
-  value: number | null | undefined,
-  currency = "RUB",
-): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const code = (currency || "RUB").toUpperCase();
-  const symbol = code === "USD" ? "$" : code === "EUR" ? "€" : "₽";
-  return `${Math.round(value).toLocaleString("zh-CN")} ${symbol}`;
 }
 
 export function cheapestPrice(
@@ -978,31 +971,6 @@ export function formatOfferPrice(offer: VendorOffer): string {
   return formatMoney(offer.priceRub ?? offer.price);
 }
 
-export type LinkedItemRef = {
-  id: string;
-  name: string;
-  icon: string;
-  types: string[];
-};
-
-function linkedItem(value: unknown): LinkedItemRef | null {
-  const row = asRecord(value);
-  if (!row) return null;
-  const id = String(row.id || "").trim();
-  if (!id) return null;
-  const name =
-    displayName(String(row.name || "")) ||
-    displayName(String(row.shortName || ""));
-  if (!name) return null;
-  const types = Array.isArray(row.types) ? row.types.map(String) : [];
-  return {
-    id,
-    name,
-    icon: String(row.iconLink || row.baseImageLink || ""),
-    types,
-  };
-}
-
 export type {
   GridLayoutKind,
   GridPocket,
@@ -1016,36 +984,6 @@ export {
   packGridPockets,
   resolveItemGridLayout,
 } from "./tarkovItemGrids";
-
-export type PlateSlotGroup = {
-  key: string;
-  name: string;
-  plates: LinkedItemRef[];
-};
-
-export function extractPlateSlots(
-  properties: Record<string, unknown> | undefined,
-): PlateSlotGroup[] {
-  const slots = properties?.armorSlots;
-  if (!Array.isArray(slots)) return [];
-  const groups: PlateSlotGroup[] = [];
-  slots.forEach((slot, index) => {
-    const row = asRecord(slot);
-    if (!row || !Array.isArray(row.allowedPlates)) return;
-    const plates = row.allowedPlates
-      .map(linkedItem)
-      .filter((item): item is LinkedItemRef => Boolean(item));
-    if (!plates.length) return;
-    const zones = formatArmorZoneList(row.zones);
-    const slotName = formatArmorSlotLabel(String(row.name || zones || "插板槽"));
-    groups.push({
-      key: `${index}-${String(row.name || zones || "plate")}`,
-      name: slotName,
-      plates,
-    });
-  });
-  return groups;
-}
 
 export function extractContentLines(
   properties: Record<string, unknown> | undefined,

@@ -5,8 +5,6 @@ import {
   filterRaidPrepOverlaysForViewer,
   filterRaidPrepOverlaysForSelection,
   raidPrepObjectiveStepText,
-  collectRaidPrepOverlaySteps,
-  resolveRaidPrepLocatePoint,
   buildRaidPrepSummary,
   clusterRaidPrepOverlayLabels,
   hydrateRaidPrepCatalogRows,
@@ -27,7 +25,6 @@ import {
   collectRaidPrepTaskObjectiveLines,
   placeRaidPrepListHint,
   collectRaidPrepTaskObjectives,
-  matchRaidPrepOverlayAtPoint,
   formatRaidPrepKeyNeedLine,
   parseRaidPrepObjectiveDone,
   mergeGuestRaidPrepObjectiveDone,
@@ -46,38 +43,27 @@ import {
   mapLayerFloorBands,
   mapSlugKeys,
   locationHitsMap,
-  neededKeyNamesForMap,
   normalizeRaidPrepMapId,
   raidPrepAutoSwitchMapId,
   raidPrepMapsEquivalent,
   tarkovMapPageFollowHref,
   objectiveAppliesToMap,
-  objectiveZoneNames,
-  overlayFloorNames,
   overlayFloorForSpan,
   overlayFloorForPoint,
   overlayVisibleOnFloor,
   parseCsvParam,
-  partitionRaidPrepRows,
   planRaidPrepTaskProgressSync,
   raidPrepIdsFromTaskProgress,
   describeRaidPrepTaskProgressSync,
-  hideCompletedRaidPrepRows,
   raidPrepTaskProgressStatus,
-  raidPrepTaskProgressLabel,
   raidPrepObjectiveCheckedForViewer,
-  sortRaidPrepRowsByProgress,
   groupRaidPrepRowsByProgress,
   splitRaidPrepRowsByCurrentMap,
   raidPrepOnMapTaskIds,
-  filterRaidPrepRowsByScope,
-  countRaidPrepRowsByScope,
   mergeRaidPrepNeededItems,
   raidPrepKeyIsMissing,
   raidPrepTaskKeysUnavailable,
   RAID_PREP_UNAVAILABLE_KEY_HINT,
-  collectUnavailableRaidPrepTaskIds,
-  mergeRaidPrepAvailableKeyIds,
   settleRaidPrepSelection,
   formatRaidPrepOverlayKeyLabel,
   pinSelectedRaidPrepRows,
@@ -103,14 +89,12 @@ import {
   collectRaidPrepFailChips,
   formatRaidPrepAltMapsLead,
   formatRaidPrepSequenceMapTitle,
-  formatRaidPrepOtherMapsLead,
   splitRaidPrepOtherMapGroups,
   tarkovFailConditionTypeLabel,
   raidPrepMapObjectivesComplete,
   raidPrepTaskCanLocate,
   formatRaidPrepOverlayPointTitle,
   raidPrepQuestPointMenuActions,
-  formatRaidPrepParticipantLine,
   objectiveDonesToSkipMap,
   raidPrepMapObjectiveIds,
   raidPrepAllObjectiveIds,
@@ -118,9 +102,7 @@ import {
   skipMapToObjectiveDones,
   clipRaidPrepStateObjectiveDones,
   RAID_PREP_STATE_OBJECTIVE_MAX,
-  raidPrepParticipantNames,
   tarkovReadableName,
-  traderFilterLabel,
   type RaidPrepNeededItem,
   type RaidPrepTaskLike,
   type TarkovRaidPrepOverlay,
@@ -236,24 +218,6 @@ describe("raid prep map keys", () => {
 });
 
 describe("raid prep participant line", () => {
-  it("joins unique names with 顿号", () => {
-    expect(
-      formatRaidPrepParticipantLine(raidPrepParticipantNames([
-        { name: "甲" },
-        { name: " 乙 " },
-        { name: "甲" },
-        { name: "" },
-      ])),
-    ).toBe("有哪些用户参与该任务：甲、乙");
-  });
-
-  it("shows 暂无 when nobody claimed the task", () => {
-    expect(formatRaidPrepParticipantLine([])).toBe(
-      "有哪些用户参与该任务：暂无",
-    );
-    expect(raidPrepParticipantNames(undefined)).toEqual([]);
-  });
-
   it("keeps userId for map chips and dedupes by person", () => {
     expect(
       raidPrepParticipants([
@@ -371,16 +335,11 @@ describe("selected ids", () => {
   });
 
   it("keeps selected tasks outside the current filter", () => {
-    const filtered = [{ id: "a" }, { id: "b" }];
     const picked = selectedTasksFromCatalog(
       [{ id: "a" }, { id: "b" }, { id: "c" }],
       ["c", "a", "missing"],
     );
     expect(picked.map((row) => row.id)).toEqual(["c", "a"]);
-    expect(
-      partitionRaidPrepRows(filtered, picked).rest.map((row) => row.id),
-    ).toEqual(["b"]);
-    expect(partitionRaidPrepRows(filtered, []).picked).toEqual([]);
   });
 });
 
@@ -461,9 +420,6 @@ describe("buildRaidPrepOverlays", () => {
       points: [{ x: 10, z: 20 }],
     });
     expect(overlays[0].color).toBe(colorForTaskIndex(0));
-    expect(objectiveZoneNames(task)).toEqual(["Dorms"]);
-    expect(neededKeyNamesForMap(task, "customs")).toEqual(["Dorm 114"]);
-    expect(neededKeyNamesForMap(task, "streets")).toEqual([]);
   });
 
   it("does not hang task-level keys on a point whose objective has none", () => {
@@ -834,26 +790,9 @@ describe("buildRaidPrepOverlays", () => {
       "在海岸线找到第一处交易现场，并使用MS2000指示器标记",
       "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
     ]);
-    expect(collectRaidPrepOverlaySteps(task, "shoreline", "o-2")).toEqual([
-      {
-        id: "o-1",
-        text: "在海岸线找到第一处交易现场，并使用MS2000指示器标记",
-        optional: false,
-        active: false,
-      },
-      {
-        id: "o-2",
-        text: "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
-        optional: false,
-        active: true,
-      },
-    ]);
     expect(overlays[1]!.steps.filter((step) => step.active).map((step) => step.text)).toEqual([
       "在海岸线找到第二处交易现场，并使用MS2000指示器标记",
     ]);
-    expect(matchRaidPrepOverlayAtPoint(overlays, "anesthesia", { x: 80, z: 90 })?.title).toBe(
-      "麻醉（第2处）",
-    );
   });
 
   it("leaves a single-point task unnumbered", () => {
@@ -1246,89 +1185,6 @@ describe("filterRaidPrepOverlaysForSelection", () => {
   });
 });
 
-describe("resolveRaidPrepLocatePoint", () => {
-  it("prefers the first non-optional marker on the current map", () => {
-    const task: RaidPrepTaskLike = {
-      id: "t-locate",
-      name: "Locate me",
-      objectives: [
-        {
-          id: "o-opt",
-          optional: true,
-          zones: [
-            {
-              id: "z-opt",
-              map_slug: "customs",
-              x: 1,
-              z: 1,
-            },
-          ],
-        },
-        {
-          id: "o-main",
-          optional: false,
-          possible_locations: [
-            {
-              map_slug: "customs",
-              positions: [{ x: 9, z: 8 }],
-            },
-          ],
-        },
-      ],
-    };
-    expect(resolveRaidPrepLocatePoint(task, "customs")).toEqual({
-      x: 9,
-      z: 8,
-    });
-  });
-
-  it("falls back to optional markers when no required point exists", () => {
-    const task: RaidPrepTaskLike = {
-      id: "t-opt-only",
-      name: "Optional only",
-      objectives: [
-        {
-          id: "o-opt",
-          optional: true,
-          zones: [
-            {
-              id: "z-opt",
-              map_slug: "customs",
-              x: 3,
-              z: 4,
-            },
-          ],
-        },
-      ],
-    };
-    expect(resolveRaidPrepLocatePoint(task, "customs")).toEqual({
-      x: 3,
-      z: 4,
-    });
-  });
-
-  it("ignores markers on other maps", () => {
-    const task: RaidPrepTaskLike = {
-      id: "t-other",
-      name: "Other map",
-      objectives: [
-        {
-          id: "o-main",
-          zones: [
-            {
-              id: "z-other",
-              map_slug: "streets",
-              x: 5,
-              z: 5,
-            },
-          ],
-        },
-      ],
-    };
-    expect(resolveRaidPrepLocatePoint(task, "customs")).toBeNull();
-  });
-});
-
 describe("readable item names", () => {
   it("hides hex ids that leaked through as names", () => {
     expect(isTarkovHexId("5a9f913a86f77472bf74a592")).toBe(true);
@@ -1398,21 +1254,6 @@ describe("readable item names", () => {
     ).toEqual(["guide", "uncomplete"]);
   });
 
-  it("skips unresolved key ids on the task card", () => {
-    const task: RaidPrepTaskLike = {
-      id: "t-keys",
-      needed_keys: [
-        {
-          map: { slug: "customs" },
-          keys: [
-            { id: "5a9f913a86f77472bf74a592", name: "5a9f913a86f77472bf74a592" },
-            { id: "k114", name: "Dorm 114" },
-          ],
-        },
-      ],
-    };
-    expect(neededKeyNamesForMap(task, "customs")).toEqual(["Dorm 114"]);
-  });
 });
 
 describe("raid prep needed items", () => {
@@ -2650,9 +2491,6 @@ describe("multi-map raid prep progress", () => {
 
   it("groups remaining maps for the prep popup", () => {
     const groups = collectRaidPrepOtherMapGroups(meme, "streets");
-    expect(formatRaidPrepOtherMapsLead(groups)).toBe(
-      "此任务还需在海关、森林完成",
-    );
     expect(splitRaidPrepOtherMapGroups(groups).allowed).toEqual([]);
     expect(groups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
     expect(groups[0]?.lines).toEqual([
@@ -2661,15 +2499,6 @@ describe("multi-map raid prep progress", () => {
     expect(groups[1]?.lines).toEqual([
       { id: "w1", text: "在森林的木屋处安装Wi-Fi摄像头" },
     ]);
-    expect(
-      formatRaidPrepOtherMapsLead(groups, new Set(["c1"])),
-    ).toBe("此任务还需在森林完成");
-    expect(
-      formatRaidPrepOtherMapsLead(groups, new Set(["c1", "w1"])),
-    ).toBe("其他地图步骤已勾完");
-    expect(formatRaidPrepOtherMapsLead(groups, new Set(), true)).toBe(
-      "其他地图步骤已勾完",
-    );
     const summary = buildRaidPrepSummary(
       [meme],
       "streets",
@@ -2702,26 +2531,11 @@ describe("multi-map raid prep progress", () => {
       ],
     };
     const groups = collectRaidPrepOtherMapGroups(huntsman, "customs");
-    expect(formatRaidPrepOtherMapsLead(groups)).toBe(
-      "此任务也可在储备站、灯塔完成",
-    );
     expect(groups.map((row) => row.mapLabel)).toEqual(["储备站", "灯塔"]);
     expect(groups.every((row) => row.lines.length === 0)).toBe(true);
     expect(splitRaidPrepOtherMapGroups(groups).required).toEqual([]);
   });
 
-  it("joins also-allowed and still-required maps in one lead", () => {
-    expect(
-      formatRaidPrepOtherMapsLead([
-        { mapSlug: "reserve", mapLabel: "储备站", lines: [] },
-        {
-          mapSlug: "woods",
-          mapLabel: "森林",
-          lines: [{ id: "w1", text: "在森林安装摄像头" }],
-        },
-      ]),
-    ).toBe("此任务也可在储备站完成，还需在森林完成");
-  });
 });
 
 describe("collectRaidPrepFailChips", () => {
@@ -3176,19 +2990,6 @@ describe("raid prep geometry cache", () => {
   });
 });
 
-describe("traderFilterLabel", () => {
-  it("returns english only", () => {
-    expect(traderFilterLabel("prapor", "Prapor")).toEqual({
-      english: "Prapor",
-      chinese: "",
-    });
-    expect(traderFilterLabel("unknown", "Skier（滑雪）")).toEqual({
-      english: "Skier",
-      chinese: "",
-    });
-  });
-});
-
 describe("filterRaidPrepRows", () => {
   it("filters by trader and query", () => {
     const rows = [
@@ -3235,7 +3036,6 @@ describe("overlay floors", () => {
     expect(overlayVisibleOnFloor(null, "", bands)).toBe(true);
     expect(overlayVisibleOnFloor({ min: 14, max: 16 }, "", bands)).toBe(false);
     expect(overlayVisibleOnFloor({ min: 14, max: 16 }, "2nd", bands)).toBe(true);
-    expect(overlayFloorNames({ min: 14, max: 16 }, bands)).toEqual(["2nd"]);
     expect(overlayFloorForSpan({ min: 14, max: 16 }, bands)).toBe("2nd");
     expect(overlayFloorForSpan(null, bands)).toBe("");
     expect(overlayFloorForPoint(15, bands)).toBe("2nd");
@@ -3550,22 +3350,13 @@ describe("planRaidPrepTaskProgressSync", () => {
 });
 
 describe("raid prep packing and settle", () => {
-  it("hides completed catalog rows", () => {
-    expect(
-      hideCompletedRaidPrepRows(
-        [{ id: "a" }, { id: "b" }, { id: "c" }],
-        ["b", ""],
-      ),
-    ).toEqual([{ id: "a" }, { id: "c" }]);
-  });
-
-  it("reads task progress status and filters list scopes", () => {
+  it("reads task progress status and groups rows", () => {
     expect(raidPrepTaskProgressStatus("a", ["a"], ["a"])).toBe("done");
     expect(raidPrepTaskProgressStatus("b", ["a"], ["b"])).toBe("active");
     expect(raidPrepTaskProgressStatus("c", ["a"], ["b"])).toBe("todo");
-    expect(raidPrepTaskProgressLabel("active")).toBe("进行中");
-    expect(raidPrepTaskProgressLabel("todo")).toBe("未完成");
-    expect(raidPrepTaskProgressLabel("done")).toBe("已完成");
+    expect(
+      raidPrepTaskProgressStatus("b", new Set(["a"]), new Set(["b"])),
+    ).toBe("active");
     expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), true)).toBe(true);
     expect(raidPrepObjectiveCheckedForViewer("s1", new Set(["s1"]), false)).toBe(
       true,
@@ -3574,46 +3365,15 @@ describe("raid prep packing and settle", () => {
       false,
     );
     const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
-    expect(
-      filterRaidPrepRowsByScope(rows, "all", {
-        doneIds: ["a"],
-        startedIds: ["b"],
-      }).map((row) => row.id),
-    ).toEqual(["a", "b", "c"]);
-    expect(
-      filterRaidPrepRowsByScope(rows, "picked", { selectedIds: ["b"] }).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["b"]);
-    expect(
-      filterRaidPrepRowsByScope(rows, "active", {
-        doneIds: ["a"],
-        startedIds: ["b"],
-      }).map((row) => row.id),
-    ).toEqual(["b"]);
-    expect(
-      filterRaidPrepRowsByScope(rows, "todo", {
-        doneIds: ["a"],
-        startedIds: ["b"],
-      }).map((row) => row.id),
-    ).toEqual(["c"]);
-    expect(
-      filterRaidPrepRowsByScope(rows, "done", {
-        doneIds: ["a"],
-        startedIds: ["b"],
-      }).map((row) => row.id),
-    ).toEqual(["a"]);
-    expect(
-      countRaidPrepRowsByScope(rows, {
-        selectedIds: ["a", "c"],
-        doneIds: ["a"],
-        startedIds: ["b"],
-      }),
-    ).toEqual({ all: 3, picked: 2, active: 1, todo: 1, done: 1 });
-    expect(
-      sortRaidPrepRowsByProgress(rows, ["a"], ["b"]).map((row) => row.id),
-    ).toEqual(["b", "c", "a"]);
     expect(groupRaidPrepRowsByProgress(rows, ["a"], ["b"])).toEqual({
+      active: [{ id: "b" }],
+      todo: [{ id: "c" }],
+      done: [{ id: "a" }],
+    });
+    // Set 原样收（逐行判状态不再每行复制一份集合）
+    expect(
+      groupRaidPrepRowsByProgress(rows, new Set(["a"]), new Set(["b"])),
+    ).toEqual({
       active: [{ id: "b" }],
       todo: [{ id: "c" }],
       done: [{ id: "a" }],
@@ -3720,43 +3480,6 @@ describe("raid prep packing and settle", () => {
         new Set(["b"]),
       ),
     ).toBe(false);
-    expect(mergeRaidPrepAvailableKeyIds([{ item_id: "k1" }], [{ item_id: "k2" }])).toEqual(
-      new Set(["k1", "k2"]),
-    );
-  });
-
-  it("lists tasks whose required keys nobody owns, without hiding overlays", () => {
-    const task: RaidPrepTaskLike = {
-      id: "wet-2",
-      name: "带血的水",
-      needed_keys: [
-        {
-          map: { slug: "customs" },
-          keys: [{ id: "office", name: "公司主管办公室钥匙" }],
-        },
-      ],
-      objectives: [
-        {
-          id: "o-1",
-          type: "visit",
-          description: "检查办公室",
-          required_keys: [[{ id: "office", name: "公司主管办公室钥匙" }]],
-          zones: [{ id: "z-1", map_slug: "customs", x: 1, z: 1 }],
-        },
-      ],
-    };
-    expect(
-      collectUnavailableRaidPrepTaskIds([task], "customs", undefined, new Set()),
-    ).toEqual(new Set(["wet-2"]));
-    expect(
-      collectUnavailableRaidPrepTaskIds(
-        [task],
-        "customs",
-        undefined,
-        new Set(["office"]),
-      ),
-    ).toEqual(new Set());
-    expect(buildRaidPrepOverlays([task], "customs")).toHaveLength(1);
   });
 
   it("drops completed tasks after a successful raid", () => {

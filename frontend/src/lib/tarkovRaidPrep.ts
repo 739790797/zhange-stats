@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { MAPS_HREF, TARKOV_MAPS, traderDisplayName } from "@/lib/tarkovHomeNav";
+import { MAPS_HREF, traderDisplayName } from "@/lib/tarkovHomeNav";
 import { logMapHref } from "@/lib/tarkovGameLogs";
 import {
   parseTarkovPmcFaction,
@@ -12,16 +12,23 @@ import {
   tarkovExitStatusLabel,
   tarkovObjectiveTypeLabel,
 } from "@/lib/tarkovTaskObjective";
+import {
+  isRaidPrepAutoMapKind,
+  mapSlugKeys,
+  normalizeRaidPrepMapId,
+  raidPrepMapOptions,
+} from "@/lib/tarkovMapSlugs";
 
-/** 与后端 MAP_SLUG_EQUIV_GROUPS 对齐。 */
-export const MAP_SLUG_EQUIV_GROUPS: readonly (readonly string[])[] = [
-  ["streets", "streets-of-tarkov"],
-  ["lab", "the-lab"],
-  ["labyrinth", "the-labyrinth"],
-  ["night-factory", "factory-night"],
-  ["ground-zero", "ground-zero-21", "ground-zero-tutorial"],
-  ["customs", "bigmap"],
-];
+/** 地图 slug 助手搬到轻模块 tarkovMapSlugs（外壳常驻）；这里保留再导出。 */
+export {
+  MAP_SLUG_EQUIV_GROUPS,
+  RAID_PREP_AUTO_MAP_KINDS,
+  isRaidPrepAutoMapKind,
+  mapSlugKeys,
+  normalizeRaidPrepMapId,
+  raidPrepMapOptions,
+  type RaidPrepMapOption,
+} from "@/lib/tarkovMapSlugs";
 
 export const RAID_PREP_MAX_SELECTED = 40;
 /** 与后端 TarkovUserRaidPrepStateIn.objective_dones 上限对齐。 */
@@ -310,13 +317,6 @@ export const RAID_PREP_TASK_COLORS = [
   "#4ab8b8",
   "#f0a3c2",
 ] as const;
-
-export type RaidPrepMapOption = {
-  id: string;
-  label: string;
-  english: string;
-  icon: string;
-};
 
 export type RaidPrepPoint = {
   x: number;
@@ -812,38 +812,6 @@ export function raidPrepQuestOverlayVisible(
   return people.some((person) => selectedKeys.has(raidPrepPersonKey(person)));
 }
 
-/** 地图悬浮窗 / 文案用的参与者显示名。 */
-export function raidPrepParticipantNames(
-  people:
-    | readonly { name?: string | null; userId?: number | null }[]
-    | null
-    | undefined,
-): string[] {
-  return raidPrepParticipants(people).map((person) => person.name);
-}
-
-/** 地图任务点悬浮纯文本（标签 UI 用 raidPrepParticipants）。 */
-export function formatRaidPrepParticipantLine(
-  names: readonly string[],
-): string {
-  const list = names.map((name) => name.trim()).filter(Boolean);
-  if (!list.length) return "有哪些用户参与该任务：暂无";
-  return `有哪些用户参与该任务：${list.join("、")}`;
-}
-
-export function mapSlugKeys(mapSlug: string): Set<string> {
-  const key = (mapSlug || "").trim().toLowerCase();
-  if (!key) return new Set();
-  const keys = new Set<string>([key]);
-  for (const group of MAP_SLUG_EQUIV_GROUPS) {
-    if (group.includes(key)) {
-      for (const item of group) keys.add(item);
-      break;
-    }
-  }
-  return keys;
-}
-
 export function locationHitsMap(
   loc: LocationRef,
   mapSlug: string | Set<string>,
@@ -880,13 +848,6 @@ export function colorForTaskIndex(index: number): string {
 
 export function colorForUserId(userId: number): string {
   return colorForTaskId(`user:${userId}`);
-}
-
-export function traderFilterLabel(
-  slug: string,
-  apiName: string,
-): { english: string; chinese: string } {
-  return { english: traderDisplayName(slug, apiName), chinese: "" };
 }
 
 /** 与后端 filter_task_rows 对齐；前端单次拉全量后本地筛。 */
@@ -1180,21 +1141,6 @@ export function overlayVisibleOnFloor(
   return bandMatchesFloor(named, span, at);
 }
 
-export function overlayFloorNames(
-  span: RaidPrepHeightSpan | null | undefined,
-  bands: readonly RaidPrepFloorBand[],
-  at?: RaidPrepFloorAt | null,
-): string[] {
-  if (!span) return [];
-  const names: string[] = [];
-  for (const band of bands) {
-    if (!band.name) continue;
-    if (!bandMatchesFloor(band, span, at)) continue;
-    names.push(band.name);
-  }
-  return names;
-}
-
 /** 点位应对齐的楼层名；空字符串是地面。 */
 export function overlayFloorForSpan(
   span: RaidPrepHeightSpan | null | undefined,
@@ -1297,57 +1243,6 @@ export function mapLayerFloorBands(
     });
   }
   return bands;
-}
-
-export function raidPrepMapOptions(): RaidPrepMapOption[] {
-  const ready = TARKOV_MAPS.filter(
-    (item) => item.status === "ready" && !item.comingSoon,
-  );
-  const factory = ready.find((item) => item.id === "factory");
-  const out: RaidPrepMapOption[] = [];
-  for (const item of ready) {
-    out.push({
-      id: item.id,
-      label: item.label,
-      english: item.english,
-      icon: item.icon,
-    });
-    if (item.id === "factory" && factory) {
-      out.push({
-        id: "night-factory",
-        label: "夜间工厂",
-        english: "Factory (Night)",
-        icon: factory.icon,
-      });
-    }
-  }
-  return out;
-}
-
-export function normalizeRaidPrepMapId(raw: string): string {
-  const keys = mapSlugKeys(raw);
-  if (!keys.size) return "";
-  for (const option of raidPrepMapOptions()) {
-    const optionKeys = mapSlugKeys(option.id);
-    for (const key of keys) {
-      if (optionKeys.has(key)) return option.id;
-    }
-  }
-  return "";
-}
-
-/** 载入地图 / 匹配中 / 匹配成功 / 倒计时 / 开战：认定「正在进这张图」。 */
-export const RAID_PREP_AUTO_MAP_KINDS = [
-  "map_loading",
-  "matching",
-  "match_found",
-  "raid_starting",
-  "raid_started",
-] as const;
-
-export function isRaidPrepAutoMapKind(kind: string | null | undefined): boolean {
-  const key = (kind || "").trim();
-  return (RAID_PREP_AUTO_MAP_KINDS as readonly string[]).includes(key);
 }
 
 export function raidPrepMapsEquivalent(a: string, b: string): boolean {
@@ -1522,21 +1417,16 @@ export function planRaidPrepTaskProgressSync(opts: {
   };
 }
 
-export function hideCompletedRaidPrepRows<T extends { id: string }>(
-  rows: readonly T[],
-  doneIds: readonly string[] | null | undefined,
-): T[] {
-  const done = new Set(trimIdList(doneIds));
-  if (!done.size) return [...rows];
-  return rows.filter((row) => !done.has(row.id));
-}
+const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
+/** Set 原样返回，数组才建集合：逐行判状态时不再每行复制一次。 */
 function asIdSet(
   ids: ReadonlySet<string> | readonly string[] | null | undefined,
-): Set<string> {
-  if (!ids) return new Set();
-  if (Array.isArray(ids)) return new Set(trimIdList(ids));
-  return new Set(ids);
+): ReadonlySet<string> {
+  if (!ids) return EMPTY_ID_SET;
+  // readonly 数组不会被 instanceof 收窄掉，false 分支照旧当数组处理。
+  if (ids instanceof Set) return ids as ReadonlySet<string>;
+  return new Set(trimIdList(ids as readonly string[]));
 }
 
 /** 个人中心任务进度：已完成 > 进行中 > 未完成。 */
@@ -1549,37 +1439,6 @@ export function raidPrepTaskProgressStatus(
   if (id && asIdSet(doneIds).has(id)) return "done";
   if (id && asIdSet(startedIds).has(id)) return "active";
   return "todo";
-}
-
-export function raidPrepTaskProgressLabel(
-  status: RaidPrepTaskProgressStatus,
-): string {
-  if (status === "done") return RAID_PREP_LIST_SCOPE_LABELS.done;
-  if (status === "active") return RAID_PREP_LIST_SCOPE_LABELS.active;
-  return RAID_PREP_LIST_SCOPE_LABELS.todo;
-}
-
-const RAID_PREP_PROGRESS_SORT: Record<RaidPrepTaskProgressStatus, number> = {
-  active: 0,
-  todo: 1,
-  done: 2,
-};
-
-/** 筛选结果：进行中 → 未完成 → 已完成，同状态保持原相对顺序。 */
-export function sortRaidPrepRowsByProgress<T extends { id: string }>(
-  rows: readonly T[],
-  doneIds?: ReadonlySet<string> | readonly string[] | null,
-  startedIds?: ReadonlySet<string> | readonly string[] | null,
-): T[] {
-  return [...rows].sort(
-    (a, b) =>
-      RAID_PREP_PROGRESS_SORT[
-        raidPrepTaskProgressStatus(a.id, doneIds, startedIds)
-      ] -
-      RAID_PREP_PROGRESS_SORT[
-        raidPrepTaskProgressStatus(b.id, doneIds, startedIds)
-      ],
-  );
 }
 
 export const RAID_PREP_PROGRESS_STATUSES: readonly RaidPrepTaskProgressStatus[] =
@@ -1630,51 +1489,6 @@ export function raidPrepOnMapTaskIds(
   return out;
 }
 
-export function filterRaidPrepRowsByScope<T extends { id: string }>(
-  rows: readonly T[],
-  scope: RaidPrepListScope,
-  opts: {
-    selectedIds?: ReadonlySet<string> | readonly string[] | null;
-    doneIds?: ReadonlySet<string> | readonly string[] | null;
-    startedIds?: ReadonlySet<string> | readonly string[] | null;
-  } = {},
-): T[] {
-  if (scope === "all") return [...rows];
-  if (scope === "picked") {
-    const selected = asIdSet(opts.selectedIds);
-    return rows.filter((row) => selected.has(row.id));
-  }
-  return rows.filter(
-    (row) =>
-      raidPrepTaskProgressStatus(row.id, opts.doneIds, opts.startedIds) ===
-      scope,
-  );
-}
-
-export function countRaidPrepRowsByScope<T extends { id: string }>(
-  rows: readonly T[],
-  opts: {
-    selectedIds?: ReadonlySet<string> | readonly string[] | null;
-    doneIds?: ReadonlySet<string> | readonly string[] | null;
-    startedIds?: ReadonlySet<string> | readonly string[] | null;
-  } = {},
-): Record<RaidPrepListScope, number> {
-  const selected = asIdSet(opts.selectedIds);
-  const counts: Record<RaidPrepListScope, number> = {
-    all: rows.length,
-    picked: 0,
-    active: 0,
-    todo: 0,
-    done: 0,
-  };
-  for (const row of rows) {
-    if (selected.has(row.id)) counts.picked += 1;
-    counts[raidPrepTaskProgressStatus(row.id, opts.doneIds, opts.startedIds)] +=
-      1;
-  }
-  return counts;
-}
-
 export function mergeRaidPrepNeededItems(
   items: readonly RaidPrepNeededItem[],
 ): RaidPrepNeededItem[] {
@@ -1712,19 +1526,6 @@ export function raidPrepKeyIsMissing(
 export const RAID_PREP_UNAVAILABLE_KEY_HINT =
   "所需钥匙还没人点「我有」，仅作提醒。语音里说有也行，地图上仍会标出。";
 
-export function mergeRaidPrepAvailableKeyIds(
-  ...lists: Array<readonly { item_id?: string | null }[] | null | undefined>
-): Set<string> {
-  const ids = new Set<string>();
-  for (const list of lists) {
-    for (const row of list || []) {
-      const id = String(row.item_id || "").trim();
-      if (id) ids.add(id);
-    }
-  }
-  return ids;
-}
-
 function raidPrepKeyItemAvailable(
   item: RaidPrepNeededItem,
   availableIds: ReadonlySet<string>,
@@ -1745,24 +1546,6 @@ export function raidPrepTaskKeysUnavailable(
   );
   if (!required.length) return false;
   return required.every((item) => !raidPrepKeyItemAvailable(item, availableIds));
-}
-
-export function collectUnavailableRaidPrepTaskIds(
-  tasks: readonly RaidPrepTaskLike[],
-  mapSlug: string,
-  skippedByTask: RaidPrepSkipMap | undefined,
-  availableIds: ReadonlySet<string>,
-): Set<string> {
-  const hidden = new Set<string>();
-  for (const task of tasks) {
-    const keys = collectRaidPrepTaskKeys(
-      task,
-      mapSlug,
-      raidPrepSkippedIds(skippedByTask, task.id),
-    );
-    if (raidPrepTaskKeysUnavailable(keys, availableIds)) hidden.add(task.id);
-  }
-  return hidden;
 }
 
 export function formatRaidPrepOverlayKeyLabel(
@@ -1806,18 +1589,6 @@ export function selectedTasksFromCatalog<T extends { id: string }>(
   return out;
 }
 
-/** 已选单独成区；筛选列表不再包含已选项。 */
-export function partitionRaidPrepRows<T extends { id: string }>(
-  filteredRows: readonly T[],
-  selectedRows: readonly T[],
-): { picked: T[]; rest: T[] } {
-  const selectedIds = new Set(selectedRows.map((row) => row.id));
-  return {
-    picked: [...selectedRows],
-    rest: filteredRows.filter((row) => !selectedIds.has(row.id)),
-  };
-}
-
 /** 勾选任务置顶，组内保持原列表相对顺序。 */
 export function pinSelectedRaidPrepRows<T extends { id: string }>(
   rows: readonly T[],
@@ -1831,40 +1602,6 @@ export function pinSelectedRaidPrepRows<T extends { id: string }>(
     else rest.push(row);
   }
   return picked.length ? [...picked, ...rest] : [...rows];
-}
-
-export function objectiveZoneNames(task: RaidPrepTaskLike): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const obj of task.objectives || []) {
-    for (const name of obj.zone_names || []) {
-      const text = String(name || "").trim();
-      if (!text || seen.has(text)) continue;
-      seen.add(text);
-      out.push(text);
-    }
-  }
-  return out;
-}
-
-export function neededKeyNamesForMap(
-  task: RaidPrepTaskLike,
-  mapSlug: string,
-): string[] {
-  const keys = mapSlugKeys(mapSlug);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const row of task.needed_keys || []) {
-    const slug = (row.map?.slug || "").trim().toLowerCase();
-    if (slug && !keys.has(slug)) continue;
-    for (const key of row.keys || []) {
-      const name = tarkovReadableName(key.name, key.id);
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
-      out.push(name);
-    }
-  }
-  return out;
 }
 
 /** 只读该目标 required_keys，不回退任务级 needed_keys，避免把别的点的钥匙挂过来。 */
@@ -2128,15 +1865,6 @@ function otherMapGroupHasSteps(row: RaidPrepOtherMapGroup): boolean {
   );
 }
 
-function otherMapGroupLabels(
-  groups: readonly RaidPrepOtherMapGroup[],
-): string {
-  return groups
-    .map((row) => row.mapLabel.trim())
-    .filter(Boolean)
-    .join("、");
-}
-
 /** 空名单 = 本图步骤也可在那些图做；有步骤 = 那些图还有别的目标。 */
 export function splitRaidPrepOtherMapGroups(
   groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
@@ -2151,27 +1879,6 @@ export function splitRaidPrepOtherMapGroups(
     else allowed.push(row);
   }
   return { allowed, required };
-}
-
-export function formatRaidPrepOtherMapsLead(
-  groups: readonly RaidPrepOtherMapGroup[] | null | undefined,
-  skipped?: ReadonlySet<string> | null,
-  taskDone?: boolean,
-): string {
-  const { allowed, required } = splitRaidPrepOtherMapGroups(groups);
-  const remainingRequired = required.filter((group) => {
-    if (taskDone) return false;
-    return group.lines.some(
-      (line) => !raidPrepObjectiveCheckedForViewer(line.id, skipped, false),
-    );
-  });
-  const parts: string[] = [];
-  const allowedLabels = otherMapGroupLabels(allowed);
-  const requiredLabels = otherMapGroupLabels(remainingRequired);
-  if (allowedLabels) parts.push(`也可在${allowedLabels}完成`);
-  if (requiredLabels) parts.push(`还需在${requiredLabels}完成`);
-  if (!parts.length) return required.length ? "其他地图步骤已勾完" : "";
-  return `此任务${parts.join("，")}`;
 }
 
 function altMapsKey(maps: readonly RaidPrepNamedMap[] | null | undefined): string {
@@ -3129,20 +2836,6 @@ export function raidPrepObjectiveStepText(obj: RaidPrepObjectiveLike): string {
   return obj.optional ? `${withCount}（可选）` : withCount;
 }
 
-export function collectRaidPrepOverlaySteps(
-  task: RaidPrepTaskLike,
-  mapSlug: string,
-  activeObjectiveId = "",
-): RaidPrepOverlayStep[] {
-  const active = String(activeObjectiveId || "").trim();
-  return collectRaidPrepTaskObjectives(task, mapSlug).map((obj) => ({
-    id: obj.id,
-    text: obj.text,
-    optional: obj.optional,
-    active: Boolean(active) && obj.id === active,
-  }));
-}
-
 /** 当前地图未勾掉的击杀目标：总结表一列一条描述。 */
 export function collectRaidPrepTaskShootSlots(
   task: RaidPrepTaskLike,
@@ -3919,14 +3612,6 @@ export function resolveRaidPrepLocatePoints(
   );
 }
 
-/** 任务在当前地图的首个定位点：优先非 optional 目标的首个 zone / 刷新点。 */
-export function resolveRaidPrepLocatePoint(
-  task: RaidPrepTaskLike,
-  mapSlug: string,
-): RaidPrepPoint | null {
-  return resolveRaidPrepLocatePoints(task, mapSlug)[0] ?? null;
-}
-
 /**
  * 还有能画在地图上、且未勾完的点时才显示定位。
  * 几何还没灌进来时，目录标记有点且本图还有未勾步骤，先留着按钮。
@@ -3946,26 +3631,6 @@ export function raidPrepTaskCanLocate(
   if (!steps.length) return true;
   const have = skipped || EMPTY_SKIP;
   return steps.some((step) => !have.has(step.id));
-}
-
-function raidPrepPointXZKey(point: RaidPrepPoint): string {
-  return `${Math.round(point.x)}:${Math.round(point.z)}`;
-}
-
-/** 定位点对应的地图 overlay：按米级 xz 对齐，忽略高度差。 */
-export function matchRaidPrepOverlayAtPoint(
-  overlays: readonly TarkovRaidPrepOverlay[],
-  taskId: string,
-  point: RaidPrepPoint,
-): TarkovRaidPrepOverlay | undefined {
-  const tid = String(taskId || "").trim();
-  const key = raidPrepPointXZKey(point);
-  return overlays.find((row) => {
-    if (row.taskId !== tid) return false;
-    return [...row.points, ...row.outline].some(
-      (hit) => raidPrepPointXZKey(hit) === key,
-    );
-  });
 }
 
 function overlayLabelSeeds(row: TarkovRaidPrepOverlay): RaidPrepPoint[] {

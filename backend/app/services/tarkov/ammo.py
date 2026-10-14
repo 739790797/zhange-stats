@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -14,8 +13,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tarkov import TarkovAmmo
-from app.services.tarkov.game_mode import json_api_prefix, json_resource_url, raw_row_id
-from app.services.tarkov.http import download_bytes
+from app.services.tarkov.game_mode import json_api_prefix, raw_row_id
 
 logger = logging.getLogger(__name__)
 
@@ -107,24 +105,6 @@ class AmmoUpstreamBundle:
     source: str
     payload: dict[str, Any]
     note: str
-
-
-def _http_request(
-    url: str,
-    *,
-    method: str = "GET",
-    body: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DOWNLOAD_TIMEOUT,
-) -> bytes:
-    return download_bytes(
-        url,
-        method=method,
-        body=body,
-        headers=headers,
-        timeout=timeout,
-        error_cls=TarkovAmmoError,
-    )
 
 
 def _as_int(value: Any) -> int:
@@ -349,29 +329,11 @@ def parse_ammo_raw(source: str, payload: dict[str, Any]) -> list[dict[str, Any]]
 
 def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
     """json.tarkov.dev items dump；locale 挂在 payload 上，persist 时另写 lang=zh。"""
-    raw = _http_request(json_resource_url("items"), timeout=180)
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovAmmoError("json.tarkov.dev items 解析失败") from exc
-    if not isinstance(payload, dict):
-        raise TarkovAmmoError("json.tarkov.dev items 格式无效")
+    from app.services.tarkov import upstream as upstream_svc
 
-    try:
-        loc_raw = _http_request(
-            json_resource_url("items", lang=lang),
-            timeout=60,
-        )
-        loc_payload = json.loads(loc_raw.decode("utf-8"))
-        loc_data = loc_payload.get("data") if isinstance(loc_payload, dict) else None
-        if isinstance(loc_data, dict) and loc_data:
-            payload = dict(payload)
-            payload["locale"] = loc_data
-    except TarkovAmmoError:
-        logger.warning("json.tarkov.dev items_%s locale unavailable", lang)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("json.tarkov.dev items_%s locale parse failed", lang)
-
+    payload = upstream_svc.download_resource_with_locale(
+        "items", lang=lang, timeout=180, error_cls=TarkovAmmoError
+    )
     rows = parse_ammo_raw(SOURCE_JSON_API, payload)
     if not rows:
         raise TarkovAmmoError("json.tarkov.dev 未解析到弹药")

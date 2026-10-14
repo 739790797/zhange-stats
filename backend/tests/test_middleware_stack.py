@@ -90,7 +90,8 @@ def test_every_upload_route_has_explicit_body_limit() -> None:
         for op in ops.values()
         if "multipart/form-data" in ((op.get("requestBody") or {}).get("content") or {})
     ]
-    assert len(uploads) >= 8
+    # 头像 ×2、文件管理、Minecraft 文件、酒馆附件、公式识别（截图识别已下线）
+    assert len(uploads) >= 6
     missing = [p for p in uploads if limiter.rule_for(p) is None]
     assert missing == []
     assert limiter.limit_for("/api/settings/files/upload") > 256 * 1024 * 1024

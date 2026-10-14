@@ -1,6 +1,6 @@
 import { Alert, Image, Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -44,6 +44,18 @@ function restockLabel(resetTime: string | undefined, nowMs: number): string {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
+/** 每秒只重绘倒计时这一小块，别带着整张报价表一起刷。 */
+function RestockCountdown({ resetTime }: { resetTime: string | undefined }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <span className={styles.restockTime}>{restockLabel(resetTime, nowMs)}</span>
+  );
+}
+
 export function TarkovTraderPanel({ slug }: Props) {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -61,7 +73,6 @@ export function TarkovTraderPanel({ slug }: Props) {
   );
   const [keyword, setKeyword] = useState(q);
   const qRef = useRef(q);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [portraitSrc, setPortraitSrc] = useState("");
 
   useEffect(() => {
@@ -82,11 +93,6 @@ export function TarkovTraderPanel({ slug }: Props) {
     }, 300);
     return () => window.clearTimeout(handle);
   }, [keyword, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const detailQuery = useQuery({
     queryKey: ["guides-tarkov-trader", gameMode, slug, level, q, pageNo, pageSize],
@@ -120,7 +126,8 @@ export function TarkovTraderPanel({ slug }: Props) {
     setSearchParams(params, { replace: true });
   };
 
-  const columns: ColumnsType<TarkovTraderOffer> = [
+  const traderLabel = detail?.english || slug;
+  const columns = useMemo<ColumnsType<TarkovTraderOffer>>(() => [
     {
       title: "名称",
       dataIndex: "name",
@@ -172,7 +179,7 @@ export function TarkovTraderPanel({ slug }: Props) {
             {formatMoney(row.price, row.currency)}
           </span>
           <span className={styles.offerMeta}>
-            {detail?.english || slug} LL{row.min_trader_level}
+            {traderLabel} LL{row.min_trader_level}
           </span>
           {row.task_unlock_id ? (
             <Link
@@ -185,7 +192,7 @@ export function TarkovTraderPanel({ slug }: Props) {
         </div>
       ),
     },
-  ];
+  ], [traderLabel]);
 
   if (detailQuery.isLoading && !detail) {
     return (
@@ -262,9 +269,7 @@ export function TarkovTraderPanel({ slug }: Props) {
       <div className={styles.controls}>
         <div className={styles.restock}>
           补货剩余时间
-          <span className={styles.restockTime}>
-            {restockLabel(detail.reset_time, nowMs)}
-          </span>
+          <RestockCountdown resetTime={detail.reset_time} />
         </div>
         <div className={styles.levelRow}>
           {LOYALTY.map((item) => (

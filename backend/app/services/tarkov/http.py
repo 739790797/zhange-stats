@@ -55,6 +55,7 @@ def download_response(
     timeout: float | int = 120,
     error_cls: type[Exception] = RuntimeError,
     on_bytes: Callable[[int, int | None], None] | None = None,
+    max_bytes: int | None = None,
 ) -> Any:
     req_headers = {"User-Agent": DEFAULT_UA, **(headers or {})}
     if on_bytes is None:
@@ -65,6 +66,7 @@ def download_response(
                 headers=req_headers,
                 content=body,
                 timeout=timeout,
+                max_bytes=max_bytes,
             )
         except HttpRequestError as exc:
             raise error_cls(f"无法连接资源站: {exc}") from exc
@@ -79,6 +81,7 @@ def download_response(
             content=body,
             timeout=timeout,
             on_bytes=on_bytes,
+            max_bytes=max_bytes,
         )
     except HttpRequestError as exc:
         raise error_cls(f"无法连接资源站: {exc}") from exc
@@ -95,6 +98,7 @@ def download_bytes(
     headers: dict[str, str] | None = None,
     timeout: float | int = 120,
     error_cls: type[Exception] = RuntimeError,
+    max_bytes: int | None = None,
 ) -> bytes:
     return download_response(
         url,
@@ -103,6 +107,7 @@ def download_bytes(
         headers=headers,
         timeout=timeout,
         error_cls=error_cls,
+        max_bytes=max_bytes,
     ).content
 
 
@@ -115,6 +120,7 @@ def download_bytes_with_meta(
     timeout: float | int = 120,
     error_cls: type[Exception] = RuntimeError,
     on_bytes: Callable[[int, int | None], None] | None = None,
+    max_bytes: int | None = None,
 ) -> tuple[bytes, str | None]:
     resp = download_response(
         url,
@@ -124,5 +130,27 @@ def download_bytes_with_meta(
         timeout=timeout,
         error_cls=error_cls,
         on_bytes=on_bytes,
+        max_bytes=max_bytes,
     )
     return resp.content, http_last_modified_iso(getattr(resp, "headers", None))
+
+
+# 塔科夫数据下载上限：json.tarkov.dev items ~17MB，maps ~8.6MB；给上游长胖留足余量
+TARKOV_DUMP_MAX_BYTES = 64 * 1024 * 1024
+
+
+def download_dump(
+    url: str,
+    *,
+    timeout: float | int = 120,
+    error_cls: type[Exception] = RuntimeError,
+    on_bytes: Callable[[int, int | None], None] | None = None,
+) -> tuple[bytes, str | None]:
+    """塔科夫 dump 下载唯一入口：一律带 TARKOV_DUMP_MAX_BYTES，别再各写一份 _http_request。"""
+    return download_bytes_with_meta(
+        url,
+        timeout=timeout,
+        error_cls=error_cls,
+        on_bytes=on_bytes,
+        max_bytes=TARKOV_DUMP_MAX_BYTES,
+    )

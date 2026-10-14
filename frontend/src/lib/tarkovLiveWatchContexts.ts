@@ -69,6 +69,23 @@ export const EMPTY_LIVE_WATCH: TarkovLiveWatchValue = {
   cancelLogSync: () => undefined,
 };
 
+/** 日志回填按钮只关心这几项；与总 value 分开，免得 lastLogAt / 截图坐标一变就重绘备战页。 */
+export type TarkovLogSyncValue = Pick<
+  TarkovLiveWatchValue,
+  "previewLogSessions" | "syncLogs" | "cancelLogSync"
+> & {
+  busy: boolean;
+  scan: { done: number; total: number } | null;
+};
+
+export const EMPTY_LOG_SYNC: TarkovLogSyncValue = {
+  busy: false,
+  scan: null,
+  previewLogSessions: EMPTY_LIVE_WATCH.previewLogSessions,
+  syncLogs: EMPTY_LIVE_WATCH.syncLogs,
+  cancelLogSync: EMPTY_LIVE_WATCH.cancelLogSync,
+};
+
 export type TarkovLiveShotMeta = {
   supported: boolean;
   perm: LiveWatchPerm;
@@ -97,3 +114,5 @@ export const TarkovLiveLogPhaseContext =
   createContext<TarkovLogPhasePayload | null>(null);
 export const TarkovLiveShotMetaContext =
   createContext<TarkovLiveShotMeta>(EMPTY_SHOT_META);
+export const TarkovLogSyncContext =
+  createContext<TarkovLogSyncValue>(EMPTY_LOG_SYNC);

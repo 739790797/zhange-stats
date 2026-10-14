@@ -96,7 +96,6 @@ _IMPORT_GROUPS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("enforce_single_admin",),
         ("icp_beian_no",),
     ),
-    "ocr": (("paddle_profile", "engines", "use_cases"),),
     "jobs": (("scheduler",), ("features",)),
 }
 
@@ -321,7 +320,6 @@ def import_legacy_system_configs(db: Session) -> None:
         "email": _legacy_email(db, env),
         "integrations": _legacy_integrations(db, env),
         "auth": _legacy_auth(db, env),
-        "ocr": _row_json(db, "ocr") or {},
         "jobs": _legacy_jobs(db),
     }
     imported = [name for name, values in legacy.items() if values and _merge_legacy(name, values)]

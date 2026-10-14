@@ -46,7 +46,6 @@ from app.services import file_manager as file_manager_svc
 from app.services.articles import store as article_store
 from app.services.articles.texteller import MAX_RECOGNIZE_BYTES as MATH_RECOGNIZE_MAX_BYTES
 from app.services.minecraft import files as minecraft_files_svc
-from app.services.tarkov.key_ocr import MAX_RECOGNIZE_BYTES as TARKOV_OCR_MAX_BYTES
 from app.models import arknights as _arknights  # noqa: F401
 from app.models import arknights_rogue as _arknights_rogue  # noqa: F401
 from app.models import exilium as _exilium  # noqa: F401
@@ -133,8 +132,6 @@ def _body_limit_rules() -> list[tuple[str, int]]:
         ("/api/articles/math/recognize", upload(MATH_RECOGNIZE_MAX_BYTES)),
         ("/api/profile/me/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
         ("/api/members/{member_id}/avatar", upload(avatar_store.MAX_UPLOAD_BYTES)),
-        ("/api/guides/tarkov/raid-prep/recognize", upload(TARKOV_OCR_MAX_BYTES)),
-        ("/api/guides/tarkov/key-owns/recognize", upload(TARKOV_OCR_MAX_BYTES)),
         ("/api/csp-report", 64 * 1024),
         ("/api/client-errors", 64 * 1024),
         ("/api/client-rum", 256 * 1024),

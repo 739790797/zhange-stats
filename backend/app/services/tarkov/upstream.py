@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import format_datetime
 from typing import Any
 
 from sqlalchemy import event
@@ -30,7 +33,12 @@ from app.services.tarkov.game_mode import (
     parse_game_mode,
     raw_row_id,
 )
-from app.services.tarkov.http import download_bytes_with_meta
+from app.services.tarkov.http import (
+    TARKOV_DUMP_MAX_BYTES,
+    download_dump,
+    download_response,
+    http_last_modified_iso,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +98,22 @@ class TarkovUpstreamError(Exception):
         self.message = message
 
 
+@dataclass(frozen=True)
+class SiteDump:
+    """整站 dump 一轮的结果。
+
+    files：下载下来的文件（304 的不在里面）
+    upstream_times：key → Last-Modified ISO
+    unchanged：带上校验头后 304 的 key（跳过落库）
+    changed：带了校验头、上游仍回 200 的 key（上游确认换过内容，落库时可跳过旧 blob 比对）
+    """
+
+    files: dict[str, dict[str, Any]]
+    upstream_times: dict[str, str]
+    unchanged: frozenset[str] = frozenset()
+    changed: frozenset[str] = frozenset()
+
+
 DumpProgress = Callable[[dict[str, Any]], None]
 ByteProgress = Callable[[int, int | None], None]
 
@@ -138,6 +162,45 @@ def unwrap_json_blob(payload: Any) -> Any:
     return payload
 
 
+def download_resource_with_locale(
+    resource: str,
+    *,
+    lang: str = "zh",
+    timeout: float | int = 180,
+    locale_timeout: float | int = 60,
+    error_cls: type[Exception] = TarkovUpstreamError,
+    label: str = "",
+) -> dict[str, Any]:
+    """主文件 + 同资源 locale：locale 挂在 payload["locale"]（lang 文件是 {data: {...}}）。
+
+    locale 拉不到 / 解析不了只记 WARNING，不拖垮主文件。返回的 payload 可以直接 persist。
+    """
+    raw, _upstream_at = download_dump(
+        json_resource_url(resource),
+        timeout=timeout,
+        error_cls=error_cls,
+    )
+    payload = _decode_json(raw, label=resource)
+    if not payload:
+        raise error_cls(f"json.tarkov.dev {resource} 为空")
+    try:
+        loc_raw, _loc_at = download_dump(
+            json_resource_url(resource, lang=lang),
+            timeout=locale_timeout,
+            error_cls=error_cls,
+        )
+        loc_payload = _decode_json(loc_raw, label=f"{resource}_{lang}")
+        loc_data = loc_payload.get("data")
+        if isinstance(loc_data, dict) and loc_data:
+            payload = dict(payload)
+            payload["locale"] = loc_data
+    except error_cls:
+        logger.warning("json.tarkov.dev %s_%s locale unavailable", label or resource, lang)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        logger.warning("json.tarkov.dev %s_%s locale parse failed", label or resource, lang)
+    return payload
+
+
 def merge_locale(payload: dict[str, Any], locale: dict[str, Any]) -> dict[str, Any]:
     if not locale:
         return payload
@@ -155,7 +218,7 @@ def download_json_object(
     timeout: int = 180,
     on_bytes: ByteProgress | None = None,
 ) -> tuple[dict[str, Any], str | None]:
-    raw, upstream_at = download_bytes_with_meta(
+    raw, upstream_at = download_dump(
         url, timeout=timeout, error_cls=TarkovUpstreamError, on_bytes=on_bytes
     )
     return _decode_json(raw, label=url), upstream_at
@@ -218,6 +281,64 @@ def decode_raw_json(raw_json: str | None) -> dict[str, Any] | None:
     except (TypeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def locale_synced(db: Session, resource: str, *, lang: str = "zh") -> str:
+    """同资源 locale 行的 synced_at。
+
+    解析结果合了 locale（load_main_payload → load_locale_map），
+    但主文件字节没变时 persist_raw 会保留 synced_at，
+    所以只翻中文不改结构的上游更新只有 locale 这一行能反映出来。
+    缓存键 / ETag 必须带上它，否则要重启才看得到新译文。
+    """
+    try:
+        row = load_raw_row(db, resource, lang=lang)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("tarkov %s locale header unavailable: %s", resource, exc)
+        return ""
+    if row is None or row.synced_at is None:
+        return ""
+    return row.synced_at.isoformat()
+
+
+def _raw_is_complete(resource: str, payload: dict[str, Any]) -> bool:
+    """单文件落库前的形状校验：宁可整份丢，也不拿半截响应覆盖上一份好 raw。
+
+    各资源复用自己的解析器（catalog / bosses / tasks …），避免两套判据漂移。
+    """
+    if not payload:
+        return False
+    data = unwrap_json_blob(payload)
+    if resource == "items":
+        from app.services.tarkov.items import items_container
+
+        return bool(items_container(payload))
+
+    if resource == "maps":
+        from app.services.tarkov.bosses import _maps_blob, _mobs_blob
+
+        return bool(_maps_blob(payload)) and bool(_mobs_blob(payload))
+
+    if resource == "tasks":
+        from app.services.tarkov.tasks import _tasks_map
+
+        return bool(_tasks_map(payload))
+
+    if resource == "traders":
+        from app.services.tarkov.traders import _traders_map
+
+        return bool(_traders_map(payload))
+
+    if resource == "hideout":
+        from app.services.tarkov.guides import parse_hideout_stations
+
+        return bool(parse_hideout_stations({"hideout": data}))
+
+    if resource in ("barters", "crafts"):
+        # 空表是合法状态（{"data": []}），但 dict / 空数据不是。
+        return isinstance(data, list)
+
+    return bool(data)
 
 
 def raw_row_header(
@@ -289,7 +410,9 @@ def persist_raw(
     note: str,
     commit: bool = True,
     upstream_at: str | None = None,
+    changed: bool | None = None,
 ) -> dict[str, Any]:
+    """changed=True 表示上游确实换了字节（带校验头请求后仍 200）：跳过 17MB 旧 blob 比对。"""
     now = now_naive()
     if upstream_at:
         note = f"{note} · 上游 {upstream_at}"
@@ -300,7 +423,13 @@ def persist_raw(
     memo = session_memo(db)
     if memo is not None:
         memo.clear()
-    row = load_raw_row(db, resource, lang=lang_key, mode_id=mode_id, with_json=True)
+    row = load_raw_row(
+        db,
+        resource,
+        lang=lang_key,
+        mode_id=mode_id,
+        with_json=changed is not True,
+    )
     if row is None:
         row = model(
             mode_id=mode_id,
@@ -311,7 +440,7 @@ def persist_raw(
             note=note,
         )
         db.add(row)
-    elif row.raw_json != raw_json:
+    elif changed or row.raw_json != raw_json:
         row.source = source
         row.raw_json = raw_json
         row.synced_at = now
@@ -356,14 +485,57 @@ def persist_locale_if_present(
     )
 
 
+def notes_upstream_at(note: str | None) -> str | None:
+    """从 note 尾部「· 上游 <iso>」取回上次的上游时间；取不到返回 None。"""
+    text = (note or "").strip()
+    marker = "上游 "
+    idx = text.rfind(marker)
+    if idx < 0:
+        return None
+    value = text[idx + len(marker):].strip()
+    if not value:
+        return None
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return value
+
+
+def _to_http_date(iso: str | None) -> str | None:
+    if not iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(iso)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return format_datetime(parsed.astimezone(timezone.utc), usegmt=True)
+
+
+def _not_modified(
+    status_code: int,
+    content: bytes,
+    headers: Any,
+) -> bool:
+    return status_code == 304 and not content
+
+
 def download_site_json(
-    *, lang: str = "zh", on_progress: DumpProgress | None = None
-) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    *,
+    lang: str = "zh",
+    on_progress: DumpProgress | None = None,
+    validators: dict[str, str] | None = None,
+) -> SiteDump:
     """拉 json.tarkov.dev 当前模式全部静态文件（含 locale）。单文件失败不中断。
 
-    返回 (文件字典, 资源 → Last-Modified ISO)。
+    validators：key → 上次的上游时间；带上就发条件请求，304 的文件不必下载 / 落库
+    （省掉 items ~17MB、maps ~8.6MB 的白下载）。
     """
     out: dict[str, dict[str, Any]] = {}
+    unchanged: set[str] = set()
+    changed: set[str] = set()
     upstream_times: dict[str, str] = {}
     prefix = json_api_prefix()
     errors: list[str] = []
@@ -407,11 +579,38 @@ def download_site_json(
         ) -> None:
             _emit(bytes_n=n, total_bytes=total_bytes)
 
+        url = json_resource_url(resource, lang=res_lang)
+        expected = (validators or {}).get(key, "")
+        headers: dict[str, str] = {}
+        http_date = _to_http_date(expected)
+        if http_date:
+            headers["If-Modified-Since"] = http_date
+
         emit()
         try:
-            payload, upstream_at = download_json_resource(
-                resource, lang=res_lang, on_bytes=on_bytes
-            )
+            if headers:
+                resp = download_response(
+                    url,
+                    headers=headers,
+                    timeout=60 if is_locale else 180,
+                    error_cls=TarkovUpstreamError,
+                    on_bytes=on_bytes,
+                    max_bytes=TARKOV_DUMP_MAX_BYTES,
+                )
+                if _not_modified(resp.status_code, resp.content, resp.headers):
+                    unchanged.add(key)
+                    if expected:
+                        upstream_times[key] = expected
+                    logger.debug("tarkov dump %s/%s not modified", prefix, key)
+                    emit(done=True)
+                    continue
+                payload = _decode_json(resp.content, label=key)
+                upstream_at = http_last_modified_iso(getattr(resp, "headers", None))
+                changed.add(key)
+            else:
+                payload, upstream_at = download_json_resource(
+                    resource, lang=res_lang, on_bytes=on_bytes
+                )
             out[key] = payload
             if upstream_at:
                 upstream_times[key] = upstream_at
@@ -425,10 +624,21 @@ def download_site_json(
             else:
                 errors.append(f"{resource}: {exc}")
                 logger.warning("tarkov dump %s/%s failed: %s", prefix, resource, exc)
-    if not any(isinstance(out.get(name), dict) and out[name] for name in JSON_RESOURCES):
+    downloaded = [
+        name
+        for name in JSON_RESOURCES
+        if name in out and _raw_is_complete(name, out[name])
+    ]
+    if not downloaded and not unchanged:
+        # 一份完整资源都没下到、也没有 304 短路 → 整站不可用；有 304 说明旧 raw 还在用。
         detail = "；".join(errors) if errors else "无文件"
         raise TarkovUpstreamError(f"json.tarkov.dev 全站为空：{detail}")
-    return out, upstream_times
+    return SiteDump(
+        files=out,
+        upstream_times=upstream_times,
+        unchanged=frozenset(unchanged),
+        changed=frozenset(changed),
+    )
 
 
 def persist_site_json(
@@ -438,10 +648,19 @@ def persist_site_json(
     lang: str = "zh",
     upstream_times: dict[str, str] | None = None,
     on_progress: DumpProgress | None = None,
+    unchanged: set[str] | None = None,
+    changed: set[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """逐文件先验形状再落库：不完整的响应整份丢，上一份好 raw 原样留着。
+
+    上游把某个文件换成 {"data":{}} / {"errors":[...]} 时，落库等于拿半截数据覆盖
+    全量图鉴；这里按资源复用各自解析器（_raw_is_complete）判断，不通过就直接跳过。
+    """
     rows: list[dict[str, Any]] = []
     prefix = json_api_prefix()
     times = upstream_times or {}
+    skip = unchanged or set()
+    modified = changed or set()
     mode = parse_game_mode()
     specs = site_dump_specs(lang=lang)
     total = len(specs)
@@ -458,6 +677,20 @@ def persist_site_json(
                 }
             )
         payload = dump.get(key)
+        if key in skip:
+            rows.append(
+                {
+                    "id": domain_id,
+                    "ok": True,
+                    "status": "unchanged",
+                    "source": None,
+                    "synced_at": None,
+                    "upstream_at": times.get(key),
+                    "mode": mode,
+                    "error": None,
+                }
+            )
+            continue
         if not isinstance(payload, dict) or not payload:
             rows.append(
                 {
@@ -472,6 +705,38 @@ def persist_site_json(
                 }
             )
             continue
+        if res_lang:
+            if not _locale_complete(payload):
+                rows.append(
+                    {
+                        "id": domain_id,
+                        "ok": False,
+                        "status": "error",
+                        "source": None,
+                        "synced_at": None,
+                        "upstream_at": None,
+                        "mode": mode,
+                        "error": "locale 内容为空",
+                    }
+                )
+                continue
+        elif not _raw_is_complete(resource, payload):
+            logger.warning(
+                "tarkov dump %s/%s 形状不完整，跳过落库保留旧 raw", prefix, key
+            )
+            rows.append(
+                {
+                    "id": domain_id,
+                    "ok": False,
+                    "status": "error",
+                    "source": None,
+                    "synced_at": None,
+                    "upstream_at": None,
+                    "mode": mode,
+                    "error": "上游内容不完整，已保留上一份",
+                }
+            )
+            continue
         saved = persist_raw(
             db,
             resource,
@@ -481,6 +746,7 @@ def persist_site_json(
             note=f"json.tarkov.dev/{prefix}/{key}",
             commit=False,
             upstream_at=times.get(key),
+            changed=key in modified,
         )
         saved["id"] = domain_id
         saved["mode"] = mode
@@ -488,6 +754,34 @@ def persist_site_json(
         rows.append(saved)
     db.commit()
     return rows
+
+
+def stored_dump_validators(db: Session, *, lang: str = "zh") -> dict[str, str]:
+    """从已落库 raw 的 note（「· 上游 <iso>」）取上次上游时间，条件请求用。
+
+    不落校验头就没有新列：把 note 里已经记着的时间翻出来当 If-Modified-Since。
+    """
+    validators: dict[str, str] = {}
+    for resource, res_lang, _domain_id in site_dump_specs(lang=lang):
+        key = resource_key(resource, lang=res_lang)
+        try:
+            row = load_raw_row(db, resource, lang=res_lang)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("tarkov %s validator lookup failed: %s", key, exc)
+            continue
+        stamp = notes_upstream_at(row.note) if row is not None else None
+        if stamp:
+            validators[key] = stamp
+    return validators
+
+
+def _locale_complete(payload: dict[str, Any]) -> bool:
+    data = unwrap_json_blob(payload)
+    if isinstance(data, dict):
+        return bool(data)
+    if isinstance(data, list):
+        return True
+    return False
 
 
 def locale_data(dump: dict[str, dict[str, Any]], resource: str, *, lang: str = "zh") -> dict[str, Any]:
@@ -510,4 +804,14 @@ def extras_from_site_dump(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
                 out[key] = blob[key]
     if not out:
         raise TarkovUpstreamError("json.tarkov.dev dump 未解析到 extras")
+    return out
+
+
+def merge_extras(
+    previous: dict[str, Any] | None,
+    incoming: dict[str, Any],
+) -> dict[str, Any]:
+    """extras 只写这次真下到的字段：dump 缺 items 时别把上一份技能 / 跳蚤价抹成空。"""
+    out: dict[str, Any] = dict(previous) if isinstance(previous, dict) else {}
+    out.update(incoming)
     return out

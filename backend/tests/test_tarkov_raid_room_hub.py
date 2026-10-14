@@ -3,6 +3,8 @@
 import asyncio
 import functools
 
+import pytest
+
 from app.services.tarkov import raid_room_hub as hub_mod
 from app.services.tarkov import ws_limits
 from app.services.tarkov.raid_room_hub import RaidRoomHub
@@ -179,7 +181,12 @@ def test_close_room_sends_final_event_and_forgets_room_state() -> None:
     asyncio.run(run())
 
 
-def test_last_socket_leaving_forgets_per_room_dicts() -> None:
+def test_last_socket_leaving_keeps_seq_and_view_maps() -> None:
+    """最后一条 socket 走了但房间还在：seq 与查看图必须留下。
+
+    seq 清零会让重连的客户端把新快照当旧帧丢掉；查看图是座位属性，
+    只走 HTTP 的成员没有 socket，丢了就变成「请先选择地图」。
+    """
     hub = RaidRoomHub()
     ws = _FakeSocket()
 
@@ -191,8 +198,77 @@ def test_last_socket_leaving_forgets_per_room_dicts() -> None:
         await hub.broadcast("room", {"event": "presence"})
         assert hub._seq["room"] == 1
         await hub.leave("room", ws)  # type: ignore[arg-type]
-        for bucket in (hub._rooms, hub._seq, hub._log_phases, hub._view_maps, hub._player_fixes):
+        assert "room" not in hub._rooms
+        for bucket in (hub._log_phases, hub._player_fixes):
             assert "room" not in bucket
+        assert hub._seq["room"] == 1
+        assert hub.view_map_of("room", 7) == "woods"
+
+    asyncio.run(run())
+
+
+def test_seq_survives_reconnect_and_never_restarts_at_zero() -> None:
+    """断线重连后新快照的 seq 必须比客户端手上的大，否则更新会被整份丢掉。"""
+    hub = RaidRoomHub()
+    first = _FakeSocket()
+    second = _FakeSocket()
+
+    async def run() -> None:
+        await hub.join("room", first, 7)  # type: ignore[arg-type]
+        hub.publish("room", {"event": "presence"})
+        await _drain(hub)
+        seen = first.sent[-1]["seq"]
+        await hub.leave("room", first)  # type: ignore[arg-type]
+        await hub.join("room", second, 7)  # type: ignore[arg-type]
+        hub.publish("room", {"event": "presence"})
+        await _drain(hub)
+        assert second.sent[-1]["seq"] > seen
+
+    asyncio.run(run())
+
+
+def test_reserve_seq_skips_rooms_nobody_listens_to() -> None:
+    """没人听的房间不占号：否则每次写都往 _seq 里留一条，删了房也留着。"""
+    hub = RaidRoomHub()
+    assert hub.reserve_seq("nobody") == 0
+    assert "nobody" not in hub._seq
+
+    ws = _FakeSocket()
+
+    async def run() -> None:
+        await hub.join("room", ws, 7)  # type: ignore[arg-type]
+        assert hub.reserve_seq("room") > 0
+        assert hub.current_seq("room") == 1
+
+    asyncio.run(run())
+
+
+def test_room_socket_caps_reject_extra_connections() -> None:
+    """每条连接一套令牌桶：不限量就是 N 倍画笔速率。"""
+    hub = RaidRoomHub()
+
+    async def run() -> None:
+        sockets = [_FakeSocket() for _ in range(hub_mod.MAX_SOCKETS_PER_USER)]
+        for ws in sockets:
+            await hub.join("room", ws, 7)  # type: ignore[arg-type]
+        with pytest.raises(hub_mod.RoomSocketLimit) as caught:
+            await hub.join("room", _FakeSocket(), 7)  # type: ignore[arg-type]
+        assert caught.value.scope == "user"
+        # 别人的连接照常；整房上限以内。
+        await hub.join("room", _FakeSocket(), 8)  # type: ignore[arg-type]
+
+    asyncio.run(run())
+
+
+def test_room_socket_cap_rejects_extra_users() -> None:
+    hub = RaidRoomHub()
+
+    async def run() -> None:
+        for uid in range(hub_mod.MAX_SOCKETS_PER_ROOM):
+            await hub.join("room", _FakeSocket(), uid + 1)  # type: ignore[arg-type]
+        with pytest.raises(hub_mod.RoomSocketLimit) as caught:
+            await hub.join("room", _FakeSocket(), 99)  # type: ignore[arg-type]
+        assert caught.value.scope == "room"
 
     asyncio.run(run())
 

@@ -18,8 +18,6 @@ $CacheDir = Join-Path $RepoRoot "data\cache"
 $TmpDir = Join-Path $RepoRoot "data\tmp"
 $env:PYTHONPYCACHEPREFIX = Join-Path $CacheDir "pycache"
 $env:HF_HOME = Join-Path $CacheDir "huggingface"
-$env:TORCH_HOME = Join-Path $CacheDir "torch"
-$env:EASYOCR_MODULE_PATH = Join-Path $CacheDir "easyocr"
 $env:PIP_CACHE_DIR = Join-Path $CacheDir "pip"
 $env:XDG_CACHE_HOME = Join-Path $CacheDir "xdg"
 $env:TEMP = $TmpDir
@@ -249,7 +247,7 @@ function Invoke-Python([hashtable]$Spec, [string[]]$PyArgs) {
 
 function Ensure-InstallPaths {
   $configDir = Join-Path $RepoRoot "config"
-  New-Item -ItemType Directory -Force -Path $DataDir, $UploadDir, $ModelsDir, $StaticDir, $DevDir, (Join-Path $RepoRoot "data\backups"), $CacheDir, $TmpDir, $env:PYTHONPYCACHEPREFIX, $env:HF_HOME, $env:TORCH_HOME, $env:PIP_CACHE_DIR, $configDir | Out-Null
+  New-Item -ItemType Directory -Force -Path $DataDir, $UploadDir, $ModelsDir, $StaticDir, $DevDir, (Join-Path $RepoRoot "data\backups"), $CacheDir, $TmpDir, $env:PYTHONPYCACHEPREFIX, $env:HF_HOME, $env:PIP_CACHE_DIR, $configDir | Out-Null
 }
 
 # Same format as app_updator.requirements_stamp (sha256sum output): the admin updater and the scripts share one stamp.
@@ -299,29 +297,15 @@ function Install-PythonDeps {
   $lockArgs = @()
   if (Test-Path $lock) { $lockArgs = @("-c", $lock) }
   New-Item -ItemType Directory -Force -Path $TmpDir | Out-Null
-  Write-Host "[pip] installing CPU torch + requirements..."
+  Write-Host "[pip] installing requirements..."
   if (Test-PipOutdated) {
     & $PythonExe -m pip install -U pip
     if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
   }
-  & $PythonExe -m pip install torch torchvision --index-url "https://download.pytorch.org/whl/cpu"
-  if ($LASTEXITCODE -ne 0) { throw "CPU torch install failed" }
-  $constraint = Join-Path $TmpDir ("zhange-torch-" + [guid]::NewGuid().ToString() + ".txt")
-  try {
-    $pinned = & $PythonExe -m pip freeze | Select-String -Pattern '^(torch|torchvision)=='
-    $pinned | ForEach-Object { $_.Line } | Set-Content -Path $constraint -Encoding ascii
-    if ((Get-Item $constraint).Length -gt 0) {
-      & $PythonExe -m pip install -r $req -c $constraint @lockArgs
-    } else {
-      & $PythonExe -m pip install -r $req @lockArgs
-    }
-    if ($LASTEXITCODE -ne 0) { throw "pip install -r requirements.txt failed" }
-  } finally {
-    Remove-Item $constraint -ErrorAction SilentlyContinue
-  }
-  & $PythonExe -m pip uninstall -y opencv-python | Out-Null
-  & $PythonExe -m pip install -q --force-reinstall --no-deps "opencv-python-headless>=4.8.0" @lockArgs
-  if ($LASTEXITCODE -ne 0) { throw "opencv-python-headless install failed" }
+  & $PythonExe -m pip install -r $req @lockArgs
+  if ($LASTEXITCODE -ne 0) { throw "pip install -r requirements.txt failed" }
+  # Screenshot OCR is retired: drop torch / easyocr / rapidocr / opencv left in old venvs (no-op when absent).
+  & $PythonExe -m pip uninstall -y easyocr rapidocr torch torchvision opencv-python opencv-python-headless 2>&1 | Out-Null
 }
 
 function Ensure-Venv {

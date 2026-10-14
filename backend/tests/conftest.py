@@ -110,7 +110,7 @@ def _isolate_config_dir(tmp_path):
 
 @pytest.fixture(autouse=True)
 def _pin_library_caches(tmp_path, monkeypatch):
-    """Keep Hugging Face / Torch / tempfile off the developer home directory."""
+    """Keep Hugging Face / pip / tempfile off the developer home directory."""
     install = tmp_path / "lib-cache-root"
     install.mkdir()
     applied = pin_library_cache_env(install=install)

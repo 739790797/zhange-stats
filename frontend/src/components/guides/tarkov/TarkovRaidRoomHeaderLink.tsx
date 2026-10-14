@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTarkovRaidRoomMine } from "@/api/guidesApi";
 import { isTarkovHomePath } from "@/lib/tarkovHomeNav";
-import { raidRoomReturnHref } from "@/lib/tarkovRaidRooms";
+import { raidRoomReturnHref } from "@/lib/tarkovRaidRoomLinks";
 import { useDocumentHidden, visibleRefetchInterval } from "@/lib/visibleRefetchInterval";
 import { useAuthStore } from "@/stores/authStore";
 import styles from "./TarkovRaidRoomHeaderLink.module.css";

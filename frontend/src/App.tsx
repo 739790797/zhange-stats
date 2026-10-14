@@ -52,7 +52,6 @@ const IntegrationsSettingsPage = lazyWithReload(
 );
 const AuthSettingsPage = lazyWithReload(() => import("@/pages/AuthSettingsPage"));
 const EmailSettingsPage = lazyWithReload(() => import("@/pages/EmailSettingsPage"));
-const OcrSettingsPage = lazyWithReload(() => import("@/pages/OcrSettingsPage"));
 const FileManagerPage = lazyWithReload(() => import("@/pages/FileManagerPage"));
 const TaskConfigPage = lazyWithReload(() => import("@/pages/TaskConfigPage"));
 const ScheduledJobsPage = lazyWithReload(() => import("@/pages/ScheduledJobsPage"));
@@ -447,7 +446,6 @@ export default function App() {
                     path="/settings/email"
                     element={<EmailSettingsPage />}
                   />
-                  <Route path="/settings/ocr" element={<OcrSettingsPage />} />
                   <Route
                     path="/settings/files"
                     element={<FileManagerPage />}

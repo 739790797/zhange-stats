@@ -1339,29 +1339,19 @@ def apply_static_tar(tar_path: Path, static_dir: Path) -> None:
     swap_static_dir(staged, static_dir)
 
 
-# EasyOCR 依赖 torch。PyPI 默认 Linux 轮是 CUDA（数 GB）。生产 LXC 无 GPU，必须先装 CPU 轮再 -r。
-TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
+# 截图文字识别下线后不再需要的大包（torch 及其 CUDA 依赖可达数 GB）。升级时从老 venv 卸掉，不影响公式识别（走 onnxruntime）。
+RETIRED_PIP_PACKAGES = (
+    "easyocr",
+    "rapidocr",
+    "torch",
+    "torchvision",
+    "opencv-python",
+    "opencv-python-headless",
+)
 
 
-def cpu_torch_pip_cmd(python: Path) -> list[str]:
-    return [
-        str(python),
-        "-m",
-        "pip",
-        "install",
-        "torch",
-        "torchvision",
-        "--index-url",
-        TORCH_CPU_INDEX,
-    ]
-
-
-def torch_constraint_lines(freeze_text: str) -> list[str]:
-    return [
-        line
-        for line in freeze_text.splitlines()
-        if line.startswith(("torch==", "torchvision=="))
-    ]
+def retired_pip_uninstall_cmd(python: Path) -> list[str]:
+    return [str(python), "-m", "pip", "uninstall", "-y", *RETIRED_PIP_PACKAGES]
 
 
 def _run_pip(cmd: list[str], *, cwd: Path, progress_prefix: str) -> None:
@@ -1432,59 +1422,14 @@ def pip_install_requirements(install_dir: Path, source_backend: Path | None = No
     lock = src_backend / "constraints.txt"
     pinned = ["-c", str(lock)] if lock.is_file() else []
     python = _resolve_venv_python(install_dir)
-    # 先钉 CPU torch，避免随后 easyocr 把 CUDA 轮当升级装进来。
-    _set_progress(busy=True, phase="pip", message="安装 CPU 版 PyTorch（避免拉取 CUDA）…")
-    _run_pip(cpu_torch_pip_cmd(python), cwd=backend, progress_prefix="torch · ")
-    freeze = subprocess.run(
-        [str(python), "-m", "pip", "freeze"],
-        check=True,
-        cwd=str(backend),
-        capture_output=True,
-        text=True,
-    )
-    pins = torch_constraint_lines(freeze.stdout)
-    extra: list[str] = []
-    constraint: Path | None = None
-    if pins:
-        fd, name = tempfile.mkstemp(
-            prefix="zhange-torch-cpu-",
-            suffix=".txt",
-            dir=str(runtime_tmp_dir(install_dir)),
-        )
-        os.close(fd)
-        constraint = Path(name)
-        constraint.write_text("\n".join(pins) + "\n", encoding="utf-8")
-        extra = ["-c", str(constraint)]
-    try:
-        _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
-        _run_pip(
-            [str(python), "-m", "pip", "install", "-r", str(req), *extra, *pinned],
-            cwd=backend,
-            progress_prefix="pip · ",
-        )
-    finally:
-        if constraint is not None:
-            constraint.unlink(missing_ok=True)
-    # RapidOCR / EasyOCR 可能拉来带 GUI 的 opencv-python；LXC 只留 headless
-    subprocess.run(
-        [str(python), "-m", "pip", "uninstall", "-y", "opencv-python"],
-        check=False,
-        cwd=str(backend),
-    )
+    _set_progress(busy=True, phase="pip", message="安装 Python 依赖…")
     _run_pip(
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--force-reinstall",
-            "--no-deps",
-            "opencv-python-headless>=4.8.0",
-            *pinned,
-        ],
+        [str(python), "-m", "pip", "install", "-r", str(req), *pinned],
         cwd=backend,
-        progress_prefix="opencv · ",
+        progress_prefix="pip · ",
     )
+    # 老 venv 里截图识别留下的 torch / easyocr 等：没装就是空操作，失败也不挡更新
+    subprocess.run(retired_pip_uninstall_cmd(python), check=False, cwd=str(backend))
 
 
 _HOST_REPAIR_HINT = (

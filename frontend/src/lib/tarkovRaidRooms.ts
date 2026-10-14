@@ -8,8 +8,6 @@ import {
   isRaidPrepAutoMapKind,
   mapSlugKeys,
   normalizeRaidPrepMapId,
-  raidPrepAutoSwitchMapId,
-  raidPrepMapsEquivalent,
   type RaidPrepMapParticipant,
   type RaidPrepObjectiveDoneLike,
   type RaidPrepSkipMap,
@@ -36,63 +34,17 @@ export function raidRoomJoinNeedsPassword(error: unknown): boolean {
 
 export { tarkovRaidRoomHref, colorForUserId };
 
-export const RAID_ROOM_SLOT_COUNT = 5;
-
-const RAID_ROOM_PUBLIC_ID_RE = /^(?:(?:pve-)?[1-5]|[a-z0-9]{8,16})$/i;
-
-/** 旧的 1–5 / pve-N 席位号：新房间改用随机码，但旧房间码仍要能粘进输入框。 */
-export function raidRoomSlotPublicId(
-  slot: number,
-  gameMode: string = "pvp",
-): string {
-  const n = Math.trunc(slot);
-  if (n < 1 || n > RAID_ROOM_SLOT_COUNT) return "";
-  return String(gameMode || "").trim().toLowerCase() === "pve"
-    ? `pve-${n}`
-    : String(n);
-}
-
-/** 按 public_id 对齐大厅条目；缺的用占位补上。 */
-export function mergeRaidLobbySeats<T extends { public_id: string }>(
-  items: readonly T[] | null | undefined,
-  placeholders: readonly T[],
-): T[] {
-  const byId = new Map(
-    (items || []).map((row) => [String(row.public_id).toLowerCase(), row]),
-  );
-  return placeholders.map(
-    (seat) => byId.get(String(seat.public_id).toLowerCase()) ?? seat,
-  );
-}
-
-export function parseRaidRoomPublicId(
-  raw: string,
-  gameMode?: string,
-): string {
-  const text = (raw || "").trim();
-  if (!text) return "";
-  const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9-]+)/i);
-  if (fromPath?.[1]) return normalizeRaidRoomPublicId(fromPath[1]);
-  const candidate = text.toLowerCase();
-  if (/^[1-5]$/.test(candidate)) {
-    return raidRoomSlotPublicId(Number(candidate), gameMode || "pvp");
-  }
-  return normalizeRaidRoomPublicId(candidate);
-}
-
-export function normalizeRaidRoomPublicId(raw: string): string {
-  const key = (raw || "").trim().toLowerCase();
-  if (!key || key === "solo") return "";
-  if (RAID_ROOM_PUBLIC_ID_RE.test(key)) return key;
-  return "";
-}
+/** 房间码解析与「回到房间」在轻模块 tarkovRaidRoomLinks（外壳顶栏常驻）；这里保留再导出。 */
+export {
+  RAID_ROOM_SLOT_COUNT,
+  normalizeRaidRoomPublicId,
+  parseRaidRoomPublicId,
+  raidRoomReturnHref,
+  raidRoomSlotPublicId,
+} from "@/lib/tarkovRaidRoomLinks";
 
 /** 单人准备的假房间 id：不进大厅席位、不连 WS。 */
 export const SOLO_RAID_ROOM_PUBLIC_ID = "solo";
-
-export function isSoloRaidSession(publicId: string): boolean {
-  return (publicId || "").trim().toLowerCase() === SOLO_RAID_ROOM_PUBLIC_ID;
-}
 
 export function soloRaidActor(user?: {
   id?: number | null;
@@ -314,61 +266,6 @@ export type RaidRoomActingMemberLike = {
   joined_at?: string | null;
   in_room?: boolean;
 };
-
-/** 房主按自己的日志换图：已有图也跟开战相位；空房可垫上一场。 */
-export function raidRoomHostLogMapId(opts: {
-  canSwitchMap: boolean;
-  currentMapId: string;
-  logMapId: string;
-  phaseKind?: string | null;
-}): string {
-  if (!opts.canSwitchMap) return "";
-  return raidPrepAutoSwitchMapId({
-    currentMapId: opts.currentMapId,
-    logMapId: opts.logMapId,
-    phaseKind: opts.phaseKind,
-    fillEmpty: !normalizeRaidPrepMapId(opts.currentMapId),
-  });
-}
-
-export function normalizeRaidRoomRaidId(raw: string | null | undefined): string {
-  return (raw || "").trim().toUpperCase();
-}
-
-/**
- * 自己与另一名在座成员广播了同一战局 shortId → 切到该局地图。
- * 只认匹配成功 / 倒计时 / 开战，结束相位不跟。
- */
-export function raidRoomSharedRaidMapId(opts: {
-  myUserId: number;
-  myRaidId: string;
-  myMapId: string;
-  myKind?: string;
-  currentMapId: string;
-  phases: readonly Pick<RaidRoomLogPhase, "userId" | "raidId" | "mapId" | "kind">[];
-  occupantIds: readonly number[];
-}): string {
-  const viewer = Number(opts.myUserId);
-  const mine = normalizeRaidRoomRaidId(opts.myRaidId);
-  if (!viewer || !mine || !isRaidPrepAutoMapKind(opts.myKind)) return "";
-  const seated = new Set(
-    opts.occupantIds.filter((id) => Number.isFinite(id) && id > 0),
-  );
-  const peer = opts.phases.find(
-    (row) =>
-      row.userId !== viewer &&
-      seated.has(row.userId) &&
-      isRaidPrepAutoMapKind(row.kind) &&
-      normalizeRaidRoomRaidId(row.raidId) === mine,
-  );
-  if (!peer) return "";
-  const next = normalizeRaidPrepMapId(opts.myMapId || peer.mapId);
-  if (!next) return "";
-  if (opts.currentMapId && raidPrepMapsEquivalent(next, opts.currentMapId)) {
-    return "";
-  }
-  return next;
-}
 
 export type RaidRoomLogPhase = {
   userId: number;
@@ -738,47 +635,6 @@ export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
   };
 }
 
-export function formatRaidRoomOverlapCell(
-  cell: RaidRoomOverlapCellLike | undefined,
-): string {
-  if (!cell || !cell.uploaded) return "—";
-  return String(cell.count);
-}
-
-export function raidRoomOverlapPeopleLabel(count: number): string {
-  return `${count}人`;
-}
-
-export function raidRoomOverlapTasksForUser(
-  row: RaidRoomMapOverlapLike,
-  userId: number,
-): RaidRoomOverlapTaskLike[] {
-  return (row.tasks || []).filter((task) =>
-    (task.user_ids || []).includes(userId),
-  );
-}
-
-export function raidRoomMapTaskTotal(row: RaidRoomMapOverlapLike): number {
-  return (row.cells || []).reduce(
-    (sum, cell) => sum + (cell.uploaded ? cell.count : 0),
-    0,
-  );
-}
-
-export function sortRaidRoomMapOverlap(
-  rows: readonly RaidRoomMapOverlapLike[],
-  mapOrder: readonly string[],
-): RaidRoomMapOverlapLike[] {
-  const order = new Map(mapOrder.map((id, index) => [id, index]));
-  return [...rows].sort((left, right) => {
-    const withTasks = right.with_tasks_count - left.with_tasks_count;
-    if (withTasks) return withTasks;
-    const total = raidRoomMapTaskTotal(right) - raidRoomMapTaskTotal(left);
-    if (total) return total;
-    return (order.get(left.map_slug) ?? 99) - (order.get(right.map_slug) ?? 99);
-  });
-}
-
 /** 选图页右侧任务栏默认预览哪张图：三狗图 → 重叠表前列 → 当前图 → 目录第一张。 */
 export function raidRoomPickDockMapId(opts: {
   goonMapSlug?: string | null;
@@ -816,16 +672,6 @@ export type RaidRoomKeyBringGroup = {
   names: string[];
 };
 
-export function roomDisplayTitle(
-  room: { title?: string | null; host_display_name?: string | null },
-  mapLabel: string,
-): string {
-  const title = (room.title || "").trim();
-  if (title) return title;
-  const host = (room.host_display_name || "").trim() || "房间";
-  return `${host} 的 ${mapLabel}`;
-}
-
 export type RaidLobbyRoomLike = {
   is_member?: boolean;
   host_user_id?: number | null;
@@ -833,61 +679,10 @@ export type RaidLobbyRoomLike = {
   max_members?: number | null;
 };
 
-/** 当前入座的那一桌；未入座返回空。已在该房间页时也返回空（不必再「回去」）。 */
-export function raidRoomReturnHref(
-  items:
-    | readonly { is_member?: boolean; public_id?: string | null }[]
-    | null
-    | undefined,
-  pathname: string,
-): string {
-  const seated = (items || []).find((row) => row.is_member);
-  const id = normalizeRaidRoomPublicId(seated?.public_id || "");
-  if (!id) return "";
-  if (parseRaidRoomPublicId(pathname) === id) return "";
-  return tarkovRaidRoomHref(id);
-}
-
-/** 大厅条目：自己所在 / 自己主持 / 尚未加入（含已满，供列表灰显）。 */
-export function partitionRaidLobbyRooms<T extends RaidLobbyRoomLike>(
-  items: T[],
-  userId?: number | null,
-): { mine: T[]; hosted: T[]; joinable: T[] } {
-  const mine: T[] = [];
-  const hosted: T[] = [];
-  const joinable: T[] = [];
-  for (const room of items) {
-    if (room.is_member) mine.push(room);
-    else joinable.push(room);
-    if (userId != null && room.host_user_id === userId) hosted.push(room);
-  }
-  return { mine, hosted, joinable };
-}
-
 export function raidRoomIsFull(room: RaidLobbyRoomLike): boolean {
   const max = Number(room.max_members) || 0;
   const count = Number(room.member_count) || 0;
   return max > 0 && count >= max;
-}
-
-export function remainMs(
-  expireAt: string | null | undefined,
-  nowMs: number,
-): number {
-  if (!expireAt) return 0;
-  const stamp = Date.parse(String(expireAt).replace(" ", "T"));
-  if (!Number.isFinite(stamp)) return 0;
-  return Math.max(0, stamp - nowMs);
-}
-
-export function formatRoomRemain(ms: number): string {
-  const sec = Math.floor(ms / 1000);
-  if (sec <= 0) return "已到期";
-  const hours = Math.floor(sec / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  if (hours >= 1) return `剩余 ${hours} 小时 ${minutes} 分`;
-  if (minutes >= 1) return `剩余 ${minutes} 分钟`;
-  return "剩余不到 1 分钟";
 }
 
 export function groupClaimsByTask(
@@ -1041,12 +836,6 @@ export function formatKeyChipHint(
   const own = formatKeyOwnHint(ownNames);
   const bring = formatKeyBringHint(bringNames, options);
   return [own, bring].filter(Boolean).join("\n");
-}
-
-export function claimedTaskIds(
-  claims: RaidRoomClaimLike[] | null | undefined,
-): string[] {
-  return groupClaimsByTask(claims).map((row) => row.taskId);
 }
 
 /** 当前用户自己勾选的任务，不含队友勾选。 */

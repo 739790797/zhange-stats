@@ -128,12 +128,8 @@ def _extract_ref_id(value: Any) -> str:
 
 
 def _items_data_blob(payload: dict[str, Any]) -> dict[str, Any]:
-    blob = payload.get("items")
-    if not isinstance(blob, dict):
-        data = payload.get("data") if isinstance(payload.get("data"), dict) else None
-        return data if isinstance(data, dict) else {}
-    data = blob.get("data") if isinstance(blob.get("data"), dict) else blob
-    return data if isinstance(data, dict) else {}
+    """items dump 里带分类目录的那一层；判据与 items.items_data_layer 同一处。"""
+    return items_svc.items_data_layer(payload)
 
 
 def _raw_items_by_id(source: str, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -215,8 +211,20 @@ def lookup_category_names(payload: dict[str, Any], wanted: set[str]) -> dict[str
     """items dump 的 itemCategories / handbookCategories + locale → 分类中文名。"""
     if not wanted:
         return {}
-    locale = items_svc._locale_map(payload)
-    item_cats, handbook_cats = _category_catalogs(payload)
+    return lookup_category_names_in(
+        _category_catalogs(payload), items_svc._locale_map(payload), wanted
+    )
+
+
+def lookup_category_names_in(
+    catalogs: tuple[dict[str, Any], dict[str, Any]],
+    locale: dict[str, Any],
+    wanted: set[str],
+) -> dict[str, str]:
+    """同上，但直接吃已解出的分类目录与 locale（ItemsIndex 已缓存这两份）。"""
+    if not wanted:
+        return {}
+    item_cats, handbook_cats = catalogs
     out: dict[str, str] = {}
     for cat_id in wanted:
         ident = str(cat_id or "").strip()
@@ -862,7 +870,7 @@ def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     source, synced, _note = items_svc.items_raw_header(db)
     if source is None:
         return {}
-    hit = _pack_index_cache.get(parsed_cache_key(db, synced))
+    hit = _pack_index_cache.get(parsed_cache_key(db, synced, resource="items"))
     if hit is not None:
         return hit
     try:
@@ -870,7 +878,7 @@ def list_ammo_pack_index(db: Session) -> dict[str, dict[str, Any]]:
     except TarkovItemsError:
         return {}
     index = parse_ammo_pack_index(source, payload)
-    _pack_index_cache.put(parsed_cache_key(db, synced_at), index)
+    _pack_index_cache.put(parsed_cache_key(db, synced_at, resource="items"), index)
     return index
 
 
@@ -1023,7 +1031,7 @@ def load_parsed_catalog(
     """解析整包目录；表头键（synced_at + overlay）未变则直接复用进程缓存，翻页不读 raw_json。"""
     items_svc.ensure_items(db)
     _source, synced, _note = items_svc.items_raw_header(db)
-    hit = _parsed_cache.get(parsed_cache_key(db, synced))
+    hit = _parsed_cache.get(parsed_cache_key(db, synced, resource="items"))
     if hit is not None:
         return hit
 
@@ -1035,7 +1043,7 @@ def load_parsed_catalog(
         except TarkovItemsError as exc:
             logger.warning("upgrade catalog to json failed, using split raw: %s", exc)
     parsed = (source, parse_catalog_items(source, payload), synced_at, note)
-    _parsed_cache.put(parsed_cache_key(db, synced_at), parsed)
+    _parsed_cache.put(parsed_cache_key(db, synced_at, resource="items"), parsed)
     return parsed
 
 
@@ -1044,13 +1052,13 @@ def peek_catalog_items(db: Session) -> list[dict[str, Any]]:
     source, synced, _note = items_svc.items_raw_header(db)
     if source is None:
         return []
-    hit = _parsed_cache.get(parsed_cache_key(db, synced))
+    hit = _parsed_cache.get(parsed_cache_key(db, synced, resource="items"))
     if hit is not None:
         return list(hit[1])
     source, payload, synced_at, note = _load_payload(db)
     rows = parse_catalog_items(source, payload)
     if payload_has_full_items(source, payload):
-        _parsed_cache.put(parsed_cache_key(db, synced_at), (source, rows, synced_at, note))
+        _parsed_cache.put(parsed_cache_key(db, synced_at, resource="items"), (source, rows, synced_at, note))
     return list(rows)
 
 
@@ -1096,12 +1104,12 @@ def _items_index(db: Session) -> ItemsIndex | None:
     source, synced, _note = items_svc.items_raw_header(db)
     if source is None:
         return None
-    hit = _items_index_cache.get(parsed_cache_key(db, synced))
+    hit = _items_index_cache.get(parsed_cache_key(db, synced, resource="items"))
     if hit is not None:
         return hit
     source, payload, synced_at, note = _read_payload(db)
     index = ItemsIndex(source, payload, synced_at, note)
-    _items_index_cache.put(parsed_cache_key(db, synced_at), index)
+    _items_index_cache.put(parsed_cache_key(db, synced_at, resource="items"), index)
     return index
 
 
@@ -1279,25 +1287,42 @@ def _detail_is_key(detail: dict[str, Any]) -> bool:
     return _is_handbook_key(_id_list(item.get("handbookCategories")), types)
 
 
+def lookup_item_rows(
+    db: Session, item_ids: set[str]
+) -> dict[str, dict[str, Any]]:
+    """一批物品 id → 目录行（名字 / 图标 / types / price），供藏身处 / 商人 / BOSS 配装共用。
+
+    无 raw 或查库失败时返回空 dict：调用方展示层降级，不挡整页。
+    """
+    if not item_ids:
+        return {}
+    try:
+        index = load_items_index(db)
+        if not index.full:
+            return {}
+        out: dict[str, dict[str, Any]] = {}
+        for ident in item_ids:
+            raw = index.get(ident)
+            if raw is None:
+                continue
+            row = _row_from_raw(ident, raw, index.locale)
+            if row:
+                out[ident] = row
+        return out
+    except Exception:  # noqa: BLE001
+        logger.warning("items lookup unavailable", exc_info=True)
+        return {}
+
+
 def attach_item_key_locks(db: Session, detail: dict[str, Any]) -> None:
     """钥匙详情反查 dump 门锁；地图 raw 缺失时保持空列表，不挡物品页。"""
     detail["locks"] = []
     if not _detail_is_key(detail):
         return
     try:
-        from app.services.tarkov.bosses import (
-            _load_payload as load_maps_payload,
-            ensure_maps,
-            get_maps_raw,
-        )
-        from app.services.tarkov.maps import collect_key_lock_maps
+        from app.services.tarkov.maps import key_lock_maps
 
-        if get_maps_raw(db) is None:
-            ensure_maps(db)
-        _source, maps_payload, _synced, _note = load_maps_payload(db)
-        detail["locks"] = collect_key_lock_maps(
-            maps_payload, str(detail.get("id") or "")
-        )
+        detail["locks"] = key_lock_maps(db, str(detail.get("id") or ""))
     except Exception:  # noqa: BLE001
         logger.warning("item key locks unavailable", exc_info=True)
 

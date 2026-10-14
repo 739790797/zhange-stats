@@ -11,11 +11,9 @@ import {
   removeTarkovKeyOwn,
 } from "@/api/guidesApi";
 import { TarkovGuideItemCell } from "@/components/guides/tarkov/TarkovGuideItemCell";
-import { TarkovKeyOcrModal } from "@/components/guides/tarkov/TarkovKeyOcrModal";
 import { apiError } from "@/lib/apiError";
 import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { tarkovMeHref } from "@/lib/tarkovHomeNav";
-import { newOcrIds } from "@/lib/tarkovOcr";
 import { useAuthStore } from "@/stores/authStore";
 import { readAllowedInt, readPositiveInt } from "@/lib/tarkovQueryState";
 import {
@@ -149,7 +147,6 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
   const qRef = useRef(q);
   const migratedRef = useRef(false);
   const user = useAuthStore((s) => s.user);
-  const [ocrOpen, setOcrOpen] = useState(false);
   const [ownedIds, setOwnedIds] = useState<string[]>(() =>
     wiki ? [] : loadOwnedIds(),
   );
@@ -453,15 +450,6 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
           aria-label="搜索钥匙、任务或用途"
         />
         {wiki ? null : (
-          <button
-            type="button"
-            className={styles.ocrBtn}
-            onClick={() => setOcrOpen(true)}
-          >
-            截图识别
-          </button>
-        )}
-        {wiki ? null : (
         <div className={trade.chipBar} role="group" aria-label="拥有筛选">
           {FILTERS.map((item) => (
             <button
@@ -577,26 +565,6 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
           />
         </div>
       </div>
-      {wiki ? null : (
-      <TarkovKeyOcrModal
-        open={ocrOpen}
-        onClose={() => setOcrOpen(false)}
-        ownedIds={ownedIds}
-        onConfirm={async (ids) => {
-          touchedRef.current = true;
-          if (user) {
-            await mergeMut.mutateAsync(ids);
-            return;
-          }
-          const next = [
-            ...ownedIdsRef.current,
-            ...newOcrIds(ownedIdsRef.current, ids),
-          ];
-          applyOwns(next);
-          saveOwnedIds(next, true);
-        }}
-      />
-      )}
     </div>
   );
 }

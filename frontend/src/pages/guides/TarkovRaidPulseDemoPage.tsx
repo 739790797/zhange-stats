@@ -7,6 +7,7 @@ import { TarkovRaidRoomChannelRoster } from "@/components/guides/tarkov/TarkovRa
 import { TarkovRaidSessionMap } from "@/components/guides/tarkov/TarkovRaidSessionMap";
 import { TarkovRaidWorkspace } from "@/components/guides/tarkov/TarkovRaidWorkspace";
 import { TARKOV_HOME_PATH } from "@/lib/tarkovHomeNav";
+import { useTarkovGameMode } from "@/lib/tarkovGameMode";
 import { isAdminUser } from "@/lib/isAdminUser";
 import {
   PULSE_DEMO_MAP_ID,
@@ -21,9 +22,13 @@ import { useAuthStore } from "@/stores/authStore";
 
 export default function TarkovRaidPulseDemoPage() {
   const me = useAuthStore((state) => state.user);
+  const gameMode = useTarkovGameMode();
+  // 与地图页/备战同一把 key，按模式分缓存，避免 PVP/PVE 串数据
   const mapQuery = useQuery({
-    queryKey: ["tarkov", "map", PULSE_DEMO_MAP_ID],
+    queryKey: ["guides-tarkov-map", gameMode, PULSE_DEMO_MAP_ID],
     queryFn: () => fetchTarkovMapDetail(PULSE_DEMO_MAP_ID),
+    staleTime: 5 * 60_000,
+    retry: 1,
   });
   const selfName = (me?.display_name || me?.username || "").trim();
   const self = useMemo(

@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -24,8 +23,6 @@ from app.services.tarkov.ammo import SOURCE_GRAPHQL, SOURCE_JSON_API
 from app.services.tarkov.game_mode import parse_game_mode, raw_row_id, run_for_modes
 
 logger = logging.getLogger(__name__)
-
-ITEMS_JOB_KEY = "tarkov_items_sync"
 
 # GraphQL split 信封标记（ammo/guns 各自一份 GraphQL 响应）
 GRAPHQL_SPLIT_FORMAT = "graphql_split"
@@ -349,19 +346,29 @@ def _locale_map(payload: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
-def _json_items_map(payload: dict[str, Any]) -> dict[str, Any]:
-    items_blob = payload.get("items")
-    if not isinstance(items_blob, dict):
+def items_data_layer(payload: dict[str, Any]) -> dict[str, Any]:
+    """items dump 里带 itemCategories / handbookCategories 的那一层。
+
+    兼容 {items:{data:{…}}}、{data:{…}}、{items:{…}} 与整包就是物品表这几种信封。
+    """
+    blob = payload.get("items")
+    if not isinstance(blob, dict):
         data = payload.get("data") if isinstance(payload.get("data"), dict) else None
-        if not isinstance(data, dict):
-            return {}
-        items = data.get("items") if isinstance(data.get("items"), dict) else data
-        return items if isinstance(items, dict) else {}
-    data = items_blob.get("data") if isinstance(items_blob.get("data"), dict) else items_blob
-    if not isinstance(data, dict):
-        return {}
-    items = data.get("items") if isinstance(data.get("items"), dict) else data
+        return data if isinstance(data, dict) else {}
+    data = blob.get("data") if isinstance(blob.get("data"), dict) else blob
+    return data if isinstance(data, dict) else {}
+
+
+def items_container(payload: dict[str, Any]) -> dict[str, Any]:
+    """那一层里真正按 id 索引物品表的 dict（物品 id → raw）。"""
+    layer = items_data_layer(payload)
+    items = layer.get("items") if isinstance(layer.get("items"), dict) else layer
     return items if isinstance(items, dict) else {}
+
+
+def _json_items_map(payload: dict[str, Any]) -> dict[str, Any]:
+    """物品 id → raw；取不到时返回空 dict（调用方多数只关心能否继续）。"""
+    return items_container(payload)
 
 
 def _extract_ammo_item_detail(
@@ -450,33 +457,3 @@ def _ammo_detail_from_json(
         "properties": dict(props) if isinstance(props, dict) else {},
     }
 
-
-def items_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=ITEMS_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "ammo_count": result.get("ammo_count"),
-                "gun_count": result.get("gun_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov items sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()

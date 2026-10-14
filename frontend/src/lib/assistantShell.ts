@@ -32,12 +32,6 @@ export type AssistantBoundDir = {
   watch?: (onChange: () => void) => () => void;
 };
 
-export type AssistantImage = {
-  name?: string;
-  type?: string;
-  bytes: ArrayBuffer;
-};
-
 export type ZhangeAssistantHost = {
   embed?: boolean;
   /** `true` 或 `"body"`：个人中心只画当前 tab 主体。 */
@@ -48,7 +42,6 @@ export type ZhangeAssistantHost = {
     rebindScreenshots?: () => Promise<void>;
     rebindLogs?: () => Promise<void>;
   };
-  pickImage?: () => Promise<AssistantImage | null>;
 };
 
 type AssistantWindow = Window & { zhangeAssistant?: ZhangeAssistantHost };
@@ -178,18 +171,4 @@ export async function rebindAssistantLogs(): Promise<boolean> {
   if (!rebind) return false;
   await rebind();
   return true;
-}
-
-export function assistantCanPickImage(): boolean {
-  return typeof assistantHost()?.pickImage === "function";
-}
-
-export async function pickAssistantImage(): Promise<File | null> {
-  const pick = assistantHost()?.pickImage;
-  if (!pick) return null;
-  const image = await pick();
-  if (!image?.bytes) return null;
-  const type = (image.type || "image/png").trim() || "image/png";
-  const name = (image.name || "screenshot.png").trim() || "screenshot.png";
-  return new File([image.bytes], name, { type });
 }

@@ -20,21 +20,16 @@ from app.services.tarkov.game_mode import (
     run_for_modes,
 )
 from app.services.tarkov.overlay import parsed_cache_key
-from app.services.tarkov.http import download_bytes
+from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_bytes
 from app.services.tarkov.parse_cache import ModeCache
 from app.services.tarkov.tasks import TRADER_BY_ID
 
 logger = logging.getLogger(__name__)
 
-GUIDES_JOB_KEY = "tarkov_guides_sync"
 DOWNLOAD_TIMEOUT = 180
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 100
 
-TARKOV_JSON_HIDEOUT_URL = "https://json.tarkov.dev/regular/hideout"
-TARKOV_JSON_HIDEOUT_LOCALE_URL = "https://json.tarkov.dev/regular/hideout_{lang}"
-TARKOV_JSON_BARTERS_URL = "https://json.tarkov.dev/regular/barters"
-TARKOV_JSON_CRAFTS_URL = "https://json.tarkov.dev/regular/crafts"
 
 _parsed_cache: ModeCache[dict[str, Any]] = ModeCache()
 
@@ -57,7 +52,7 @@ def _http_request(
     *,
     timeout: int = DOWNLOAD_TIMEOUT,
 ) -> bytes:
-    return download_bytes(url, timeout=timeout, error_cls=TarkovGuidesError)
+    return download_bytes(url, timeout=timeout, error_cls=TarkovGuidesError, max_bytes=TARKOV_DUMP_MAX_BYTES)
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -116,19 +111,19 @@ def _download_json(url: str) -> dict[str, Any]:
 
 
 def download_json_guides(*, lang: str = "zh") -> GuidesUpstreamBundle:
-    hideout_payload = _download_json(json_resource_url("hideout"))
+    from app.services.tarkov import upstream as upstream_svc
+
+    hideout_payload = upstream_svc.download_resource_with_locale(
+        "hideout", lang=lang, error_cls=TarkovGuidesError
+    )
     hideout = hideout_payload.get("data")
     if not isinstance(hideout, dict) or not hideout:
         raise TarkovGuidesError("json.tarkov.dev hideout 为空")
-
-    locale: dict[str, Any] = {}
-    try:
-        loc_payload = _download_json(json_resource_url("hideout", lang=lang))
-        loc_data = loc_payload.get("data")
-        if isinstance(loc_data, dict):
-            locale = loc_data
-    except TarkovGuidesError:
-        logger.warning("json.tarkov.dev hideout_%s locale unavailable", lang)
+    locale = (
+        hideout_payload.get("locale")
+        if isinstance(hideout_payload.get("locale"), dict)
+        else {}
+    )
 
     barters_payload = _download_json(json_resource_url("barters"))
     barters = barters_payload.get("data")
@@ -376,16 +371,31 @@ def get_hideout_raw(db: Session) -> TarkovHideoutRaw | None:
 
 
 def guides_cache_token(db: Session) -> str:
-    """hideout / barters / crafts 三份 raw 的 synced_at，给图鉴 ETag。"""
+    """藏身处 / 交换 / 制作的 raw 版本，给图鉴 ETag。
+
+    正文里的物品名与跳蚤价来自 items raw，藏身处 locale 另占一行；
+    任一变化都要换 token，否则浏览器一直吃旧 304。一次事务内只查一遍。
+    """
+    from app.services.tarkov import items as items_svc
     from app.services.tarkov import upstream as upstream_svc
 
+    memo = upstream_svc.session_memo(db)
+    memo_key = ("guides_token", parse_game_mode())
+    if memo is not None and memo_key in memo:
+        return memo[memo_key]
     parts: list[str] = []
     for resource in ("hideout", "barters", "crafts"):
         _source, synced, _note = upstream_svc.raw_row_header(
             upstream_svc.load_raw_row(db, resource)
         )
         parts.append(synced or "")
-    return "|".join(parts)
+        parts.append(upstream_svc.locale_synced(db, resource))
+    _items_source, items_synced, _items_note = items_svc.items_raw_header(db)
+    parts.append(items_synced or "")
+    token = "|".join(parts)
+    if memo is not None:
+        memo[memo_key] = token
+    return token
 
 
 def assemble_guides_envelope(
@@ -560,7 +570,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
     row = get_hideout_raw(db)
     if row is not None:
         source, synced, note = upstream_svc.raw_row_header(row)
-        hit = _parsed_cache.get(parsed_cache_key(db, synced))
+        hit = _parsed_cache.get(parsed_cache_key(db, synced, resource="hideout"))
         if hit is not None:
             return source or "", hit, synced, note
     source, payload, synced_at, note = _load_payload(db)
@@ -569,7 +579,7 @@ def load_parsed_guides(db: Session) -> tuple[str, dict[str, Any], str | None, st
         "barters": parse_barters(payload),
         "crafts": parse_crafts(payload),
     }
-    _parsed_cache.put(parsed_cache_key(db, synced_at), parsed)
+    _parsed_cache.put(parsed_cache_key(db, synced_at, resource="hideout"), parsed)
     return source, parsed, synced_at, note
 
 
@@ -582,26 +592,10 @@ def ensure_guides(db: Session) -> None:
 
 
 def _lookup_items(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
-    if not item_ids:
-        return {}
-    try:
-        from app.services.tarkov import catalog as catalog_svc
+    """藏身处 / 交换 / 制作的物品名与跳蚤价；判据与 BOSS 配装共用 catalog.lookup_item_rows。"""
+    from app.services.tarkov import catalog as catalog_svc
 
-        index = catalog_svc.load_items_index(db)
-        if not index.full:
-            return {}
-        out: dict[str, dict[str, Any]] = {}
-        for ident in item_ids:
-            raw = index.get(ident)
-            if raw is None:
-                continue
-            row = catalog_svc._row_from_raw(ident, raw, index.locale)
-            if row:
-                out[ident] = row
-        return out
-    except Exception:  # noqa: BLE001
-        logger.warning("guides item lookup failed", exc_info=True)
-        return {}
+    return catalog_svc.lookup_item_rows(db, item_ids)
 
 
 def _enrich_item(req: dict[str, Any], items: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -711,6 +705,36 @@ def _paginate(rows: list[dict[str, Any]], page: int, page_size: int) -> dict[str
     }
 
 
+def _ref_display_name(ref: dict[str, Any], items: dict[str, dict[str, Any]]) -> str:
+    """_enrich_item 里的 name 同口径，只在过滤阶段需要名字时用。"""
+    ident = str(ref.get("id") or "")
+    found = items.get(ident) or {}
+    return str(found.get("name") or ident or "")
+
+
+def _barter_ids(rows: list[dict[str, Any]]) -> set[str]:
+    needed: set[str] = set()
+    for row in rows:
+        needed |= _collect_ids(row.get("required_items") or [])
+        offered = row.get("offered_item") or {}
+        if offered.get("id"):
+            needed.add(str(offered["id"]))
+    return needed
+
+
+def _barter_haystack(row: dict[str, Any], items: dict[str, dict[str, Any]]) -> str:
+    return " ".join(
+        [
+            str(row.get("trader_name") or ""),
+            _ref_display_name(row.get("offered_item") or {}, items),
+            *(
+                _ref_display_name(req, items)
+                for req in (row.get("required_items") or [])
+            ),
+        ]
+    ).lower()
+
+
 def list_barters(
     db: Session,
     *,
@@ -732,31 +756,20 @@ def list_barters(
                 str(r.get("trader_id") or "").lower(),
             }
         ]
-    needed: set[str] = set()
-    for row in rows:
-        needed |= _collect_ids(row.get("required_items") or [])
-        offered = row.get("offered_item") or {}
-        if offered.get("id"):
-            needed.add(str(offered["id"]))
-    items = _lookup_items(db, needed)
     needle = (q or "").strip().lower()
+    # 先过滤 / 翻页再补物品名：855 行全量富化没有必要（翻页后只富化这一页）。
+    if needle:
+        items = _lookup_items(db, _barter_ids(rows))
+        rows = [row for row in rows if needle in _barter_haystack(row, items)]
+    paged = _paginate(rows, page, page_size)
+    if not needle:
+        items = _lookup_items(db, _barter_ids(paged["items"]))
     public: list[dict[str, Any]] = []
-    for row in rows:
+    for row in paged["items"]:
         required = [_enrich_item(req, items) for req in (row.get("required_items") or [])]
         offered = _enrich_item(row.get("offered_item") or {}, items)
-        packed = {**row, "required_items": required, "offered_item": offered}
-        if needle:
-            blob = " ".join(
-                [
-                    str(packed.get("trader_name") or ""),
-                    str(offered.get("name") or ""),
-                    *(str(x.get("name") or "") for x in required),
-                ]
-            ).lower()
-            if needle not in blob:
-                continue
-        public.append(packed)
-    paged = _paginate(public, page, page_size)
+        public.append({**row, "required_items": required, "offered_item": offered})
+    paged["items"] = public
     traders = sorted(
         {
             (str(r.get("trader_slug") or ""), str(r.get("trader_name") or ""))
@@ -836,34 +849,3 @@ def list_crafts(
         "note": note,
     }
 
-
-def guides_sync_job_wrapper() -> None:
-    from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
-
-    db = SessionLocal()
-    job = JobRun(job_key=GUIDES_JOB_KEY, status="running")
-    db.add(job)
-    db.commit()
-    try:
-        result = sync_from_upstream(db)
-        job.status = "ok"
-        job.message = json.dumps(
-            {
-                "station_count": result.get("station_count"),
-                "barter_count": result.get("barter_count"),
-                "craft_count": result.get("craft_count"),
-                "source": result.get("source"),
-            },
-            ensure_ascii=False,
-        )
-        job.finished_at = now_naive()
-        db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("tarkov guides sync job failed")
-        job.status = "error"
-        job.message = str(exc)
-        job.finished_at = now_naive()
-        db.commit()
-    finally:
-        db.close()

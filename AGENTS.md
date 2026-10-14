@@ -73,7 +73,7 @@ alembic upgrade head
 - 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / `config/{database,integrations,email}.json` / 在用的 SQLite 库及 `-wal`/`-shm`/`-journal` / 备份 `zhange-*.tar.gz` 当普通文件下发、修改或删除；跟随符号链接绕过敏感判定
 - 新业务用户上传直写 `UPLOAD_DIR`（应走 `services/user_files` + namespace；头像覆盖写也要登记）
 - 应用进程内 apt / winget 装 MariaDB（走 `scripts/common/provision_mariadb.py`；Windows 便携包在 `data/mariadb/`）
-- 把 Hugging Face / Torch / EasyOCR / pip 缓存写到家目录（启动与脚本应 pin 到 `data/cache`，tempfile 到 `data/tmp`）
+- 把 Hugging Face / pip 缓存写到家目录（启动与脚本应 pin 到 `data/cache`，tempfile 到 `data/tmp`）
 - `install` / `run` 自动装 MariaDB（向导选 SQLite 或外部库；本机库手工跑 provision）
 - 站点设置写回 `system_configs` 或把根 `.env` 当权威源（应写 `config/*.json`）；改 `scripts/config.example` 字段却不把该文件 `_version` 加 1；用模板覆盖用户已有值或新建 `database.json`
 - 管理端保存再要邮箱步进码（用户侧注册/绑邮/找回/注销发码保留）

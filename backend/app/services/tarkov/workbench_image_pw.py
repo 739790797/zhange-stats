@@ -124,15 +124,28 @@ _COOKIE_RE = re.compile(
 
 _PROFILE_NAME = "tarkov_pw_profile"
 
+# 关 context / browser / driver 各自的上限，卡死就放弃转去杀进程
+_CLOSE_TIMEOUT = 5.0
+
+# POSIX ERE 元字符；pkill -f 按 ERE 匹配命令行
+_ERE_SPECIAL = set(".[]()*+?{}|^$\\")
+
 
 def _profile_dir() -> Path:
     settings = get_settings()
-    return runtime_root(resolve_install_dir(configured=settings.APP_INSTALL_DIR)) / "cache" / _PROFILE_NAME
+    path = runtime_root(resolve_install_dir(configured=settings.APP_INSTALL_DIR)) / "cache" / _PROFILE_NAME
+    # 绝对路径：launch 和 pkill 必须用同一个字符串
+    return path.resolve()
+
+
+def _ere_escape(text: str) -> str:
+    return "".join("\\" + ch if ch in _ERE_SPECIAL else ch for ch in text)
 
 
 def _kill_profile_chrome() -> None:
     """uvicorn --reload 会留下占着 profile 的 Chrome，下一轮 launch 会一直挂。"""
     if sys.platform != "win32":
+        _kill_profile_chrome_posix()
         return
     try:
         subprocess.run(
@@ -151,6 +164,28 @@ def _kill_profile_chrome() -> None:
             capture_output=True,
             check=False,
         )
+    except Exception as exc:
+        logger.warning("kill leftover image-gen chrome: %s", exc)
+
+
+def _kill_profile_chrome_posix() -> None:
+    """Linux/macOS：只杀命令行带本 profile 的进程，不碰用户自己的 Chrome。"""
+    try:
+        profile = str(_profile_dir())
+    except Exception as exc:
+        logger.warning("resolve image-gen profile: %s", exc)
+        return
+    # 不以 '-' 开头，免得被 pkill 当成选项
+    pattern = "user-data-dir=" + _ere_escape(profile)
+    try:
+        subprocess.run(
+            ["pkill", "-KILL", "-f", pattern],
+            timeout=8,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        logger.warning("pkill not found, leftover image-gen chrome not killed")
     except Exception as exc:
         logger.warning("kill leftover image-gen chrome: %s", exc)
 
@@ -207,6 +242,8 @@ class PatchrightImageBackend:
         self._thread: threading.Thread | None = None
         self._pw_instance = None
         self._pw_context = None
+        # 持久化 context 的 browser 可能为 None，有就一并关
+        self._pw_browser = None
         self._pw_page = None
         self._req_lock: asyncio.Lock | None = None
         self._in_flight = 0
@@ -265,15 +302,15 @@ class PatchrightImageBackend:
                 data = future.result(timeout=90)
             except Exception as exc:
                 future.cancel()
-                _kill_profile_chrome()
+                # 先体面关 context/driver（_reset_page 自带超时），再按 profile 补杀残留 Chrome。
+                # 不在这里把句柄置空：那样 driver 和 Chrome 都没人关，就漏了。
                 try:
                     asyncio.run_coroutine_threadsafe(self._reset_page(), loop).result(
-                        timeout=8
+                        timeout=_CLOSE_TIMEOUT * 3 + 2
                     )
-                except Exception:
-                    self._pw_page = None
-                    self._pw_context = None
-                    self._pw_instance = None
+                except Exception as reset_exc:
+                    logger.warning("image-gen reset after failure: %s", reset_exc)
+                _kill_profile_chrome()
                 self._last_error = str(exc)
                 raise
             url = str(data.get("imageUrl") or data.get("image_url") or "").strip()
@@ -322,6 +359,7 @@ class PatchrightImageBackend:
             self._pw_context = await self._pw_instance.chromium.launch_persistent_context(
                 **launch_kwargs,
             )
+        self._pw_browser = getattr(self._pw_context, "browser", None)
         self._pw_page = await self._pw_context.new_page()
 
         async def _serve_sw(route: Any) -> None:
@@ -385,21 +423,23 @@ class PatchrightImageBackend:
         )
 
     async def _reset_page(self) -> None:
+        # 先摘下句柄再逐个关：任何一步卡住/报错都不影响后面的 stop()
+        context, browser, pw = self._pw_context, self._pw_browser, self._pw_instance
         self._pw_page = None
-        try:
-            if self._pw_context is not None:
-                await self._pw_context.close()
-        except Exception as exc:
-            logger.warning("image-gen close context: %s", exc)
-        finally:
-            self._pw_context = None
-        try:
-            if self._pw_instance is not None:
-                await self._pw_instance.stop()
-        except Exception as exc:
-            logger.warning("image-gen stop playwright: %s", exc)
-        finally:
-            self._pw_instance = None
+        self._pw_context = None
+        self._pw_browser = None
+        self._pw_instance = None
+        for label, obj, method in (
+            ("close context", context, "close"),
+            ("close browser", browser, "close"),
+            ("stop playwright", pw, "stop"),
+        ):
+            if obj is None:
+                continue
+            try:
+                await asyncio.wait_for(getattr(obj, method)(), timeout=_CLOSE_TIMEOUT)
+            except Exception as exc:
+                logger.warning("image-gen %s: %s", label, exc)
 
     async def _do_request(
         self,
@@ -470,9 +510,9 @@ class PatchrightImageBackend:
         if loop is not None:
             try:
                 fut = asyncio.run_coroutine_threadsafe(self._reset_page(), loop)
-                fut.result(timeout=5)
-            except Exception:
-                pass
+                fut.result(timeout=_CLOSE_TIMEOUT * 3 + 2)
+            except Exception as exc:
+                logger.warning("image-gen shutdown reset: %s", exc)
             try:
                 loop.call_soon_threadsafe(loop.stop)
             except Exception:

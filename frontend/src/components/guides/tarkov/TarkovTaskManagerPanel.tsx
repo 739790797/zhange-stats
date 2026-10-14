@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  clearTarkovTaskProgress,
   fetchTarkovTaskDones,
   fetchTarkovTasks,
   writeTaskProgressLedger,
@@ -32,10 +33,15 @@ import {
 } from "@/lib/tarkovLiveWatch";
 import { applyTaskLineLedger, taskLineIndexFromTasks } from "@/lib/tarkovTaskLineLedger";
 import { formatLastQuestSyncLine } from "@/lib/tarkovTaskLogSync";
+import {
+  clearedMapFromServer,
+  questBoundaryFromServer,
+} from "@/lib/tarkovQuestBoundary";
 import { defaultLogSyncRange } from "@/lib/tarkovLogSyncRange";
 import { useTarkovLiveWatch } from "@/lib/useTarkovLiveWatch";
 import { TarkovLogSyncRangeModal } from "@/components/guides/tarkov/TarkovLogSyncRangeModal";
 import { useTarkovLogSyncDialog } from "@/lib/useTarkovLogSyncDialog";
+import { confirmTarkovQuestReset } from "@/lib/tarkovQuestResetConfirm";
 import {
   describeTaskMap,
   displayTaskProgressName,
@@ -56,7 +62,7 @@ import {
   saveTaskSyncMark,
   setTaskStatus,
   summarizeTaskProgress,
-  clearQuestProfileResetPending,
+  adoptServerTaskLedger,
   clearTaskProgressForResync,
   cleanTaskProgress,
   taskIsAvailable,
@@ -1020,17 +1026,36 @@ export function TarkovTaskManagerPanel() {
                         Modal.confirm({
                           title: "清空任务进度",
                           content:
-                            "会清掉当前模式下的已完成、进行中、失败和小步骤。之后同步不会把这次清空之前的任务再记回来。若日志里已经换成新角色，则从新角色第一次出现开始。",
+                            "会清掉当前模式下的已完成、进行中、失败和小步骤。清空记在账号上：之后不论换浏览器、登出再登录还是用战鸽助手同步，都不会把这次清空之前的任务再记回来。若日志里识别到转生或已换成新角色，则从那一刻开始。",
                           okText: "清空",
                           okButtonProps: { danger: true },
                           cancelText: "取消",
                           onOk: async () => {
-                            const prev = {
-                              done: loadTaskDoneIds(gameMode),
-                              started: loadTaskStartedIds(gameMode),
-                              failed: loadTaskFailedIds(gameMode),
-                            };
-                            clearTaskProgressForResync(gameMode);
+                            if (loggedIn) {
+                              // 先清账号：失败就不动本机，免得只清了本机、下次又从账号并回来
+                              let data;
+                              try {
+                                data = await clearTarkovTaskProgress();
+                              } catch (error) {
+                                message.error(apiError(error, "清空任务进度失败"));
+                                return;
+                              }
+                              clearTaskProgressForResync(gameMode);
+                              adoptServerTaskLedger(gameMode, {
+                                done: data.task_ids || [],
+                                started: data.started_ids || [],
+                                failed: data.failed_ids || [],
+                                objectives: data.objective_dones || [],
+                                cleared: clearedMapFromServer(data.cleared),
+                                boundary: questBoundaryFromServer(data),
+                              });
+                              queryClient.setQueryData(
+                                ["guides-tarkov-task-dones", gameMode],
+                                data,
+                              );
+                            } else {
+                              clearTaskProgressForResync(gameMode);
+                            }
                             notifyTarkovTaskProgress({
                               mode: gameMode,
                               done: [],
@@ -1040,33 +1065,19 @@ export function TarkovTaskManagerPanel() {
                               changed: true,
                               source: "user",
                             });
-                            if (loggedIn) {
-                              try {
-                                await writeTaskProgressLedger(
-                                  {
-                                    done: [],
-                                    started: [],
-                                    failed: [],
-                                    objectives: [],
-                                  },
-                                  prev,
-                                  { replace: true },
-                                );
-                                clearQuestProfileResetPending(gameMode);
-                              } catch (error) {
-                                message.error(apiError(error, "清空任务进度失败"));
-                              }
-                            }
                             setTimeout(() => {
                               Modal.confirm({
                                 title: "同步任务",
                                 content:
-                                  "进度已清空。要现在同步吗？同一个角色只会计清空之后新打的任务；已经换了角色的话，会从新角色的日志开始。",
+                                  "进度已清空。要现在同步吗？同一个角色只会计清空之后新打的任务；日志里识别到转生或换了角色的话，从那一刻开始。",
                                 okText: "同步",
                                 cancelText: "稍后",
                                 onOk: () => {
                                   void live
-                                    .syncLogs(defaultLogSyncRange())
+                                    .syncLogs({
+                                      ...defaultLogSyncRange(),
+                                      confirmReset: confirmTarkovQuestReset,
+                                    })
                                     .then((result) => {
                                       if (
                                         result.review?.rows.length ||

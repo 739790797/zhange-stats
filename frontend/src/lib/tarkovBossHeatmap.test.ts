@@ -10,7 +10,6 @@ import {
   heatmapMapParentSlug,
   heatmapSpawnLocationOptions,
   hoverEscortSchemes,
-  hoverSquadCountForLocation,
   parseChancePct,
 } from "./tarkovBossHeatmap";
 import type { BossSpawnGroupApi } from "./tarkovBossSpawnGroups";
@@ -641,8 +640,6 @@ describe("location-specific squad tables", () => {
     expect(formatHoverAria(blocks)).toBe(
       "出生时间：与战局时间无关，出生数量：1–2个，区域：BotZoneRoomsFour、BotZoneRoomsThirdKitchen，出生数量：2–3个，区域：BotZoneRoomsThird",
     );
-    expect(hoverSquadCountForLocation(blocks, "BotZoneRoomsThird")).toBe("2–3个");
-    expect(hoverSquadCountForLocation(blocks, "BotZoneRoomsFour")).toBe("1–2个");
   });
 
   it("keeps a shared count table without listing every location", () => {
@@ -734,8 +731,5 @@ describe("location-specific squad tables", () => {
         sizes: [5],
       },
     ]);
-    expect(hoverSquadCountForLocation(blocks, "BotZoneOutside_t3")).toBe("3个");
-    expect(hoverSquadCountForLocation(blocks, "BotZoneInside_t4")).toBe("5个");
-    expect(hoverSquadCountForLocation(blocks, "BotZoneStern")).toBe("3–5个");
   });
 });

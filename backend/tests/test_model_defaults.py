@@ -29,6 +29,7 @@ _APP_SET = frozenset(
         "presence_segments.started_at",
         "register_challenges.expires_at",
         "rum_samples.recorded_at",
+        "tarkov_user_task_cleareds.cleared_at",
         "user_files.created_at",
     }
 )

@@ -684,7 +684,7 @@ def _load_task_rows(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if raw_row is None:
         return [], {}
     synced = raw_row.synced_at.isoformat() if raw_row.synced_at else None
-    hit = _task_source_cache.get(parsed_cache_key(db, synced))
+    hit = _task_source_cache.get(parsed_cache_key(db, synced, resource="tasks"))
     if hit is not None:
         return hit
     try:
@@ -693,7 +693,7 @@ def _load_task_rows(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         logger.warning("item sources tasks unavailable: %s", exc)
         return [], {}
     rows, locale = _task_rows_from_payload(payload)
-    _task_source_cache.put(parsed_cache_key(db, synced_at), (rows, locale))
+    _task_source_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), (rows, locale))
     return rows, locale
 
 

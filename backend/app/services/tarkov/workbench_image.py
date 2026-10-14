@@ -102,17 +102,24 @@ def ordered_pairs(
 ) -> list[tuple[str, str]]:
     installed = wb._pairs_map(pairs)
     out: list[tuple[str, str]] = []
+    path: set[str] = {gun.id}
 
     def walk(item_id: str) -> None:
         item = index.items.get(item_id)
         if not item:
             return
         for slot in item.slots:
+            # 只取前 _MAX_PAIRS 条，够了就停，免得被反复挂件撑爆
+            if len(out) >= _MAX_PAIRS:
+                return
             child_id = installed.get(slot.id, "")
-            if not child_id:
+            # 祖先链上已有 = 成环，剪掉
+            if not child_id or child_id in path:
                 continue
             out.append((slot.id, child_id))
+            path.add(child_id)
             walk(child_id)
+            path.discard(child_id)
 
     walk(gun.id)
     return out[:_MAX_PAIRS]

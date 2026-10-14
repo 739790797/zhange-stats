@@ -125,9 +125,9 @@ def test_is_sensitive_name() -> None:
 def test_leftover_excludes_classified_children(tmp_path: Path) -> None:
     fm.clear_size_cache()
     ctx = _ctx(tmp_path)
-    rapid = ctx.models_dir / "rapidocr"
-    rapid.mkdir()
-    (rapid / "det.onnx").write_bytes(b"x" * 20)
+    texteller = ctx.models_dir / "texteller"
+    texteller.mkdir()
+    (texteller / "encoder_model.onnx").write_bytes(b"x" * 20)
     (ctx.data_dir / "notes.txt").write_bytes(b"abc")
     (ctx.upload_dir / "avatars").mkdir()
     (ctx.upload_dir / "avatars" / "1.jpg").write_bytes(b"y" * 8)
@@ -136,22 +136,23 @@ def test_leftover_excludes_classified_children(tmp_path: Path) -> None:
 
     summary = fm.build_summary(ctx)
     by_id = {row.id: row for row in summary.buckets}
-    assert by_id["ocr_rapidocr"].size_bytes == 20
-    assert by_id["ocr_rapidocr"].kind == "download"
+    assert by_id["articles_texteller"].size_bytes == 20
+    assert by_id["articles_texteller"].kind == "download"
     assert by_id["uploads_avatars"].size_bytes == 8
     assert by_id["uploads_avatars"].kind == "generated"
     assert by_id["runtime_cache"].size_bytes == 4
     assert by_id["runtime_cache"].kind == "cache"
     assert by_id["data_leftover"].size_bytes == 3
-    assert "ocr_rapidocr" not in (by_id["data_leftover"].path,)
+    assert "articles_texteller" not in (by_id["data_leftover"].path,)
 
     kinds = {row.kind: row.size_bytes for row in summary.kind_totals}
     assert kinds["download"] >= 20
     assert kinds["generated"] >= 8 + 3
     assert kinds["cache"] >= 4
 
-    ocr = next(row for row in summary.business_totals if row.business == "ocr")
-    assert ocr.size_bytes == 20
+    articles = next(row for row in summary.business_totals if row.business == "articles")
+    assert articles.size_bytes >= 20
+    assert not any(row.business == "ocr" for row in summary.business_totals)
 
 
 def test_browse_and_sensitive_download(tmp_path: Path) -> None:
@@ -210,13 +211,13 @@ def test_browse_install_root_greys_secrets(tmp_path: Path) -> None:
 def test_browse_root_prefers_install_for_nested_data(tmp_path: Path) -> None:
     fm.clear_size_cache()
     ctx = _ctx(tmp_path)
-    (ctx.models_dir / "rapidocr").mkdir()
-    (ctx.models_dir / "rapidocr" / "a.bin").write_bytes(b"12")
+    (ctx.models_dir / "texteller").mkdir()
+    (ctx.models_dir / "texteller" / "a.bin").write_bytes(b"12")
     summary = fm.build_summary(ctx)
     assert [row.id for row in summary.roots] == ["install"]
-    rapid = next(row for row in summary.buckets if row.id == "ocr_rapidocr")
-    assert rapid.browse_root_id == "install"
-    assert rapid.browse_path.replace("\\", "/") == "data/models/rapidocr"
+    weights = next(row for row in summary.buckets if row.id == "articles_texteller")
+    assert weights.browse_root_id == "install"
+    assert weights.browse_path.replace("\\", "/") == "data/models/texteller"
 
 
 def test_file_manager_stays_inside_install_root(tmp_path: Path) -> None:
@@ -248,7 +249,8 @@ def test_optional_missing_buckets_omitted(tmp_path: Path) -> None:
     ids = {row.id for row in summary.buckets}
     assert "python_venv" not in ids
     assert "runtime_mariadb" not in ids
-    assert "ocr_rapidocr" in ids
+    assert "articles_texteller" in ids
+    assert "ocr_rapidocr" not in ids
 
 
 def test_mariadb_bucket_and_sensitive_browse(tmp_path: Path) -> None:
@@ -514,7 +516,6 @@ def test_secret_config_files_are_sensitive() -> None:
         "config",
         "config/app.json",
         "config/auth.json",
-        "config/ocr.json",
         "config/.app.x.tmp",
         "config.example/database.json",
         "scripts/config.example/email.json",

@@ -71,7 +71,7 @@ function recordAxiosRum(config: { baseURL?: string; url?: string; method?: strin
 }
 
 /** fetch 流式接口与 axios 拦截器共用：已登录业务 401 只登出一次。 */
-export function notifyUnauthorized(status: number, url: string) {
+function notifyUnauthorized(status: number, url: string) {
   const hasSession = Boolean(useAuthStore.getState().user);
   if (
     shouldLogoutOn401({

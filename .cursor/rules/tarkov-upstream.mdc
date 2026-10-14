@@ -12,7 +12,7 @@ alwaysApply: false
 
 - 新栏目、新标点、新同步从 **maps/items/tasks 等 dump** 投影，locale 走同资源 `_zh`
 - extras（技能 / 跳蚤 / 成就 / 容器目录等）从已下载 dump **抽出**，不另打 GraphQL
-- 任务 / 物品 / 制作在 **parse 前**与 `tarkov_overlay_raws`（[tarkov-data-overlay](https://github.com/tarkovtracker-org/tarkov-data-overlay)）内存合入，不改 json 各表、不落合并表
+- 任务 / 物品 / 制作在 **parse 前**与 `tarkov_overlay_raws`（[tarkov-data-overlay](https://github.com/MiwiDots/tarkov-data-overlay)，原 tarkovtracker-org 仓 2026-10 起匿名 404；`TARKOV_OVERLAY_URL` 可换源）内存合入，不改 json 各表、不落合并表
 - 互动地图底图仍用 `frontend/src/data/tarkov-dev-maps.json` + `assets.tarkov.dev`（SVG/瓦片）；容器格仓轮廓用 `frontend/src/data/tarkov-item-grids.json`。二者都是展示资源，不是图鉴 API
 - 工作台改装中间预览：底板用 dump 枪图（工厂预设 / 裸机匣静图），按槽位 `nameId` 在枪图上点选配件（含空槽）。dump 没有整枪照片坐标。默认**不**代理 [image-gen.tarkov-changes.com](https://image-gen.tarkov-changes.com)。旧出图接口仍在，须显式 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才启用。
 - 工作台社区方案：只 **GET** [eftforge.com](https://eftforge.com) `/builds/public?gun_id=`（公开列表），投影成 dump 可装的 `pairs`。不当图鉴源、不代投票/评论、不热链 Gitee 卡图、不落库（短时 KV 除外）。`TARKOV_WORKBENCH_COMMUNITY=false` 可关。

@@ -40,9 +40,9 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 助手自带侧栏时，站点在嵌入标记下不画 `AppLayout` 的「战鸽数据」侧栏；浏览器直接打开不变。塔科夫页内栏目顶栏仍由页面负责。个人中心要嵌成子页时，嵌入之外再标 `pane: "body"`（或 `?pane=body`）：`/guides/tarkov/me?tab=collection&embed=assistant&pane=body` 只画该 tab 主体（收集格子、任务列表等），不画顶栏、面包屑和 tab 条。综合查询用 `?pane=search`：`/guides/tarkov?embed=assistant&pane=search` 只画搜索框，不画顶栏、目录和页脚；搜到结果后仍列出结果。`pane=search` 只认当前地址。没有嵌入标记时 `pane` 不生效。
 
-截图目录与游戏日志的读盘交给助手：列目录、读日志文本、读最新截图、按页面「多于 N 张删旧图」删除、目录一变就通知页面。文件名里的坐标、日志解析、任务回放留在站点前端。战局只提交现有摘要接口，房间定位只广播数字。钥匙箱与局前任务的截图识别仍走现有 `recognize`，图只进服务器内存，确认后只存 id。
+截图目录与游戏日志的读盘交给助手：列目录、读日志文本、读最新截图的文件名与时间、按页面「多于 N 张删旧图」删除、目录一变就通知页面。文件名里的坐标、日志解析、任务回放留在站点前端。战局只提交现有摘要接口，房间定位只广播数字。截图本身不上传。
 
-助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。联机房间 WebSocket 鉴权在嵌入时带 `client=desktop`，浏览器为 `web`。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。`pickImage()` 返回 `{ name, type, bytes }` 时，钥匙箱与局前任务识别弹窗多一个「从助手选择截图」，识别仍走现有接口。
+助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。联机房间 WebSocket 鉴权在嵌入时带 `client=desktop`，浏览器为 `web`。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。截图识别已下线，站点不再调用助手的 `pickImage()`；旧版助手仍注入它也无害。
 
 助手首页是 `/app`。打开时请求 `/auth/me`：401 去登录页；没有状态码或其它 4xx/5xx 留在页上重试，不当成未登录。页内卡片仍是演示。
 
@@ -58,7 +58,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 - 请求 ID：中间件生成或转发 `X-Request-ID`，写入日志上下文并回写响应头。何时打 logger 见 [`logging.md`](logging.md)
 - CSP：默认 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report`）；`CSP_ENFORCE=true` 后 enforce。`/api/csp-report` 公开：请求体 ≤64KB（超限 413）；不逐条打日志，按「指令 + 被拦来源（只留 scheme://host）」进程内计数，首条立即、之后至多每分钟一条 WARNING 汇总（前 10 项 + 其余条数），不记完整 URL 与 query。`/uploads/*` 不论 `CSP_ENFORCE` 都带强制 `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox`：上传文件即使被当成顶层文档打开也跑不了脚本，`<img>` 引用与浏览器的图片 / PDF / 纯文本查看不受影响；响应自带强制 CSP 时中间件不再叠站点策略（Report-Only 也不叠）
 - 浏览器 RUM：`POST /api/client-rum` 公开（访客可报，便于统计攻略页），不校验 CSRF（`sendBeacon` 带不了自定义头），不落用户 id。限流 60 批/IP/10 分钟，每批最多 80 条，请求体 ≤256KB，一批一条批量 INSERT；URL 归并后去掉 query。管理端 `GET /api/settings/rum` 需管理员，接口按侧栏业务分类。样本 14 天后由 `job_runs_prune` 删除
-- 请求体上限：`BodyLimitMiddleware`（栈最内层，在 SetupRequired 之后）对 `/api/*` 默认 8MB；上传接口按各自业务上限另留 1MB 表单余量（文件管理 256MB、Minecraft 文件 64MB、头像 5MB、酒馆附件 10MB、公式识别 2MB、塔科夫截图识别 8MB），`/api/client-errors` 64KB。`Content-Length` 超限直接 413，不读 body；无长度的分块请求边读边数，超限即 413。反代 `client_max_body_size` 应不小于最大上传
+- 请求体上限：`BodyLimitMiddleware`（栈最内层，在 SetupRequired 之后）对 `/api/*` 默认 8MB；上传接口按各自业务上限另留 1MB 表单余量（文件管理 256MB、Minecraft 文件 64MB、头像 5MB、酒馆附件 10MB、公式识别 2MB），`/api/client-errors` 64KB。`Content-Length` 超限直接 413，不读 body；无长度的分块请求边读边数，超限即 413。反代 `client_max_body_size` 应不小于最大上传
 - 安装向导：未配库，或库里没有管理员且从未完成过初始化时，服务在 `DATA_DIR`（默认 `data/runtime/`）写一次性令牌文件 `setup-token`（启动或首次打开向导时生成，权限 600），日志只用 WARNING 打文件路径，不打令牌。`POST /api/setup/database`、`POST /api/setup/admin` 须带请求头 `X-Setup-Token`（该文件内容），缺失或不对回 403；`GET /api/setup/status` 的 `token_required` 告诉前端要不要填。建好首位管理员即删令牌文件，并在进程内补跑库就绪后的启动步骤（调度等），不必重启。已有管理员或写过完成标记（`system_configs` 的 `setup_completed`）一律 409。连库失败只回「无法连接数据库，请检查主机、端口、库名与账号密码」，驱动原文去掉口令后只进服务端日志。连上了但所选库有 `users` 却没有 `alembic_version`（Alembic 之前的旧库，或别的应用在用的库）回 409 带修复说明；建表或迁移失败回 500「建表或迁移失败，已撤回这次数据库选择；详情见服务日志」。这两种情况都撤回刚写的 `config/database.json`（原来没有就删掉，原来有就原样放回），下次启动不会去连那个库，向导可以换库重试；同一时刻只处理一次选库提交
 - 完成过初始化后管理员全没了（例如手工改库）：向导不再开放，启动打 WARNING。恢复二选一：在库里删掉 `system_configs` 中 `key='setup_completed'` 的行后重启，再走向导（令牌文件路径见日志）；或临时设进程环境变量 `ALLOW_ENV_ADMIN_SEED=true` 与 `ADMIN_*` 重启播种管理员（同名用户已存在则只提为管理员、不改口令），恢复后去掉
 - 生产在管理端「运行环境」或 `config/app.json` 设置 `APP_ENV=production`（安装脚本**不会**代写）：管理员弱口令默认**拒绝启动**（对库内管理员做常见弱口令探测）。本地 `development` 仅 WARNING；可在管理端「安全设置」覆盖。在「运行环境」保存 `APP_ENV=production` 前，服务端按生产口径先跑同样两项启动体检（`ALLOW_EMAIL_CODE_LOG`、管理员弱口令，弱口令是否拒绝按「安全设置」与 `REJECT_WEAK_ADMIN_PASSWORD`，都没设时按生产默认拒绝）；会让重启失败就 400「生产环境启动体检未通过（保存后重启会拒绝启动）：…」列出原因，什么都不写
@@ -86,14 +86,14 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 ## 塔科夫图鉴与工具
 
-公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、OCR、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
+公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
 
 - **读权限**：图鉴 GET、搜索、工作台 `allowed-items` / `calculate` / `community-builds` / `gunsmith-solve`、三狗 GET、大厅列表与房间预览不要求登录 Cookie / Bearer。仍 `require_feature("guides.tarkov")`。非成员（含未登录）`GET` 房间只回预览，不含棋盘/人员。图鉴 GET 合了 overlay 的栏目（物品目录 / 任务 / 商人 / 钥匙分类 / 3×4 收集）ETag 都带上 overlay 版本，否则只更新 overlay 时浏览器会一直吃旧 304
-- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state / 地图筛选喜好、OCR、`build-image`、创建加入房间须登录
-- **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-solve 20/IP/分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）
-- **回源**：只拉 json.tarkov.dev 全文件 dump。定时整站同步、管理员同步、各栏目同步与读接口的冷启动补拉共用进程内单飞锁，同一时刻只有一路回源。读接口碰上库里还没有该栏目 dump 时最多等锁 3 秒，仍在回源就 503「数据同步中，请稍后再试」并带 `Retry-After: 30`。管理员 `POST /api/guides/tarkov/sync` 转后台执行，立即 202 返回执行记录 `run_id`（进度与各栏目结果在「任务管理」`tarkov_full_sync`）；已有回源在跑时它和各栏目 `.../sync` 都回 409。定时整站同步碰上已有整站同步在跑就直接跳过，否则最多等锁 10 分钟；等锁期间别处开始过一轮整站同步，或始终等不到锁，都跳过。锁只管单个进程，多个 app 实例各自回源、互不排斥
-- **截图识别**（钥匙箱、局前任务）：两者共用进程内 1 路识别槽，先占槽再解图，占不到直接 429「已有识别任务在运行，请稍后再试」。截图 ≤8MB；解码前按文件头尺寸拒掉超过 2000 万像素的图（400「图片尺寸过大…」），只认 PNG / JPEG / WebP / GIF / BMP
+- **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state / 地图筛选喜好、`build-image`、创建加入房间须登录
+- **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-tasks 30/IP/分钟；gunsmith-solve 20/IP/分钟；出图 40/IP/10 分钟、20/账号/10 分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）。个人中心写接口按账号另计：任务账 / 钥匙 / 收集勾选 / 藏身处各 120/60 秒，raid-prep state 120/60 秒，藏身处等级 60/60 秒，资料 / 地图筛选 / 3×4 摆放各 30/60 秒；钥匙与收集的「并入账号」各 20/600 秒，日志摘要 30/600 秒
+- **回源**：只拉 json.tarkov.dev 全文件 dump，单文件上限 64MiB（`TARKOV_DUMP_MAX_BYTES`；此前用 8MiB 默认值，物品 / 地图两条大 dump 在线上一直下载失败）。定时整站同步、管理员同步、各栏目同步与读接口的冷启动补拉共用进程内单飞锁，同一时刻只有一路回源。读接口碰上库里还没有该栏目 dump 时最多等锁 3 秒，仍在回源就 503「数据同步中，请稍后再试」并带 `Retry-After: 30`。管理员 `POST /api/guides/tarkov/sync` 转后台执行，立即 202 返回执行记录 `run_id`（进度与各栏目结果在「任务管理」`tarkov_full_sync`）；已有回源在跑时它和各栏目 `.../sync` 都回 409。定时整站同步碰上已有整站同步在跑就直接跳过，否则最多等锁 10 分钟；等锁期间别处开始过一轮整站同步，或始终等不到锁，都跳过。锁只管单个进程，多个 app 实例各自回源、互不排斥
 - **三狗 WebSocket**：握手 `Origin` 规则同「塔科夫联机」；首帧 10 秒内带登录令牌，否则 4401；客户端单帧 ≤16KB（超限 1009），ping 按令牌桶限速；推送 5 秒发不出去即断开（1013）
+- **截图文字识别已下线**：不再有钥匙箱 / 局前任务截图识别，也不再有站点「文字识别」设置；旧的 `config/ocr.json` 不再读取，启动时删除。唯一保留的图像识别是战鸽酒馆的公式识别（TexTeller ONNX，见「战鸽酒馆」）
 - 功能开关 `guides.tarkov`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
 
 ## 塔科夫联机
@@ -105,7 +105,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 - **MariaDB 1020 与心跳**：MariaDB ≥ 11.6.2 默认 `innodb_snapshot_isolation=ON`，事务**读过**的行若被别的事务改过，本事务再写该行会抛 1020 `ER_CHECKREAD`，且**整笔事务回滚**。房间写事务与 WS 心跳都改成员的 `last_seen_at`，因此心跳也进房间锁（不再锁外直写），并按 `last_seen_at` 的落库间隔节流（45 秒，远小于 2 分钟空闲回收窗口），避免心跳频率撞上写事务。`run_in_room_tx` 另把 1020 视同死锁：整笔重跑一次（只认错误号 1020，其余 `OperationalError` 照旧上抛），不再冒成 500 让前端显示「服务暂时不可用」
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：创建 20/IP/10 分钟、10/账号/10 分钟；加入（含密码错误）10/IP+房间/10 分钟、10/账号+房间/10 分钟；大厅列表 40/IP/分钟、40/账号/分钟；房间详情 `GET /raid-rooms/{id}` 60/IP/分钟；房间写操作 120/账号/分钟
-- **房间 WebSocket**：握手先校验 `Origin`，须是本站 Host（含 `X-Forwarded-Host`）、`PUBLIC_FRONTEND_URL` / `PUBLIC_BACKEND_URL`、`CORS_ORIGINS` 或当前 CORS 正则，否则 4403；不带 `Origin` 的非浏览器客户端放行，仍靠首帧令牌。首帧须在 10 秒内带令牌，否则 4401；未入座 4403，房间不存在 4404。单帧 ≤256KB（超限 1009 断开）；ping、切查看图、草图、坐标、日志相位各有令牌桶，超出的帧直接丢弃。推送 5 秒发不出去视为慢消费者，断开（1013）。入站事件距上次复核满 10 秒就回库再查一次座位。离座 / 被移出在事务提交后先给该成员已连的 socket 发 `member_leave`，再以 4403 关闭；房间解散（最后一人离开、座位过期回收后无人，或房主清空）在提交后发最后一帧，再以 4404 关闭全部 socket
+- **房间 WebSocket**：握手先校验 `Origin`，须是本站 Host（含 `X-Forwarded-Host`）、`PUBLIC_FRONTEND_URL` / `PUBLIC_BACKEND_URL`、`CORS_ORIGINS` 或当前 CORS 正则，否则 4403；不带 `Origin` 的非浏览器客户端放行，仍靠首帧令牌。首帧须在 10 秒内带令牌，否则 4401；未入座 4403，房间不存在 4404。**连接数上限**：同一账号在同一房间最多 3 条、同一房间最多 40 条（每条连接各有一套令牌桶，不限量就是 N 倍画笔速率），超出以 4429 关闭单帧 ≤256KB（超限 1009 断开）；ping、切查看图、草图、坐标、日志相位各有令牌桶，超出的帧直接丢弃。推送 5 秒发不出去视为慢消费者，断开（1013）。入站事件距上次复核满 10 秒就回库再查一次座位。离座 / 被移出在事务提交后先给该成员已连的 socket 发 `member_leave`，再以 4403 关闭；房间解散（最后一人离开、座位过期回收后无人，或房主清空）在提交后发最后一帧，再以 4404 关闭全部 socket
 - **广播顺序**：每笔房间写在**持房间锁时**占一个 `seq` 并入队，hub 按 seq 升序发送；同一房间的帧不会因为线程调度乱序。HTTP 响应与 WS 快照都带 `seq`，前端丢弃比手上更旧的帧。广播前会剥掉 `is_host` / `is_member` / `can_edit` 这三个按发起人算的视角字段
 - **大厅查询**：只加载当前顶栏模式、`listed` 且无密码、仍有人在座的房；过期座位按 `last_seen` 定向回收，不把全部房间扫进内存
 - **座位回收**：`GET` 房间与大厅列表不再每次请求都写库。回收是写操作，全进程最多每 20 秒触发一次（`room_prune_due`），命中且确实有座位过期才提交并踢 socket
@@ -121,17 +121,9 @@ Minecraft 页（Pelican 面板 + RCON）：状态、在线与性能须登录；�
 - **模组安装 / 核心下载**：先让面板拉到同目录临时名 `*.zhange-part`（加载器只认 `*.jar`），再经签名 URL 读回校验：Modrinth 给了 sha512 就比对；没给的模组与 Arclight 核心至少确认是完整 jar（逐条目 CRC、解压总量 ≤1GB，核心还须带 MANIFEST）。校验通过才替换同名文件，新文件落位后才删旧版本；失败只删临时文件，旧文件不动。经签名 URL 读 jar 一律边读边数，超过上限（模组 96MB、核心 128MB）立即断开
 - **RCON**：回包长度按原版分片上限（4096 字符，UTF-8 下最多 3 倍字节）校验，超长即断开重连；多片回包用哨兵包收齐，不靠超时猜末片；空闲连接上读到残留数据就丢掉重连，不复用读位置不可信的连接
 
-## 文字识别
-
-引擎、权重与场景选择是站点能力（`config/ocr.json`，管理端「站点设置 → 文字识别」）。上区一族一张卡（熊猫 OCR / EasyOCR），下区业务勾选族并设多端校验。熊猫档位从本机 RapidOCR `default_models.yaml`（onnxruntime）摊开。**没有**对外 `POST /api/ocr/recognize`；业务只走内部 Python 接口。权重在 `data/models/rapidocr` 与 `data/models/easyocr`，由本页「检查更新」或任务配置「文字识别模型」（`ocr_model_sync`）按当前 Paddle 档位预拉；识别时不现场下载。未就绪返回 503。公式识别（TexTeller）仍独立，走任务配置「公式识别模型」，不并进这套引擎。
-
 ## 文件管理
 
-管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / Torch / EasyOCR / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub、EasyOCR `.pth`）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`（含写入中途的 `.secret_key.*` 临时文件）、`.env`（不含 `.env.example`）、密钥类后缀、明文带口令/密钥的 `config/database.json` / `config/integrations.json` / `config/email.json`（含 `write_json` 的 `.<名>.*.tmp`）、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、上传覆盖、重命名或删除；也不能新建同名敏感项。用 SQLite 时，当前配置的库文件（默认 `data/runtime/zhange.sqlite`）及同名 `-wal` / `-shm` / `-journal` 同样置灰，也不可下载：WAL 下最近的提交还在 `-wal` 里，单拷主文件不是一致快照，删掉或换掉旁路文件会丢这些提交，库里还有口令散列与加密的平台凭证；要副本请跑 `backup` 脚本（走 SQLite 在线备份接口），删 `data/runtime/` 等目录时这几份原样留下。判定同时看请求路径和 `resolve` 之后的真实路径。符号链接与 Windows 目录联接（junction）在 `resolve` 之前逐级判定：列表里不列出；请求路径上任一级是链接一律 400（浏览、下载、读写、上传、新建、重命名、删除，含链接本身），在链接的名字上新建、上传或改名过去回 409，删除目录时其中的链接原样留下、不跟进，所以链接不能把 `config/`、MariaDB 数据目录或备份换个名字绕过去。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停；其中的 `app.json` 等普通设置可编辑）。删除普通目录时跳过其中的敏感子项（删 `config/` 会留下上面三份）。文本编辑 ≤2MB，上传 ≤256MB：上传接口在工作线程里把表单临时文件按块流式写到目标目录的 `.zhange-write-*.part`，边写边计数，超限 413，写完 fsync 再 `os.replace` 落位（覆盖时保留原权限位）；超限或出错不留半截文件，也不动原文件。编辑保存与新建文件走同一套原子写。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
-
-## 塔科夫钥匙截图识别
-
-钥匙管理「截图识别」把用户粘贴的钥匙箱截图 `POST` 到本站，按 360–640（最佳约 540）正方形切块，按「文字识别」里为场景 `tarkov_keys` 勾选的引擎读格子 **shortName**（默认熊猫 OCR + EasyOCR）。每族另走反色补召回；该业务默认开启多端校验，模糊匹配须两个不同模型族同时读到，才放宽阈值。切块与闭集匹配仍在塔科夫业务里。响应只带回文本框坐标供覆盖层，原图与切块只进内存，不落 `uploads/`、不入库。确认后才 `merge` 到 `tarkov_user_key_owns`。限流：8/IP/10 分钟、6/账号/10 分钟；进程内同时只跑 1 路识别，客户端断开后工作线程在下一刀切块前退出。
+管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`（含写入中途的 `.secret_key.*` 临时文件）、`.env`（不含 `.env.example`）、密钥类后缀、明文带口令/密钥的 `config/database.json` / `config/integrations.json` / `config/email.json`（含 `write_json` 的 `.<名>.*.tmp`）、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、上传覆盖、重命名或删除；也不能新建同名敏感项。用 SQLite 时，当前配置的库文件（默认 `data/runtime/zhange.sqlite`）及同名 `-wal` / `-shm` / `-journal` 同样置灰，也不可下载：WAL 下最近的提交还在 `-wal` 里，单拷主文件不是一致快照，删掉或换掉旁路文件会丢这些提交，库里还有口令散列与加密的平台凭证；要副本请跑 `backup` 脚本（走 SQLite 在线备份接口），删 `data/runtime/` 等目录时这几份原样留下。判定同时看请求路径和 `resolve` 之后的真实路径。符号链接与 Windows 目录联接（junction）在 `resolve` 之前逐级判定：列表里不列出；请求路径上任一级是链接一律 400（浏览、下载、读写、上传、新建、重命名、删除，含链接本身），在链接的名字上新建、上传或改名过去回 409，删除目录时其中的链接原样留下、不跟进，所以链接不能把 `config/`、MariaDB 数据目录或备份换个名字绕过去。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停；其中的 `app.json` 等普通设置可编辑）。删除普通目录时跳过其中的敏感子项（删 `config/` 会留下上面三份）。文本编辑 ≤2MB，上传 ≤256MB：上传接口在工作线程里把表单临时文件按块流式写到目标目录的 `.zhange-write-*.part`，边写边计数，超限 413，写完 fsync 再 `os.replace` 落位（覆盖时保留原权限位）；超限或出错不留半截文件，也不动原文件。编辑保存与新建文件走同一套原子写。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
 
 ## 塔科夫工作台出图
 

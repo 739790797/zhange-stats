@@ -1,4 +1,6 @@
 import { MAPS_HREF, TARKOV_MAPS, tarkovMapHref } from "@/lib/tarkovHomeNav";
+import { logTextGrownFrom } from "@/lib/tarkovLogTextCache";
+import { parseTarkovScreenshotTime } from "@/lib/tarkovScreenshotPos";
 
 /** 日志 Location / nameId / 场景包名 → 本站地图 id。 */
 const LOCATION_TO_MAP: Record<string, string> = {
@@ -49,7 +51,40 @@ const SCENE_TO_MAP: Record<string, string> = {
 };
 
 const TS_RE =
-  /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(?:\s*[+-]\d{2}:\d{2})?\|/;
+  /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(?:\s*([+-])(\d{2}):(\d{2}))?\|/;
+const CLOCK_PARTS_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})$/;
+const BEIJING_OFFSET_MIN = 8 * 60;
+
+function pad(n: number, width = 2): string {
+  return String(n).padStart(width, "0");
+}
+
+/**
+ * 日志行时间 → 北京墙钟（保留毫秒）。游戏按玩家本机时区写，并带上 `+01:00` 这类偏移；
+ * 回放下限、清空时刻、账号上的时间都按北京墙钟比，所以带偏移的一律换算。
+ * 不带偏移的老格式原样当北京墙钟（与以前一致）。纯算术，不依赖运行环境的时区。
+ */
+export function logClockToBeijing(
+  clock: string,
+  sign?: string,
+  hh?: string,
+  mm?: string,
+): string {
+  if (!sign || hh == null || mm == null) return clock;
+  const offsetMin = (sign === "-" ? -1 : 1) * (Number(hh) * 60 + Number(mm));
+  if (offsetMin === BEIJING_OFFSET_MIN) return clock;
+  const m = CLOCK_PARTS_RE.exec(clock);
+  if (!m) return clock;
+  const utcMs =
+    Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]) - offsetMin * 60_000;
+  const d = new Date(utcMs + BEIJING_OFFSET_MIN * 60_000);
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}.` +
+    pad(d.getUTCMilliseconds(), 3)
+  );
+}
+
 const FOLDER_TS_RE =
   /(?:^|log_)(\d{4})\.(\d{2})\.(\d{2})_(\d{1,2})-(\d{2})-(\d{2})/i;
 const LOCATION_RE = /Location:\s*([^,]+)/i;
@@ -144,6 +179,8 @@ export type TarkovLogParseResult = {
   sessionMode?: string;
   quests?: TarkovLogQuestEvent[];
   drops?: TarkovLogQuestDrop[];
+  /** 本份日志首条带偏移行的时区偏移（如 `+01:00`）；启动文件夹名可按它换算成北京时间。 */
+  clockOffset?: string;
 };
 
 export type TarkovLogSessionStub = {
@@ -153,8 +190,6 @@ export type TarkovLogSessionStub = {
 };
 
 export type TarkovLogRootKind = "logs" | "install" | "session" | "unknown";
-
-export type TarkovScreenshotRootKind = "screenshots" | "ancestor" | "unknown";
 
 export type TarkovLogHistoryRaid = TarkovLogRaid & {
   folder: string;
@@ -254,12 +289,49 @@ export function isSessionFolderName(name: string): boolean {
   return FOLDER_TS_RE.test(name || "");
 }
 
+/**
+ * 启动文件夹名里的时刻是**游戏本机墙钟**：文件夹名不带时区偏移，而回下来全按北京墙钟比
+ * （日期范围、断点、排序）。带上从该次启动的日志里读到的偏移就能换算成北京时间。
+ */
 export function parseSessionFolderTime(name: string): string | null {
   const match = FOLDER_TS_RE.exec(name || "");
   if (!match) return null;
   const [, year, month, day, hour, minute, second] = match;
   const hh = String(hour).padStart(2, "0");
   return `${year}-${month}-${day} ${hh}:${minute}:${second}`;
+}
+
+const FOLDER_CLOCK_RE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:\.\d{1,3})?$/;
+
+/** 文件夹名时刻 → 北京墙钟（`+01:00` 这类偏移来自同一份启动记录里的日志行）。 */
+export function folderTimeToBeijing(
+  folderTime: string | null | undefined,
+  clockOffset: string | null | undefined,
+): string | null {
+  const clock = (folderTime || "").trim();
+  if (!clock) return null;
+  const parts = FOLDER_CLOCK_RE.exec(clock);
+  if (!parts) return clock;
+  const offset = /^([+-])(\d{2}):(\d{2})$/.exec((clockOffset || "").trim());
+  if (!offset) return clock;
+  return logClockToBeijing(`${parts[1]}.000`, offset[1], offset[2], offset[3]).replace(
+    /\.\d{3}$/,
+    "",
+  );
+}
+
+/**
+ * 读过这次启动的日志后，把 stub 的 startedAt 换成北京墙钟（偏移取自该次日志 `parsed.clockOffset`）。
+ * 日志里没有带偏移的行（老格式）就原样保留。
+ * 遗留：还没读日志、只列了目录的 stub 仍是本机墙钟。列目录阶段的排序只在同一台机器的文件夹之间比，
+ * 通常偏移相同、先后不变（只有改过时区或夏令时切换前后那一小时可能颠倒）；按北京日期筛选要用换算后的。
+ */
+export function sessionStubInBeijing(
+  stub: TarkovLogSessionStub,
+  parsed: Pick<TarkovLogParseResult, "clockOffset"> | null | undefined,
+): TarkovLogSessionStub {
+  const startedAt = folderTimeToBeijing(stub.startedAt, parsed?.clockOffset);
+  return startedAt === stub.startedAt ? stub : { ...stub, startedAt };
 }
 
 export function matchNamedDir(
@@ -332,11 +404,20 @@ export function parseScreenshotPrunePref(
   }
 }
 
+/** 写不进存储时记在内存里，本页照常生效，刷新后不保留。 */
+let unsavedScreenshotPrunePref: TarkovScreenshotPrunePref | null = null;
+
+/** 存储被禁用（隐私模式、站点数据被拦）时 localStorage 访问会抛错，按默认偏好处理。 */
 export function loadScreenshotPrunePref(): TarkovScreenshotPrunePref {
   if (typeof window === "undefined") return { ...DEFAULT_SCREENSHOT_PRUNE_PREF };
-  return parseScreenshotPrunePref(
-    window.localStorage.getItem(TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY),
-  );
+  if (unsavedScreenshotPrunePref) return { ...unsavedScreenshotPrunePref };
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY);
+  } catch {
+    raw = null;
+  }
+  return parseScreenshotPrunePref(raw);
 }
 
 export function saveScreenshotPrunePref(
@@ -347,10 +428,15 @@ export function saveScreenshotPrunePref(
     keepMax: clampScreenshotPruneKeep(pref.keepMax),
   };
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(
-      TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY,
-      JSON.stringify(next),
-    );
+    try {
+      window.localStorage.setItem(
+        TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+      unsavedScreenshotPrunePref = null;
+    } catch {
+      unsavedScreenshotPrunePref = { ...next };
+    }
     window.dispatchEvent(new Event(TARKOV_SCREENSHOT_PRUNE_EVENT));
   }
   return next;
@@ -383,13 +469,43 @@ export function isTarkovGameScreenshotName(name: string): boolean {
   );
 }
 
-/** 游戏截图文件名带日期前缀，字典序最新的就是最新一张。 */
-export function latestScreenshotName(names: readonly string[]): string | null {
-  const images = names.filter((name) => isScreenshotFileName(name));
-  const dated = images.filter((name) => TARKOV_SCREENSHOT_STAMP_RE.test(name));
-  const pool = dated.length ? dated : images;
-  if (!pool.length) return null;
-  return [...pool].sort((a, b) => b.localeCompare(a))[0] || null;
+/** 只有名字时 lastModified 记 0，比较退回文件名。 */
+export type TarkovScreenshotListing = string | { name: string; lastModified?: number };
+
+function listingStamp(row: TarkovScreenshotListing): TarkovScreenshotStamp {
+  return typeof row === "string"
+    ? { name: row, lastModified: 0 }
+    : { name: row.name, lastModified: Number(row.lastModified) || 0 };
+}
+
+/**
+ * 截图新旧：先比文件名里的日期时刻（只到分钟，小时可能是一位数，不能按字符串比），
+ * 同一分钟再比修改时间（有的话），最后比文件名（数字按数值比）。不带日期的名字算最旧。
+ */
+export function compareScreenshotAge(
+  a: TarkovScreenshotStamp,
+  b: TarkovScreenshotStamp,
+): number {
+  const ta = parseTarkovScreenshotTime(a.name) || "";
+  const tb = parseTarkovScreenshotTime(b.name) || "";
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  if (a.lastModified !== b.lastModified) return a.lastModified - b.lastModified;
+  return a.name.localeCompare(b.name, undefined, { numeric: true });
+}
+
+/** 有游戏截图时只看带日期的；返回从旧到新。 */
+function screenshotPool(rows: readonly TarkovScreenshotListing[]): TarkovScreenshotStamp[] {
+  const images = rows.map(listingStamp).filter((row) => isScreenshotFileName(row.name));
+  const dated = images.filter((row) => TARKOV_SCREENSHOT_STAMP_RE.test(row.name));
+  return (dated.length ? dated : images).sort(compareScreenshotAge);
+}
+
+/** 最新一张：按文件名里的拍摄时刻，同一分钟再看修改时间。 */
+export function latestScreenshotName(
+  rows: readonly TarkovScreenshotListing[],
+): string | null {
+  const pool = screenshotPool(rows);
+  return pool[pool.length - 1]?.name ?? null;
 }
 
 export function isNewerScreenshot(
@@ -403,27 +519,35 @@ export function isNewerScreenshot(
   return next.name.localeCompare(current.name) > 0;
 }
 
-/** 只碰最新一张；已读过就跳过。 */
+/** 首次列目录时最多看这么多张没见过的，免得逐张读完整个旧目录。 */
+export const TARKOV_SCREENSHOT_INSPECT_MAX = 20;
+
+/**
+ * 没读过的截图都要看（从旧到新，最新在最后）：同一分钟连拍两张时，文件名排序可能把新的排在前面，
+ * 调用方又会把整目录记为已读，只看「最新」一张会漏掉另一张。
+ */
 export function screenshotNamesToInspect(
-  names: readonly string[],
+  rows: readonly TarkovScreenshotListing[],
   seen: ReadonlySet<string>,
+  limit = TARKOV_SCREENSHOT_INSPECT_MAX,
 ): string[] {
-  const latest = latestScreenshotName(names);
-  if (!latest || seen.has(latest)) return [];
-  return [latest];
+  const fresh = screenshotPool(rows).filter((row) => !seen.has(row.name));
+  return fresh.slice(Math.max(0, fresh.length - Math.max(1, limit))).map((row) => row.name);
 }
 
 /** 游戏截图多于 keepMax 时，从最旧的开始删；最新一张始终留着。必须传入整目录文件名，不能只传新出现的几张。 */
 export function screenshotNamesToPrune(
-  names: readonly string[],
+  rows: readonly TarkovScreenshotListing[],
   keepLatest: string | null,
   keepMax: number,
   batch = TARKOV_SCREENSHOT_PRUNE_BATCH,
 ): string[] {
-  const dated = names.filter((name) => isTarkovGameScreenshotName(name));
+  const dated = rows
+    .map(listingStamp)
+    .filter((row) => isTarkovGameScreenshotName(row.name));
   const cap = clampScreenshotPruneKeep(keepMax);
   if (dated.length <= cap) return [];
-  const newestFirst = [...dated].sort((a, b) => b.localeCompare(a));
+  const newestFirst = dated.sort(compareScreenshotAge).reverse().map((row) => row.name);
   const keep = new Set(newestFirst.slice(0, cap));
   if (keepLatest) keep.add(keepLatest);
   const out: string[] = [];
@@ -433,11 +557,6 @@ export function screenshotNamesToPrune(
     out.push(name);
   }
   return out;
-}
-
-export function screenshotPollHint(ms = TARKOV_SCREENSHOT_POLL_MS): string {
-  const sec = Math.max(1, Math.round(ms / 1000));
-  return `每 ${sec} 秒检查新截图`;
 }
 
 function uniqueWalks(walks: string[][]): string[][] {
@@ -506,22 +625,6 @@ export function classifyLogsRoot(childNames: readonly string[]): TarkovLogRootKi
   }
   if (names.includes("logs") || names.includes("build")) return "install";
   return "unknown";
-}
-
-export function classifyScreenshotsRoot(
-  childNames: readonly string[],
-): TarkovScreenshotRootKind {
-  if (screenshotWalkCandidatesFrom(childNames).some((walk) => walk.length === 0)) {
-    return "screenshots";
-  }
-  if (screenshotWalkCandidatesFrom(childNames).length) return "ancestor";
-  return "unknown";
-}
-
-export function formatResolvedWalk(pickedName: string, walk: readonly string[]): string {
-  const root = (pickedName || "").trim() || "已选目录";
-  if (!walk.length) return root;
-  return `${root} / ${walk.join(" / ")}`;
 }
 
 export const TARKOV_SCREENSHOTS_PATH_HINT =
@@ -611,6 +714,7 @@ export function listSessionStubs(
   childNames: readonly string[],
   opts?: { selfFolder?: string },
 ): TarkovLogSessionStub[] {
+  // startedAt 是文件夹名里的游戏本机墙钟：这时还没读日志、拿不到偏移。读过日志后用 sessionStubInBeijing 换算。
   const kind = classifyLogsRoot(childNames);
   if (kind === "session" && opts?.selfFolder) {
     return [
@@ -1117,68 +1221,89 @@ function parseUserMatchOver(
   );
 }
 
-export function parseTarkovLogText(text: string): TarkovLogParseResult {
-  const source = (text || "").replace(/\r\n/g, "\n");
-  const events: TarkovLogEvent[] = [];
-  const quests: TarkovLogQuestEvent[] = [];
-  const drops: TarkovLogQuestDrop[] = [];
-  let sessionMode = "";
-  let version = "";
-  const lines = source.split("\n");
-  let offset = 0;
+/** 逐行扫描的累积状态；实时轮询接着上次的状态只扫新追加的行。 */
+type LogScanState = {
+  events: TarkovLogEvent[];
+  /** 还没按 Session mode 盖章的任务事件。 */
+  quests: TarkovLogQuestEvent[];
+  drops: TarkovLogQuestDrop[];
+  sessionMode: string;
+  version: string;
+  /** 首条带偏移行的偏移，如 `+01:00`。 */
+  clockOffset: string;
+};
 
+function emptyScanState(): LogScanState {
+  return { events: [], quests: [], drops: [], sessionMode: "", version: "", clockOffset: "" };
+}
+
+/** 扫 text（已换成 \n）里的每一行，结果追加进 st。块（通知 JSON）往后看到下一条带时间戳的行为止。 */
+function scanLogLines(st: LogScanState, text: string, outputOnly: boolean): void {
+  const lines = text.split("\n");
+  let offset = 0;
   for (const line of lines) {
     const lineStart = offset;
     offset += line.length + 1;
-    const tsMatch = TS_RE.exec(line);
-    const at = tsMatch?.[1] || events[events.length - 1]?.at || quests[quests.length - 1]?.at || "";
-    version = versionFromLogLine(line, version);
+    const ts = TS_RE.exec(line);
+    if (ts?.[2] && !st.clockOffset) st.clockOffset = `${ts[2]}${ts[3]}:${ts[4]}`;
+    const clock = ts ? logClockToBeijing(ts[1]!, ts[2], ts[3], ts[4]) : "";
+    if (outputOnly) {
+      if (!line.includes(GAME_STOPPING_MARKER)) continue;
+      st.events.push({ kind: "raid_exited", at: clock || st.events[st.events.length - 1]?.at || "" });
+      continue;
+    }
+    const at =
+      clock ||
+      st.events[st.events.length - 1]?.at ||
+      st.quests[st.quests.length - 1]?.at ||
+      "";
+    st.version = versionFromLogLine(line, st.version);
     if (line.includes(GAME_STOPPING_MARKER)) {
-      events.push({ kind: "raid_exited", at });
+      st.events.push({ kind: "raid_exited", at });
       continue;
     }
     if (SESSION_MODE_RE.test(line)) {
-      sessionMode = (SESSION_MODE_RE.exec(line)?.[1] || "").trim();
-      events.push({ kind: "session_mode", at, sessionMode, version: version || undefined });
+      st.sessionMode = (SESSION_MODE_RE.exec(line)?.[1] || "").trim();
+      st.events.push({ kind: "session_mode", at, sessionMode: st.sessionMode, version: st.version || undefined });
       continue;
     }
     const profileMatch = SELECT_PROFILE_RE.exec(line);
     if (profileMatch) {
-      events.push({
+      st.events.push({
         kind: "profile",
         at,
         profileId: profileMatch[1],
         accountId: profileMatch[2],
-        version: version || undefined,
+        version: st.version || undefined,
       });
       if (line.includes("PrepareSelectedProfileLocally")) {
-        events.push({ kind: "raid_exited", at });
+        st.events.push({ kind: "raid_exited", at });
       }
       continue;
     }
     if (line.includes("Got notification | ChatMessageReceived")) {
-      const parsed = parseChatQuest(source, lineStart, at, line);
+      const parsed = parseChatQuest(text, lineStart, at, line);
       if (parsed.quest) {
         const stamped = line.trim();
-        quests.push(stamped ? { ...parsed.quest, line: stamped } : parsed.quest);
+        st.quests.push(stamped ? { ...parsed.quest, line: stamped } : parsed.quest);
       } else if (parsed.drop) {
-        drops.push(parsed.drop);
+        st.drops.push(parsed.drop);
       }
       continue;
     }
     if (line.includes("Got notification | UserMatchOver")) {
-      const exited = parseUserMatchOver(source, lineStart, at);
-      if (exited) events.push(exited);
+      const exited = parseUserMatchOver(text, lineStart, at);
+      if (exited) st.events.push(exited);
       continue;
     }
     if (line.includes("application|scene preset path:") || line.includes("|scene preset path:")) {
       const scene = SCENE_RE.exec(line)?.[1] || "";
       const mapId = mapLogSceneToMapId(scene);
-      events.push(attachMap({ kind: "map_loading", at }, "", mapId));
+      st.events.push(attachMap({ kind: "map_loading", at }, "", mapId));
       continue;
     }
     if (line.includes("application|LocationLoaded") || line.includes("|LocationLoaded")) {
-      events.push({ kind: "matching", at });
+      st.events.push({ kind: "matching", at });
       continue;
     }
     if (
@@ -1188,7 +1313,7 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
       const location = (LOCATION_RE.exec(line)?.[1] || "").trim();
       const raidId = (SHORT_ID_RE.exec(line)?.[1] || "").trim();
       const raidMode = parseLogRaidMode(RAID_MODE_RE.exec(line)?.[1] || "");
-      events.push(
+      st.events.push(
         attachMap(
           {
             kind: "match_found",
@@ -1202,60 +1327,113 @@ export function parseTarkovLogText(text: string): TarkovLogParseResult {
       continue;
     }
     if (line.includes("application|GameStarting") || /\|GameStarting(?:\||$)/.test(line)) {
-      events.push({ kind: "raid_starting", at });
+      st.events.push({ kind: "raid_starting", at });
       continue;
     }
     if (line.includes("application|GameStarted") || /\|GameStarted(?:\||$)/.test(line)) {
-      events.push({ kind: "raid_started", at });
+      st.events.push({ kind: "raid_started", at });
       continue;
     }
     if (
       line.includes("Network game matching aborted") ||
       line.includes("Network game matching cancelled")
     ) {
-      events.push({ kind: "matching_aborted", at });
+      st.events.push({ kind: "matching_aborted", at });
     }
   }
+}
 
-  const stamped = stampQuestsWithSession(quests, events);
+/** 由扫描状态出结果；数组都是新的，之后续扫往 st 里追加不会改到已交出去的结果。 */
+function finishScan(st: LogScanState, outputOnly: boolean): TarkovLogParseResult {
+  const extra = st.clockOffset ? { clockOffset: st.clockOffset } : {};
+  if (outputOnly) return { events: [...st.events], raids: [], ...extra };
+  const events = [...st.events];
   return {
     events,
     raids: buildRaidsFromEvents(events),
-    sessionMode: lastSessionModeFromEvents(events) || sessionMode || undefined,
-    quests: stamped,
-    drops,
+    sessionMode: lastSessionModeFromEvents(events) || st.sessionMode || undefined,
+    quests: stampQuestsWithSession(st.quests, events),
+    drops: [...st.drops],
+    ...extra,
   };
 }
 
-function parseOutputLogStopping(text: string): TarkovLogEvent[] {
-  const source = (text || "").replace(/\r\n/g, "\n");
-  const events: TarkovLogEvent[] = [];
-  for (const line of source.split("\n")) {
-    if (!line.includes(GAME_STOPPING_MARKER)) continue;
-    const at = TS_RE.exec(line)?.[1] || events[events.length - 1]?.at || "";
-    events.push({ kind: "raid_exited", at });
+export function parseTarkovLogText(text: string): TarkovLogParseResult {
+  const st = emptyScanState();
+  scanLogLines(st, (text || "").replace(/\r\n/g, "\n"), false);
+  return finishScan(st, false);
+}
+
+const DATED_LINE_RE = /^\d{4}-\d{2}-\d{2} /;
+
+/**
+ * 实时轮询能安全续扫到哪里（text 已换成 \n）：最后一条带时间戳的行的行首。
+ * 通知块（JSON）一直延续到下一条带时间戳的行，所以这一行之前的块都已封口，解析结果不会再变；
+ * 这一行和它后面的续行（含没写完的半行）每轮单独补扫。
+ */
+export function safeLogParseEnd(text: string): number {
+  let pos = text.length;
+  for (;;) {
+    const lineStart = pos > 0 ? text.lastIndexOf("\n", pos - 1) + 1 : 0;
+    if (DATED_LINE_RE.test(text.slice(lineStart, lineStart + 11))) return lineStart;
+    if (lineStart === 0) return 0;
+    pos = lineStart - 1;
   }
-  return events;
 }
 
 type TarkovLogPart = { name: string; text: string };
 
-/** 实时轮询按文件对象记住上次的解析；同一个对象、文本没变就不再整份重扫。 */
-export type TarkovLogBundleMemo = WeakMap<
-  TarkovLogPart,
-  { name: string; text: string; parsed: TarkovLogParseResult }
->;
+type LogPartMemo = {
+  name: string;
+  /** 已扫过的前缀（已换成 \n），续扫前先确认新文本以它开头。 */
+  prefix: string;
+  state: LogScanState;
+  text: string;
+  parsed: TarkovLogParseResult;
+};
+
+/**
+ * 实时轮询按文件对象（键）记住上次的扫描：文本没变直接复用；只是往后追加了内容，就接着上次的状态
+ * 只扫新增的、已写完整的行（见 safeLogParseEnd），结果与整份重扫一致。没写完的半行 / 半块每轮在副本上补扫，不进累积状态。
+ */
+export type TarkovLogBundleMemo = WeakMap<object, LogPartMemo>;
 
 function parseLogPart(
   part: TarkovLogPart,
   memo?: TarkovLogBundleMemo,
 ): TarkovLogParseResult {
-  const hit = memo?.get(part);
+  const outputOnly = isOutputLogFileName(part.name);
+  let hit = memo?.get(part);
   if (hit && hit.name === part.name && hit.text === part.text) return hit.parsed;
-  const parsed = isOutputLogFileName(part.name)
-    ? { events: parseOutputLogStopping(part.text), raids: [] }
-    : parseTarkovLogText(part.text);
-  memo?.set(part, { name: part.name, text: part.text, parsed });
+  // 实时读盘在文件变长时交来的是新对象（tarkovLogTextCache 续读），顺着它找到上一轮的对象接着扫。
+  const grownFrom = hit ? undefined : logTextGrownFrom(part);
+  if (memo && grownFrom) {
+    hit = memo.get(grownFrom);
+    // 下面会往 hit.state 里追加；旧对象的记录随即作废，免得它日后拿已经扫远了的状态续扫。
+    memo.delete(grownFrom);
+  }
+  const source = (part.text || "").replace(/\r\n/g, "\n");
+  const safeEnd = safeLogParseEnd(source);
+  const resumeFrom =
+    hit && hit.name === part.name && safeEnd >= hit.prefix.length && source.startsWith(hit.prefix)
+      ? hit
+      : null;
+  const state = resumeFrom ? resumeFrom.state : emptyScanState();
+  scanLogLines(state, source.slice(resumeFrom ? resumeFrom.prefix.length : 0, safeEnd), outputOnly);
+  let parsed: TarkovLogParseResult;
+  if (safeEnd < source.length) {
+    const tail: LogScanState = {
+      ...state,
+      events: [...state.events],
+      quests: [...state.quests],
+      drops: [...state.drops],
+    };
+    scanLogLines(tail, source.slice(safeEnd), outputOnly);
+    parsed = finishScan(tail, outputOnly);
+  } else {
+    parsed = finishScan(state, outputOnly);
+  }
+  memo?.set(part, { name: part.name, prefix: source.slice(0, safeEnd), state, text: part.text, parsed });
   return parsed;
 }
 
@@ -1269,8 +1447,11 @@ export function parseTarkovLogBundle(
   const ordered = [...parts].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { numeric: true }),
   );
+  /* 会话目录名是本机墙钟：沿用第一个带时区的分片，sessionStubInBeijing 才换得动。 */
+  let clockOffset = "";
   for (const part of ordered) {
     const parsed = parseLogPart(part, memo);
+    if (!clockOffset && parsed.clockOffset) clockOffset = parsed.clockOffset;
     events.push(...parsed.events);
     quests.push(...(parsed.quests ?? []));
     drops.push(...(parsed.drops ?? []));
@@ -1288,6 +1469,7 @@ export function parseTarkovLogBundle(
     sessionMode: lastSessionModeFromEvents(events) || undefined,
     quests: stamped,
     drops,
+    ...(clockOffset ? { clockOffset } : {}),
   };
 }
 
@@ -1516,5 +1698,5 @@ export function formatLatestLogPreview(
     return `${clock} ${label}${map}`.trim();
   }
   if (!stub) return "";
-  return stub.startedAt || stub.folder;
+  return sessionStubInBeijing(stub, parsed).startedAt || stub.folder;
 }

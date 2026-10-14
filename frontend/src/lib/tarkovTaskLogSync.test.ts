@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clearedDoneAfter } from "./tarkovTaskTree";
 import {
   accountHasQuestState,
   applyQuestLogState,
@@ -889,5 +890,32 @@ describe("buildQuestLogSyncReview", () => {
         change: "进行中→已完成",
       },
     ]);
+  });
+});
+
+describe("reset replay and manual unchecks", () => {
+  it("still honours unchecks newer than the floor", () => {
+    // 转生下限 10:00；11:00 完成 x，12:00 玩家手动取消；08:00 取消的 y 已被下限覆盖
+    const { next, eventCount } = foldSessionQuests(
+      new Map(),
+      {
+        sessionMode: "pve",
+        quests: [
+          ev("completed", "x", "2026-01-01 11:00:00"),
+          ev("completed", "y", "2026-01-01 10:30:00"),
+        ],
+      },
+      "pve",
+    );
+    const cleared = new Map([
+      ["x", "2026-01-01 12:00:00"],
+      ["y", "2026-01-01 08:00:00"],
+    ]);
+    const kept = clearedDoneAfter(cleared, "2026-01-01 10:00:00");
+    expect([...kept.keys()]).toEqual(["x"]);
+    const merged = mergeQuestProgressFromFolded([], [], next, eventCount, undefined, [], kept);
+    expect(merged.done).toEqual(["y"]);
+    // 不重置（下限为空）时全部照认
+    expect(clearedDoneAfter(cleared, "").size).toBe(2);
   });
 });

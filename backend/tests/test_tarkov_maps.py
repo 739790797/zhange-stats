@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 
 from app.services.tarkov.bosses import map_xyz
 from app.services.tarkov.maps import (
@@ -10,8 +9,6 @@ from app.services.tarkov.maps import (
     HUB_SKIP,
     _apply_map_markers,
     _fill_item_refs,
-    _marker_cache,
-    _marker_cache_key,
     classify_map_spawn,
     collect_key_lock_maps,
     enrich_lock_keys,
@@ -173,34 +170,31 @@ def test_parse_map_rows_keeps_extract_and_boss_coords() -> None:
 
 def test_apply_map_markers_fills_missing_coords() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "extracts": [
-                    {
-                        "id": "e1",
-                        "name": "Gate 3",
-                        "position": {"x": 10, "y": 1, "z": 20},
-                    }
-                ],
-                "bosses": [
-                    {
-                        "normalizedName": "tagilla",
-                        "spawnLocations": [
-                            {
-                                "name": "Shop",
-                                "chance": 1,
-                                "positions": [{"x": 3, "y": 0, "z": 4}],
-                            }
-                        ],
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "extracts": [
+                {
+                    "id": "e1",
+                    "name": "Gate 3",
+                    "position": {"x": 10, "y": 1, "z": 20},
+                }
+            ],
+            "bosses": [
+                {
+                    "normalizedName": "tagilla",
+                    "spawnLocations": [
+                        {
+                            "name": "Shop",
+                            "chance": 1,
+                            "positions": [{"x": 3, "y": 0, "z": 4}],
+                        }
+                    ],
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, {"Shop": "商店"})
+    _apply_map_markers(factory, {"Shop": "商店"}, overlay=overlay)
     gate = next(row for row in factory["extracts"] if row["id"] == "e1")
     assert gate["x"] == 10
     assert gate["z"] == 20
@@ -217,23 +211,20 @@ def test_apply_map_markers_appends_transits_when_coords_exist() -> None:
     for row in factory["extracts"]:
         row["x"] = 1
         row["z"] = 2
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "extracts": [],
-                "transits": [
-                    {
-                        "id": "99",
-                        "description": "WOO_TRANSIT_15_DESC",
-                        "position": {"x": 4, "y": 0, "z": 5},
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "extracts": [],
+            "transits": [
+                {
+                    "id": "99",
+                    "description": "WOO_TRANSIT_15_DESC",
+                    "position": {"x": 4, "y": 0, "z": 5},
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, {"WOO_TRANSIT_15_DESC": "前往海关"})
+    _apply_map_markers(factory, {"WOO_TRANSIT_15_DESC": "前往海关"}, overlay=overlay)
     transit = next(row for row in factory["extracts"] if row["id"] == "transit:99")
     assert transit["name"] == "前往海关"
     assert transit["faction"] == "转图"
@@ -252,30 +243,27 @@ def test_apply_map_markers_fills_existing_transit_coords() -> None:
         ],
         "bosses": [],
     }
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "extracts": [
-                    {
-                        "id": "e1",
-                        "name": "Gate 3",
-                        "faction": "pmc",
-                        "position": {"x": 1, "y": 0, "z": 2},
-                    }
-                ],
-                "transits": [
-                    {
-                        "id": "15",
-                        "description": "WOO_TRANSIT_15_DESC",
-                        "position": {"x": 8, "y": 0, "z": 9},
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "extracts": [
+                {
+                    "id": "e1",
+                    "name": "Gate 3",
+                    "faction": "pmc",
+                    "position": {"x": 1, "y": 0, "z": 2},
+                }
+            ],
+            "transits": [
+                {
+                    "id": "15",
+                    "description": "WOO_TRANSIT_15_DESC",
+                    "position": {"x": 8, "y": 0, "z": 9},
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, {})
+    _apply_map_markers(factory, {}, overlay=overlay)
     transit = next(row for row in factory["extracts"] if row["id"] == "transit:15")
     assert transit["x"] == 8
     assert transit["z"] == 9
@@ -331,38 +319,35 @@ def test_apply_map_markers_fills_spawns_when_extracts_complete() -> None:
         row["x"] = 1
         row["z"] = 2
     assert factory["spawns"] == []
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "extracts": [],
-                "transits": [],
-                "bosses": [],
-                "spawns": [
-                    {
-                        "zoneName": "ZoneA",
-                        "categories": ["player"],
-                        "sides": ["pmc"],
-                        "position": {"x": 11, "y": 0, "z": 22},
-                    },
-                    {
-                        "zoneName": "ZoneB",
-                        "categories": ["bot"],
-                        "sides": ["scav"],
-                        "position": {"x": 33, "y": 0, "z": 44},
-                    },
-                    {
-                        "zoneName": "BossZone",
-                        "categories": ["boss"],
-                        "sides": ["scav"],
-                        "position": {"x": 55, "y": 0, "z": 66},
-                    },
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "extracts": [],
+            "transits": [],
+            "bosses": [],
+            "spawns": [
+                {
+                    "zoneName": "ZoneA",
+                    "categories": ["player"],
+                    "sides": ["pmc"],
+                    "position": {"x": 11, "y": 0, "z": 22},
+                },
+                {
+                    "zoneName": "ZoneB",
+                    "categories": ["bot"],
+                    "sides": ["scav"],
+                    "position": {"x": 33, "y": 0, "z": 44},
+                },
+                {
+                    "zoneName": "BossZone",
+                    "categories": ["boss"],
+                    "sides": ["scav"],
+                    "position": {"x": 55, "y": 0, "z": 66},
+                },
+            ],
+        }
     }
-    _apply_map_markers(factory, {})
+    _apply_map_markers(factory, {}, overlay=overlay)
     kinds = {row["kind"] for row in factory["spawns"]}
     assert kinds == {"pmc", "scav"}
     pmc = next(row for row in factory["spawns"] if row["kind"] == "pmc")
@@ -609,24 +594,21 @@ def test_apply_map_markers_skips_loot_when_disabled() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
     factory["loot_loose"] = []
     factory["loot_containers"] = []
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "lootLoose": [
-                    {"items": [{"id": "rouble"}], "position": {"x": 3, "y": 0, "z": 4}}
-                ],
-                "lootContainers": [
-                    {
-                        "lootContainer": "box",
-                        "position": {"x": 1, "y": 0, "z": 2},
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "lootLoose": [
+                {"items": [{"id": "rouble"}], "position": {"x": 3, "y": 0, "z": 4}}
+            ],
+            "lootContainers": [
+                {
+                    "lootContainer": "box",
+                    "position": {"x": 1, "y": 0, "z": 2},
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, loot_loose=False, loot_containers=False)
+    _apply_map_markers(factory, loot_loose=False, loot_containers=False, overlay=overlay)
     assert factory["loot_loose"] == []
     assert factory["loot_containers"] == []
 
@@ -646,23 +628,20 @@ def test_apply_map_markers_fills_lock_coords_when_dump_lacks_them() -> None:
     factory["extracts"] = [
         {"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2}
     ]
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "locks": [
-                    {
-                        "lockType": "door",
-                        "needsPower": False,
-                        "key": {"id": "dorm-114", "name": "Dorm 114 Key"},
-                        "position": {"x": 21, "y": 0, "z": 22},
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "locks": [
+                {
+                    "lockType": "door",
+                    "needsPower": False,
+                    "key": {"id": "dorm-114", "name": "Dorm 114 Key"},
+                    "position": {"x": 21, "y": 0, "z": 22},
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, {"Dorm 114 Key": "宿舍 114"})
+    _apply_map_markers(factory, {"Dorm 114 Key": "宿舍 114"}, overlay=overlay)
     lock = factory["locks"][0]
     assert lock["x"] == 21
     assert lock["z"] == 22
@@ -675,25 +654,22 @@ def test_apply_map_markers_replaces_empty_locks_from_overlay() -> None:
         row["x"] = 1
         row["z"] = 2
     assert factory["locks"] == []
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "locks": [
-                    {
-                        "lockType": "door",
-                        "key": {"id": "pump", "name": "Pumping Station"},
-                        "position": {"x": 5, "y": 0, "z": 6},
-                    }
-                ],
-                "lootLoose": [
-                    {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 2}}
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "locks": [
+                {
+                    "lockType": "door",
+                    "key": {"id": "pump", "name": "Pumping Station"},
+                    "position": {"x": 5, "y": 0, "z": 6},
+                }
+            ],
+            "lootLoose": [
+                {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 2}}
+            ],
+        }
     }
-    _apply_map_markers(factory, {})
+    _apply_map_markers(factory, {}, overlay=overlay)
     assert len(factory["locks"]) == 1
     assert factory["locks"][0]["key_id"] == "pump"
     assert factory["locks"][0]["x"] == 5
@@ -726,27 +702,24 @@ def test_apply_map_markers_fills_lock_key_names() -> None:
             }
         ],
     }
-    _marker_cache[_marker_cache_key("pvp")] = {
-        "at": time.time(),
-        "by_slug": {
-            "factory": {
-                "normalizedName": "factory",
-                "locks": [
-                    {
-                        "lockType": "door",
-                        "key": {
-                            "id": "5448ba0b4bdc2d02308b456c",
-                            "name": "工厂钥匙",
-                            "shortName": "工厂",
-                            "iconLink": "https://assets.tarkov.dev/factory-icon.webp",
-                        },
-                        "position": {"x": -19, "y": 1, "z": -48},
-                    }
-                ],
-            }
-        },
+    overlay = {
+        "factory": {
+            "normalizedName": "factory",
+            "locks": [
+                {
+                    "lockType": "door",
+                    "key": {
+                        "id": "5448ba0b4bdc2d02308b456c",
+                        "name": "工厂钥匙",
+                        "shortName": "工厂",
+                        "iconLink": "https://assets.tarkov.dev/factory-icon.webp",
+                    },
+                    "position": {"x": -19, "y": 1, "z": -48},
+                }
+            ],
+        }
     }
-    _apply_map_markers(factory, {})
+    _apply_map_markers(factory, {}, overlay=overlay)
     lock = factory["locks"][0]
     assert lock["key_name"] == "工厂钥匙"
     assert lock["key_short_name"] == "工厂"
@@ -1163,3 +1136,58 @@ def test_fill_item_refs_copies_handbook_ids() -> None:
     assert refs[0]["name"] == "卢布"
     assert refs[0]["types"] == ["money"]
     assert refs[0]["handbook_ids"] == ["5b47574386f77428ca22b2f1"]
+
+
+def _bundle_db(monkeypatch):
+    """一个只够 maps_bundle 用的最小 session：get_maps_raw 给表头，load_maps_payload 计数。"""
+    from datetime import datetime
+
+    from app.services.tarkov import maps as maps_svc
+
+    class _Row:
+        synced_at = datetime(2026, 1, 1, 12, 0, 0)
+
+    calls: list[int] = []
+
+    def fake_load(_db):  # noqa: ANN001
+        calls.append(1)
+        return "json.tarkov.dev", _payload(), "2026-01-01T12:00:00", "note"
+
+    monkeypatch.setattr(maps_svc, "get_maps_raw", lambda _db: _Row())
+    monkeypatch.setattr(maps_svc, "load_maps_payload", fake_load)
+    maps_svc.clear_maps_caches()
+    return calls
+
+
+def test_maps_bundle_decodes_the_dump_once_per_header(monkeypatch) -> None:
+    """列表 + 详情 + 图层：同一份 maps raw 只解码一次（8.6MB 每请求解码是原故障）。"""
+    from app.services.tarkov import maps as maps_svc
+
+    calls = _bundle_db(monkeypatch)
+    try:
+        first = maps_svc.list_maps(object())
+        detail = maps_svc.get_map_detail(object(), "factory")
+        layers = maps_svc.get_map_loot_layers(
+            object(), "factory", loot_loose=True, loot_containers=False
+        )
+    finally:
+        maps_svc.clear_maps_caches()
+    assert len(calls) == 1
+    assert first["map_count"] >= 1
+    assert detail["slug"] == "factory"
+    assert isinstance(layers["loot_loose"], list)
+
+
+def test_map_detail_mutations_do_not_leak_into_the_cache(monkeypatch) -> None:
+    """详情会就地补标点 / 坐标；缓存的行必须是副本，否则第二次请求带脏数据。"""
+    from app.services.tarkov import maps as maps_svc
+
+    calls = _bundle_db(monkeypatch)
+    try:
+        first = maps_svc.get_map_detail(object(), "factory", loot_containers=True)
+        first["locks"].append({"__poison__": True})
+        second = maps_svc.get_map_detail(object(), "factory", loot_containers=True)
+    finally:
+        maps_svc.clear_maps_caches()
+    assert len(calls) == 1
+    assert all("__poison__" not in row for row in second["locks"])

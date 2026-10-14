@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import re
+
 import pytest
 
 from app.services.tarkov import workbench as wb
 from app.services.tarkov import workbench_image as img
-from tests.test_tarkov_workbench import _payload
+from app.services.tarkov import workbench_image_pw as pw
+from tests.test_tarkov_workbench import CYCLIC_PAIRS, _payload, make_cyclic
 
 
 @pytest.fixture
@@ -229,3 +233,99 @@ def test_render_custom_rejects_off_origin_url(
     )
     assert out["kind"] == "unavailable"
     assert out["image_url"] == "https://x/preset-512.png"
+
+
+def test_ordered_pairs_cuts_cycles(index: wb.WorkbenchIndex):
+    make_cyclic(index)
+    gun = wb._require_gun(index, "gun1")
+    ordered = img.ordered_pairs(index, gun, CYCLIC_PAIRS)
+    assert ordered == [("slot-grip", "grip1"), ("slot-rail", "rail1")]
+    assert img.classify_build(index, gun, CYCLIC_PAIRS) == "custom"
+    tpls = [row["_tpl"] for row in img.build_spt_items(index, gun, CYCLIC_PAIRS)]
+    assert tpls == ["gun1", "grip1", "rail1"]
+
+
+class _FakeCloser:
+    def __init__(self, calls: list[str], name: str, *, hang: bool = False, fail: bool = False):
+        self.calls = calls
+        self.name = name
+        self.hang = hang
+        self.fail = fail
+
+    async def _run(self) -> None:
+        self.calls.append(self.name)
+        if self.hang:
+            await asyncio.sleep(3600)
+        if self.fail:
+            raise RuntimeError(f"{self.name} boom")
+
+    async def close(self) -> None:
+        await self._run()
+
+    async def stop(self) -> None:
+        await self._run()
+
+
+def test_pw_reset_closes_everything_even_if_context_hangs(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(pw, "_CLOSE_TIMEOUT", 0.05)
+    calls: list[str] = []
+    backend = pw.PatchrightImageBackend()
+    backend._pw_page = object()
+    backend._pw_context = _FakeCloser(calls, "context", hang=True)
+    backend._pw_browser = _FakeCloser(calls, "browser", fail=True)
+    backend._pw_instance = _FakeCloser(calls, "playwright")
+    asyncio.run(backend._reset_page())
+    assert calls == ["context", "browser", "playwright"]
+    assert backend._pw_page is None
+    assert backend._pw_context is None
+    assert backend._pw_browser is None
+    assert backend._pw_instance is None
+
+
+def test_pw_generate_failure_stops_driver_and_kills_profile(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(pw, "_CLOSE_TIMEOUT", 0.05)
+    calls: list[str] = []
+    monkeypatch.setattr(pw, "_kill_profile_chrome", lambda: calls.append("kill"))
+    backend = pw.PatchrightImageBackend()
+
+    async def _boom(*_args: object) -> dict:
+        raise RuntimeError("等待出图服务超时")
+
+    monkeypatch.setattr(backend, "_do_request", _boom)
+    backend._pw_page = object()
+    backend._pw_context = _FakeCloser(calls, "context", hang=True)
+    backend._pw_instance = _FakeCloser(calls, "playwright")
+    try:
+        with pytest.raises(RuntimeError, match="超时"):
+            backend.generate(gun_id="gun1", items=[], weapon_name="TR")
+        # 旧实现：reset 失败就直接置空句柄，driver/Chrome 没人关
+        assert calls == ["context", "playwright", "kill"]
+        assert backend._pw_context is None
+        assert backend._pw_instance is None
+        assert backend.last_error == "等待出图服务超时"
+    finally:
+        backend.shutdown()
+
+
+def test_pw_posix_kill_targets_only_profile(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    profile = tmp_path / "a.b (x)" / pw._PROFILE_NAME
+    seen: list[list[str]] = []
+
+    def _fake_run(args: list[str], **kwargs: object) -> None:
+        assert "shell" not in kwargs
+        seen.append(args)
+
+    monkeypatch.setattr(pw.sys, "platform", "linux")
+    monkeypatch.setattr(pw, "_profile_dir", lambda: profile)
+    monkeypatch.setattr(pw.subprocess, "run", _fake_run)
+    pw._kill_profile_chrome()
+    assert len(seen) == 1
+    args = seen[0]
+    assert args[:3] == ["pkill", "-KILL", "-f"]
+    pattern = args[3]
+    assert not pattern.startswith("-")
+    assert pattern.endswith(pw._PROFILE_NAME)
+    # ERE 元字符已转义：'.' '(' ')' 不会误匹配别的路径
+    assert r"a\.b \(x\)" in pattern
+    assert re.search(pattern, f"chrome --user-data-dir={profile} --headless=new")
+    assert not re.search(pattern, "chrome --user-data-dir=/home/u/.config/google-chrome")

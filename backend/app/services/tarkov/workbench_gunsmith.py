@@ -6,12 +6,17 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.services.tarkov import tasks as tasks_svc
 from app.services.tarkov import workbench as wb
+from app.services.tarkov.parse_cache import ModeCache
+
+# 任务 raw 表头 → collect_gunsmith_tasks 结果；表头变了一次换掉
+_tasks_cache: ModeCache[list[dict[str, Any]]] = ModeCache()
 
 _ATTR_KEYS = {
     "ergonomics": "ergonomics",
@@ -215,36 +220,35 @@ def _names_from_index(index: wb.WorkbenchIndex | None, wanted: set[str]) -> dict
 def _names_from_items_dump(
     db: Session, wanted_items: set[str], wanted_cats: set[str]
 ) -> tuple[dict[str, str], dict[str, str]]:
+    """占位名回退：走进程内 items 索引，别再整份解码 17MB dump。"""
     if not wanted_items and not wanted_cats:
         return {}, {}
     try:
         from app.services.tarkov import catalog as catalog_svc
-        from app.services.tarkov import upstream as upstream_svc
-        from app.services.tarkov.catalog import _row_from_raw, iter_raw_items
-        from app.services.tarkov.items import _locale_map as items_locale
+        from app.services.tarkov.catalog import _row_from_raw
     except Exception:  # noqa: BLE001
         return {}, {}
     try:
-        source, payload, _synced, _note = upstream_svc.load_main_payload(db, "items")
+        index = catalog_svc.peek_items_index(db)
     except Exception:  # noqa: BLE001
+        return {}, {}
+    if index is None:
         return {}, {}
     item_names: dict[str, str] = {}
-    if wanted_items:
-        locale = items_locale(payload)
+    for ident in wanted_items:
         try:
-            for ident, raw in iter_raw_items(source, payload):
-                if ident not in wanted_items or ident in item_names:
-                    continue
-                hit = _row_from_raw(ident, raw, locale)
-                name = str((hit or {}).get("name") or "").strip()
-                if name and not _placeholder(ident, name):
-                    item_names[ident] = name
-                if len(item_names) >= len(wanted_items):
-                    break
+            raw = index.get(ident)
         except Exception:  # noqa: BLE001
-            item_names = {}
+            continue
+        if raw is None:
+            continue
+        name = str((_row_from_raw(ident, raw, index.locale) or {}).get("name") or "").strip()
+        if name and not _placeholder(ident, name):
+            item_names[ident] = name
     try:
-        cat_names = catalog_svc.lookup_category_names(payload, wanted_cats)
+        cat_names = catalog_svc.lookup_category_names_in(
+            index.catalogs, index.locale, wanted_cats
+        )
     except Exception:  # noqa: BLE001
         cat_names = {}
     return item_names, cat_names
@@ -276,10 +280,26 @@ def _fill_gunsmith_display_names(
                 _apply_display_name(cat, item_names)
 
 
-def list_gunsmith_tasks(db: Session) -> dict[str, Any]:
+def collect_gunsmith_tasks_cached(db: Session) -> tuple[str, str | None, str | None, list[dict[str, Any]]]:
+    """任务 raw 表头未变就复用投影结果；求解每次都要这条目，别每次重解析任务 dump。"""
+    from app.services.tarkov import upstream as upstream_svc
+    from app.services.tarkov.overlay import parsed_cache_key
+
     tasks_svc.ensure_tasks(db)
+    row = tasks_svc.get_tasks_raw(db)
+    if row is not None:
+        source, synced, note = upstream_svc.raw_row_header(row)
+        hit = _tasks_cache.get(parsed_cache_key(db, synced, resource="tasks"))
+        if hit is not None:
+            return source or "", synced, note, copy.deepcopy(hit)
     source, payload, synced_at, note = tasks_svc._load_payload(db)
     rows = collect_gunsmith_tasks(payload)
+    _tasks_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), rows)
+    return source, synced_at, note, copy.deepcopy(rows)
+
+
+def list_gunsmith_tasks(db: Session) -> dict[str, Any]:
+    source, synced_at, note, rows = collect_gunsmith_tasks_cached(db)
     try:
         index = wb.load_index(db)
     except wb.TarkovWorkbenchError:

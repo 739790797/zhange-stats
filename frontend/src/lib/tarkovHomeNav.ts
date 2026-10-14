@@ -176,18 +176,6 @@ export function tarkovMeHref(tab: TarkovMeTabId = "tasks"): string {
   return `${TARKOV_ME_PATH}?tab=${encodeURIComponent(tab)}`;
 }
 
-export function tarkovKeyPackHref(opts?: {
-  q?: string;
-  map?: string;
-}): string {
-  const params = new URLSearchParams();
-  const map = (opts?.map || "").trim();
-  const q = (opts?.q || "").trim();
-  if (map) params.set("map", map);
-  if (q) params.set("q", q);
-  const query = params.toString();
-  return query ? `${TARKOV_KEY_PACKS_PATH}?${query}` : TARKOV_KEY_PACKS_PATH;
-}
 const PROGRESSION_HREF = "/guides/tarkov/progression";
 export const TARKOV_TASKS_PATH = "/guides/tarkov/tasks";
 export const TARKOV_RAID_PREP_PATH = "/guides/tarkov/raid-prep";
@@ -294,10 +282,6 @@ export function isTarkovAdminPath(pathname: string, search = ""): boolean {
   );
   if (!parseTarkovMaintainMode(params.get("maintain"))) return false;
   return path === MAPS_HREF || path.startsWith(`${MAPS_HREF}/`);
-}
-
-export function tarkovRaidRoomShareUrl(publicId: string, origin: string): string {
-  return `${String(origin || "").replace(/\/$/, "")}${tarkovRaidRoomHref(publicId)}`;
 }
 
 export function tarkovTraderHref(slug: string): string {
@@ -672,9 +656,6 @@ export const TARKOV_BOSSES: TarkovBossRow[] = [
     accent: GREEN,
   },
 ];
-
-/** 首页 BOSS 表与 Hub / 顶栏同一集合。 */
-export const TARKOV_HOME_BOSSES: TarkovBossRow[] = TARKOV_BOSSES;
 
 /** 顶栏 / 搜索兜底：游荡者、掠夺者等不进具名 Boss 列。 */
 export const TARKOV_OTHER_MOBS: TarkovHomeLink[] = [

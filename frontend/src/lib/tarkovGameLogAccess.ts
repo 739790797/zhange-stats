@@ -18,8 +18,13 @@ import {
   hasAssistantTarkovFiles,
   rebindAssistantLogs,
   rebindAssistantScreenshots,
+  type AssistantBoundDir,
 } from "@/lib/assistantShell";
-import { assistantBoundToDir, assistantDirWatch } from "@/lib/assistantTarkovDir";
+import {
+  assistantBoundToDir,
+  assistantDirWatch,
+  isAssistantDir,
+} from "@/lib/assistantTarkovDir";
 import { notifyTarkovLiveDirsChanged } from "@/lib/tarkovLiveWatch";
 import { readTarkovLogText, type TarkovLogTextEntry } from "@/lib/tarkovLogTextCache";
 
@@ -45,14 +50,22 @@ export type ReadableDir = {
   removeEntry?: (name: string) => Promise<void>;
 };
 
+/** 列目录时就知道的大小与修改时间（战鸽助手的 list 会给）；浏览器句柄没有，要 getFile 取快照。 */
+export type ListedFileMeta = {
+  size?: number;
+  lastModified?: number;
+};
+
 export type ReadableFile = {
   name: string;
   getFile: () => Promise<File>;
+  listed?: ListedFileMeta;
 };
 
 export type ReadableEntry = {
   kind: "file" | "directory";
   name: string;
+  listed?: ListedFileMeta;
   getFile?: () => Promise<File>;
   getDirectoryHandle?: ReadableDir["getDirectoryHandle"];
   getFileHandle?: ReadableDir["getFileHandle"];
@@ -75,20 +88,35 @@ export type TarkovLogSessionRead = {
   fingerprint: string;
 };
 
-/** 只取了文件快照（名字、大小、修改时间），还没读正文。 */
+export type TarkovLogFileMeta = {
+  name: string;
+  size: number;
+  lastModified: number;
+};
+
+/**
+ * 只取了名字、大小、修改时间，还没读正文。浏览器句柄带着 getFile 的快照 `file`；
+ * 战鸽助手列目录已给大小与时间，`file` 为空，要读时再经桥取正文。
+ */
 export type TarkovLogSessionStat = {
   folder: string;
-  files: Array<{ handle: ReadableFile; file: File }>;
+  files: Array<{ handle: ReadableFile; meta: TarkovLogFileMeta; file: File | null }>;
   fingerprint: string;
 };
 
-/** 实时轮询跨轮复用：解析出的日志根、启动记录目录句柄、各文件上次读到的文本。 */
+/** 某个文件上次读到的文本，`seen` 是当时取到的大小与修改时间；下一轮一样就不读。 */
+export type TarkovLogCachedText = {
+  entry: TarkovLogTextEntry;
+  seen: string;
+};
+
+/** 实时轮询跨轮复用：解析出的日志根、启动记录目录句柄、各文件上次读到的文本。历史扫描只用到目录部分。 */
 export type TarkovLogReadCache = {
   picked: ReadableDir | null;
   root: ResolvedTarkovDir | null;
   rootIsSession: boolean;
   sessionDirs: Map<string, ReadableDir>;
-  texts: Map<string, Map<string, TarkovLogTextEntry>>;
+  texts: Map<string, Map<string, TarkovLogCachedText>>;
 };
 
 type PickerWindow = Window & {
@@ -191,9 +219,28 @@ export async function loadStoredLogsDir(): Promise<ReadableDir | null> {
   }
 }
 
-export async function saveLogsDir(handle: ReadableDir): Promise<void> {
-  await idbSet(LOGS_HANDLE_KEY, handle);
+/**
+ * 只有浏览器授权的目录句柄才落 IndexedDB。战鸽助手绑定的目录由助手记着，页面拿到的是带函数的对象，
+ * 存进去会抛 DataCloneError；绑定在时只通知页面重读即可（读取一侧本来就先看绑定）。
+ */
+export function shouldStoreDirHandle(
+  handle: ReadableDir,
+  binding: AssistantBoundDir | null,
+): boolean {
+  return !binding && !isAssistantDir(handle);
+}
+
+async function saveDirHandle(
+  key: string,
+  handle: ReadableDir,
+  binding: AssistantBoundDir | null,
+): Promise<void> {
+  if (shouldStoreDirHandle(handle, binding)) await idbSet(key, handle);
   notifyTarkovLiveDirsChanged();
+}
+
+export async function saveLogsDir(handle: ReadableDir): Promise<void> {
+  await saveDirHandle(LOGS_HANDLE_KEY, handle, assistantLogsBinding());
 }
 
 export async function loadStoredLogsPath(): Promise<string> {
@@ -223,8 +270,7 @@ export async function loadStoredScreenshotsDir(): Promise<ReadableDir | null> {
 }
 
 export async function saveScreenshotsDir(handle: ReadableDir): Promise<void> {
-  await idbSet(SHOTS_HANDLE_KEY, handle);
-  notifyTarkovLiveDirsChanged();
+  await saveDirHandle(SHOTS_HANDLE_KEY, handle, assistantScreenshotsBinding());
 }
 
 export async function loadStoredScreenshotsPath(): Promise<string> {
@@ -601,16 +647,26 @@ export async function readLogsIndex(
   return { resolved, sessions };
 }
 
+/**
+ * 启动记录目录。带缓存时日志根只解析一次（缓存还空着就先解析并记下），各文件夹句柄也记住；
+ * 历史扫描一次走几十个文件夹，不带缓存就是每个文件夹都从授权目录往下找、整层列一遍根。
+ */
 async function sessionDirFor(
   handle: ReadableDir,
   folder: string,
   cache?: TarkovLogReadCache,
 ): Promise<ReadableDir> {
-  if (cache?.root && cache.picked === handle) {
-    if (cache.rootIsSession) return cache.root.dir;
+  if (cache) {
+    let root = cache.picked === handle ? cache.root : null;
+    if (!root) {
+      const { resolved, names } = await logsRootWithNames(handle, cache);
+      cache.rootIsSession = classifyLogsRoot(names) === "session";
+      root = resolved;
+    }
+    if (cache.rootIsSession) return root.dir;
     const hit = cache.sessionDirs.get(folder);
     if (hit) return hit;
-    const dir = await cache.root.dir.getDirectoryHandle(folder);
+    const dir = await root.dir.getDirectoryHandle(folder);
     cache.sessionDirs.set(folder, dir);
     return dir;
   }
@@ -619,28 +675,28 @@ async function sessionDirFor(
   return rootKind === "session" ? root : root.getDirectoryHandle(folder);
 }
 
-async function sessionFileHandles(
+async function sessionFiles(
   handle: ReadableDir,
   folder: string,
   cache?: TarkovLogReadCache,
-): Promise<ReadableFile[]> {
+): Promise<Array<{ handle: ReadableFile; listed?: ListedFileMeta }>> {
   const sessionDir = await sessionDirFor(handle, folder, cache);
   const entries = await listDirEntries(sessionDir);
-  const out: ReadableFile[] = [];
+  const out: Array<{ handle: ReadableFile; listed?: ListedFileMeta }> = [];
   for (const entry of entries) {
     if (entry.kind !== "file" || !isReadableTarkovLogFileName(entry.name)) {
       continue;
     }
     out.push(
       entry.getFile != null
-        ? (entry as ReadableFile)
-        : await sessionDir.getFileHandle(entry.name),
+        ? { handle: entry as ReadableFile, listed: entry.listed }
+        : { handle: await sessionDir.getFileHandle(entry.name) },
     );
   }
   return out;
 }
 
-function fileFingerprint(file: Pick<File, "name" | "size" | "lastModified">): string {
+function fileFingerprint(file: TarkovLogFileMeta): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
@@ -648,37 +704,68 @@ function joinFingerprint(parts: string[]): string {
   return [...parts].sort().join("|");
 }
 
+/**
+ * 一轮的快照：浏览器授权目录要 getFile 取 size/lastModified；战鸽助手的 list 已经给了这两项，
+ * 就不再经桥读整份正文（2 秒一次轮询时读的正是整份日志）。
+ */
+async function statSessionFile(
+  row: { handle: ReadableFile; listed?: ListedFileMeta },
+): Promise<TarkovLogSessionStat["files"][number]> {
+  const { handle, listed } = row;
+  if (listed?.size != null && listed.lastModified != null) {
+    return {
+      handle,
+      meta: { name: handle.name, size: listed.size, lastModified: listed.lastModified },
+      file: null,
+    };
+  }
+  const file = await handle.getFile();
+  return {
+    handle,
+    meta: { name: handle.name, size: file.size, lastModified: file.lastModified },
+    file,
+  };
+}
+
 export async function statSessionLogs(
   handle: ReadableDir,
   folder: string,
   cache?: TarkovLogReadCache,
 ): Promise<TarkovLogSessionStat> {
-  const handles = await sessionFileHandles(handle, folder, cache);
+  const rows = await sessionFiles(handle, folder, cache);
   const files: TarkovLogSessionStat["files"] = [];
-  for (const fileHandle of handles) {
-    files.push({ handle: fileHandle, file: await fileHandle.getFile() });
-  }
-  const fingerprint = joinFingerprint(files.map((row) => fileFingerprint(row.file)));
+  for (const row of rows) files.push(await statSessionFile(row));
+  const fingerprint = joinFingerprint(files.map((row) => fileFingerprint(row.meta)));
   return { folder, files, fingerprint };
 }
 
 export async function peekSessionFingerprint(
   handle: ReadableDir,
   folder: string,
+  cache?: TarkovLogReadCache,
 ): Promise<string> {
-  return (await statSessionLogs(handle, folder)).fingerprint;
+  return (await statSessionLogs(handle, folder, cache)).fingerprint;
 }
 
+/**
+ * 读这一轮的快照。上一轮读过、大小与修改时间都没变就沿用上次的文本（战鸽助手只给了这两项时，
+ * 比上一轮变没变同样看它）；变长时交给 readTarkovLogText 只读新追加的字节。
+ */
 async function readStattedFile(
   row: TarkovLogSessionStat["files"][number],
-  prev: TarkovLogTextEntry | undefined,
-): Promise<TarkovLogTextEntry> {
+  prev: TarkovLogCachedText | undefined,
+): Promise<TarkovLogCachedText> {
+  const seen = fileFingerprint(row.meta);
+  if (prev && prev.seen === seen) return prev;
+  const file = row.file ?? (await row.handle.getFile());
+  let entry: TarkovLogTextEntry;
   try {
-    return await readTarkovLogText(row.handle.name, row.file, prev);
+    entry = await readTarkovLogText(row.meta.name, file, prev?.entry);
   } catch {
     // 取快照之后游戏又写了文件，浏览器会拒读旧快照；重取一次。
-    return readTarkovLogText(row.handle.name, await row.handle.getFile(), prev);
+    entry = await readTarkovLogText(row.meta.name, await row.handle.getFile(), prev?.entry);
   }
+  return { entry, seen };
 }
 
 /** 与 readSessionLogs 结果相同；带缓存时没变的文件不读，变长的只读新字节。 */
@@ -687,12 +774,12 @@ export async function readStattedSessionLogs(
   cache?: TarkovLogReadCache,
 ): Promise<TarkovLogSessionRead> {
   const prevTexts = cache?.texts.get(stat.folder);
-  const nextTexts = new Map<string, TarkovLogTextEntry>();
+  const nextTexts = new Map<string, TarkovLogCachedText>();
   const files: TarkovLogFileRead[] = [];
   for (const row of stat.files) {
-    const entry = await readStattedFile(row, prevTexts?.get(row.handle.name));
-    nextTexts.set(row.handle.name, entry);
-    files.push(entry.read);
+    const cached = await readStattedFile(row, prevTexts?.get(row.meta.name));
+    nextTexts.set(row.meta.name, cached);
+    files.push(cached.entry.read);
   }
   cache?.texts.set(stat.folder, nextTexts);
   files.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name));
@@ -700,18 +787,22 @@ export async function readStattedSessionLogs(
   return { folder: stat.folder, files, fingerprint };
 }
 
+/**
+ * 整份读一次启动记录。带上同一份 cache 时，历史扫描（一次几十个文件夹）只解析一次日志根、
+ * 每个文件夹的句柄也只取一次；不给 cache 就每次自己往下找。
+ */
 export async function readSessionLogs(
   handle: ReadableDir,
   folder: string,
-  opts?: { fileName?: (name: string) => boolean },
+  opts?: { fileName?: (name: string) => boolean; cache?: TarkovLogReadCache },
 ): Promise<TarkovLogSessionRead> {
-  const handles = await sessionFileHandles(handle, folder);
+  const rows = await sessionFiles(handle, folder, opts?.cache);
   const files: TarkovLogFileRead[] = [];
-  for (const fileHandle of handles) {
-    if (opts?.fileName && !opts.fileName(fileHandle.name)) continue;
-    const file = await fileHandle.getFile();
+  for (const row of rows) {
+    if (opts?.fileName && !opts.fileName(row.handle.name)) continue;
+    const file = await row.handle.getFile();
     files.push({
-      name: fileHandle.name,
+      name: row.handle.name,
       text: await file.text(),
       lastModified: file.lastModified,
       size: file.size,
@@ -725,26 +816,47 @@ export async function readSessionLogs(
 export async function readSessionApplicationLogs(
   handle: ReadableDir,
   folder: string,
+  cache?: TarkovLogReadCache,
 ): Promise<TarkovLogSessionRead> {
-  return readSessionLogs(handle, folder, { fileName: isApplicationLogFileName });
+  return readSessionLogs(handle, folder, {
+    fileName: isApplicationLogFileName,
+    cache,
+  });
 }
 
-export type TarkovScreenshotRead = TarkovScreenshotStub & { file: File };
+export type TarkovScreenshotRead = TarkovScreenshotStub;
 
+/**
+ * 截图只按名字取元数据：调用方要的是「这一张是新的吗」与「多大」，不看像素，所以不读图片字节。
+ * 战鸽助手列过一次目录就把大小与修改时间带进来（`listed`）；浏览器句柄没有这些，退回 getFileHandle
+ * （这是直接取一个句柄，不用整层列目录）。
+ */
 export async function readScreenshotByName(
   dir: ReadableDir,
   name: string,
+  listed?: ListedFileMeta | null,
 ): Promise<TarkovScreenshotRead | null> {
   if (!isScreenshotFileName(name)) return null;
+  const known = listed ?? (isAssistantDir(dir) ? await listedFileMeta(dir, name) : null);
+  if (known?.size != null && known.lastModified != null) {
+    return { name, size: known.size, lastModified: known.lastModified };
+  }
   try {
-    const fileHandle = await dir.getFileHandle(name);
-    const file = await fileHandle.getFile();
-    return {
-      name: file.name,
-      lastModified: file.lastModified,
-      size: file.size,
-      file,
-    };
+    const file = await (await dir.getFileHandle(name)).getFile();
+    return { name: file.name, lastModified: file.lastModified, size: file.size };
+  } catch {
+    return null;
+  }
+}
+
+async function listedFileMeta(
+  dir: ReadableDir,
+  name: string,
+): Promise<ListedFileMeta | null> {
+  try {
+    const entries = await listDirEntries(dir);
+    const hit = entries.find((entry) => entry.kind === "file" && entry.name === name);
+    return hit?.listed ?? null;
   } catch {
     return null;
   }
@@ -767,13 +879,19 @@ export async function removeScreenshotFiles(
   return removed;
 }
 
-export async function listScreenshotFileNames(
+export async function listScreenshotFiles(
   dir: ReadableDir,
-): Promise<string[]> {
+): Promise<Array<{ name: string; listed?: ListedFileMeta }>> {
   const entries = await listDirEntries(dir);
   return entries
     .filter((entry) => entry.kind === "file" && isScreenshotFileName(entry.name))
-    .map((entry) => entry.name);
+    .map((entry) => ({ name: entry.name, listed: entry.listed }));
+}
+
+export async function listScreenshotFileNames(
+  dir: ReadableDir,
+): Promise<string[]> {
+  return (await listScreenshotFiles(dir)).map((row) => row.name);
 }
 
 export async function pollLatestScreenshot(
@@ -786,11 +904,20 @@ export async function pollLatestScreenshot(
   dir: ReadableDir;
 }> {
   const dir = cachedDir || (await resolveScreenshotsDirDetailed(handle)).dir;
-  const names = await listScreenshotFileNames(dir);
-  const inspect = screenshotNamesToInspect(names, seenNames);
+  // 一整层只列一次；助手列目录已带回大小与修改时间，逐张看时不再重列、也不读图片字节。
+  const rows = await listScreenshotFiles(dir);
+  const names = rows.map((row) => row.name);
+  const listing = new Map(rows.map((row) => [row.name, row.listed]));
+  const inspect = screenshotNamesToInspect(
+    rows.map((row) => ({
+      name: row.name,
+      lastModified: row.listed?.lastModified,
+    })),
+    seenNames,
+  );
   let latest: TarkovScreenshotRead | null = null;
   for (const name of inspect) {
-    const row = await readScreenshotByName(dir, name);
+    const row = await readScreenshotByName(dir, name, listing.get(name));
     if (!row) continue;
     if (!latest || isNewerScreenshot(latest, row)) latest = row;
   }

@@ -13,7 +13,7 @@ from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.services.tarkov.bosses import MAP_ZH
 from app.services.tarkov.game_mode import parse_game_mode
 from app.services.tarkov.goon_tracker_hub import hub
-from app.services.tarkov.http import download_bytes
+from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +234,7 @@ def _fetch_bundle() -> dict[str, list[dict[str, Any]]]:
         headers={"Accept": "application/json"},
         timeout=FETCH_TIMEOUT,
         error_cls=GoonTrackerError,
+        max_bytes=TARKOV_DUMP_MAX_BYTES,
     )
     try:
         payload = json.loads(raw.decode("utf-8"))

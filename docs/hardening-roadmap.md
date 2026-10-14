@@ -76,7 +76,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 |------|----------------|
 | MySQL | `mysqldump`（含例行 `--single-transaction`）；库名来自 `config/database.json` 或环境变量 `DATABASE_URL` |
 | SQLite | 打包 `data/runtime/zhange.sqlite`（随 `data/runtime/`） |
-| 运行时 | `data/runtime/`（含 `.secret_key`、日志）、`data/uploads/`、`data/models/`（TexTeller / RapidOCR / EasyOCR 权重） |
+| 运行时 | `data/runtime/`（含 `.secret_key`、日志）、`data/uploads/`、`data/models/`（TexTeller 权重） |
 | 配置 | 安装根 `config/`（**不要**进 Git；旧备份里的 `.env` 若仍在会打包装上以便迁入） |
 
 建议：

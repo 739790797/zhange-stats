@@ -21,8 +21,6 @@ export type AuthSettingsUpdate = components["schemas"]["AuthSettingsUpdate"];
 export type AuthAdminBrief = components["schemas"]["AuthAdminBrief"];
 export type SiteSettings = components["schemas"]["SiteSettingsOut"];
 export type SiteSettingsUpdate = components["schemas"]["SiteSettingsUpdate"];
-export type OcrSettings = components["schemas"]["OcrSettingsOut"];
-export type OcrSettingsUpdate = components["schemas"]["OcrSettingsUpdate"];
 export type PelicanTestRequest = components["schemas"]["PelicanTestRequest"];
 export type PelicanTestResponse = components["schemas"]["PelicanTestResponse"];
 export type MinecraftRconTestRequest =
@@ -192,16 +190,6 @@ export async function testEmailSettings(to_email: string) {
     "/settings/email/test",
     { to_email } satisfies components["schemas"]["EmailTestRequest"],
   );
-  return data;
-}
-
-export async function fetchOcrSettings() {
-  const { data } = await client.get<OcrSettings>("/settings/ocr");
-  return data;
-}
-
-export async function updateOcrSettings(payload: OcrSettingsUpdate) {
-  const { data } = await client.put<OcrSettings>("/settings/ocr", payload);
   return data;
 }
 

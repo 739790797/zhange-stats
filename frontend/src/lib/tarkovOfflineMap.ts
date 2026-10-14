@@ -3,7 +3,7 @@
 import {
   isRaidPrepAutoMapKind,
   normalizeRaidPrepMapId,
-} from "@/lib/tarkovRaidPrep";
+} from "@/lib/tarkovMapSlugs";
 
 export const TARKOV_OFFLINE_MAP_STORAGE_KEY =
   "zhange.guides.tarkov.offlineMap.v1";

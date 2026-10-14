@@ -14,29 +14,48 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core import timeutil
+from app.core.config import get_settings
+from app.services.tarkov import items as items_svc
 from app.services.tarkov import upstream as upstream_svc
 from app.services.tarkov.game_mode import cache_key, json_api_prefix, parse_game_mode
-from app.services.tarkov.http import download_bytes_with_meta
+from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_bytes_with_meta
 
 logger = logging.getLogger(__name__)
 
 OVERLAY_RESOURCE = "overlay"
 SOURCE_OVERLAY = "tarkov-data-overlay"
-OVERLAY_URL = (
-    "https://cdn.jsdelivr.net/gh/tarkovtracker-org/tarkov-data-overlay"
-    "@main/dist/overlay.json"
+# 原 tarkovtracker-org/tarkov-data-overlay 已转私有（2026-10 起匿名 raw / jsDelivr 一律 404），
+# 现在跟社区维护的公开 fork。按顺序回退，全挂则保留上一份好数据。
+OVERLAY_URLS: tuple[str, ...] = (
+    "https://cdn.jsdelivr.net/gh/MiwiDots/tarkov-data-overlay@main/dist/overlay.json",
+    "https://raw.githubusercontent.com/MiwiDots/tarkov-data-overlay/main/dist/overlay.json",
+    "https://cdn.jsdelivr.net/gh/tarkovtracker-org/tarkov-data-overlay@main/dist/overlay.json",
 )
+# 上一份好 overlay 超过这个年龄就在同步结果里标 stale
+OVERLAY_STALE_AFTER_SEC = 45 * 24 * 3600
 DOWNLOAD_TIMEOUT = 60
 # 合入逻辑变更时递增，打穿进程内 parse cache（物品/制作/任务共用）
 OVERLAY_PARSE_REV = "upstream-only-v1"
 
 _TASK_PATCH_SKIP = frozenset({"objectives", "objectivesAdd", "traderRequirements", "disabled"})
 
+# 最近一次成功下载：给同步结果报新鲜度；进程重启后退化成库里的 synced_at
+_last_success: dict[str, Any] = {}
+
 
 class TarkovOverlayError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+def overlay_urls() -> tuple[str, ...]:
+    """TARKOV_OVERLAY_URL 给了就先试它，失败再按内置顺序回退。"""
+    configured = (get_settings().TARKOV_OVERLAY_URL or "").strip()
+    if configured:
+        return (configured, *OVERLAY_URLS)
+    return OVERLAY_URLS
 
 
 def overlay_mode_key(game_mode: str | None = None) -> str:
@@ -85,18 +104,8 @@ def _tasks_map_from(blob: Any) -> dict[str, dict[str, Any]]:
 
 
 def _live_items_map(payload: dict[str, Any]) -> dict[str, Any] | None:
-    items_blob = payload.get("items")
-    if isinstance(items_blob, dict):
-        data = items_blob.get("data") if isinstance(items_blob.get("data"), dict) else items_blob
-        if not isinstance(data, dict):
-            return None
-        items = data.get("items") if isinstance(data.get("items"), dict) else data
-        return items if isinstance(items, dict) else None
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else None
-    if not isinstance(data, dict):
-        return None
-    items = data.get("items") if isinstance(data.get("items"), dict) else data
-    return items if isinstance(items, dict) else None
+    """items payload 里的物品表；空 → None（overlay 的 itemsAdd 没处可合）。"""
+    return items_svc.items_container(payload) or None
 
 
 def _live_crafts_list(payload: dict[str, Any]) -> list[Any] | None:
@@ -315,29 +324,76 @@ def download_overlay(
     *,
     on_bytes: Callable[[int, int | None], None] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
-    raw, upstream_at = download_bytes_with_meta(
-        OVERLAY_URL,
-        timeout=DOWNLOAD_TIMEOUT,
-        error_cls=TarkovOverlayError,
-        on_bytes=on_bytes,
+    """按 overlay_urls() 顺序回退；全挂抛 TarkovOverlayError，调用方保留上一份好数据。"""
+    errors: list[str] = []
+    for url in overlay_urls():
+        try:
+            raw, upstream_at = download_bytes_with_meta(
+                url,
+                timeout=DOWNLOAD_TIMEOUT,
+                error_cls=TarkovOverlayError,
+                on_bytes=on_bytes,
+                max_bytes=TARKOV_DUMP_MAX_BYTES,
+            )
+            payload = json.loads(raw.decode("utf-8"))
+        except TarkovOverlayError as exc:
+            errors.append(f"{url}: {exc}")
+            logger.warning("tarkov overlay source failed: %s (%s)", url, exc)
+            continue
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            errors.append(f"{url}: 解析失败")
+            logger.warning("tarkov overlay parse failed: %s", url)
+            continue
+        if not isinstance(payload, dict) or not payload:
+            errors.append(f"{url}: 内容为空")
+            continue
+        _record_overlay_success(url, upstream_at)
+        logger.info("tarkov overlay dump ok (%s) from %s", json_api_prefix(), url)
+        return payload, upstream_at
+    raise TarkovOverlayError("overlay 下载失败：" + "；".join(errors or ["无可用源"]))
+
+
+def _record_overlay_success(url: str, upstream_at: str | None) -> None:
+    _last_success.clear()
+    _last_success.update(
+        {
+            "url": url,
+            "at": timeutil.now().isoformat(),
+            "upstream_at": upstream_at,
+            "error": None,
+        }
     )
+
+
+def record_overlay_failure(error: str) -> None:
+    """同步失败时记一笔：overlay_status 里能看出「源挂了、用的是上一份」。"""
+    _last_success["error"] = error
+
+
+def overlay_status(db: Session) -> dict[str, Any]:
+    """overlay 新鲜度：最近一次成功（进程内）+ 库里的 synced_at；给同步结果与排障用。"""
+    last = dict(_last_success)
+    row = None
     try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TarkovOverlayError("overlay 解析失败") from exc
-    if not isinstance(payload, dict) or not payload:
-        raise TarkovOverlayError("overlay 为空")
-    return payload, upstream_at
-
-
-def sync_overlay(
-    db: Session,
-    *,
-    on_bytes: Callable[[int, int | None], None] | None = None,
-) -> dict[str, Any]:
-    payload, upstream_at = download_overlay(on_bytes=on_bytes)
-    logger.info("tarkov overlay dump ok (%s)", json_api_prefix())
-    return persist_overlay(db, payload, upstream_at=upstream_at)
+        row = upstream_svc.load_raw_row(db, OVERLAY_RESOURCE)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("tarkov overlay header unavailable: %s", exc)
+    synced_at = row.synced_at.isoformat() if row is not None and row.synced_at else None
+    age_sec: int | None = None
+    if row is not None and row.synced_at:
+        # synced_at 存的是北京墙钟（无时区）：按北京解释，不能当成 UTC，否则年龄少算 8 小时。
+        age_sec = int((timeutil.now() - timeutil.ensure(row.synced_at)).total_seconds())
+    return {
+        "url": last.get("url") or "",
+        "last_success_at": last.get("at") or synced_at,
+        "synced_at": synced_at,
+        "upstream_at": last.get("upstream_at") or upstream_svc.notes_upstream_at(
+            row.note if row is not None else None
+        ),
+        "age_seconds": age_sec,
+        "stale": bool(age_sec is not None and age_sec > OVERLAY_STALE_AFTER_SEC),
+        "error": last.get("error"),
+    }
 
 
 def persist_overlay(
@@ -345,13 +401,15 @@ def persist_overlay(
     payload: dict[str, Any],
     *,
     upstream_at: str | None = None,
+    source_url: str | None = None,
 ) -> dict[str, Any]:
+    origin = (source_url or _last_success.get("url") or OVERLAY_URLS[0]).strip()
     return upstream_svc.persist_raw(
         db,
         OVERLAY_RESOURCE,
         payload,
         source=SOURCE_OVERLAY,
-        note=f"{SOURCE_OVERLAY} dist/overlay.json",
+        note=f"{SOURCE_OVERLAY} {origin}",
         upstream_at=upstream_at,
     )
 
@@ -383,8 +441,21 @@ def overlay_cache_token(db: Session) -> str:
     return token
 
 
-def parsed_cache_key(db: Session, resource_synced: str | None) -> str:
-    return cache_key(resource_synced or "", overlay_cache_token(db), OVERLAY_PARSE_REV)
+def parsed_cache_key(
+    db: Session,
+    resource_synced: str | None,
+    *,
+    resource: str | None = None,
+) -> str:
+    """解析缓存键：主文件版本 + overlay 版本 +（给了 resource 时）locale 版本。
+
+    只翻中文不改结构的上游更新不会动主文件字节（persist_raw 会保留 synced_at），
+    只有 locale 行会变；不带它就得重启才看得到新译文。
+    """
+    parts = [resource_synced or "", overlay_cache_token(db), OVERLAY_PARSE_REV]
+    if resource:
+        parts.append(upstream_svc.locale_synced(db, resource))
+    return cache_key(*parts)
 
 
 def apply_loaded_overlay(

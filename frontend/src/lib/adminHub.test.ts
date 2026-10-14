@@ -14,7 +14,7 @@ describe("adminHubByPath", () => {
     expect(adminHubByPath("/settings/auth")?.id).toBe("site");
     expect(adminHubByPath("/settings/integrations")?.id).toBe("site");
     expect(adminHubByPath("/settings/email")?.id).toBe("site");
-    expect(adminHubByPath("/settings/ocr")?.id).toBe("site");
+    expect(adminHubByPath("/settings/email")?.id).toBe("site");
   });
 
   it("maps ops and jobs tabs", () => {
@@ -48,7 +48,7 @@ describe("adminHubTabPath", () => {
 describe("adminMenuSelectedKey", () => {
   it("selects hub menu keys", () => {
     expect(adminMenuSelectedKey("/settings/auth")).toBe("admin-site");
-    expect(adminMenuSelectedKey("/settings/ocr")).toBe("admin-site");
+    expect(adminMenuSelectedKey("/settings/email")).toBe("admin-site");
     expect(adminMenuSelectedKey("/settings/runtime")).toBe("admin-ops");
     expect(adminMenuSelectedKey("/settings/system")).toBe("admin-ops");
     expect(adminMenuSelectedKey("/settings/task-config")).toBe("admin-jobs");
@@ -67,7 +67,7 @@ describe("adminMenuSelectedKey", () => {
 describe("adminPageMotionKey", () => {
   it("stays on hub id when switching tabs", () => {
     expect(adminPageMotionKey("/settings/auth")).toBe("site");
-    expect(adminPageMotionKey("/settings/ocr")).toBe("site");
+    expect(adminPageMotionKey("/settings/email")).toBe("site");
     expect(adminPageMotionKey("/settings/runtime")).toBe("ops");
     expect(adminPageMotionKey("/settings/files")).toBe("ops");
     expect(adminPageMotionKey("/settings/jobs")).toBe("jobs");

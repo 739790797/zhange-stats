@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import copy
 import logging
-import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.tarkov.game_mode import parse_game_mode
+from app.services.tarkov.game_mode import cache_key
+from app.services.tarkov.parse_cache import ModeCache
 from app.services.tarkov.bosses import (
     TarkovBossesError,
     _as_int,
@@ -68,13 +70,92 @@ _FACTORY_MED_GATE_SNAP_MAX_M = 40.0
 # 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav / 狙击 Scav（Boss 用 bosses.locations）。
 SPAWN_KINDS = ("pmc", "scav", "sniper")
 
-_MARKER_TTL_SEC = 3600
-_MARKER_CACHE_VER = "markers-v4"
-_marker_cache: dict[str, dict[str, Any]] = {}
+# maps raw 单份 ~8.6MB：每次请求都解码 + 重解析太贵。按表头（synced_at）缓存解析结果，
+# 缓存里不带已解码的 payload，只留投影过的行（hub ~1MB / 全量 ~13MB / 标点 ~8MB）。
+_MAPS_CACHE_VER = "maps-bundle-v1"
+_bundle_cache: ModeCache["MapsBundle"] = ModeCache()
 
 
-def _marker_cache_key(mode: str) -> str:
-    return f"{mode}:{_MARKER_CACHE_VER}"
+@dataclass
+class MapsBundle:
+    """一份 maps 解析结果：原始行只读，要改的路径先自己 deepcopy。
+
+    只保留解码后的 payload + 目录行；带散落物 / 容器的行按 slug 惰性解析
+    （单图 ~1ms，整份 dump 解码才是 0.4s / 43MB 的大头）。
+    """
+
+    source: str
+    synced_at: str | None
+    note: str | None
+    payload: dict[str, Any] = field(default_factory=dict)
+    markers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    hub_rows: list[dict[str, Any]] = field(default_factory=list)
+    _loot_rows: dict[tuple[str, bool, bool], dict[str, Any]] = field(default_factory=dict)
+
+    @property
+    def locale(self) -> dict[str, Any]:
+        blob = self.payload.get("locale")
+        return blob if isinstance(blob, dict) else {}
+
+    def hub(self, slug: str) -> dict[str, Any] | None:
+        """目录行（无散落物 / 容器层）。返回副本：详情路径会就地改标点。"""
+        row = _find_map(self.hub_rows, slug)
+        return copy.deepcopy(row) if row is not None else None
+
+    def loot_row(
+        self, slug: str, *, loot_loose: bool, loot_containers: bool
+    ) -> dict[str, Any] | None:
+        """含指定图层的行（只解析这一张图）。返回副本，调用方随便改。"""
+        key = (resolve_map_slug(slug), loot_loose, loot_containers)
+        row = self._loot_rows.get(key)
+        if row is None:
+            rows = parse_map_rows(
+                self.payload,
+                loot_loose=loot_loose,
+                loot_containers=loot_containers,
+                only_slugs={key[0]} if key[0] else None,
+            )
+            found = _find_map(rows, key[0])
+            if found is None:
+                return None
+            self._loot_rows[key] = found
+            row = found
+        return copy.deepcopy(row)
+
+
+def clear_maps_caches() -> None:
+    """maps 重新同步后清空；也供测试重置。"""
+    _bundle_cache.clear()
+
+
+def _load_bundle(db: Session) -> MapsBundle:
+    """解码整份 dump（0.4s / 43MB）后只留 payload、目录行与标点，按表头缓存。"""
+    source, payload, synced_at, note = load_maps_payload(db)
+    bundle = MapsBundle(
+        source=source,
+        synced_at=synced_at,
+        note=note,
+        payload=payload,
+        markers=_markers_from_maps_payload(payload),
+        hub_rows=parse_map_rows(payload, loot_loose=False, loot_containers=False),
+    )
+    _bundle_cache.put(cache_key(synced_at or "", _MAPS_CACHE_VER), bundle)
+    return bundle
+
+
+def maps_bundle(db: Session) -> MapsBundle:
+    """按 maps raw 表头命中；未命中才解码整份 dump 并重建。"""
+    if get_maps_raw(db) is None:
+        ensure_maps(db)
+    row = get_maps_raw(db)
+    token = cache_key(
+        (row.synced_at.isoformat() if row is not None and row.synced_at else ""),
+        _MAPS_CACHE_VER,
+    )
+    hit = _bundle_cache.get(token)
+    if hit is not None:
+        return hit
+    return _load_bundle(db)
 
 # tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
 MAP_THUMB_ASSETS: dict[str, str] = {
@@ -415,12 +496,34 @@ def collect_key_lock_maps(
     key_id: str,
 ) -> list[dict[str, Any]]:
     """钥匙能开的锁：按母图归组，走与地图页同一套过滤 / 吸附。"""
+    return _collect_key_locks(
+        parse_map_rows(payload, loot_loose=False, loot_containers=False),
+        key_id,
+        _markers_from_maps_payload(payload),
+        payload.get("locale") if isinstance(payload.get("locale"), dict) else {},
+    )
+
+
+def key_lock_maps(db: Session, key_id: str) -> list[dict[str, Any]]:
+    """同上，但复用进程内的 maps 解析缓存（物品详情每次都要反查门锁）。"""
+    bundle = maps_bundle(db)
+    return _collect_key_locks(
+        [copy.deepcopy(row) for row in bundle.hub_rows],
+        key_id,
+        bundle.markers,
+        bundle.locale,
+    )
+
+
+def _collect_key_locks(
+    rows: list[dict[str, Any]],
+    key_id: str,
+    overlay: dict[str, dict[str, Any]],
+    locale: dict[str, Any],
+) -> list[dict[str, Any]]:
     ident = (key_id or "").strip()
     if not ident:
         return []
-    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
-    overlay = _markers_from_maps_payload(payload)
-    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
     out: list[dict[str, Any]] = []
     for row in rows:
         slug = str(row.get("slug") or "").strip()
@@ -1370,7 +1473,6 @@ def _merge_marker_layer(
         return incoming
     return current
 
-
 def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
     return any(
         row.get("x") is not None and row.get("z") is not None
@@ -1415,20 +1517,6 @@ def _bosses_need_coords(bosses: list[Any]) -> bool:
         ):
             return True
     return False
-
-
-def _cached_map_markers() -> dict[str, dict[str, Any]]:
-    now = time.time()
-    key = _marker_cache_key(parse_game_mode())
-    entry = _marker_cache.get(key) or {}
-    cached = entry.get("by_slug")
-    if (
-        isinstance(cached, dict)
-        and cached
-        and now - float(entry.get("at") or 0) < _MARKER_TTL_SEC
-    ):
-        return cached
-    return {}
 
 
 def _markers_from_maps_payload(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1548,7 +1636,7 @@ def _apply_map_markers(
     ):
         _finalize_map_lock_corrections(row)
         return
-    by_slug = overlay if overlay is not None else _cached_map_markers()
+    by_slug = overlay or {}
     extra = by_slug.get(str(row.get("slug") or "")) or by_slug.get(str(row.get("id") or ""))
     if not extra:
         _finalize_map_lock_corrections(row)
@@ -1863,42 +1951,34 @@ _HUB_FIELDS = (
 
 
 def list_maps(db: Session) -> dict[str, Any]:
-    if get_maps_raw(db) is None:
-        ensure_maps(db)
-    source, payload, synced_at, note = load_maps_payload(db)
-    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
+    bundle = maps_bundle(db)
     hub = [
         {key: r.get(key) for key in _HUB_FIELDS}
-        for r in rows
+        for r in bundle.hub_rows
         if r.get("slug") not in HUB_SKIP and not r.get("parent_slug")
     ]
     return {
         "items": hub,
         "map_count": len(hub),
-        "source": source,
-        "synced_at": synced_at,
-        "note": note,
+        "source": bundle.source,
+        "synced_at": bundle.synced_at,
+        "note": bundle.note,
     }
 
 
 def _attach_map_loot_layers(
     db: Session,
-    payload: dict[str, Any],
+    bundle: MapsBundle,
     row: dict[str, Any],
     *,
     loot_loose: bool,
     loot_containers: bool,
 ) -> None:
-    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     map_slug = str(row.get("slug") or "")
     if map_slug and (loot_loose or loot_containers):
-        loot_rows = parse_map_rows(
-            payload,
-            loot_loose=loot_loose,
-            loot_containers=loot_containers,
-            only_slugs={map_slug},
+        loot_row = bundle.loot_row(
+            map_slug, loot_loose=loot_loose, loot_containers=loot_containers
         )
-        loot_row = _find_map(loot_rows, map_slug)
         if loot_row is not None:
             if loot_loose:
                 row["loot_loose"] = loot_row.get("loot_loose") or []
@@ -1906,8 +1986,8 @@ def _attach_map_loot_layers(
                 row["loot_containers"] = loot_row.get("loot_containers") or []
     _apply_map_markers(
         row,
-        locale,
-        overlay=_markers_from_maps_payload(payload),
+        bundle.locale,
+        overlay=bundle.markers,
         loot_loose=loot_loose,
         loot_containers=loot_containers,
     )
@@ -1932,11 +2012,8 @@ def get_map_detail(
     key = resolve_map_slug(slug)
     if not key:
         raise TarkovBossesError("地图 slug 无效")
-    if get_maps_raw(db) is None:
-        ensure_maps(db)
-    source, payload, synced_at, note = load_maps_payload(db)
-    rows = parse_map_rows(payload, loot_loose=False, loot_containers=False)
-    row = _find_map(rows, key)
+    bundle = maps_bundle(db)
+    row = bundle.hub(key)
     if row is None:
         raise TarkovBossesError(f"未找到地图: {slug}")
     parent = row.get("parent_slug") or row.get("slug")
@@ -1947,12 +2024,12 @@ def get_map_detail(
             "raid_duration": v.get("raid_duration") or 0,
             "players": v.get("players") or "",
         }
-        for v in rows
+        for v in bundle.hub_rows
         if v.get("parent_slug") == parent and v.get("slug") != row.get("slug")
     ]
     _attach_map_loot_layers(
         db,
-        payload,
+        bundle,
         row,
         loot_loose=loot_loose,
         loot_containers=loot_containers,
@@ -1962,9 +2039,9 @@ def get_map_detail(
     return {
         **row,
         "variants": variants,
-        "source": source,
-        "synced_at": synced_at,
-        "note": note,
+        "source": bundle.source,
+        "synced_at": bundle.synced_at,
+        "note": bundle.note,
     }
 
 
@@ -1978,32 +2055,23 @@ def get_map_loot_layers(
     key = resolve_map_slug(slug)
     if not key:
         raise TarkovBossesError("地图 slug 无效")
-    if get_maps_raw(db) is None:
-        ensure_maps(db)
-    source, payload, synced_at, note = load_maps_payload(db)
+    bundle = maps_bundle(db)
     empty = {
         "loot_loose": [],
         "loot_containers": [],
-        "source": source,
-        "synced_at": synced_at,
-        "note": note,
+        "source": bundle.source,
+        "synced_at": bundle.synced_at,
+        "note": bundle.note,
     }
     if not loot_loose and not loot_containers:
         return empty
-    rows = parse_map_rows(
-        payload,
-        loot_loose=loot_loose,
-        loot_containers=loot_containers,
-        only_slugs={key},
-    )
-    row = _find_map(rows, key)
+    row = bundle.loot_row(key, loot_loose=loot_loose, loot_containers=loot_containers)
     if row is None:
         raise TarkovBossesError(f"未找到地图: {slug}")
-    locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     _apply_map_markers(
         row,
-        locale,
-        overlay=_markers_from_maps_payload(payload),
+        bundle.locale,
+        overlay=bundle.markers,
         loot_loose=loot_loose,
         loot_containers=loot_containers,
     )
@@ -2019,7 +2087,7 @@ def get_map_loot_layers(
     return {
         "loot_loose": row.get("loot_loose") or [],
         "loot_containers": row.get("loot_containers") or [],
-        "source": source,
-        "synced_at": synced_at,
-        "note": note,
+        "source": bundle.source,
+        "synced_at": bundle.synced_at,
+        "note": bundle.note,
     }

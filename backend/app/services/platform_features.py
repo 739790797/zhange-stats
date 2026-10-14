@@ -30,13 +30,6 @@ FEATURE_TREE: list[dict[str, Any]] = [
         "kind": "platform",
         "children": [
             {
-                "id": "zhange.ocr_model",
-                "name": "文字识别模型",
-                "kind": "job",
-                "job_id": "ocr_model_sync",
-                "schedule": "cron",
-            },
-            {
                 "id": "zhange.texteller_model",
                 "name": "公式识别模型",
                 "kind": "job",
@@ -285,7 +278,6 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
-    "ocr_model_sync": "zhange.ocr_model",
     "texteller_model_sync": "zhange.texteller_model",
 }
 
@@ -349,14 +341,9 @@ def _canonical_feature_id(feature_id: str) -> str:
 
 
 def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) -> None:
-    """旧树 tavern / ocr 并入战鸽数据。新 key 已写入则不再覆盖。"""
+    """旧树 tavern 并入战鸽数据。新 key 已写入则不再覆盖。"""
     if "zhange" not in flags and "tavern" in flags:
         base["zhange"] = bool(flags["tavern"])
-    if "zhange.ocr_model" not in flags:
-        if "ocr.model_sync" in flags:
-            base["zhange.ocr_model"] = bool(flags["ocr.model_sync"])
-        elif "ocr" in flags:
-            base["zhange.ocr_model"] = bool(flags["ocr"])
     if "zhange.texteller_model" not in flags:
         if "tavern.texteller_sync" in flags:
             base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])

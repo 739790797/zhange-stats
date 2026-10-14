@@ -3,7 +3,6 @@ import { ITEMS_BASE_PATH } from "./tarkovItemTypes";
 import {
   TARKOV_BOSSES,
   TARKOV_OTHER_MOBS,
-  TARKOV_HOME_BOSSES,
   buildTarkovBossNavGroups,
   TARKOV_HOME_ITEMS,
   TARKOV_HOME_ITEM_GROUPS,
@@ -17,7 +16,6 @@ import {
   resolveTarkovMeTab,
   tarkovMeHref,
   tarkovHideoutHref,
-  tarkovKeyPackHref,
   tarkovWorkbenchHref,
   TARKOV_HOME_PATH,
   TARKOV_ADMIN_NAV,
@@ -342,8 +340,8 @@ describe("TARKOV_BOSSES", () => {
       guards: "×4",
     });
     expect(byId.partisan).toMatchObject({ map: "游荡", spawn: "10%", guards: "—" });
-    expect(TARKOV_HOME_BOSSES.map((b) => b.id)).toContain("kollontay");
-    expect(TARKOV_HOME_BOSSES.map((b) => b.id)).toContain("partisan");
+    expect(TARKOV_BOSSES.map((b) => b.id)).toContain("kollontay");
+    expect(TARKOV_BOSSES.map((b) => b.id)).toContain("partisan");
     expect(bossPortraitUrl("goons")).toContain("knight-portrait");
     expect(bossPortraitUrl("cultists")).toContain("cultist-priest");
     expect(byId.goons.href).toBe("/guides/tarkov/bosses/knight");
@@ -756,9 +754,6 @@ describe("tarkov me tabs", () => {
     );
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
-    expect(tarkovKeyPackHref({ q: "Dorm 114", map: "customs" })).toBe(
-      "/guides/tarkov/key-packs?map=customs&q=Dorm+114",
-    );
   });
 });
 

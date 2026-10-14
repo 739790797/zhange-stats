@@ -31,9 +31,17 @@ def _mode(game_mode: str | None = None) -> str:
     return parse_game_mode(game_mode) if game_mode is not None else current_game_mode()
 
 
+def _known_map_slugs() -> frozenset[str]:
+    """联机大厅认得的房间地图短 id 集合（本地计算，不查库、不回源）。"""
+    from app.services.tarkov.tasks import raid_prep_room_map_slugs
+
+    return frozenset(raid_prep_room_map_slugs())
+
+
 def _map_slug(raw: str) -> str:
+    """只收联机大厅认得的房间地图短 id：以前只做归一化，任何形似 slug 的串都能落一行。"""
     slug = normalize_room_map_slug(raw)
-    if not slug:
+    if not slug or slug not in _known_map_slugs():
         raise TarkovRaidPrepStateError("地图无效")
     return slug
 

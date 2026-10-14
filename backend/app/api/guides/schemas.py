@@ -1456,16 +1456,8 @@ class TarkovRaidRoomCreateIn(BaseModel):
     game_mode: str | None = None
 
 
-class TarkovRaidRoomGameModeIn(BaseModel):
-    game_mode: str = Field(min_length=1, max_length=16)
-
-
 class TarkovRaidRoomHostIn(BaseModel):
     user_id: int = Field(ge=1)
-
-
-class TarkovRaidRoomClaimIn(BaseModel):
-    task_id: str = Field(min_length=1, max_length=64)
 
 
 class TarkovRaidRoomClaimsIn(BaseModel):
@@ -1558,55 +1550,6 @@ class TarkovKeyOwnsOut(BaseModel):
 
 class TarkovKeyOwnsIn(BaseModel):
     item_ids: list[str] = Field(default_factory=list, max_length=400)
-
-
-class TarkovKeyOcrMatchOut(BaseModel):
-    id: str
-    name: str = ""
-    short_name: str = ""
-    icon_link: str = ""
-    ocr_text: str = ""
-    confidence: str = "fuzzy"
-
-
-class TarkovKeyOcrBoxOut(BaseModel):
-    x: float
-    y: float
-    width: float
-    height: float
-    label: str = ""
-    item_id: str = ""
-    kind: str = "miss"
-
-
-class TarkovKeyOcrOverlayOut(BaseModel):
-    width: int
-    height: int
-    boxes: list[TarkovKeyOcrBoxOut] = Field(default_factory=list)
-
-
-class TarkovKeyOcrOut(BaseModel):
-    matches: list[TarkovKeyOcrMatchOut] = Field(default_factory=list)
-    tile_count: int = 0
-    overlay: TarkovKeyOcrOverlayOut | None = None
-    engines: list[str] = Field(default_factory=list)
-
-
-class TarkovRaidPrepOcrMatchOut(BaseModel):
-    id: str
-    name: str = ""
-    ocr_text: str = ""
-    trader_slug: str = ""
-    trader_name: str = ""
-
-
-class TarkovRaidPrepOcrOut(BaseModel):
-    matches: list[TarkovRaidPrepOcrMatchOut] = Field(default_factory=list)
-    width: int = 0
-    height: int = 0
-    widescreen: bool = False
-    preferred_size: bool = False
-    engines: list[str] = Field(default_factory=list)
 
 
 class TarkovCollectionTaskOut(BaseModel):
@@ -1720,11 +1663,35 @@ class TarkovTaskObjectiveDonePair(BaseModel):
     objective_id: str = Field(min_length=1, max_length=64)
 
 
+class TarkovTaskClearedOut(BaseModel):
+    task_id: str
+    cleared_at: str
+
+
 class TarkovTaskDonesOut(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
     started_ids: list[str] = Field(default_factory=list)
     failed_ids: list[str] = Field(default_factory=list)
     objective_dones: list[TarkovTaskObjectiveDonePair] = Field(default_factory=list)
+    reset_at: str | None = Field(
+        default=None,
+        description="回放下限（北京墙钟）。早于它的游戏日志任务事件一律不写回；清空进度 / 转生后只增不减。",
+    )
+    pending_clear_at: str | None = Field(
+        default=None,
+        description="玩家点了清空、还没被带日志的同步定成下限的时刻；有值时本机账以空为准。",
+    )
+    reset_profile_id: str = Field(
+        default="", description="定下 reset_at 时日志里当前模式的游戏 ProfileId。"
+    )
+    reset_epoch: int = Field(
+        default=0,
+        description="每次清空或推进下限加 1。批量写入带上它；对不上回 409，说明本机账已过期。",
+    )
+    cleared: list[TarkovTaskClearedOut] = Field(
+        default_factory=list,
+        description="手动从已完成改走的任务与时刻；日志里更早的完成不得把它粘回去。",
+    )
 
 
 class TarkovTaskDonesIn(BaseModel):
@@ -1735,6 +1702,29 @@ class TarkovTaskDonesIn(BaseModel):
         default=None, max_length=8000
     )
     replace: bool = False
+    expect_epoch: int | None = Field(
+        default=None,
+        description="调用方读到的 reset_epoch。与服务端不同则 409、不写入；账号记过边界（reset_epoch>0）后省略也 409。",
+    )
+
+
+class TarkovTaskProfileIn(BaseModel):
+    profile_id: str = Field(min_length=1, max_length=64)
+
+
+class TarkovTaskResetIn(BaseModel):
+    """带日志的同步定下回放下限，并用回放结果整表替换本模式进度账。"""
+
+    reset_at: str = Field(min_length=10, max_length=40)
+    profile_id: str = Field(default="", max_length=64)
+    reason: str = Field(pattern="^(clear|prestige|profile)$")
+    expect_epoch: int
+    task_ids: list[str] = Field(default_factory=list, max_length=800)
+    started_ids: list[str] = Field(default_factory=list, max_length=800)
+    failed_ids: list[str] = Field(default_factory=list, max_length=800)
+    objective_dones: list[TarkovTaskObjectiveDonePair] = Field(
+        default_factory=list, max_length=8000
+    )
 
 
 class TarkovRaidLogIn(BaseModel):

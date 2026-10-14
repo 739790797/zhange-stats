@@ -477,20 +477,13 @@ def test_attach_item_key_locks_skips_non_keys(monkeypatch) -> None:
 def test_attach_item_key_locks_for_key(monkeypatch) -> None:
     called = {}
 
-    def fake_collect(payload, key_id):
-        called["payload"] = payload
+    def fake_collect(db, key_id):
+        called["db"] = db
         called["key_id"] = key_id
         return [{"slug": "factory", "name": "工厂", "locks": [{"x": 1, "z": 2}]}]
 
     monkeypatch.setattr(
-        "app.services.tarkov.bosses.get_maps_raw", lambda db: object()
-    )
-    monkeypatch.setattr(
-        "app.services.tarkov.bosses._load_payload",
-        lambda db: ("json", {"maps": {}}, None, None),
-    )
-    monkeypatch.setattr(
-        "app.services.tarkov.maps.collect_key_lock_maps", fake_collect
+        "app.services.tarkov.maps.key_lock_maps", fake_collect
     )
     detail = {
         "id": "k1",

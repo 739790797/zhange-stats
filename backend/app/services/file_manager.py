@@ -115,7 +115,6 @@ KIND_LABELS: dict[FileKind, str] = {
 }
 
 BUSINESS_LABELS: dict[str, str] = {
-    "ocr": "文字识别",
     "articles": "战鸽酒馆",
     "uploads": "头像上传",
     "logs": "应用日志",
@@ -614,22 +613,6 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
 
     rows: list[FileBucket] = [
         _bucket(
-            id="ocr_rapidocr",
-            label="熊猫 OCR 权重",
-            description="RapidOCR / Paddle 模型，任务配置「文字识别模型」预拉",
-            business="ocr",
-            kind="download",
-            path=models / "rapidocr",
-        ),
-        _bucket(
-            id="ocr_easyocr",
-            label="EasyOCR 权重",
-            description="EasyOCR 模型，任务配置「文字识别模型」预拉",
-            business="ocr",
-            kind="download",
-            path=models / "easyocr",
-        ),
-        _bucket(
             id="articles_texteller",
             label="公式识别权重",
             description="TexTeller ONNX，任务配置「公式识别模型」预拉",
@@ -682,7 +665,7 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
         _bucket(
             id="runtime_cache",
             label="开发与构建缓存",
-            description="data/cache：pytest / Vite / pip / HF / Torch / PYTHONPYCACHEPREFIX",
+            description="data/cache：pytest / Vite / pip / HF / PYTHONPYCACHEPREFIX",
             business="runtime",
             kind="cache",
             path=data_root / "cache",
@@ -746,7 +729,7 @@ def catalog_buckets(ctx: FileManagerContext) -> list[FileBucket]:
         _bucket(
             id="python_venv",
             label="Python 虚拟环境",
-            description="backend/.venv（OCR / torch 等依赖主要在这里）",
+            description="backend/.venv（Python 依赖）",
             business="python",
             kind="dependency",
             path=ctx.venv_dir,

@@ -108,14 +108,3 @@ def test_room_snapshot_lists_seated_owns(monkeypatch: pytest.MonkeyPatch) -> Non
     assert names == {("key-a", "甲"), ("key-a", "乙"), ("key-b", "乙")}
     assert rooms.occupant_public_ids(db, host.id) == [pid]
     assert rooms.occupant_public_ids(db, outsider.id) == []
-
-
-def test_key_owns_recognize_openapi_requires_login() -> None:
-    from app.main import app
-
-    schema = app.openapi()
-    post = (schema.get("paths") or {}).get(
-        "/api/guides/tarkov/key-owns/recognize", {}
-    ).get("post")
-    assert post
-    assert post.get("security")

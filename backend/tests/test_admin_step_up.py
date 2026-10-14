@@ -8,7 +8,6 @@ from app.api.settings import (
     update_auth_settings,
     update_email_settings,
     update_integrations,
-    update_ocr_settings,
     update_platform_features,
 )
 from app.main import app
@@ -20,8 +19,7 @@ def test_admin_writes_have_no_step_up_header() -> None:
         update_auth_settings,
         update_email_settings,
         update_integrations,
-        update_ocr_settings,
-        update_platform_features,
+            update_platform_features,
         do_app_update,
         update_user,
         delete_user,

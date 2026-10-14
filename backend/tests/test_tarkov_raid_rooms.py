@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
 from app.core.timeutil import now_naive
@@ -89,27 +90,12 @@ def test_normalize_room_map_slug() -> None:
     assert rooms.normalize_room_map_slug("customs") == "customs"
     assert rooms.normalize_room_map_slug("bigmap") == "customs"
     assert rooms.normalize_room_map_slug("Nope!") == ""
-    assert rooms.normalize_slot_id("1") == "1"
-    assert rooms.normalize_slot_id("5") == "5"
-    assert rooms.normalize_slot_id("6") == ""
-    assert rooms.normalize_slot_id("pve-1") == "pve-1"
-    assert rooms.normalize_slot_id("pve-5") == "pve-5"
-    assert rooms.normalize_slot_id("pve-6") == ""
-    assert rooms.normalize_slot_id("abcdef123456") == ""
     assert rooms.normalize_public_id("1") == "1"
     assert rooms.normalize_public_id("pve-2") == "pve-2"
     assert rooms.normalize_public_id("ab12cd34") == "ab12cd34"
     assert rooms.normalize_public_id("solo") == ""
     assert rooms.normalize_public_id("nope") == ""
     assert rooms.slot_public_id(3, "pve") == "pve-3"
-    assert rooms.slot_ids_for_mode("pvp") == ("1", "2", "3", "4", "5")
-    assert rooms.slot_ids_for_mode("pve") == (
-        "pve-1",
-        "pve-2",
-        "pve-3",
-        "pve-4",
-        "pve-5",
-    )
 
 
 def test_create_room_and_capacity() -> None:
@@ -768,19 +754,6 @@ def test_stroke_marks_and_draft_parse() -> None:
         "raid_id": "AB12CD",
         "at": "2026-08-31 13:00:00.000",
     }
-    assert rooms.shared_raid_map_slug(
-        2,
-        {1, 2},
-        [
-            {"user_id": 1, "kind": "raid_started", "raid_id": "PQXKR6", "map_id": "woods"},
-            {"user_id": 2, "kind": "raid_started", "raid_id": "pqxkr6", "map_id": "woods"},
-        ],
-    ) == "woods"
-    assert rooms.shared_raid_map_slug(
-        2,
-        {1, 2},
-        [{"user_id": 1, "kind": "raid_started", "raid_id": "PQXKR6", "map_id": "woods"}],
-    ) == ""
     assert rooms.parse_log_phase({"kind": "nope"}) is None
     assert rooms.parse_log_phase({"kind": "raid_exited", "raid_id": "zz"})["kind"] == "raid_exited"
 
@@ -1080,7 +1053,8 @@ def test_reset_deletes_room() -> None:
     assert _gone(db, pid, host, now=now)
 
 
-def test_create_room_uses_requested_mode_and_host_can_switch() -> None:
+def test_create_room_uses_requested_mode() -> None:
+    """模式在建房时定死；没有「房主改模式」这条路径（改模式会清掉画板）。"""
     db = _session()
     host = _user(db, "host", "甲")
     now = now_naive()
@@ -1089,8 +1063,7 @@ def test_create_room_uses_requested_mode_and_host_can_switch() -> None:
     )
     assert joined is True
     assert snap["game_mode"] == "pve"
-    switched = rooms.set_room_game_mode(db, snap["public_id"], host, "pvp", now=now)
-    assert switched["game_mode"] == "pvp"
+    assert not hasattr(rooms, "set_room_game_mode")
 
 
 def test_lobby_occupant_map_follows_live_phase_then_view() -> None:
@@ -1117,7 +1090,7 @@ def test_lobby_occupant_map_follows_live_phase_then_view() -> None:
         assert row["phase_kind"] == "matching"
         assert row["map_slug"] == "woods"
     finally:
-        hub.drop_member_live(pid, host.id)
+        hub.close_room(pid)
 
 
 def test_lobby_lists_only_current_mode_rooms() -> None:
@@ -1395,61 +1368,6 @@ def test_member_task_progress_count_hides_ids_missing_from_catalog(
     snap = rooms.get_room(db, pid, host, now=now)
     mine = next(row for row in snap["task_progress"] if row["user_id"] == host.id)
     assert mine["started_count"] == 1
-
-
-def test_seed_claims_from_progress_is_personal() -> None:
-    db = _session()
-    host = _user(db, "host", "甲")
-    guest = _user(db, "guest", "乙")
-    now = now_naive()
-    pid = _seat(db, host, now=now)["public_id"]
-    rooms.join_room(db, pid, guest, now=now)
-    rooms.set_member_task_progress(db, pid, host, ["t-host"], [], now=now)
-    rooms.set_member_task_progress(db, pid, guest, ["t-guest"], [], now=now)
-    try:
-        rooms.seed_claims_from_progress(db, pid, guest, now=now)
-        ok = True
-    except rooms.RaidRoomError as exc:
-        ok = False
-        assert exc.status_code == 409
-        assert "地图" in exc.message
-    assert not ok
-    rooms.set_room_map(db, pid, guest, "customs", now=now)
-    snap, added = rooms.seed_claims_from_progress(db, pid, guest, now=now)
-    assert added == 0
-    assert snap["claims"] == []
-    _, host_added = rooms.seed_claims_from_progress(db, pid, host, now=now)
-    assert host_added == 0
-
-
-def test_seed_claims_from_progress_uses_catalog(monkeypatch) -> None:
-    db = _session()
-    host = _user(db, "host", "甲")
-    guest = _user(db, "guest", "乙")
-    now = now_naive()
-    pid = _seat(db, host, now=now)["public_id"]
-    rooms.join_room(db, pid, guest, now=now)
-    rooms.set_room_map(db, pid, guest, "customs", now=now)
-    rooms.set_member_task_progress(db, pid, host, ["t-host", "skip"], [], now=now)
-    rooms.set_member_task_progress(db, pid, guest, ["t-guest"], [], now=now)
-
-    def _index(_db):
-        return {"customs": {"t-host": "H", "t-guest": "G"}}
-
-    monkeypatch.setattr(
-        "app.services.tarkov.tasks.raid_prep_map_task_index",
-        _index,
-    )
-    snap, added = rooms.seed_claims_from_progress(db, pid, host, now=now)
-    assert added == 1
-    ids = {(row["task_id"], row["user_id"]) for row in snap["claims"]}
-    assert ("t-host", host.id) in ids
-    assert ("t-guest", guest.id) not in ids
-    guest_snap, guest_added = rooms.seed_claims_from_progress(db, pid, guest, now=now)
-    assert guest_added == 1
-    guest_ids = {(row["task_id"], row["user_id"]) for row in guest_snap["claims"]}
-    assert ("t-guest", guest.id) in guest_ids
-    assert ("skip", host.id) not in guest_ids
 
 
 def test_join_and_lobby_rate_limit_keys() -> None:
@@ -2011,4 +1929,246 @@ def test_room_lock_is_reentrant_across_shared_registry() -> None:
             assert entry[1] == 2
         assert rooms._ROOM_LOCKS[pid][1] == 1
     assert pid not in rooms._ROOM_LOCKS
+
+
+def test_touch_member_commits_so_heartbeats_survive() -> None:
+    """心跳以前只 flush 不 commit，连接一关就全丢，座位照样 2 分钟被回收。
+
+    这里必须从**另一个 session** 读：同一个 session 看得见自己未提交的改动。
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    maker = sessionmaker(bind=engine)
+    writer = maker()
+    reader = maker()
+    try:
+        host = _user(writer, "host", "甲")
+        now = now_naive()
+        pid = _seat(writer, host, now=now)["public_id"]
+        writer.commit()
+        room_id = rooms._get_room(writer, pid).id
+
+        later = now + timedelta(seconds=rooms.MEMBER_TOUCH_MIN_INTERVAL_SEC + 5)
+        assert rooms.touch_member(writer, pid, host, now=later) is True
+        seen = (
+            reader.query(TarkovRaidRoomMember.last_seen_at)
+            .filter(
+                TarkovRaidRoomMember.room_id == room_id,
+                TarkovRaidRoomMember.user_id == host.id,
+            )
+            .scalar()
+        )
+        assert rooms.to_naive(seen) == later
+
+        # 节流窗口内不写，返回 False（调用方据此知道这次心跳没落库）。
+        soon = later + timedelta(seconds=1)
+        assert rooms.touch_member(writer, pid, host, now=soon) is False
+    finally:
+        writer.close()
+        reader.close()
+
+
+def test_join_room_retries_with_the_old_rooms_lock() -> None:
+    """换房要删旧房的座位 / 跑旧房的收尾，旧房的锁必须也在手里。
+
+    只拿目标房的锁就等于在别人的房里乱写（丢房主转让、写进刚删的行）；
+    两笔换房还可能以相反顺序互等。这里确认 `run_in_room_tx` 会补锁后整笔重跑。
+    """
+    db = _session()
+    user = _user(db, "p", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    old_pid = _seat(db, guest, now=now)["public_id"]
+    new_pid = _open(db, user, now=now)
+    # 补锁要整笔重跑，中间会回滚：两间房得先落库（生产里各自是上一笔请求提交的）。
+    db.commit()
+
+    def join() -> tuple:
+        return rooms.join_room(db, new_pid, guest, now=now)
+
+    snap, joined_now, vacated = rooms.run_in_room_tx(db, join, key=new_pid)
+    assert joined_now is True
+    assert snap["is_member"] is True
+    assert [row["public_id"] for row in vacated] == [old_pid]
+    assert _gone(db, old_pid, guest, now=now)
+
+
+def test_require_room_locks_triggers_a_retry_with_the_extra_lock() -> None:
+    """事务里要写没拿锁的房间就得报缺锁，让外层放锁、补锁、按序重拿后整笔重跑。"""
+    db = _session()
+    rounds: list[set[str]] = []
+
+    def run() -> None:
+        rounds.append(set(rooms._held_room_keys()))
+        # 第一轮只拿目标房的锁（换房时旧房是运行时才知道的），必然缺 bbbbbbbb。
+        rooms._require_room_locks("bbbbbbbb")
+
+    rooms.run_in_room_tx(db, run, key="aaaaaaaa")
+    assert len(rounds) == 2
+    assert rounds[0] == {"aaaaaaaa"}
+    assert rounds[1] == {"aaaaaaaa", "bbbbbbbb"}
+
+
+def test_require_room_locks_is_a_noop_outside_a_room_tx() -> None:
+    """直接调服务层（测试 / 脚本）没有事务包装，任何房间都不算缺锁。"""
+    rooms._require_room_locks("bbbbbbbb")
+
+
+def test_map_and_task_progress_routes_hit_the_write_limiter(monkeypatch) -> None:
+    """这两个写操作以前漏了限流：/map 推整帧快照，/task-progress 一次最多 1200 个 id。"""
+    from app.api.guides import tarkov_raid_rooms as api
+
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    db.commit()
+    hits: list[str] = []
+    monkeypatch.setattr(api, "_hit_room_write", lambda user: hits.append(user.username))
+
+    api.set_tarkov_raid_room_map(pid, api.TarkovRaidRoomMapIn(map="woods"), db, host)
+    api.put_tarkov_raid_room_task_progress(
+        pid,
+        api.TarkovRaidRoomTaskProgressIn(started_ids=["t1"], done_ids=[]),
+        db,
+        host,
+    )
+    assert hits == ["host", "host"]
+
+
+def test_run_in_room_tx_holds_every_lock_in_sorted_order(monkeypatch) -> None:
+    """两个房间的锁按房间号顺序拿，两笔事务不会以相反顺序互等。"""
+    order: list[str] = []
+    real = rooms.room_lock
+
+    def spy(public_id: str):
+        order.append(public_id)
+        return real(public_id)
+
+    monkeypatch.setattr(rooms, "room_lock", spy)
+    db = _session()
+    rooms.run_in_room_tx(
+        db,
+        lambda: None,
+        key="bbbbbbbb",
+        extra_keys=lambda: ["aaaaaaaa"],
+    )
+    assert order == ["aaaaaaaa", "bbbbbbbb"]
+
+
+def test_set_room_map_defers_hub_write_until_commit() -> None:
+    """换图不能在事务里改 hub：commit 失败或整笔重跑时改不回来。"""
+    from app.services.tarkov.raid_room_hub import hub
+
+    db = _session()
+    host = _user(db, "host", "甲")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    db.commit()
+    try:
+
+        def fail_after_map() -> None:
+            rooms.set_room_map(db, pid, host, "woods", now=now)
+            # 事务里 hub 还没动，但返回的快照已经按新图算。
+            assert hub.view_map_of(pid, host.id) == ""
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            rooms.run_in_room_tx(db, fail_after_map, key=pid)
+        assert hub.view_map_of(pid, host.id) == ""
+
+        def ok() -> None:
+            rooms.set_room_map(db, pid, host, "woods", now=now)
+
+        rooms.run_in_room_tx(
+            db,
+            ok,
+            key=pid,
+            # 路由就是这么做的：commit 之后才把查看图落进 hub。
+            on_commit=lambda _r: rooms.apply_view_map(pid, host.id, "woods"),
+        )
+        assert hub.view_map_of(pid, host.id) == "woods"
+    finally:
+        hub.close_room(pid)
+
+
+def test_set_room_map_snapshot_reflects_pending_view_map() -> None:
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, host, "customs", now=now)
+    snap = rooms.run_in_room_tx(
+        db,
+        lambda: rooms.set_room_map(db, pid, guest, "woods", now=now),
+        key=pid,
+    )
+    views = {row["user_id"]: row["map_slug"] for row in snap["view_maps"]}
+    assert views[guest.id] == "woods"
+    assert views[host.id] == "customs"
+    assert snap["can_edit"] is True
+
+
+def test_move_text_mark_needs_author_or_host() -> None:
+    """移动和删除同一条规则：只能动自己的记号，房主可以动全房的。"""
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _seat(db, host, now=now)["public_id"]
+    rooms.join_room(db, pid, guest, now=now)
+    rooms.set_room_map(db, pid, guest, "customs", now=now)
+    _, mark = rooms.add_mark(
+        db, pid, host, kind="text", floor="", x=1, z=2, label="集合", now=now
+    )
+    with pytest.raises(rooms.RaidRoomError) as caught:
+        rooms.move_text_mark(db, pid, guest, mark["id"], x=5, z=5, now=now)
+    assert caught.value.status_code == 403
+    _, moved = rooms.move_text_mark(db, pid, host, mark["id"], x=5, z=5, now=now)
+    assert moved is not None
+    assert moved["x"] == 5
+
+
+def test_missing_room_locks_is_not_checked_outside_a_room_tx() -> None:
+    """直接调服务层（测试 / 脚本）没有事务包装，不该冒缺锁。"""
+    db = _session()
+    user = _user(db, "p", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    old = _seat(db, guest, now=now)["public_id"]
+    pid = _open(db, user, now=now)
+    db.commit()
+    _snap, joined, vacated = rooms.join_room(db, pid, guest, now=now)
+    assert joined is True
+    assert [row["public_id"] for row in vacated] == [old]
+
+
+def test_run_in_room_tx_retries_deadlock_once() -> None:
+    """1213 死锁时 InnoDB 已经整笔回滚，重跑一次即可（和 1020 一样不是 500）。"""
+    db = _session()
+    calls: list[int] = []
+
+    def flaky() -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise OperationalError(
+                "UPDATE tarkov_raid_rooms SET host_user_id=%s",
+                {},
+                Exception(1213, "Deadlock found when trying to get lock"),
+            )
+
+    rooms.run_in_room_tx(db, flaky, key="ab12cd34")
+    assert len(calls) == 2
+    assert rooms._is_deadlock_error(
+        OperationalError("x", {}, Exception(1213, "Deadlock"))
+    )
+    assert rooms._is_deadlock_error(
+        OperationalError("x", {}, Exception(1020, "Record has changed"))
+    ) is False
 

@@ -45,6 +45,9 @@ uploads/
 # Playwright MCP local dumps
 .playwright-mcp/
 
+# Claude Code 本地 agent 定义（桌面端不加载自定义类型，仅 CLI 可用）
+.claude/agents/
+
 # Local scratch
 frontend/scripts/ocr-keybox-samples/
 .dev/

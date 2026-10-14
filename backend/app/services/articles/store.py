@@ -8,7 +8,7 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
+from app.core.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.user_files.store import StoredUserFile, UserFileError, public_file_url, store_bytes
 
 ALLOWED_CONTENT_TYPES = {

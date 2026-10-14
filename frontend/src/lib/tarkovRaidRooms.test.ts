@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { tarkovRaidRoomHref, tarkovRaidRoomShareUrl } from "./tarkovHomeNav";
+import { tarkovRaidRoomHref } from "./tarkovHomeNav";
 import { filterRaidPrepOverlaysForSelection } from "./tarkovRaidPrep";
 import {
   applyRoomWsEvent,
   keepRaidRoomPresence,
   raidRoomLiveSig,
-  claimedTaskIds,
   claimTaskIdsForUser,
   formatKeyBringHint,
   formatKeyChipHint,
@@ -14,7 +13,6 @@ import {
   keyOwnsForUser,
   patchRaidRoomKeyOwns,
   userOwnsKey,
-  formatRoomRemain,
   groupClaimsByTask,
   raidRoomTasksCountingTowardMapCap,
   groupKeyBringsByItem,
@@ -28,8 +26,6 @@ import {
   parseRaidRoomPublicId,
   parseRaidRoomLogPhases,
   overlayRaidRoomLocalPhase,
-  raidRoomHostLogMapId,
-  raidRoomSharedRaidMapId,
   raidRoomLiveStatus,
   formatRaidRoomLiveStatus,
   formatRaidRoomMemberActivity,
@@ -41,10 +37,8 @@ import {
   raidRoomSocketClient,
   raidRoomMemberRegionLabel,
   isNewerRoomSnapshot,
-  mergeRaidLobbySeats,
   raidRoomSlotPublicId,
   parseStrokePoints,
-  partitionRaidLobbyRooms,
   raidRoomReturnHref,
   raidRoomIsFull,
   defaultRaidRoomTitle,
@@ -53,22 +47,15 @@ import {
   raidRoomLogPhaseSig,
   raidRoomWsCloseReason,
   raidRoomWsRetryDelayMs,
-  remainMs,
-  roomDisplayTitle,
   simplifyStroke,
   strokeFingerprint,
   userBroughtKey,
   withRaidRoomViewerFlags,
   type RaidRoomSnapshotLike,
   buildSoloRaidRoomDetail,
-  isSoloRaidSession,
   soloRaidActor,
   SOLO_RAID_ROOM_PUBLIC_ID,
   dropPlayerFixesNotIn,
-  formatRaidRoomOverlapCell,
-  raidRoomOverlapPeopleLabel,
-  raidRoomOverlapTasksForUser,
-  sortRaidRoomMapOverlap,
   raidRoomPickDockMapId,
   groupRaidRoomMapPresence,
   parsePlayerFixEvent,
@@ -109,9 +96,6 @@ import {
 describe("raid room helpers", () => {
   it("builds room href and default title", () => {
     expect(tarkovRaidRoomHref("3")).toBe("/guides/tarkov/raid-prep/rooms/3");
-    expect(tarkovRaidRoomShareUrl("3", "https://stats.example/")).toBe(
-      "https://stats.example/guides/tarkov/raid-prep/rooms/3",
-    );
     expect(
       parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3"),
     ).toBe("3");
@@ -151,8 +135,6 @@ describe("raid room helpers", () => {
         response: { status: 404, data: { detail: "需要房间密码" } },
       }),
     ).toBe(false);
-    expect(isSoloRaidSession("solo")).toBe(true);
-    expect(isSoloRaidSession("3")).toBe(false);
     expect(raidRoomSlotPublicId(3, "pve")).toBe("pve-3");
     expect(raidRoomSlotPublicId(3)).toBe("3");
     expect(raidRoomSlotPublicId(6)).toBe("");
@@ -183,86 +165,6 @@ describe("raid room helpers", () => {
         [{ userId: 2, kind: "raid_exited", mapId: "", mapLabel: "", raidId: "", at: "" }],
       ),
     ).toBe("preparing");
-    expect(
-      raidRoomSharedRaidMapId({
-        myUserId: 2,
-        myRaidId: "pqxkr6",
-        myMapId: "customs",
-        myKind: "raid_started",
-        currentMapId: "woods",
-        occupantIds: [1, 2],
-        phases: [
-          { userId: 1, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
-          { userId: 2, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
-        ],
-      }),
-    ).toBe("customs");
-    expect(
-      raidRoomSharedRaidMapId({
-        myUserId: 2,
-        myRaidId: "PQXKR6",
-        myMapId: "customs",
-        myKind: "raid_started",
-        currentMapId: "woods",
-        occupantIds: [1, 2],
-        phases: [
-          { userId: 1, raidId: "AB12CD", mapId: "woods", kind: "raid_started" },
-        ],
-      }),
-    ).toBe("");
-    expect(
-      raidRoomSharedRaidMapId({
-        myUserId: 2,
-        myRaidId: "PQXKR6",
-        myMapId: "customs",
-        myKind: "raid_exited",
-        currentMapId: "woods",
-        occupantIds: [1, 2],
-        phases: [
-          { userId: 1, raidId: "PQXKR6", mapId: "customs", kind: "raid_started" },
-        ],
-      }),
-    ).toBe("");
-    expect(
-      raidRoomHostLogMapId({
-        canSwitchMap: true,
-        currentMapId: "woods",
-        logMapId: "customs",
-        phaseKind: "raid_started",
-      }),
-    ).toBe("customs");
-    expect(
-      raidRoomHostLogMapId({
-        canSwitchMap: true,
-        currentMapId: "woods",
-        logMapId: "customs",
-        phaseKind: "map_loading",
-      }),
-    ).toBe("customs");
-    expect(
-      raidRoomHostLogMapId({
-        canSwitchMap: true,
-        currentMapId: "woods",
-        logMapId: "customs",
-        phaseKind: "raid_exited",
-      }),
-    ).toBe("");
-    expect(
-      raidRoomHostLogMapId({
-        canSwitchMap: false,
-        currentMapId: "woods",
-        logMapId: "customs",
-        phaseKind: "raid_started",
-      }),
-    ).toBe("");
-    expect(
-      raidRoomHostLogMapId({
-        canSwitchMap: true,
-        currentMapId: "",
-        logMapId: "customs",
-        phaseKind: "raid_exited",
-      }),
-    ).toBe("customs");
     expect(formatRaidRoomLiveStatus("in_raid")).toBe("已在战局中");
     expect(raidRoomMemberActivity({ online: false, kind: "raid_started" })).toBe("offline");
     expect(raidRoomMemberActivity({ online: true })).toBe("unknown");
@@ -411,43 +313,9 @@ describe("raid room helpers", () => {
         at: "",
       }),
     ).toEqual([]);
-    expect(
-      mergeRaidLobbySeats(
-        [
-          { public_id: "1", member_count: 3 },
-          { public_id: "pve-1", member_count: 2, map_slug: "customs" },
-        ],
-        ["pve-1", "pve-2", "pve-3", "pve-4", "pve-5"].map((id) => ({
-          public_id: id,
-          member_count: 0,
-          map_slug: "",
-        })),
-      ),
-    ).toEqual([
-      { public_id: "pve-1", member_count: 2, map_slug: "customs" },
-      { public_id: "pve-2", member_count: 0, map_slug: "" },
-      { public_id: "pve-3", member_count: 0, map_slug: "" },
-      { public_id: "pve-4", member_count: 0, map_slug: "" },
-      { public_id: "pve-5", member_count: 0, map_slug: "" },
-    ]);
-    expect(
-      mergeRaidLobbySeats(undefined, [
-        { public_id: "1", member_count: 0 },
-        { public_id: "2", member_count: 0 },
-      ]),
-    ).toEqual([
-      { public_id: "1", member_count: 0 },
-      { public_id: "2", member_count: 0 },
-    ]);
     expect(raidRoomWsRetryDelayMs(0, () => 0.5)).toBe(1000);
     expect(raidRoomWsRetryDelayMs(5, () => 0.5)).toBe(30_000);
     expect(RAID_ROOM_WS_PING_MS).toBe(25_000);
-    expect(
-      roomDisplayTitle({ title: "", host_display_name: "甲" }, "海关"),
-    ).toBe("甲 的 海关");
-    expect(
-      roomDisplayTitle({ title: "夜厂局", host_display_name: "甲" }, "海关"),
-    ).toBe("夜厂局");
   });
 
   it("jitters ws backoff by ±25% around the capped base", () => {
@@ -503,7 +371,7 @@ describe("raid room helpers", () => {
     );
   });
 
-  it("partitions lobby rooms into mine, hosted, and joinable", () => {
+  it("marks a lobby room full only when max_members is reached", () => {
     const items = [
       {
         public_id: "a",
@@ -527,22 +395,9 @@ describe("raid room helpers", () => {
         max_members: 8,
       },
     ];
-    const parts = partitionRaidLobbyRooms(items, 1);
-    expect(parts.mine.map((row) => row.public_id)).toEqual(["a"]);
-    expect(parts.hosted.map((row) => row.public_id)).toEqual(["a"]);
-    expect(parts.joinable.map((row) => row.public_id)).toEqual(["b", "c"]);
     expect(raidRoomIsFull(items[1])).toBe(true);
     expect(raidRoomIsFull(items[2])).toBe(false);
     expect(raidRoomIsFull({ member_count: 0, max_members: 0 })).toBe(false);
-  });
-
-  it("formats remaining time", () => {
-    expect(formatRoomRemain(0)).toBe("已到期");
-    expect(formatRoomRemain(90_000)).toBe("剩余 1 分钟");
-    expect(formatRoomRemain(3_600_000 + 120_000)).toBe("剩余 1 小时 2 分");
-    expect(remainMs("2099-01-01T00:00:00", Date.parse("2099-01-01T00:00:00"))).toBe(
-      0,
-    );
   });
 
   it("counts only the current map toward the room task cap", () => {
@@ -568,7 +423,6 @@ describe("raid room helpers", () => {
       { taskId: "t1", userIds: [1, 2], names: ["甲", "乙"] },
       { taskId: "t2", userIds: [2], names: ["乙"] },
     ]);
-    expect(claimedTaskIds(claims)).toEqual(["t1", "t2"]);
     expect(claimTaskIdsForUser(claims, 1)).toEqual(["t1"]);
     expect(claimTaskIdsForUser(claims, 2)).toEqual(["t1", "t2"]);
     expect(claimTaskIdsForUser(claims, 9)).toEqual([]);
@@ -1352,58 +1206,7 @@ describe("raid room helpers", () => {
     expect(sample.skippedByTask.size).toBeGreaterThan(0);
   });
 
-  it("formats overlap cells and ranks map rows", () => {
-    expect(formatRaidRoomOverlapCell(undefined)).toBe("—");
-    expect(formatRaidRoomOverlapCell({ user_id: 1, count: 0, uploaded: false })).toBe("—");
-    expect(formatRaidRoomOverlapCell({ user_id: 1, count: 3, uploaded: true })).toBe("3");
-    expect(raidRoomOverlapPeopleLabel(2)).toBe("2人");
-    expect(
-      raidRoomOverlapTasksForUser(
-        {
-          map_slug: "customs",
-          with_tasks_count: 2,
-          synced_count: 2,
-          occupant_count: 2,
-          tasks: [
-            { id: "t1", name: "A", user_ids: [1, 2] },
-            { id: "t2", name: "B", user_ids: [1] },
-          ],
-        },
-        2,
-      ).map((row) => row.id),
-    ).toEqual(["t1"]);
-    const ranked = sortRaidRoomMapOverlap(
-      [
-        {
-          map_slug: "woods",
-          with_tasks_count: 1,
-          synced_count: 2,
-          occupant_count: 2,
-        },
-        {
-          map_slug: "customs",
-          with_tasks_count: 2,
-          synced_count: 2,
-          occupant_count: 2,
-          cells: [
-            { user_id: 1, count: 3, uploaded: true },
-            { user_id: 2, count: 1, uploaded: true },
-          ],
-        },
-        {
-          map_slug: "factory",
-          with_tasks_count: 2,
-          synced_count: 2,
-          occupant_count: 2,
-          cells: [
-            { user_id: 1, count: 1, uploaded: true },
-            { user_id: 2, count: 1, uploaded: true },
-          ],
-        },
-      ],
-      ["factory", "customs", "woods"],
-    );
-    expect(ranked.map((row) => row.map_slug)).toEqual(["customs", "factory", "woods"]);
+  it("picks the dock map: goons first, then overlap order", () => {
     expect(
       raidRoomPickDockMapId({
         goonMapSlug: "woods",
@@ -1529,7 +1332,7 @@ describe("solo as one-person room", () => {
     expect(room.host_user_id).toBeNull();
     expect(room.members[0]?.user_id).toBe(0);
     expect(room.occupants[0]?.display_name).toBe("游客");
-    expect(isSoloRaidSession(room.public_id)).toBe(true);
+    expect(room.public_id).toBe(SOLO_RAID_ROOM_PUBLIC_ID);
   });
 });
 

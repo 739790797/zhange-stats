@@ -36,11 +36,17 @@ import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 import { itemKeyLockMaps } from "@/lib/tarkovItemLocks";
 import { buildItemFleaQuote } from "@/lib/tarkovItemSources";
 import { TarkovItemRefGrid } from "@/components/guides/tarkov/TarkovGuideItemCell";
-import { TarkovItemKeyLocks } from "@/components/guides/tarkov/TarkovItemKeyLocks";
 import { TarkovItemPlateTable } from "@/components/guides/tarkov/TarkovItemPlateTable";
 import { TarkovItemRelations } from "@/components/guides/tarkov/TarkovItemRelations";
 import tableStyles from "./TarkovDarkTable.module.css";
 import styles from "./TarkovItemDetailPanel.module.css";
+
+/* 只有钥匙 / 门卡才有门锁地图；懒加载，否则每张物品详情页都要下整份地图 JSON。 */
+const TarkovItemKeyLocks = lazy(() =>
+  import("@/components/guides/tarkov/TarkovItemKeyLocks").then((m) => ({
+    default: m.TarkovItemKeyLocks,
+  })),
+);
 
 const TarkovAllowedAmmoScatter = lazy(() =>
   import("@/components/guides/tarkov/TarkovAllowedAmmoScatter").then((m) => ({
@@ -486,7 +492,17 @@ export function TarkovItemDetailPanel({
           {embed ? null : <h2 className={styles.sectionTitle}>属性</h2>}
           {attrCards}
 
-          {lockMaps.length ? <TarkovItemKeyLocks detail={detail} /> : null}
+          {lockMaps.length ? (
+            <Suspense
+              fallback={
+                <div className={styles.ammoScatterFallback}>
+                  <Spin size="small" />
+                </div>
+              }
+            >
+              <TarkovItemKeyLocks detail={detail} />
+            </Suspense>
+          ) : null}
 
           {armorRows.length ? (
             <>

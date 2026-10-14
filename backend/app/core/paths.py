@@ -56,6 +56,18 @@ LEFTOVER_TEXTTELLER_FILES = (
     "decoder_model_merged.onnx",
     "decoder_with_past_model.onnx",
 )
+# 截图文字识别已下线（只留酒馆公式识别）：这些权重 / 缓存 / 版本戳没人再读，启动时删掉腾出数百 MB。
+RETIRED_OCR_PATHS = (
+    "data/models/rapidocr",
+    "data/models/easyocr",
+    "data/models/ocr_REVISION",
+    "data/models/key_ocr_REVISION",
+    "data/cache/easyocr",
+    "data/cache/paddleocr",
+    "data/cache/torch",
+    # 原「文字识别」设置；只含引擎选择，没有口令 / 密钥
+    "config/ocr.json",
+)
 
 logger = logging.getLogger("zhange.startup")
 
@@ -430,6 +442,20 @@ def cleanup_legacy_install_tree(install: Path | None = None) -> list[str]:
     var = base / "var"
     if var.is_dir() and _rmdir_empty_tree(var):
         removed.append("var/")
+
+    for rel in RETIRED_OCR_PATHS:
+        path = base / rel
+        if path.is_symlink():
+            continue
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+                removed.append(rel + "/")
+            elif path.is_file():
+                path.unlink()
+                removed.append(rel)
+        except OSError:
+            pass
 
     return removed
 

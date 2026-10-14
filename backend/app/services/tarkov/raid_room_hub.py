@@ -18,9 +18,22 @@ logger = logging.getLogger(__name__)
 CLOSE_EVICTED = 4403
 CLOSE_ROOM_GONE = 4404
 CLOSE_SLOW_CONSUMER = 1013
+# 超量连接：一个账号在一间房里最多 3 条 socket（网页 / 助手 / 多标签），整房最多 40 条。
+# 每条连接各有一套令牌桶，不限量的话 N 条连接就是 N 倍画笔速率。
+CLOSE_TOO_MANY_SOCKETS = 4429
+MAX_SOCKETS_PER_USER = 3
+MAX_SOCKETS_PER_ROOM = 40
 
 _PRESENCE_CLIENTS = frozenset({"web", "desktop"})
 _Seat = tuple[int, str]
+
+
+class RoomSocketLimit(Exception):
+    """同一账号 / 同一房间的连接数超上限；握手阶段以 4429 关闭。"""
+
+    def __init__(self, scope: str) -> None:
+        super().__init__(scope)
+        self.scope = scope
 
 
 def presence_client(raw: object) -> str:
@@ -53,8 +66,20 @@ class RaidRoomHub:
         self._loop = loop
 
     def next_seq(self, public_id: str) -> int:
-        """占一个广播序号。房间写事务在锁内调用，序号顺序即提交顺序。"""
+        """占一个广播序号。房间写事务在锁内调用，序号顺序即提交顺序。
+
+        序号**只增不减**，房间的 socket 走光也不清：清了以后新连接从 0 重新数，
+        而前端只按 seq 判新旧（`isNewerRoomSnapshot`），重连后的快照会被自己手上的大 seq 挡掉。
+        """
         with self._lock:
+            self._seq[public_id] = int(self._seq.get(public_id) or 0) + 1
+            return self._seq[public_id]
+
+    def reserve_seq(self, public_id: str) -> int:
+        """有听众才占号：没人听的房间不建 `_seq` 条目，否则写完就走人的房间会一直攒着。"""
+        with self._lock:
+            if not self._rooms.get(public_id):
+                return 0
             self._seq[public_id] = int(self._seq.get(public_id) or 0) + 1
             return self._seq[public_id]
 
@@ -140,24 +165,6 @@ class RaidRoomHub:
                 self._view_maps.pop(public_id, None)
         return self.view_maps(public_id)
 
-    def drop_view_map(self, public_id: str, user_id: int) -> None:
-        with self._lock:
-            room = self._view_maps.get(public_id)
-            if not room:
-                return
-            room.pop(int(user_id), None)
-            if not room:
-                self._view_maps.pop(public_id, None)
-
-    def drop_view_maps(self, public_id: str) -> None:
-        with self._lock:
-            self._view_maps.pop(public_id, None)
-
-    def drop_member_live(self, public_id: str, user_id: int) -> None:
-        """离开房间时丢掉这个人的查看图、日志相位和定位。"""
-        with self._lock:
-            self._drop_member_live_locked(public_id, int(user_id))
-
     def _drop_member_live_locked(self, public_id: str, uid: int) -> None:
         for bucket in (self._view_maps, self._log_phases, self._player_fixes):
             room = bucket.get(public_id)
@@ -182,6 +189,7 @@ class RaidRoomHub:
             self._player_fixes.pop(public_id, None)
 
     def _forget_room_locked(self, public_id: str) -> None:
+        """房间行没了（解散 / 清空）：进程内状态整份丢掉，seq 也归零。"""
         for bucket in (
             self._rooms,
             self._seq,
@@ -194,11 +202,43 @@ class RaidRoomHub:
         ):
             bucket.pop(public_id, None)
 
+    def _forget_listeners_locked(self, public_id: str) -> None:
+        """最后一条 socket 走了，但房间还在：只丢「连着的人才算数」的状态。
+
+        `_seq` 与 `_view_maps` 留着：seq 清零会让重连的客户端把新快照当旧帧丢掉；
+        查看图是座位的属性，只走 HTTP 的成员没有 socket，丢了就会收到「请先选择地图」。
+        两者都在 `close_room`（房间真的没了）时一并清掉。
+        """
+        for bucket in (
+            self._rooms,
+            self._log_phases,
+            self._player_fixes,
+            self._pending,
+            self._sent_seq,
+            self._flushing,
+        ):
+            bucket.pop(public_id, None)
+
     async def join(self, public_id: str, ws: WebSocket, user_id: int, client: str = "") -> set[int]:
+        """登记一条房间 socket。超量连接抛 `RoomSocketLimit`（握手侧以 4429 关闭）。
+
+        先查再建：被拒时不留下空房间条目（否则没人听的房会在 `_rooms` 里攒着）。
+        """
         self.bind_loop(asyncio.get_running_loop())
+        uid = int(user_id)
         with self._lock:
-            room = self._rooms.setdefault(public_id, {})
-            room[ws] = (int(user_id), presence_client(client))
+            room = self._rooms.get(public_id)
+            if room is None:
+                room = {}
+                self._rooms[public_id] = room
+            elif len(room) >= MAX_SOCKETS_PER_ROOM:
+                raise RoomSocketLimit("room")
+            elif (
+                sum(1 for seat_uid, _client in room.values() if seat_uid == uid)
+                >= MAX_SOCKETS_PER_USER
+            ):
+                raise RoomSocketLimit("user")
+            room[ws] = (uid, presence_client(client))
             return _user_ids(room)
 
     async def leave(self, public_id: str, ws: WebSocket) -> set[int]:
@@ -210,7 +250,7 @@ class RaidRoomHub:
                 return _user_ids(room)
             room.pop(ws, None)
             if not room:
-                self._forget_room_locked(public_id)
+                self._forget_listeners_locked(public_id)
                 return set()
             remaining = _user_ids(room)
             self._drop_offline_player_fixes_locked(public_id, remaining)
@@ -229,7 +269,8 @@ class RaidRoomHub:
                 room.pop(ws, None)
             self._drop_member_live_locked(public_id, uid)
             if public_id in self._rooms and not room:
-                self._forget_room_locked(public_id)
+                # 房间可能还在（只是没人连了）：只丢听众状态，seq / 查看图留给 HTTP 成员与重连。
+                self._forget_listeners_locked(public_id)
         if sockets:
             farewell = {"event": "member_leave", "user_id": uid}
             self._spawn(self._close_sockets(sockets, farewell, code))
@@ -281,7 +322,7 @@ class RaidRoomHub:
                 for ws in dead:
                     room.pop(ws, None)
                 if not room:
-                    self._forget_room_locked(public_id)
+                    self._forget_listeners_locked(public_id)
                 else:
                     self._drop_offline_player_fixes_locked(public_id, _user_ids(room))
         await asyncio.gather(*(close_quietly(ws, CLOSE_SLOW_CONSUMER) for ws in dead))

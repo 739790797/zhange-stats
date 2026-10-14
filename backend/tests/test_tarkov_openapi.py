@@ -1,4 +1,4 @@
-"""OpenAPI：塔科夫图鉴 / 工具公开，个人数据与 OCR / 出图须登录。"""
+"""OpenAPI：塔科夫图鉴 / 工具公开，个人数据与出图须登录。"""
 
 from app.main import app
 
@@ -50,8 +50,6 @@ _PROTECTED_GETS = (
 
 _PROTECTED_POSTS = (
     "/api/guides/tarkov/workbench/build-image",
-    "/api/guides/tarkov/key-owns/recognize",
-    "/api/guides/tarkov/raid-prep/recognize",
     "/api/guides/tarkov/raid-rooms",
 )
 

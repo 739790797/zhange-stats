@@ -28,7 +28,6 @@ export const ADMIN_HUBS: readonly AdminHub[] = [
       { path: "/settings/auth", label: "安全设置" },
       { path: "/settings/integrations", label: "集成密钥" },
       { path: "/settings/email", label: "邮箱设置" },
-      { path: "/settings/ocr", label: "文字识别" },
     ],
   },
   {

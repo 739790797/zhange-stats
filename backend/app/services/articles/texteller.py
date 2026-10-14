@@ -15,7 +15,7 @@ from PIL import Image
 from app.core.config import get_settings
 from app.core.http_client import HttpRequestError, http_request, http_stream
 from app.services.articles.errors import ArticleError
-from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
+from app.core.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 
 logger = logging.getLogger("zhange.articles.texteller")
 
@@ -112,14 +112,6 @@ def parse_texteller_latex(raw: str) -> str:
     if "\0" in text:
         text = text.replace("\0", "")
     return text.strip()[:2000]
-
-
-def texteller_available() -> bool:
-    try:
-        import texteller  # noqa: F401
-    except ImportError:
-        return False
-    return True
 
 
 def reset_runtime() -> None:

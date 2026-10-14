@@ -15,6 +15,7 @@ import {
   useTarkovScreenshotFix,
 } from "@/lib/useTarkovLiveWatch";
 import { useRaidRoomLiveStore } from "@/lib/tarkovRaidRoomLiveStore";
+import { samePlayerMarks, useStableValue } from "@/lib/tarkovStableValues";
 import type { TarkovLockKeyMode } from "@/lib/tarkovMapMarkers";
 import {
   PLAYER_FIX_PULSE_MS,
@@ -110,6 +111,7 @@ export type TarkovRaidRoomLiveMapProps = {
   }) => void;
   onText?: (mark: { floor: string; x: number; z: number; label: string }) => void;
   onTextMove?: (mark: { id: number; x: number; z: number }) => void;
+  canDragTextMark?: (mark: { id: number; author_user_id: number }) => boolean;
   onEraseMark?: (markId: number) => void;
   onQuestLabelClick: (taskId: string) => void;
   onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
@@ -224,6 +226,7 @@ export function TarkovRaidRoomLiveMap({
   onLine,
   onText,
   onTextMove,
+  canDragTextMark,
   onEraseMark,
   onQuestLabelClick,
   onQuestCompleteObjective,
@@ -324,36 +327,40 @@ export function TarkovRaidRoomLiveMap({
     const fromMembers = members.find((row) => row.user_id === authorUserId);
     return (fromMembers?.display_name || "").trim();
   }, [authorDisplayName, authorUserId, members]);
-  const remotePlayerMarks = useMemo<TarkovMapPlayerMark[]>(() => {
-    const names = new Map<number, string>();
-    for (const row of members) {
-      names.set(row.user_id, row.display_name);
-    }
-    return fixes
-      .filter((row) => {
-        const person = memberPhases?.get(row.userId);
-        return playerFixVisibleOnView({
-          fixMapId: row.mapId,
-          viewMapId: mapId,
-          phaseKind: person?.kind,
-          online: person?.online,
-        });
-      })
-      .map((row) => ({
-        key: `u:${row.userId}:${row.fileName || row.at}`,
-        userId: row.userId,
-        name:
-          (row.userId === authorUserId ? selfName : "") ||
-          names.get(row.userId) ||
-          "",
-        color: colorForUserId(row.userId),
-        x: row.x,
-        y: row.y,
-        z: row.z,
-        yaw: row.yaw,
-        self: row.userId === authorUserId,
-      }));
-  }, [authorUserId, fixes, mapId, memberPhases, members, selfName]);
+  // 每帧重建的数组会让 TarkovMapViewer 的玩家标记 effect（内含 setIcon）整轮重跑。
+  const remotePlayerMarks = useStableValue(
+    useMemo<TarkovMapPlayerMark[]>(() => {
+      const names = new Map<number, string>();
+      for (const row of members) {
+        names.set(row.user_id, row.display_name);
+      }
+      return fixes
+        .filter((row) => {
+          const person = memberPhases?.get(row.userId);
+          return playerFixVisibleOnView({
+            fixMapId: row.mapId,
+            viewMapId: mapId,
+            phaseKind: person?.kind,
+            online: person?.online,
+          });
+        })
+        .map((row) => ({
+          key: `u:${row.userId}:${row.fileName || row.at}`,
+          userId: row.userId,
+          name:
+            (row.userId === authorUserId ? selfName : "") ||
+            names.get(row.userId) ||
+            "",
+          color: colorForUserId(row.userId),
+          x: row.x,
+          y: row.y,
+          z: row.z,
+          yaw: row.yaw,
+          self: row.userId === authorUserId,
+        }));
+    }, [authorUserId, fixes, mapId, memberPhases, members, selfName]),
+    samePlayerMarks,
+  );
 
   const hideLocalPulseFix =
     suppressLocalFix ||
@@ -552,6 +559,7 @@ export function TarkovRaidRoomLiveMap({
         onLine={onLine}
         onText={onText}
         onTextMove={onTextMove}
+        canDragTextMark={canDragTextMark}
         onDraftStroke={onDraftStroke}
         onEraseMark={onEraseMark}
         fill

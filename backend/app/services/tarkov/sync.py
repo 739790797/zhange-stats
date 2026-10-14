@@ -53,6 +53,7 @@ def _domain_row(
     ok: bool,
     result: dict[str, Any] | None = None,
     error: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "id": domain_id,
@@ -69,6 +70,8 @@ def _domain_row(
         row["source"] = None
         row["synced_at"] = None
         row["upstream_at"] = None
+    if extra:
+        row.update(extra)
     return row
 
 
@@ -171,7 +174,9 @@ def _check_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 def _apply_extras(db: Session, dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    data = upstream_svc.extras_from_site_dump(dump)
+    incoming = upstream_svc.extras_from_site_dump(dump)
+    previous = upstream_svc.load_raw(db, upstream_svc.EXTRAS_RESOURCE)
+    data = upstream_svc.merge_extras(previous, incoming)
     return upstream_svc.persist_raw(
         db,
         upstream_svc.EXTRAS_RESOURCE,
@@ -325,11 +330,25 @@ class _SyncProgress:
         self._emit(format_full_sync_message(phase, **kwargs), stats)
 
 
+def _download_overlay_once(
+    cache: dict[str, Any],
+    *,
+    on_bytes: Callable[[int, int | None], None] | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    """overlay 与游戏模式无关：一轮全量同步里只下第一次，PVP / PVE 复用同一份。"""
+    if "payload" not in cache:
+        cache["payload"], cache["upstream_at"] = overlay_svc.download_overlay(
+            on_bytes=on_bytes
+        )
+    return cache["payload"], cache.get("upstream_at")
+
+
 def _sync_current_mode(
     db: Session,
     *,
     lang: str = "zh",
     tracker: _SyncProgress | None = None,
+    overlay_cache: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     mode = parse_game_mode()
     logger.info("tarkov full site dump (%s)", mode)
@@ -402,15 +421,20 @@ def _sync_current_mode(
                 files_done=0,
                 files_total=dump_total,
             )
-        dump, upstream_times = upstream_svc.download_site_json(
-            lang=lang, on_progress=on_download
+        site = upstream_svc.download_site_json(
+            lang=lang,
+            on_progress=on_download,
+            validators=upstream_svc.stored_dump_validators(db, lang=lang),
         )
+        dump = site.files
         persist_rows = upstream_svc.persist_site_json(
             db,
             dump,
             lang=lang,
-            upstream_times=upstream_times,
+            upstream_times=site.upstream_times,
             on_progress=on_persist,
+            unchanged=set(site.unchanged),
+            changed=set(site.changed),
         )
         domains.extend(persist_rows)
         if tracker is not None:
@@ -450,21 +474,37 @@ def _sync_current_mode(
             )
             tracker.emit("overlay", file="overlay", bytes=n, total_bytes=total)
 
-        overlay = overlay_svc.sync_overlay(db, on_bytes=overlay_bytes)
-        domains.append(_domain_row("overlay", ok=True, result=overlay))
+        payload, upstream_at = _download_overlay_once(
+            overlay_cache if overlay_cache is not None else {},
+            on_bytes=overlay_bytes,
+        )
+        result = overlay_svc.persist_overlay(db, payload, upstream_at=upstream_at)
+        # overlay 源可能已经换地方 / 转私有：把这次用的 URL 与库里的年龄一并报出来。
+        status = overlay_svc.overlay_status(db)
+        domains.append(
+            _domain_row("overlay", ok=True, result=result, extra={"overlay": status})
+        )
         if tracker is not None:
             tracker.patch(
                 "overlay",
                 status="ok",
                 ok=True,
                 error=None,
-                source=overlay.get("source"),
-                synced_at=overlay.get("synced_at"),
-                upstream_at=overlay.get("upstream_at"),
+                source=result.get("source"),
+                synced_at=result.get("synced_at"),
+                upstream_at=result.get("upstream_at"),
             )
     except overlay_svc.TarkovOverlayError as exc:
         logger.warning("tarkov overlay dump failed (%s): %s", mode, exc)
-        domains.append(_domain_row("overlay", ok=False, error=str(exc)))
+        overlay_svc.record_overlay_failure(str(exc))
+        domains.append(
+            _domain_row(
+                "overlay",
+                ok=False,
+                error=str(exc),
+                extra={"overlay": overlay_svc.overlay_status(db)},
+            )
+        )
         if tracker is not None:
             tracker.patch("overlay", status="error", ok=False, error=str(exc))
 
@@ -528,9 +568,14 @@ def sync_all_from_upstream(
     tracker = _SyncProgress(planned_full_sync_domains(modes, lang=lang), progress)
     tracker.emit("start")
     domains: list[dict[str, Any]] = []
+    overlay_cache: dict[str, Any] = {}
     for mode in modes:
         with game_mode_scope(mode):
-            domains.extend(_sync_current_mode(db, lang=lang, tracker=tracker))
+            domains.extend(
+                _sync_current_mode(
+                    db, lang=lang, tracker=tracker, overlay_cache=overlay_cache
+                )
+            )
 
     ok_count = sum(1 for row in domains if row["ok"])
     failed_count = len(domains) - ok_count
@@ -581,7 +626,7 @@ def _write_job_run(
 
 
 def _domain_payload(row: dict[str, Any]) -> dict[str, Any]:
-    return {
+    payload = {
         "id": row.get("id"),
         "ok": row.get("ok"),
         "status": row.get("status") or ("ok" if row.get("ok") else "error"),
@@ -591,6 +636,9 @@ def _domain_payload(row: dict[str, Any]) -> dict[str, Any]:
         "synced_at": row.get("synced_at"),
         "upstream_at": row.get("upstream_at"),
     }
+    if row.get("overlay"):
+        payload["overlay"] = row["overlay"]
+    return payload
 
 
 def _create_full_sync_run() -> int:

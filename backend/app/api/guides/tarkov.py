@@ -2,9 +2,10 @@ import json
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.api.guides import tarkov_goons, tarkov_raid_rooms
@@ -63,8 +64,6 @@ from app.api.guides.schemas import (
     TarkovKeyPacksOut,
     TarkovKeyOwnsIn,
     TarkovKeyOwnsOut,
-    TarkovKeyOcrOut,
-    TarkovRaidPrepOcrOut,
     TarkovCollectionOut,
     TarkovCollectionOwnsIn,
     TarkovCollectionOwnsOut,
@@ -72,6 +71,8 @@ from app.api.guides.schemas import (
     TarkovCollectionLayoutOut,
     TarkovTaskDonesIn,
     TarkovTaskDonesOut,
+    TarkovTaskProfileIn,
+    TarkovTaskResetIn,
     TarkovRaidLogsIn,
     TarkovRaidLogsImportOut,
     TarkovRaidLogsOut,
@@ -84,7 +85,6 @@ from app.core.rate_limit import client_ip, platform_limiter
 from app.core.http_cache import catalog_freshness, set_catalog_cache_headers
 from app.core.platform_deps import require_feature
 from app.models.user import User
-from app.services.ocr.types import OcrError
 from app.services.tarkov import ammo as ammo_svc
 from app.services.tarkov import bosses as bosses_svc
 from app.services.tarkov import catalog as catalog_svc
@@ -96,9 +96,6 @@ from app.services.tarkov import workbench_gunsmith as gunsmith_svc
 from app.services.tarkov import workbench_image as workbench_image_svc
 from app.services.tarkov import community as community_svc
 from app.services.tarkov import key_owns as key_owns_svc
-from app.services.tarkov import key_ocr as key_ocr_svc
-from app.services.tarkov import key_ocr_stream as key_ocr_stream_svc
-from app.services.tarkov import raid_prep_ocr as raid_prep_ocr_svc
 from app.services.tarkov import raid_rooms as rooms_svc
 from app.services.tarkov import key_packs as key_packs_svc
 from app.services.tarkov import collection as collection_svc
@@ -118,6 +115,7 @@ from app.services.tarkov import traders as traders_svc
 from app.services.tarkov import search as search_svc
 from app.services.tarkov import sync as full_sync_svc
 from app.services.tarkov import sync_lock
+from app.services.tarkov import upstream as upstream_svc
 from app.services.tarkov.game_mode import (
     parse_game_mode,
     reset_game_mode,
@@ -146,6 +144,15 @@ class _TarkovRoute(APIRoute):
                     content={"detail": exc.message},
                     headers={"Retry-After": str(SYNC_BUSY_RETRY_AFTER_SEC)},
                 )
+            except OperationalError as exc:
+                # 任务账：另一台设备正在清空 / 重置同一账号，MariaDB 回 1020 / 1213 且已整笔回滚。
+                # 回 409 让前端重拉账号（与 epoch 过期同一条路），而不是 500「服务暂时不可用」。
+                if "/task-dones" in request.url.path and task_dones_svc.is_contended(exc):
+                    return JSONResponse(
+                        status_code=409,
+                        content={"detail": "任务进度已在别处清空或重置，请刷新后再同步"},
+                    )
+                raise
 
         return route_handler
 
@@ -305,6 +312,8 @@ def guides_tarkov_item_catalog(
         request,
         "items",
         _raw_synced(items_svc.get_items_raw(db)),
+        # 只翻中文不改结构时主文件字节不变，只有 locale 行会动。
+        upstream_svc.locale_synced(db, "items"),
         # 物品正文合 overlay：overlay 变了 ETag 就得变，否则浏览器一直吃旧 304。
         overlay_svc.overlay_cache_token(db),
         category_ids,
@@ -433,7 +442,9 @@ def guides_tarkov_ammo(
     except ammo_svc.TarkovAmmoError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     source, synced_at, note = items_svc.items_raw_header(db)
-    etag, hit = _catalog_fresh(request, "ammo", synced_at)
+    etag, hit = _catalog_fresh(
+        request, "ammo", synced_at, upstream_svc.locale_synced(db, "items")
+    )
     if hit is not None:
         return hit
     items = [TarkovAmmoItemOut(**row) for row in ammo_svc.ammo_catalog_rows(db)]
@@ -470,6 +481,7 @@ def guides_tarkov_ammo_detail(
             "ammo-detail",
             item_id,
             synced_at,
+            upstream_svc.locale_synced(db, "items"),
             overlay_svc.overlay_cache_token(db),
         )
         if hit is not None:
@@ -515,7 +527,9 @@ def guides_tarkov_guns(
     except gun_svc.TarkovGunError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     source, synced_at, note = items_svc.items_raw_header(db)
-    etag, hit = _catalog_fresh(request, "guns", synced_at)
+    etag, hit = _catalog_fresh(
+        request, "guns", synced_at, upstream_svc.locale_synced(db, "items")
+    )
     if hit is not None:
         return hit
     items = [
@@ -682,9 +696,11 @@ def guides_tarkov_workbench_community_builds(
     dependencies=[Depends(require_feature("guides.tarkov"))],
 )
 def guides_tarkov_workbench_gunsmith_tasks(
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """工作台：从 tasks dump 投影枪匠改装目标（不 vendor 第三方任务包）。"""
+    _hit_ip(request, "tarkov-gunsmith-tasks", limit=30, window_sec=60)
     try:
         data = gunsmith_svc.list_gunsmith_tasks(db)
     except (workbench_svc.TarkovWorkbenchError, tasks_svc.TarkovTasksError) as exc:
@@ -773,6 +789,7 @@ def guides_tarkov_task_catalog(
         tasks_svc.TASK_CATALOG_FRESHNESS,
         overlay_svc.overlay_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
+        upstream_svc.locale_synced(db, "tasks"),
         q,
         trader,
         map_slug,
@@ -831,6 +848,7 @@ def guides_tarkov_raid_prep(
         tasks_svc.TASK_CATALOG_FRESHNESS,
         overlay_svc.overlay_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
+        upstream_svc.locale_synced(db, "tasks"),
         map_slug,
         q,
         trader,
@@ -858,61 +876,6 @@ def guides_tarkov_raid_prep(
     return _catalog_ok(
         response, etag, TarkovRaidPrepOut.model_validate(result)
     )
-
-
-def _ocr_busy() -> HTTPException:
-    return HTTPException(status_code=429, detail="已有识别任务在运行，请稍后再试")
-
-
-@router.post(
-    "/raid-prep/recognize",
-    response_model=TarkovRaidPrepOcrOut,
-    dependencies=[Depends(require_feature("guides.tarkov"))],
-)
-def guides_tarkov_raid_prep_recognize(
-    request: Request,
-    map_slug: str = Query(..., alias="map", max_length=64),
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """局前任务页截图识别；图只进内存。裁列表区后按配置引擎读任务名，对照当前地图闭集匹配。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-raid-prep-ocr:ip:{ip}", limit=8, window_sec=600)
-    platform_limiter.hit(
-        f"tarkov-raid-prep-ocr:uid:{user.id}", limit=6, window_sec=600
-    )
-    raw = file.file.read(raid_prep_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
-    if not raid_prep_ocr_svc.try_begin_recognize():
-        raise _ocr_busy()
-    try:
-        try:
-            tasks_svc.ensure_tasks(db)
-            prep = tasks_svc.list_raid_prep(db, map_slug)
-        except tasks_svc.TarkovTasksError as exc:
-            msg = str(exc)
-            if msg.startswith("地图无效"):
-                raise HTTPException(status_code=400, detail=msg) from exc
-            raise HTTPException(status_code=502, detail=msg) from exc
-        catalog = raid_prep_ocr_svc.catalog_from_raid_prep(prep.get("items") or [])
-        try:
-            image = raid_prep_ocr_svc.load_image(raw)
-        except OcrError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-        if not raid_prep_ocr_svc.is_near_widescreen(image.width, image.height):
-            return TarkovRaidPrepOcrOut.model_validate(
-                raid_prep_ocr_svc.empty_result(width=image.width, height=image.height)
-            )
-        try:
-            recognizers = raid_prep_ocr_svc.resolve_recognizers(db=db)
-            result = raid_prep_ocr_svc.recognize_image(
-                image, catalog, recognizers=recognizers, db=db
-            )
-        except OcrError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-        return TarkovRaidPrepOcrOut.model_validate(result)
-    finally:
-        raid_prep_ocr_svc.end_recognize()
 
 
 @router.get(
@@ -944,6 +907,7 @@ def guides_tarkov_raid_prep_state_put(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "raid-prep-state", limit=120, window_sec=60)
     try:
         data = raid_prep_state_svc.put_state(
             db,
@@ -967,17 +931,27 @@ def guides_tarkov_raid_prep_state_put(
 )
 def guides_tarkov_task_detail(
     task_id: str,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
-    """任务详情：目标、奖励（投影，不含多边形）。"""
+    """任务详情：目标、奖励（投影，不含多边形）。相关 raw 表头未变时 304。"""
     try:
+        etag, hit = _catalog_fresh(
+            request,
+            "task-detail",
+            task_id,
+            *tasks_svc.task_detail_cache_parts(db),
+        )
+        if hit is not None:
+            return hit
         detail = tasks_svc.get_task_detail(db, task_id)
     except tasks_svc.TarkovTasksError as exc:
         msg = str(exc)
         if msg.startswith("未找到任务") or msg.startswith("任务 id"):
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return TarkovTaskDetailOut.model_validate(detail)
+    return _catalog_ok(response, etag, TarkovTaskDetailOut.model_validate(detail))
 
 
 def _sync_traders(db: Session) -> dict:
@@ -1502,6 +1476,7 @@ def guides_tarkov_hideout_levels_set(
     user: User = Depends(get_current_user),
 ):
     """升级或降级一个模块；降级会级联压低依赖它的模块。"""
+    _hit_owns_write(user, "hideout-levels", limit=60, window_sec=60)
     stations = _hideout_stations(db)
     try:
         rows = hideout_levels_svc.set_level(
@@ -1541,6 +1516,7 @@ def guides_tarkov_profile_put(
     user: User = Depends(get_current_user),
 ):
     """保存个人资料；蓝边会把仓库抬到 4 级。"""
+    _hit_owns_write(user, "profile", limit=30, window_sec=60)
     try:
         stations = _hideout_stations(db)
     except HTTPException:
@@ -1582,6 +1558,7 @@ def guides_tarkov_map_filters_put(
     user: User = Depends(get_current_user),
 ):
     """保存地图筛选喜好，网页和 App 共用。"""
+    _hit_owns_write(user, "map-filters", limit=30, window_sec=60)
     try:
         saved = map_filters_svc.save_map_filters(db, user, body.prefs)
     except map_filters_svc.TarkovMapFiltersError as exc:
@@ -1700,6 +1677,7 @@ def guides_tarkov_key_packs(
         "key-packs",
         "trader-en",
         _raw_synced(items_svc.get_items_raw(db)),
+        upstream_svc.locale_synced(db, "items"),
         maps_svc.maps_cache_token(db),
         _raw_synced(tasks_svc.get_tasks_raw(db)),
         overlay_svc.overlay_cache_token(db),
@@ -1758,76 +1736,6 @@ def guides_tarkov_key_owns_merge(
     db.commit()
     rooms_svc.publish_occupant_key_owns(db, user)
     return TarkovKeyOwnsOut(item_ids=ids)
-
-
-def _key_ocr_ndjson_response(request: Request, image, catalog, recognizers) -> StreamingResponse:
-    """接管识别槽：工作线程跑完或客户端断开后归还。"""
-    lines = key_ocr_stream_svc.start_recognize_stream(
-        image,
-        catalog,
-        recognizers,
-        serialize=lambda result: TarkovKeyOcrOut.model_validate(result).model_dump(mode="json"),
-        is_disconnected=request.is_disconnected,
-    )
-    return StreamingResponse(
-        lines,
-        media_type="application/x-ndjson",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post(
-    "/key-owns/recognize",
-    response_model=TarkovKeyOcrOut,
-    dependencies=[Depends(require_feature("guides.tarkov"))],
-)
-def guides_tarkov_key_owns_recognize(
-    request: Request,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """钥匙箱截图识别短名；图只进内存。多引擎交叉验证后返回命中与文本框坐标，确认后才合并拥有。"""
-    ip = client_ip(request)
-    platform_limiter.hit(f"tarkov-key-ocr:ip:{ip}", limit=8, window_sec=600)
-    platform_limiter.hit(f"tarkov-key-ocr:uid:{user.id}", limit=6, window_sec=600)
-    raw = file.file.read(key_ocr_svc.MAX_RECOGNIZE_BYTES + 1)
-    # 先占槽再解图：并发请求不能各自把一张大图解进内存。
-    if not key_ocr_svc.try_begin_recognize():
-        raise _ocr_busy()
-    handed_off = False
-    try:
-        try:
-            packs = key_packs_svc.list_key_packs(db)
-        except key_packs_svc.TarkovKeyPacksError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        catalog = key_ocr_svc.flatten_key_catalog(packs)
-        try:
-            image = key_ocr_svc.load_image(raw)
-            recognizers = key_ocr_svc.resolve_recognizers(db=db)
-        except OcrError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-        streaming = key_ocr_svc.wants_progress_stream(
-            request.headers.get("accept") or "",
-            request.headers.get("x-recognize-progress") or "",
-        )
-        if streaming:
-            response = _key_ocr_ndjson_response(request, image, catalog, recognizers)
-            handed_off = True
-            return response
-        try:
-            result = key_ocr_svc.recognize_image(
-                image, catalog, recognizers=recognizers
-            )
-        except OcrError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-        return TarkovKeyOcrOut.model_validate(result)
-    finally:
-        if not handed_off:
-            key_ocr_svc.end_recognize()
 
 
 @router.put(
@@ -2003,6 +1911,7 @@ def guides_tarkov_collection_layout_put(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    _hit_owns_write(user, "collection-layout", limit=30, window_sec=60)
     payload = collection_layout_svc.replace_layout(
         db,
         user,
@@ -2027,11 +1936,17 @@ def _task_progress_out(db: Session, user: User) -> TarkovTaskDonesOut:
     )
     if catalog is not None:
         objectives = [item for item in objectives if item["task_id"] in catalog]
+    boundary = task_dones_svc.task_boundary(db, user.id)
     return TarkovTaskDonesOut(
         task_ids=done,
         started_ids=started,
         failed_ids=failed,
         objective_dones=objectives,
+        reset_at=boundary["reset_at"],
+        pending_clear_at=boundary["pending_clear_at"],
+        reset_profile_id=boundary["profile_id"],
+        reset_epoch=boundary["epoch"],
+        cleared=task_dones_svc.list_cleared(db, user.id),
     )
 
 
@@ -2044,7 +1959,7 @@ def guides_tarkov_task_dones_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """当前模式的账号进度账：已完成、进行中与小步骤勾选。"""
+    """当前模式的账号进度账：已完成、进行中、小步骤，以及日志回放下限。"""
     return _task_progress_out(db, user)
 
 
@@ -2058,7 +1973,16 @@ def guides_tarkov_task_dones_write(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。"""
+    """合并或整表替换当前模式的完成 / 进行中 / 失败 / 小步骤。省略 started_ids、failed_ids 或 objective_dones 则不改对应集合。
+
+    带 expect_epoch 且与服务端不同时回 409：调用方的本机账是在清空 / 转生之前算的。
+    账号记过边界（reset_epoch>0）后，不带 expect_epoch 的写入同样回 409（还没和账号对过的页面）。
+    """
+    try:
+        task_dones_svc.check_epoch(db, user.id, body.expect_epoch, required=True)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
+        raise _task_dones_error(exc) from exc
     task_dones_svc.write_progress(
         db,
         user,
@@ -2076,6 +2000,74 @@ def guides_tarkov_task_dones_write(
     return _task_progress_out(db, user)
 
 
+@router.post(
+    "/task-dones/clear",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_clear(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """清空进度：清掉当前模式全部任务进度，记下清空时刻。之后的日志同步不会把清空之前的任务写回。"""
+    task_dones_svc.clear_progress(db, user)
+    db.commit()
+    return _task_progress_out(db, user)
+
+
+@router.put(
+    "/task-dones/profile",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_profile(
+    body: TarkovTaskProfileIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """记下日志里当前模式的游戏 ProfileId。不动回放下限、不加 reset_epoch。"""
+    try:
+        task_dones_svc.record_profile(db, user, body.profile_id)
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return _task_progress_out(db, user)
+
+
+@router.post(
+    "/task-dones/reset",
+    response_model=TarkovTaskDonesOut,
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def guides_tarkov_task_dones_reset(
+    body: TarkovTaskResetIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """带日志的同步定下回放下限（只增不减），并用回放结果整表替换当前模式进度账。
+
+    reason：clear 兑现玩家的清空；prestige 日志里识别出同一角色转生；profile 日志里换了 ProfileId。
+    """
+    try:
+        task_dones_svc.apply_reset(
+            db,
+            user,
+            reset_at=body.reset_at,
+            profile_id=body.profile_id,
+            reason=body.reason,
+            epoch=body.expect_epoch,
+            task_ids=body.task_ids,
+            started_ids=body.started_ids,
+            failed_ids=body.failed_ids,
+            objective_dones=[item.model_dump() for item in body.objective_dones],
+        )
+    except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
+        raise _task_dones_error(exc) from exc
+    db.commit()
+    return _task_progress_out(db, user)
+
+
 @router.put(
     "/task-dones/{task_id}",
     response_model=TarkovTaskDonesOut,
@@ -2083,12 +2075,19 @@ def guides_tarkov_task_dones_write(
 )
 def guides_tarkov_task_dones_add(
     task_id: str,
+    expect_epoch: int | None = Query(
+        None,
+        ge=0,
+        description="本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
+        task_dones_svc.check_epoch(db, user.id, expect_epoch, required=True)
         task_dones_svc.add_done(db, user, task_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
         raise _task_dones_error(exc) from exc
     db.commit()
     return _task_progress_out(db, user)
@@ -2101,12 +2100,20 @@ def guides_tarkov_task_dones_add(
 )
 def guides_tarkov_task_dones_remove(
     task_id: str,
+    expect_epoch: int | None = Query(
+        None,
+        ge=0,
+        description="本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """取消完成会记一笔清除时刻：清空之前的旧页面发来的取消同样要被 409 挡住。"""
     try:
+        task_dones_svc.check_epoch(db, user.id, expect_epoch, required=True)
         task_dones_svc.remove_done(db, user, task_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
         raise _task_dones_error(exc) from exc
     db.commit()
     return _task_progress_out(db, user)
@@ -2120,12 +2127,19 @@ def guides_tarkov_task_dones_remove(
 def guides_tarkov_task_objective_add(
     task_id: str,
     objective_id: str,
+    expect_epoch: int | None = Query(
+        None,
+        ge=0,
+        description="本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
+        task_dones_svc.check_epoch(db, user.id, expect_epoch, required=True)
         task_dones_svc.add_objective(db, user, task_id, objective_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
         raise _task_dones_error(exc) from exc
     db.commit()
     return _task_progress_out(db, user)
@@ -2139,12 +2153,19 @@ def guides_tarkov_task_objective_add(
 def guides_tarkov_task_objective_remove(
     task_id: str,
     objective_id: str,
+    expect_epoch: int | None = Query(
+        None,
+        ge=0,
+        description="本页任务账基于的 reset_epoch；账号清空 / 转生过（epoch>0）后必带，对不上回 409",
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
+        task_dones_svc.check_epoch(db, user.id, expect_epoch, required=True)
         task_dones_svc.remove_objective(db, user, task_id, objective_id)
     except task_dones_svc.TarkovTaskDonesError as exc:
+        db.rollback()
         raise _task_dones_error(exc) from exc
     db.commit()
     return _task_progress_out(db, user)

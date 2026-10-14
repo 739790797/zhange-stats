@@ -6,7 +6,9 @@ import {
   TarkovLiveLogPhaseContext,
   TarkovLiveShotMetaContext,
   TarkovLiveWatchContext,
+  TarkovLogSyncContext,
   type TarkovLiveShotMeta,
+  type TarkovLogSyncValue,
   type TarkovLiveWatchValue,
   type TarkovScreenshotFix,
 } from "@/lib/tarkovLiveWatchContexts";
@@ -29,4 +31,9 @@ export function useTarkovLastLogPhase(): TarkovLogPhasePayload | null {
 
 export function useTarkovLiveShotMeta(): TarkovLiveShotMeta {
   return useContext(TarkovLiveShotMetaContext);
+}
+
+/** 日志回填专用；不随 lastLogAt / 截图坐标变化。 */
+export function useTarkovLogSync(): TarkovLogSyncValue {
+  return useContext(TarkovLogSyncContext);
 }

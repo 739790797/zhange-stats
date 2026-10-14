@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  logTextGrownFrom,
+  readTarkovLogText,
+  type TarkovLogTextEntry,
+} from "./tarkovLogTextCache";
+import {
   buildRaidsFromEvents,
   classifyLogsRoot,
   classifyLogSessionMode,
-  classifyScreenshotsRoot,
   formatBindPath,
   formatLatestLogPreview,
   formatLogClock,
   latestLogActivityAt,
   latestLogMapId,
   logPhaseFromParsed,
-  formatResolvedWalk,
   hasDriveLetter,
   joinBindPath,
   mergeBindPath,
@@ -27,7 +30,6 @@ import {
   parseScreenshotPrunePref,
   screenshotNamesToInspect,
   screenshotNamesToPrune,
-  screenshotPollHint,
   screenshotPruneVerifyResult,
   isSessionFolderName,
   logWalkCandidatesFrom,
@@ -48,11 +50,14 @@ import {
   takeSessionStubs,
   toRaidLogImportRows,
   versionFromLogLine,
+  logClockToBeijing,
+  folderTimeToBeijing,
+  sessionStubInBeijing,
   type TarkovLogBundleMemo,
 } from "./tarkovGameLogs";
 
 const MATCH_LINE =
-  "2023-12-29 19:03:20.911 +01:00|0.14.0.0.28375|Debug|application|TRACE-NetworkGameCreate profileStatus: 'Profileid: 60008306b4df3523a949cf7b, Status: Busy, RaidMode: Online, Ip: 37.19.203.86, Port: 17003, Location: Shoreline, Sid: 37.19.203.86-17003_PID_29.12.23_18.01.18, GameMode: deathmatch, shortId: PQXKR6'";
+  "2023-12-29 19:03:20.911 +08:00|0.14.0.0.28375|Debug|application|TRACE-NetworkGameCreate profileStatus: 'Profileid: 60008306b4df3523a949cf7b, Status: Busy, RaidMode: Online, Ip: 37.19.203.86, Port: 17003, Location: Shoreline, Sid: 37.19.203.86-17003_PID_29.12.23_18.01.18, GameMode: deathmatch, shortId: PQXKR6'";
 
 const NIGHT_FACTORY_LINE =
   "2026-08-30 20:11:02.100|0.16.0.0.40000|Debug|application|TRACE-NetworkGameCreate profileStatus: 'RaidMode: Online, Location: factory4_night, shortId: AB12CD'";
@@ -127,7 +132,6 @@ describe("classifyLogsRoot", () => {
     expect(
       screenshotWalkCandidatesFrom(["2026-08-30_12-00-00.png", "note.txt"]),
     ).toEqual([[]]);
-    expect(classifyScreenshotsRoot(["Screenshots"])).toBe("ancestor");
     expect(isScreenshotFileName("raid.jpg")).toBe(true);
     expect(
       isNewerScreenshot(
@@ -162,7 +166,28 @@ describe("classifyLogsRoot", () => {
         ],
         new Set(),
       ),
-    ).toEqual(["2026-08-30[21-36]_20.00 (0).png"]);
+    ).toEqual(["2026-08-30[21-35]_19.91 (0).png", "2026-08-30[21-36]_20.00 (0).png"]);
+    // 同一分钟两张：字符串序会把 14.31 排在 175.30 前；按修改时间才是真新旧，两张都要看
+    expect(
+      screenshotNamesToInspect(
+        [
+          { name: "2026-08-30[21-36]_14.31 (0).png", lastModified: 2000 },
+          { name: "2026-08-30[21-36]_175.30 (0).png", lastModified: 1000 },
+        ],
+        new Set(),
+      ),
+    ).toEqual(["2026-08-30[21-36]_175.30 (0).png", "2026-08-30[21-36]_14.31 (0).png"]);
+    // 一位数小时：9 点早于 10 点，不能按字符串比
+    expect(
+      latestScreenshotName(["2026-08-30[9-59]_1.00 (0).png", "2026-08-30[10-01]_1.00 (0).png"]),
+    ).toBe("2026-08-30[10-01]_1.00 (0).png");
+    expect(
+      screenshotNamesToPrune(
+        ["2026-08-30[9-59]_1.00 (0).png", "2026-08-30[10-01]_1.00 (0).png"],
+        null,
+        1,
+      ),
+    ).toEqual(["2026-08-30[9-59]_1.00 (0).png"]);
     expect(
       screenshotNamesToInspect(
         ["old.png", "2026-08-30[21-35]_19.91 (0).png"],
@@ -232,10 +257,6 @@ describe("classifyLogsRoot", () => {
     expect(screenshotPruneVerifyResult({ pruneEnabled: true, canWrite: true }).ok).toBe(
       true,
     );
-    expect(screenshotPollHint(2000)).toBe("每 2 秒检查新截图");
-    expect(
-      formatResolvedWalk("Escape from Tarkov", ["build", "Logs"]),
-    ).toBe("Escape from Tarkov / build / Logs");
     expect(formatBindPath("Escape from Tarkov", ["build", "Logs"])).toBe(
       "Escape from Tarkov\\build\\Logs",
     );
@@ -300,16 +321,57 @@ describe("map locations", () => {
   });
 });
 
+describe("logClockToBeijing", () => {
+  it("converts the game's local offset to the Beijing wall clock", () => {
+    expect(logClockToBeijing("2023-12-29 19:03:40.000", "+", "01", "00")).toBe(
+      "2023-12-30 02:03:40.000",
+    );
+    expect(logClockToBeijing("2026-10-13 09:30:00.250", "-", "05", "00")).toBe(
+      "2026-10-13 22:30:00.250",
+    );
+    expect(logClockToBeijing("2026-03-01 00:15:00.000", "+", "09", "00")).toBe(
+      "2026-02-28 23:15:00.000",
+    );
+    expect(logClockToBeijing("2026-10-13 05:00:00.000", "+", "05", "30")).toBe(
+      "2026-10-13 07:30:00.000",
+    );
+  });
+
+  it("leaves Beijing-offset and offset-less clocks untouched", () => {
+    expect(logClockToBeijing("2026-10-13 15:00:00.000", "+", "08", "00")).toBe(
+      "2026-10-13 15:00:00.000",
+    );
+    expect(logClockToBeijing("2026-10-13 15:00:00.000")).toBe("2026-10-13 15:00:00.000");
+  });
+
+  it("parses event and quest times from an offset log in Beijing time", () => {
+    const parsed = parseTarkovLogText(
+      [
+        "2026-10-13 08:00:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+        "2026-10-13 08:00:01.000 +01:00|1.0.0.0.1|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:1",
+        "2026-10-13 08:05:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
+        '{ "message": { "type": 12, "templateId": "5ac346a886f7744e1b083d67 successMessageText" } }',
+      ].join("\n"),
+    );
+    expect(parsed.events[0]?.at).toBe("2026-10-13 15:00:00.000");
+    expect(parsed.quests?.[0]).toMatchObject({
+      at: "2026-10-13 15:05:00.000",
+      kind: "completed",
+      profileId: "aa11bb22cc33dd44ee55ff66",
+    });
+  });
+});
+
 describe("parseTarkovLogText", () => {
   it("extracts raid identity without keeping the server IP", () => {
     const parsed = parseTarkovLogText(
       [
-        "2023-12-29 19:03:00.000 +01:00|0.14.0.0.28375|Info|application|Session mode: regular",
-        "2023-12-29 19:03:10.000 +01:00|0.14.0.0.28375|Info|application|scene preset path:maps/shoreline.bundle",
-        "2023-12-29 19:03:20.711 +01:00|0.14.0.0.28375|Info|application|LocationLoaded:66.88 real:77.66",
+        "2023-12-29 19:03:00.000 +08:00|0.14.0.0.28375|Info|application|Session mode: regular",
+        "2023-12-29 19:03:10.000 +08:00|0.14.0.0.28375|Info|application|scene preset path:maps/shoreline.bundle",
+        "2023-12-29 19:03:20.711 +08:00|0.14.0.0.28375|Info|application|LocationLoaded:66.88 real:77.66",
         MATCH_LINE,
-        "2023-12-29 19:03:21.000 +01:00|0.14.0.0.28375|Info|application|GameStarting",
-        "2023-12-29 19:03:40.000 +01:00|0.14.0.0.28375|Info|application|GameStarted",
+        "2023-12-29 19:03:21.000 +08:00|0.14.0.0.28375|Info|application|GameStarting",
+        "2023-12-29 19:03:40.000 +08:00|0.14.0.0.28375|Info|application|GameStarted",
       ].join("\n"),
     );
     expect(parsed.sessionMode).toBe("regular");
@@ -900,5 +962,257 @@ describe("history helpers", () => {
         startedAt: "2026-08-30 20:00:00",
       }),
     ).toBe("2026-08-30 20:00:00");
+  });
+});
+
+describe("incremental live-log parsing", () => {
+  const APP = [
+    "2026-10-13 08:00:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+    "2026-10-13 08:00:01.000 +01:00|1.0.0.0.1|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:1",
+    MATCH_LINE.replace("2023-12-29 19:03:20.911 +08:00", "2026-10-13 08:01:00.000 +01:00"),
+    "2026-10-13 08:01:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
+    "2026-10-13 08:20:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: Pve",
+  ].join("\n") + "\n";
+  const NOTIFY = [
+    "2026-10-13 08:05:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
+    '{ "type": "new_message",',
+    '  "message": { "type": 10, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+    "2026-10-13 08:10:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | UserMatchOver",
+    '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+    "2026-10-13 08:15:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
+    '{ "type": "new_message", "message": { "type": 12, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+  ].join("\n") + "\n";
+
+  function oneShot(app: string, notify: string) {
+    return parseTarkovLogBundle([
+      { name: "application.log", text: app },
+      { name: "notifications.log", text: notify },
+    ]);
+  }
+
+  it("parsing a growing file chunk by chunk equals one full parse at every step", () => {
+    // deterministic pseudo-random cut points, including mid-line and mid-JSON cuts
+    let seed = 7;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    for (let round = 0; round < 25; round += 1) {
+      const memo: TarkovLogBundleMemo = new WeakMap();
+      const appPart = { name: "application.log", text: "" };
+      const notifyPart = { name: "notifications.log", text: "" };
+      let a = 0;
+      let n = 0;
+      while (a < APP.length || n < NOTIFY.length) {
+        a = Math.min(APP.length, a + 1 + rand(60));
+        n = Math.min(NOTIFY.length, n + 1 + rand(60));
+        appPart.text = APP.slice(0, a);
+        notifyPart.text = NOTIFY.slice(0, n);
+        const live = parseTarkovLogBundle([appPart, notifyPart], memo);
+        expect(live).toEqual(oneShot(appPart.text, notifyPart.text));
+      }
+    }
+  });
+
+  it("the final incremental result has the full events, quests and Beijing clocks", () => {
+    const memo: TarkovLogBundleMemo = new WeakMap();
+    const appPart = { name: "application.log", text: APP.slice(0, 200) };
+    const notifyPart = { name: "notifications.log", text: NOTIFY.slice(0, 150) };
+    parseTarkovLogBundle([appPart, notifyPart], memo);
+    appPart.text = APP;
+    notifyPart.text = NOTIFY;
+    const parsed = parseTarkovLogBundle([appPart, notifyPart], memo);
+    expect(parsed.quests?.map((q) => [q.kind, q.at])).toEqual([
+      ["started", "2026-10-13 15:05:00.000"],
+      ["completed", "2026-10-13 15:15:00.000"],
+    ]);
+    expect(parsed.raids[0]).toMatchObject({ raidId: "PQXKR6", endedAt: "2026-10-13 15:10:00.000" });
+    expect(parsed.sessionMode).toBe("Pve");
+  });
+
+  it("an unfinished trailing line never leaves a wrong session mode behind", () => {
+    const memo: TarkovLogBundleMemo = new WeakMap();
+    const part = {
+      name: "application.log",
+      text: "2026-10-13 08:00:00.000 +01:00|1|Info|application|Session mode: regular\n2026-10-13 08:20:00.000 +01:00|1|Info|application|Session mode: Pv",
+    };
+    parseTarkovLogBundle([part], memo);
+    part.text += "e\n";
+    expect(parseTarkovLogBundle([part], memo).sessionMode).toBe("Pve");
+  });
+
+  /** 一次喂一片：每片后都和整份重扫比；文本对象换新时（readTarkovLogText 在文件变长时返回新对象）也一样。 */
+  function growInSteps(
+    names: string[],
+    full: string[],
+    steps: Array<number[]>,
+    freshObjects: boolean,
+  ) {
+    const memo: TarkovLogBundleMemo = new WeakMap();
+    let parts = names.map((name) => ({ name, text: "" }));
+    for (const cut of steps) {
+      const next = names.map((name, i) => ({ name, text: full[i]!.slice(0, cut[i]) }));
+      if (freshObjects) {
+        parts = next;
+      } else {
+        next.forEach((row, i) => {
+          parts[i]!.text = row.text;
+        });
+      }
+      const live = parseTarkovLogBundle(parts, memo);
+      expect(live).toEqual(parseTarkovLogBundle(next.map((row) => ({ ...row }))));
+    }
+    return parseTarkovLogBundle(parts, memo);
+  }
+
+  it("rotated application parts parse the same chunk by chunk as in one shot", () => {
+    const head = APP;
+    const rotated = [
+      "2026-10-13 08:30:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+      MATCH_LINE.replace("2023-12-29 19:03:20.911 +08:00", "2026-10-13 08:31:00.000 +01:00").replace(
+        "PQXKR6",
+        "ZZTOP9",
+      ),
+      "2026-10-13 08:31:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
+    ].join("\n") + "\n";
+    const names = ["application_1.log", "application.log", "notifications.log"];
+    const full = [rotated, head, NOTIFY];
+    // 真实轮转：application.log 写满后改名 application_1.log 冻住，新的 application.log 接着写。
+    const steps: number[][] = [];
+    for (let a = 0; a <= head.length; a += 37) steps.push([0, a, Math.min(NOTIFY.length, a)]);
+    steps.push([0, head.length, NOTIFY.length]);
+    for (let r = 1; r <= rotated.length; r += 29) steps.push([r, head.length, NOTIFY.length]);
+    steps.push([rotated.length, head.length, NOTIFY.length]);
+    for (const fresh of [false, true]) {
+      const last = growInSteps(names, full, steps, fresh);
+      expect(last.raids.map((raid) => raid.raidId)).toEqual(["PQXKR6", "ZZTOP9"]);
+      expect(last.raids[1]).toMatchObject({ startedAt: "2026-10-13 15:31:30.000" });
+      expect(last.sessionMode).toBe("regular");
+      // 冻结的上一份 + 这次启动的两份合起来 = 三份各自的解析结果。
+      expect(last.events.filter((event) => event.kind === "raid_started")).toHaveLength(2);
+      expect(last.quests?.map((quest) => quest.kind)).toEqual(["started", "completed"]);
+    }
+  });
+
+  it("output.log keeps only GameStopping lines whether parsed at once or as it grows", () => {
+    const output = [
+      "2026-10-13 08:01:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: Pve",
+      "noise without stamp",
+      "2026-10-13 08:09:59.000 +01:00|1.0.0.0.1|Info|application|EFT.NetworkGame`1:GameStopping()",
+      "  at stack frame",
+      "2026-10-13 08:40:00.000 +01:00|1.0.0.0.1|Info|application|EFT.NetworkGame`1:GameStopping()",
+    ].join("\n");
+    const names = ["application.log", "output.log"];
+    const full = [APP, output];
+    const steps: number[][] = [[APP.length, 0]];
+    for (let o = 1; o <= output.length; o += 11) steps.push([APP.length, o]);
+    steps.push([APP.length, output.length]);
+    for (const fresh of [false, true]) {
+      const last = growInSteps(names, full, steps, fresh);
+      const exits = last.events.filter((event) => event.kind === "raid_exited").map((e) => e.at);
+      expect(exits).toEqual(["2026-10-13 15:09:59.000", "2026-10-13 15:40:00.000"]);
+      // output.log 里的 Session mode 不算数（只看 GameStopping）。
+      expect(last.sessionMode).toBe("Pve");
+      expect(last.events.filter((event) => event.kind === "session_mode")).toHaveLength(2);
+    }
+  });
+
+  it("resumes through the new text objects the live reader hands back as files grow", async () => {
+    const memo: TarkovLogBundleMemo = new WeakMap();
+    const files = ["application.log", "application_1.log", "output.log"];
+    const output =
+      "2026-10-13 08:40:00.000 +01:00|1|Info|application|EFT.NetworkGame`1:GameStopping()\n";
+    const full = [APP, APP.replace(/08:(\d\d):/g, "09:$1:"), output];
+    const prev: Array<TarkovLogTextEntry | undefined> = [];
+    const states = new Map<string, unknown>();
+    let grown = 0;
+    for (let step = 1; step <= 6; step += 1) {
+      const parts = [];
+      const linked: boolean[] = [];
+      for (let i = 0; i < files.length; i += 1) {
+        const text = full[i]!.slice(0, Math.ceil((full[i]!.length * step) / 6));
+        const entry = await readTarkovLogText(
+          files[i]!,
+          new File([text], files[i]!, { lastModified: step }),
+          prev[i],
+        );
+        prev[i] = entry;
+        parts.push(entry.read);
+        linked.push(Boolean(logTextGrownFrom(entry.read)));
+      }
+      const live = parseTarkovLogBundle(parts, memo);
+      expect(live).toEqual(parseTarkovLogBundle(parts.map((part) => ({ ...part }))));
+      parts.forEach((part, i) => {
+        const state = (memo.get(part) as { state?: unknown } | undefined)?.state;
+        // 文本是续读出来的新对象时，解析也接着上一轮的扫描状态，而不是整份重扫。
+        if (linked[i]) {
+          grown += 1;
+          expect(state).toBe(states.get(part.name));
+        }
+        states.set(part.name, state);
+      });
+    }
+    expect(grown).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("session folder time zones", () => {
+  it("converts folder wall time with the offset read from that session's logs", () => {
+    expect(folderTimeToBeijing("2026-10-13 08:00:00", "+01:00")).toBe("2026-10-13 15:00:00");
+    expect(folderTimeToBeijing("2026-10-13 20:30:00", "-05:00")).toBe("2026-10-14 09:30:00");
+    expect(folderTimeToBeijing("2026-10-13 08:00:00", "+08:00")).toBe("2026-10-13 08:00:00");
+    expect(folderTimeToBeijing("2026-10-13 08:00:00", "")).toBe("2026-10-13 08:00:00");
+    expect(folderTimeToBeijing("2026-10-13 08:00:00", undefined)).toBe("2026-10-13 08:00:00");
+    expect(folderTimeToBeijing("2026-10-13 08:00:00", "nonsense")).toBe("2026-10-13 08:00:00");
+    expect(folderTimeToBeijing("2026-10-13 08:00:00.250", "+01:00")).toBe("2026-10-13 15:00:00");
+    expect(folderTimeToBeijing("not a clock", "+01:00")).toBe("not a clock");
+    expect(folderTimeToBeijing(null, "+01:00")).toBeNull();
+    expect(folderTimeToBeijing("", "+01:00")).toBeNull();
+  });
+
+  it("agrees with the log line clocks of the same session", () => {
+    const folder = "log_2026.10.13_8-00-00_1.0.0.0.1";
+    const parsed = parseTarkovLogText(
+      "2026-10-13 08:00:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+    );
+    expect(parsed.clockOffset).toBe("+01:00");
+    const stub = { folder, startedAt: parseSessionFolderTime(folder) };
+    const beijing = sessionStubInBeijing(stub, parsed);
+    expect(beijing.startedAt).toBe(parsed.events[0]!.at.replace(/\.\d{3}$/, ""));
+    expect(beijing).not.toBe(stub);
+    expect(stub.startedAt).toBe("2026-10-13 08:00:00");
+
+    const legacy = parseTarkovLogText("2026-10-13 08:00:00.000|1|Info|application|Session mode: regular");
+    expect(legacy.clockOffset).toBeUndefined();
+    expect(sessionStubInBeijing(stub, legacy)).toBe(stub);
+    expect(sessionStubInBeijing(stub, null)).toBe(stub);
+  });
+
+  it("carries the clock offset through a multi-part bundle (the live sync path)", () => {
+    const folder = "log_2026.10.13_23-30-00_1.0.0.0.1";
+    const parsed = parseTarkovLogBundle([
+      {
+        name: "2026.10.13_23-30-00_1.0.0.0.1 application_000.log",
+        text: "2026-10-13 23:30:00.000 +02:00|1.0.0.0.1|Info|application|Session mode: regular",
+      },
+      {
+        name: "2026.10.13_23-30-00_1.0.0.0.1 backend_000.log",
+        text: "2026-10-13 23:31:00.000 +02:00|1.0.0.0.1|Info|backend|ping",
+      },
+    ]);
+    expect(parsed.clockOffset).toBe("+02:00");
+    const stub = { folder, startedAt: parseSessionFolderTime(folder) };
+    /* UTC+2 的 23:30 是北京次日 05:30：按日期筛选时要落在 10-14。 */
+    expect(sessionStubInBeijing(stub, parsed).startedAt).toBe("2026-10-14 05:30:00");
+    expect(parseTarkovLogBundle([]).clockOffset).toBeUndefined();
+  });
+
+  it("falls back to the converted folder time in the verify preview", () => {
+    expect(
+      formatLatestLogPreview(
+        { folder: "log_2026.10.13_08-00-00", startedAt: "2026-10-13 08:00:00" },
+        { events: [], raids: [], clockOffset: "+01:00" },
+      ),
+    ).toBe("2026-10-13 15:00:00");
   });
 });

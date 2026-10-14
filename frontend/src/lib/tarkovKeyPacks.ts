@@ -6,7 +6,7 @@ import {
   tarkovTaskHref,
   traderDisplayName,
 } from "@/lib/tarkovHomeNav";
-import { formatMoney } from "@/lib/tarkovItemFormat";
+import { formatMoney } from "@/lib/tarkovMoney";
 import { itemHrefFromTypes } from "@/lib/tarkovItemTypes";
 
 export const TARKOV_KEY_PACKS_STORAGE_KEY = "zhange.guides.tarkov.keyPacks.v1";

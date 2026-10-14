@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.services import scheduler_config as scheduler_config_svc
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import overlay as overlay_svc
@@ -13,7 +15,13 @@ from app.services.tarkov import upstream as upstream_svc
 
 
 class _Db:
-    pass
+    """最小 session 替身：_apply_extras 读旧 extras、条件请求读校验头都要能查表。"""
+
+    def __init__(self) -> None:
+        self._inner = _RawDb()
+
+    def __getattr__(self, name):  # noqa: ANN001, ANN204
+        return getattr(self._inner, name)
 
 
 def _sample_dump() -> dict:
@@ -61,10 +69,11 @@ def _ok(source: str = "json") -> dict:
 
 
 def _stub_overlay_sync(monkeypatch, *, fail: bool = False) -> None:
+    """overlay 现在一轮全量只下一次（download_overlay），落库走 persist_overlay。"""
     if fail:
         monkeypatch.setattr(
             overlay_svc,
-            "sync_overlay",
+            "download_overlay",
             lambda *_a, **_k: (_ for _ in ()).throw(
                 overlay_svc.TarkovOverlayError("cdn down")
             ),
@@ -72,7 +81,12 @@ def _stub_overlay_sync(monkeypatch, *, fail: bool = False) -> None:
         return
     monkeypatch.setattr(
         overlay_svc,
-        "sync_overlay",
+        "download_overlay",
+        lambda *_a, **_k: ({"tasks": {}}, "2026-01-01T00:00:00+00:00"),
+    )
+    monkeypatch.setattr(
+        overlay_svc,
+        "persist_overlay",
         lambda *_a, **_k: {
             "id": "overlay",
             "ok": True,
@@ -88,7 +102,9 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
     calls: list[str] = []
 
     monkeypatch.setattr(
-        upstream_svc, "download_site_json", lambda **_k: (dump, {})
+        upstream_svc,
+        "download_site_json",
+        lambda **_k: upstream_svc.SiteDump(files=dump, upstream_times={}),
     )
     monkeypatch.setattr(
         upstream_svc,
@@ -136,7 +152,11 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
 
 def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     monkeypatch.setattr(
-        upstream_svc, "download_site_json", lambda **_k: (_sample_dump(), {})
+        upstream_svc,
+        "download_site_json",
+        lambda **_k: upstream_svc.SiteDump(
+            files=_sample_dump(), upstream_times={}
+        ),
     )
     monkeypatch.setattr(
         upstream_svc,
@@ -174,7 +194,11 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
 
 def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
     monkeypatch.setattr(
-        upstream_svc, "download_site_json", lambda **_k: (_sample_dump(), {})
+        upstream_svc,
+        "download_site_json",
+        lambda **_k: upstream_svc.SiteDump(
+            files=_sample_dump(), upstream_times={}
+        ),
     )
     monkeypatch.setattr(upstream_svc, "persist_site_json", lambda *_a, **_k: [])
     monkeypatch.setattr(
@@ -391,6 +415,199 @@ def test_extras_from_site_dump_pulls_nested_catalogs() -> None:
     assert extras["achievements"] == {}
 
 
+def _stored(db, resource: str) -> str:
+    """当前模式主文件 raw_json（直接读替身 session 里的行）。"""
+    model = upstream_svc.RAW_MODELS[resource]
+    row = next(
+        r
+        for r in db.store[model]
+        if (getattr(r, "lang", "") or "") == ""
+        and getattr(r, "mode_id", None) == upstream_svc.raw_row_id()
+    )
+    return row.raw_json
+
+
+def _garbage_dump(**override: dict) -> dict:
+    """200 但内容退化的响应：{"data":{}} / {"errors":[...]} / 空 items。"""
+    dump = _sample_dump()
+    dump.update(override)
+    return dump
+
+
+def test_persist_site_json_keeps_last_good_items_on_empty_body() -> None:
+    """{"data":{}} 这类 200 空响应不能覆盖上一份好 items（生产图鉴曾整份被抹）。"""
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+    with game_mode_scope("pvp"):
+        upstream_svc.persist_site_json(db, _sample_dump())
+        good_items = _stored(db, "items")
+        good_maps = _stored(db, "maps")
+        rows = upstream_svc.persist_site_json(
+            db,
+            _garbage_dump(
+                items={"data": {}},
+                maps={"data": {"maps": {}, "mobs": {}}},
+                tasks={"data": {"tasks": {}}},
+                traders={"data": {}},
+                hideout={"data": {}},
+            ),
+        )
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["dump:items"]["ok"] is False
+    assert by_id["dump:items"]["status"] == "error"
+    assert "保留" in (by_id["dump:items"]["error"] or "")
+    assert by_id["dump:maps"]["ok"] is False
+    assert by_id["dump:tasks"]["ok"] is False
+    assert by_id["dump:traders"]["ok"] is False
+    assert by_id["dump:hideout"]["ok"] is False
+    # 好 raw 原样留着
+    assert _stored(db, "items") == good_items
+    assert _stored(db, "maps") == good_maps
+
+
+def test_persist_site_json_rejects_error_envelope() -> None:
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+    with game_mode_scope("pvp"):
+        upstream_svc.persist_site_json(db, _sample_dump())
+        good = _stored(db, "tasks")
+        rows = upstream_svc.persist_site_json(
+            db, {"tasks": {"errors": [{"message": "boom"}]}}
+        )
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["dump:tasks"]["ok"] is False
+    assert _stored(db, "tasks") == good
+
+
+def test_persist_site_json_accepts_empty_barters_list() -> None:
+    """barters / crafts 空数组是合法状态，不能当成「内容不完整」。"""
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+    with game_mode_scope("pvp"):
+        rows = upstream_svc.persist_site_json(
+            db, {"barters": {"data": []}, "crafts": {"data": []}}
+        )
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["dump:barters"]["ok"] is True
+    assert by_id["dump:crafts"]["ok"] is True
+
+
+def test_persist_site_json_skips_locale_that_lost_its_content() -> None:
+    """locale 只剩 {"data":{}} 时别把 zh 行抹空（译文是叠加在主文件上的）。"""
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+    dump = _sample_dump()
+    dump["items_zh"] = {"data": {"a1 Name": "测试物"}}
+    with game_mode_scope("pvp"):
+        upstream_svc.persist_site_json(db, dump)
+        zh_row = next(
+            r
+            for r in db.store[upstream_svc.RAW_MODELS["items"]]
+            if (r.lang or "") == "zh"
+        )
+        good_zh = zh_row.raw_json
+        rows = upstream_svc.persist_site_json(
+            db, {**dump, "items_zh": {"data": {}}}
+        )
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["dump:items_zh"]["ok"] is False
+    zh_row = next(
+        r
+        for r in db.store[upstream_svc.RAW_MODELS["items"]]
+        if (r.lang or "") == "zh"
+    )
+    assert zh_row.raw_json == good_zh
+
+
+def test_merge_extras_keeps_fields_missing_from_this_dump() -> None:
+    """extras 只写这次真下到的字段：dump 缺 items 时别把上一份技能抹成空。"""
+    previous = {"skills": [{"id": "endurance"}], "fleaMarket": {"x": 1}}
+    incoming = {"lootContainers": {}, "achievements": {}}
+    merged = upstream_svc.merge_extras(previous, incoming)
+    assert merged["skills"] == [{"id": "endurance"}]
+    assert merged["fleaMarket"] == {"x": 1}
+    assert merged["achievements"] == {}
+
+
+def _all_validators() -> dict[str, str]:
+    """每个 dump 文件都给一个校验头（键与 download_site_json 里的 key 一致）。"""
+    return {
+        upstream_svc.resource_key(resource, lang=res_lang): "2026-08-20T01:00:00+00:00"
+        for resource, res_lang, _domain_id in upstream_svc.site_dump_specs(lang="zh")
+    }
+
+
+def test_download_site_json_uses_stored_validator_and_keeps_304(monkeypatch) -> None:
+    """带条件请求：304 的文件不进 files，也不该被当成失败。"""
+    class _Resp:
+        def __init__(self, status, content=b"", headers=None):  # noqa: ANN001
+            self.status_code = status
+            self.content = content
+            self.headers = headers or {}
+
+    sent: list[dict] = []
+
+    def fake_response(url, *, headers=None, **_kwargs):  # noqa: ANN001
+        sent.append({"url": url, "headers": headers or {}})
+        if url.endswith("/items"):
+            return _Resp(304)
+        return _Resp(200, json.dumps({"data": {"maps": {}}}).encode(), {})
+
+    monkeypatch.setattr(upstream_svc, "download_response", fake_response)
+    site = upstream_svc.download_site_json(validators=_all_validators())
+    items_call = next(c for c in sent if c["url"].endswith("/items"))
+    assert items_call["headers"]["If-Modified-Since"] == "Thu, 20 Aug 2026 01:00:00 GMT"
+    assert "items" in site.unchanged
+    assert "items" not in site.files
+    assert site.upstream_times["items"] == "2026-08-20T01:00:00+00:00"
+
+
+def test_download_site_json_raises_when_nothing_usable(monkeypatch) -> None:
+    """没有一份完整资源、也没有 304：整站不可用。"""
+    class _Resp:
+        status_code = 200
+        headers: dict = {}
+
+        def __init__(self, content: bytes) -> None:
+            self.content = content
+
+    monkeypatch.setattr(
+        upstream_svc,
+        "download_response",
+        lambda *_a, **_k: _Resp(b'{"data": {}}'),
+    )
+    with pytest.raises(upstream_svc.TarkovUpstreamError, match="全站为空"):
+        upstream_svc.download_site_json(validators=_all_validators())
+
+
+def test_persist_raw_skips_the_old_blob_compare_when_upstream_changed(
+    monkeypatch,
+) -> None:
+    """changed=True：上游确认换过字节，不必再把上一份 17MB 读出来比对。"""
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    db = _RawDb()
+    payload = {"data": {"maps": {"customs": {"normalizedName": "customs"}}}}
+    with game_mode_scope("pvp"):
+        upstream_svc.persist_raw(db, "maps", payload, source="json", note="first")
+        loads: list[bool] = []
+        real = upstream_svc.load_raw_row
+
+        def spy(dbc, resource, **kwargs):  # noqa: ANN001
+            loads.append(bool(kwargs.get("with_json")))
+            return real(dbc, resource, **kwargs)
+
+        monkeypatch.setattr(upstream_svc, "load_raw_row", spy)
+        upstream_svc.persist_raw(
+            db, "maps", payload, source="json", note="second", changed=True
+        )
+    assert loads == [False]
+
+
 def test_scheduler_drops_removed_per_domain_jobs() -> None:
     from app.core.file_config import write_json
 
@@ -421,15 +638,16 @@ def test_download_site_json_emits_file_progress(monkeypatch) -> None:
         if on_bytes:
             on_bytes(3, 10)
             on_bytes(10, 10)
-        return {"data": {resource: True}}, None
+        return _sample_dump()[upstream_svc.resource_key(resource, lang=lang)], None
 
     monkeypatch.setattr(upstream_svc, "download_json_resource", fake_resource)
     events: list[dict] = []
-    dump, _times = upstream_svc.download_site_json(
+    site = upstream_svc.download_site_json(
         on_progress=lambda event: events.append(event)
     )
-    assert dump["items"]["data"]["items"] is True
-    assert dump["items_zh"]["data"]["items"] is True
+    dump = site.files
+    assert dump["items"]["data"]["items"]
+    assert dump["items_zh"] == {"data": {}}
     assert any(
         event["file"] == "items" and event["bytes"] == 3 and not event["done"]
         for event in events
@@ -468,7 +686,7 @@ def test_planned_full_sync_domains_include_dump_and_apply() -> None:
 def test_sync_emits_download_progress(monkeypatch) -> None:
     dump = _sample_dump()
 
-    def fake_download(*, lang="zh", on_progress=None):  # noqa: ARG001
+    def fake_download(*, lang="zh", on_progress=None, validators=None):  # noqa: ARG001
         if on_progress:
             on_progress(
                 {
@@ -496,7 +714,7 @@ def test_sync_emits_download_progress(monkeypatch) -> None:
                     "error": None,
                 }
             )
-        return dump, {}
+        return upstream_svc.SiteDump(files=dump, upstream_times={})
 
     monkeypatch.setattr(upstream_svc, "download_site_json", fake_download)
     monkeypatch.setattr(

@@ -25,6 +25,14 @@ export type TarkovLogTextEntry = {
   probe: Uint8Array;
 };
 
+/** 续读出来的新对象 → 它接着的那份旧对象。解析缓存按对象记，靠这条链接着上次的扫描状态续扫。 */
+const grownFrom = new WeakMap<object, TarkovLogText>();
+
+/** 这份文本是不是从某个旧对象往后追加出来的（是就回旧对象）；整份重读或没变过时为空。 */
+export function logTextGrownFrom(read: object): TarkovLogText | undefined {
+  return grownFrom.get(read);
+}
+
 /** 续读不是从文件开头解码，文件中途的 BOM 要原样保留；`file.text()` 只去掉开头那个。 */
 function decodeFrom(bytes: Uint8Array): string {
   return new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
@@ -58,8 +66,10 @@ async function readAppended(
   const head = prev.read.text.slice(0, prev.read.text.length - prev.tailChars);
   const text = cut > 0 ? head + decodeFrom(fresh.subarray(0, cut)) + tail : head + tail;
   const lineEnd = prev.lineEnd + cut;
+  const read = { name, text, lastModified: file.lastModified, size: file.size };
+  grownFrom.set(read, prev.read);
   return {
-    read: { name, text, lastModified: file.lastModified, size: file.size },
+    read,
     lineEnd,
     tailChars: tail.length,
     probe: bytes.slice(Math.max(0, lineEnd - PROBE_BYTES) - from, lineEnd - from),

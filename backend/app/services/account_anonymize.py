@@ -28,6 +28,8 @@ from app.models.tarkov import (
     TarkovUserTaskFailed,
     TarkovUserTaskObjectiveDone,
     TarkovUserTaskStarted,
+    TarkovUserTaskCleared,
+    TarkovUserTaskReset,
 )
 from app.models.user import User, UserRole
 from app.services.auth_config import admins_remaining, lock_admin_ids
@@ -43,6 +45,8 @@ PERSONAL_TARKOV_MODELS = (
     TarkovUserTaskFailed,
     TarkovUserTaskStarted,
     TarkovUserTaskObjectiveDone,
+    TarkovUserTaskReset,
+    TarkovUserTaskCleared,
     TarkovUserKeyOwn,
     TarkovUserCollectionOwn,
     TarkovUserCollectionLayout,

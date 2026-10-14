@@ -465,3 +465,40 @@ def test_ammo_detail_304_until_items_or_overlay_change(client, monkeypatch) -> N
     token["value"] = "o2"
     assert client.get("/tarkov/ammo/a1", headers={"If-None-Match": etag}).status_code == 200
     assert served == ["a1", "a1"]
+
+
+def test_locale_only_update_invalidates_task_cache_and_etag(db, clock, monkeypatch) -> None:
+    """只翻中文（主文件字节不变 → synced_at 不变）也要打穿解析缓存与 ETag。"""
+    monkeypatch.setattr(items_svc, "ensure_items", lambda _db: None)
+    with game_mode_scope("pvp"):
+        upstream_svc.persist_raw(
+            db, "tasks", {"tasks": {"t1": _task("t1")}}, source="test", note="n"
+        )
+        upstream_svc.persist_raw(
+            db,
+            "tasks",
+            {"data": {"t1 Name": "首秀"}},
+            lang="zh",
+            source="test",
+            note="n locale",
+        )
+        main_synced = upstream_svc.load_raw_row(db, "tasks").synced_at.isoformat()
+        key_v1 = overlay_svc.parsed_cache_key(db, main_synced, resource="tasks")
+        parts_v1 = tasks_svc.task_detail_cache_parts(db)
+        assert upstream_svc.locale_synced(db, "tasks") == parts_v1[1]
+
+        # 只改 zh 行：主文件 synced_at 不该动，但解析缓存键必须换
+        upstream_svc.persist_raw(
+            db,
+            "tasks",
+            {"data": {"t1 Name": "首秀（改）"}},
+            lang="zh",
+            source="test",
+            note="n locale v2",
+        )
+        assert upstream_svc.load_raw_row(db, "tasks").synced_at.isoformat() == main_synced
+        key_v2 = overlay_svc.parsed_cache_key(db, main_synced, resource="tasks")
+        parts_v2 = tasks_svc.task_detail_cache_parts(db)
+    assert key_v1 != key_v2
+    assert parts_v1 != parts_v2
+    assert parts_v2[1] != parts_v1[1]

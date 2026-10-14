@@ -110,11 +110,11 @@ Release 发出后不再改动：tag `v{VERSION}` 已存在时（包括上次发�
 
 联机大厅房间 WebSocket（`raid_room_hub`）与三狗位置推送（`goon_tracker_hub`）均为**进程内广播**：多 `app` 副本时 REST 写与 WS 可能落在不同进程，房间事件或出没更新会丢。扩容前须改为 Redis pub/sub（或同类跨进程总线）；在此之前勿水平扩展联机大厅所在服务。
 
-持久化目录：`config/`（站点设置，gitignore）。模板在 `scripts/config.example/`，每个 JSON 有 `_version`；`install` / `run` / `restart` / `update` 与启动会把模板里的新键补进已有文件，不覆盖用户值，也不会用模板新建 `database.json`。`data/runtime/`（含 `.secret_key` 与日志、SQLite 时的 `zhange.sqlite`）、`data/uploads/`、`data/models/`（TexTeller / RapidOCR / EasyOCR 权重）。更新白名单不会覆盖 `config/` 与 `data/`。存量安装第一次启动会把旧 `var/` 迁进这套布局，并把根 `.env` 与库内 `system_configs` 迁入 `config/`：只填仍是模板默认值的设置组，管理员改过的组原样保留，每个库只迁一次（标记 `system_configs.legacy_config_imported`）；迁完可删 `.env`。早年把扁平 `data/` 当 `DATA_DIR` 的安装也会在启动时迁进 `data/runtime/`。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
+持久化目录：`config/`（站点设置，gitignore）。模板在 `scripts/config.example/`，每个 JSON 有 `_version`；`install` / `run` / `restart` / `update` 与启动会把模板里的新键补进已有文件，不覆盖用户值，也不会用模板新建 `database.json`。`data/runtime/`（含 `.secret_key` 与日志、SQLite 时的 `zhange.sqlite`）、`data/uploads/`、`data/models/`（TexTeller 权重）。更新白名单不会覆盖 `config/` 与 `data/`。存量安装第一次启动会把旧 `var/` 迁进这套布局，并把根 `.env` 与库内 `system_configs` 迁入 `config/`：只填仍是模板默认值的设置组，管理员改过的组原样保留，每个库只迁一次（标记 `system_configs.legacy_config_imported`）；迁完可删 `.env`。早年把扁平 `data/` 当 `DATA_DIR` 的安装也会在启动时迁进 `data/runtime/`。相对路径相对安装根，不要往 `backend/`、`frontend/` 写 data/uploads。
 
 公式识别用 [TexTeller](https://github.com/OleehyO/TexTeller) 的 ONNX 权重，推理走 `onnxruntime`（主依赖），不必再装官方 `texteller`（torch）。权重可更新：启动时若本地没有会后台补齐；之后由任务配置「公式识别模型」对照镜像上的 `OleehyO/TexTeller` 定时同步。默认走 `https://hf-mirror.com`。
 
-钥匙管理与局前任务页截图识别走站内共享 OCR：[RapidOCR](https://github.com/RapidAI/RapidOCR)（默认 **PP-OCRv5 server**，站点设置「文字识别」从本机 RapidOCR onnx 清单选档位）和 [EasyOCR](https://github.com/JaidedAI/EasyOCR)（钥匙箱默认交叉验证；局前任务默认只开熊猫）。低频场景优先准。依赖在 `requirements.txt`（`rapidocr` + `easyocr` / **CPU** torch + `opencv-python-headless`）。安装与一键更新会先装官方 CPU 轮，避免 EasyOCR 从 PyPI 拉数 GB CUDA。权重由「文字识别」页检查更新或任务配置「识别模型更新」落到 `data/models/rapidocr` 与 `data/models/easyocr`（Paddle 走 ModelScope，EasyOCR 走 GitHub Release）；识别时不现场下载，未就绪会 503。EasyOCR 常驻大约多占 1–2GB 内存。LXC 若同时装上了 `opencv-python`（带 GUI）可能缺 libGL，可 `pip uninstall -y opencv-python` 只留 headless。不对外提供通用识别 HTTP。
+截图文字识别（钥匙箱、局前任务）已下线，不再依赖 torch / easyocr / rapidocr / opencv。升级时安装脚本与管理端更新会从老 venv 卸掉这些包，启动时删掉 `data/models/rapidocr`、`data/models/easyocr`、`data/models/ocr_REVISION`、`data/models/key_ocr_REVISION`、`data/cache/torch`、`data/cache/easyocr`、`data/cache/paddleocr` 与旧的 `config/ocr.json`（TexTeller 权重不动）。
 
 健康检查：`GET /health` 返回 `status` / `database` / `scheduler` / `version`；未选库时 **HTTP 200** 且 `status=setup`、`database=unconfigured`。数据库不通时为 `degraded` 且 **HTTP 503**。数据库探测结果进程内缓存 1 秒，避免探针打满连接池。管理端「运行维护 → 运行环境」可改数据库 / Redis / `APP_ENV` / CORS，并探活当前进程的库与 Redis；公开引流前应在该页核对。SMTP 在「站点设置 → 邮箱设置」。
 
@@ -180,7 +180,7 @@ location ~ ^/api/(settings/files|guides/minecraft/files)/upload$ {
 }
 
 location / {
-    # 应用默认请求体上限 8MB，最大的是酒馆附件 10MB；nginx 默认 1m 会把头像、配图、截图识别挡在外面
+    # 应用默认请求体上限 8MB，最大的是酒馆附件 10MB；nginx 默认 1m 会把头像、配图、公式截图挡在外面
     client_max_body_size 16m;
     proxy_pass http://127.0.0.1:8000;
     proxy_http_version 1.1;
@@ -202,7 +202,7 @@ location / {
 
 `/assets/` 的 `alias` 要 nginx 进程能读到安装树：`install.sh` 把安装根设为 `750`（属 `zhange`），单元 `UMask=0027`，nginx 的 `www-data` 默认进不去，会返回 403。二选一：`sudo usermod -aG zhange www-data` 后重启 nginx；或者删掉这个 `location`，让应用出 `/assets`（应用同样带 immutable 头）。反代与 uvicorn 不在同一台机器时，把反代 IP 写进 `config/systemd.env` 的 `FORWARDED_ALLOW_IPS`，否则 `X-Forwarded-Proto` / `X-Forwarded-For` 不被采信。
 
-应用进程也会发同一套头与 `X-Request-ID`（无反代时仍可用）。把 `CSP_ENFORCE=true` 后，应用改发 `Content-Security-Policy`；nginx 把上面的 `Report-Only` 换成 enforce 名。观察 `zhange.csp` 日志无误杀联机 WS / 地图 / KaTeX / 极验后再 enforce。策略须放行 `static.geetest.com` 脚本与 iframe，以及 `worker-src 'self' blob:`（地图等仍可能用 Worker）。塔科夫截图识别已走服务端，不再需要浏览器 OCR worker。
+应用进程也会发同一套头与 `X-Request-ID`（无反代时仍可用）。把 `CSP_ENFORCE=true` 后，应用改发 `Content-Security-Policy`；nginx 把上面的 `Report-Only` 换成 enforce 名。观察 `zhange.csp` 日志无误杀联机 WS / 地图 / KaTeX / 极验后再 enforce。策略须放行 `static.geetest.com` 脚本与 iframe，以及 `worker-src 'self' blob:`（地图等仍可能用 Worker）。
 
 ## 备份与恢复
 

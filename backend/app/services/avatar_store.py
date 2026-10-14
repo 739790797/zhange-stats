@@ -9,7 +9,7 @@ from fastapi import HTTPException, UploadFile
 from PIL import Image
 from sqlalchemy.orm import Session
 
-from app.services.ocr.images import ImageDecodeError, ImageTooLarge, open_bounded_image
+from app.core.images import ImageDecodeError, ImageTooLarge, open_bounded_image
 from app.services.user_files.store import (
     NS_AVATARS,
     UserFileError,

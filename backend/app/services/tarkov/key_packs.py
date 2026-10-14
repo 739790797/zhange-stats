@@ -826,7 +826,7 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         for row in rows
         if isinstance(row, dict) and row.get("id")
     }
-    # 与物品来源共用按表头缓存的任务 raw 行：钥匙 OCR 每次都要建目录，不能每次解码任务 dump。
+    # 与物品来源共用按表头缓存的任务 raw 行：建钥匙目录时不能每次解码任务 dump。
     task_raws, raw_locale = _load_task_rows(db)
     if not task_raws:
         return rows, locale

@@ -9,7 +9,6 @@ import {
   DEFAULT_AMMO_HINT,
   extractContentLines,
   extractGridPockets,
-  extractPlateSlots,
   formatPropValue,
   formatPropertyList,
   innerSlots,
@@ -503,31 +502,6 @@ describe("extractGridPockets", () => {
     ).toEqual([
       { width: 4, height: 5, col: 0, row: 0 },
       { width: 1, height: 2, col: 4, row: 0 },
-    ]);
-  });
-});
-
-describe("extractPlateSlots", () => {
-  it("keeps slots that list allowed plates", () => {
-    const groups = extractPlateSlots({
-      armorSlots: [
-        { name: "Front", durability: 40, class: 4, zones: ["Chest"] },
-        {
-          name: "Plate",
-          allowedPlates: [
-            { id: "p1", name: "SAPI", iconLink: "x.webp", types: ["armorPlate"] },
-          ],
-        },
-      ],
-    });
-    expect(groups).toEqual([
-      {
-        key: "1-Plate",
-        name: "Plate",
-        plates: [
-          { id: "p1", name: "SAPI", icon: "x.webp", types: ["armorPlate"] },
-        ],
-      },
     ]);
   });
 });

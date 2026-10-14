@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { assistantBoundToDir, isAssistantDir } from "./assistantTarkovDir";
+import type { AssistantBoundDir, AssistantDirEntry } from "./assistantShell";
 import {
   createTarkovLogReadCache,
   peekSessionFingerprint,
+  pollLatestScreenshot,
   readLogsIndex,
+  readScreenshotByName,
+  readSessionApplicationLogs,
   readSessionLogs,
   readStattedSessionLogs,
   retainTarkovLogFolders,
+  shouldStoreDirHandle,
   statSessionLogs,
   type ReadableDir,
   type ReadableEntry,
@@ -169,5 +175,182 @@ describe("cached live log reads", () => {
 
     await readLogsIndex(memoryDir("Logs", dirNode({}), counters), cache).catch(() => null);
     expect(cache.texts.size).toBe(0);
+  });
+});
+
+/** 战鸽助手：list 回名字+大小+修改时间，读正文 / 读图片字节各自过一次桥。 */
+function assistantFixture() {
+  const files = new Map<string, { text: string; lastModified: number }>();
+  const counters = { lists: 0, readText: 0, readBytes: 0 };
+  const sizeOf = (text: string) => encoder.encode(text).length;
+
+  function set(rel: string, text: string, lastModified: number) {
+    files.set(rel, { text, lastModified });
+  }
+
+  function entries(rel: string): AssistantDirEntry[] {
+    counters.lists += 1;
+    const prefix = rel ? `${rel}/` : "";
+    const seen = new Map<string, AssistantDirEntry>();
+    for (const [path, value] of files) {
+      if (!path.startsWith(prefix)) continue;
+      const rest = path.slice(prefix.length);
+      const slash = rest.indexOf("/");
+      const name = slash < 0 ? rest : rest.slice(0, slash);
+      seen.set(
+        name,
+        slash < 0
+          ? { kind: "file", name, lastModified: value.lastModified, size: sizeOf(value.text) }
+          : { kind: "directory", name },
+      );
+    }
+    return [...seen.values()];
+  }
+
+  const bound: AssistantBoundDir = {
+    path: "D:\\Games\\Escape from Tarkov\\build\\Logs",
+    list: async (rel = "") => entries(rel),
+    readText: async (rel) => {
+      counters.readText += 1;
+      const hit = files.get(rel);
+      return {
+        text: hit?.text || "",
+        lastModified: hit?.lastModified || 0,
+        size: sizeOf(hit?.text || ""),
+      };
+    },
+    readBytes: async () => {
+      counters.readBytes += 1;
+      return new Uint8Array([1, 2, 3]).buffer;
+    },
+  };
+  return { bound, counters, set, sizeOf, dir: assistantBoundToDir(bound) };
+}
+
+describe("assistant-bound directories", () => {
+  it("never asks the bridge for log text while only fingerprints are needed", async () => {
+    const fixture = assistantFixture();
+    const notify = "2024-02-05 19:00:01.000|x|Info|push-notifications|hi\n";
+    fixture.set(`${SESSION}/application.log`, appLines(0, 40), 100);
+    fixture.set(`${SESSION}/notifications.log`, notify, 90);
+    const cache = createTarkovLogReadCache();
+
+    const index = await readLogsIndex(fixture.dir, cache);
+    expect(index.sessions.map((row) => row.folder)).toEqual([SESSION]);
+    const stat = await statSessionLogs(fixture.dir, SESSION, cache);
+    expect(fixture.counters.readText).toBe(0);
+    expect(stat.files.every((row) => row.file === null)).toBe(true);
+    expect(stat.fingerprint).toBe(
+      `application.log:${fixture.sizeOf(appLines(0, 40))}:100|notifications.log:${fixture.sizeOf(notify)}:90`,
+    );
+
+    const first = await readStattedSessionLogs(stat, cache);
+    expect(fixture.counters.readText).toBe(2);
+    expect(first.files.map((file) => file.name)).toEqual([
+      "notifications.log",
+      "application.log",
+    ]);
+    expect(first).toEqual(await readSessionLogs(fixture.dir, SESSION));
+    expect(first.fingerprint).toBe(stat.fingerprint);
+    const textReads = fixture.counters.readText;
+
+    // 下一轮什么都没变：只列目录，不再过桥读正文。
+    const idle = await statSessionLogs(fixture.dir, SESSION, cache);
+    expect(idle.fingerprint).toBe(stat.fingerprint);
+    const again = await readStattedSessionLogs(idle, cache);
+    expect(fixture.counters.readText).toBe(textReads);
+    expect(again.files).toEqual(first.files);
+
+    fixture.set(`${SESSION}/application.log`, appLines(0, 41), 200);
+    const next = await statSessionLogs(fixture.dir, SESSION, cache);
+    expect(next.fingerprint).not.toBe(stat.fingerprint);
+    const grown = await readStattedSessionLogs(next, cache);
+    // 只有变了的那一份过桥。
+    expect(fixture.counters.readText).toBe(textReads + 1);
+    expect(grown).toEqual(await readSessionLogs(fixture.dir, SESSION));
+  });
+
+  it("resolves the logs root once when one cache serves User whole history scan", async () => {
+    const build = () => {
+      const fixture = assistantFixture();
+      fixture.set(`${SESSION}/application.log`, appLines(0, 2), 1);
+      fixture.set(`${SESSION}/notifications.log`, "notify\n", 1);
+      fixture.set(`${NEXT_SESSION}/application.log`, appLines(10, 2), 2);
+      return fixture;
+    };
+    const folders = [SESSION, NEXT_SESSION];
+
+    const cached = build();
+    const cache = createTarkovLogReadCache();
+    const withCache = [];
+    for (const folder of folders) {
+      withCache.push(await readSessionApplicationLogs(cached.dir, folder, cache));
+    }
+    expect(withCache[0]?.files.map((file) => file.name)).toEqual(["application.log"]);
+
+    const plain = build();
+    const without = [];
+    for (const folder of folders) {
+      without.push(await readSessionApplicationLogs(plain.dir, folder));
+    }
+    expect(withCache).toEqual(without);
+    // 不带缓存：每个文件夹都重新解析日志根（列两次根）再列自己；带缓存：根只解析一次。
+    expect(plain.counters.lists).toBe(3 * folders.length);
+    expect(cached.counters.lists).toBe(2 + folders.length);
+    expect(cached.counters.readText).toBe(plain.counters.readText);
+
+    const full = await readSessionLogs(cached.dir, SESSION, { cache });
+    expect(full).toEqual(await readSessionLogs(plain.dir, SESSION));
+  });
+
+  it("takes screenshot metadata from the listing instead of pulling image bytes", async () => {
+    const fixture = assistantFixture();
+    const older = "2026-10-13[21-35]_19.91 (0).png";
+    const newer = "2026-10-13[21-36]_20.10 (0).png";
+    fixture.set(older, "fake-png-bytes", 500);
+    fixture.set(newer, "fake-png-bytes-2", 900);
+
+    expect(await readScreenshotByName(fixture.dir, older)).toEqual({
+      name: older,
+      size: fixture.sizeOf("fake-png-bytes"),
+      lastModified: 500,
+    });
+    expect(await readScreenshotByName(fixture.dir, "missing.png")).toBeNull();
+    expect(fixture.counters.readBytes).toBe(0);
+    expect(fixture.counters.readText).toBe(0);
+
+    const listsBefore = fixture.counters.lists;
+    const poll = await pollLatestScreenshot(fixture.dir, new Set(), fixture.dir);
+    // 整轮只列一次目录，逐张看时不重列、不读字节。
+    expect(fixture.counters.lists - listsBefore).toBe(1);
+    expect(fixture.counters.readBytes).toBe(0);
+    expect(poll.names).toEqual([older, newer]);
+    expect(poll.latest).toEqual({
+      name: newer,
+      size: fixture.sizeOf("fake-png-bytes-2"),
+      lastModified: 900,
+    });
+  });
+
+  it("still reads metadata through file handles for browser-granted folders", async () => {
+    const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
+    const shot = "2026-10-13[21-35]_19.91 (0).png";
+    const dir = memoryDir("Screenshots", dirNode({ [shot]: fileNode("png", 700) }), counters);
+    expect(await readScreenshotByName(dir, shot)).toEqual({ name: shot, size: 3, lastModified: 700 });
+    expect(counters.wholeReads).toBe(0);
+    expect(counters.lists).toBe(0);
+    expect(await readScreenshotByName(dir, "missing.png")).toBeNull();
+  });
+
+  it("never tries to store User bound handle in IndexedDB", () => {
+    const fixture = assistantFixture();
+    expect(isAssistantDir(fixture.dir)).toBe(true);
+    const plain = memoryDir("Logs", dirNode({}), { lists: 0, wholeReads: 0, slicedFrom: [] });
+    expect(isAssistantDir(plain)).toBe(false);
+    expect(shouldStoreDirHandle(fixture.dir, fixture.bound)).toBe(false);
+    // 助手绑定在时一律不存（读取一侧也先看绑定）。
+    expect(shouldStoreDirHandle(plain, fixture.bound)).toBe(false);
+    expect(shouldStoreDirHandle(fixture.dir, null)).toBe(false);
+    expect(shouldStoreDirHandle(plain, null)).toBe(true);
   });
 });

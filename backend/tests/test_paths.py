@@ -146,8 +146,9 @@ def test_migrate_var_layout_to_data(tmp_path: Path) -> None:
     var = install / "var"
     (var / "data" / "logs").mkdir(parents=True)
     (var / "data" / ".secret_key").write_text("k\n", encoding="utf-8")
+    (var / "data" / "texteller").mkdir()
+    (var / "data" / "texteller" / "encoder_model.onnx").write_bytes(b"x")
     (var / "data" / "rapidocr").mkdir()
-    (var / "data" / "rapidocr" / "det.onnx").write_bytes(b"x")
     (var / "data" / "ocr_REVISION").write_text("rev\n", encoding="utf-8")
     (var / "uploads" / "avatars").mkdir(parents=True)
     (var / "dev" / "backend.pid").parent.mkdir(parents=True)
@@ -166,8 +167,10 @@ def test_migrate_var_layout_to_data(tmp_path: Path) -> None:
     migrate_runtime_layout(install)
 
     assert (install / "data" / "runtime" / ".secret_key").is_file()
-    assert (install / "data" / "models" / "rapidocr" / "det.onnx").is_file()
-    assert (install / "data" / "models" / "ocr_REVISION").read_text(encoding="utf-8") == "rev\n"
+    assert (install / "data" / "models" / "texteller" / "encoder_model.onnx").is_file()
+    # 截图识别已下线：迁过来的 OCR 权重与版本戳随后被清理
+    assert not (install / "data" / "models" / "rapidocr").exists()
+    assert not (install / "data" / "models" / "ocr_REVISION").exists()
     assert (install / "data" / "uploads" / "avatars").is_dir()
     assert (install / "data" / "run" / "backend.pid").is_file()
     assert (install / "data" / "cache" / "vite").is_dir()
@@ -212,8 +215,8 @@ def test_migrate_flat_data_dir_behind_early_secret_and_script_dirs(tmp_path: Pat
     (runtime / ".secret_key").write_text("live-key\n", encoding="utf-8")
     (data / "logs").mkdir()
     (data / "logs" / "app.jsonl").write_text("{}\n", encoding="utf-8")
-    (data / "rapidocr").mkdir()
-    (data / "rapidocr" / "det.onnx").write_bytes(b"x")
+    (data / "texteller").mkdir()
+    (data / "texteller" / "encoder_model.onnx").write_bytes(b"x")
     (data / "zhange.sqlite").write_bytes(b"SQLite format 3\x00")
     (data / "README.md").write_text("layout\n", encoding="utf-8")
     for name in ("uploads", "models", "cache", "tmp", "backups", "run"):
@@ -230,9 +233,9 @@ def test_migrate_flat_data_dir_behind_early_secret_and_script_dirs(tmp_path: Pat
     assert sorted(p.name for p in runtime.iterdir()) == [".secret_key", "logs", "zhange.sqlite"]
     assert (runtime / ".secret_key").read_text(encoding="utf-8") == "live-key\n"
     assert (runtime / "logs" / "app.jsonl").is_file()
-    assert (data / "models" / "rapidocr" / "det.onnx").is_file()
+    assert (data / "models" / "texteller" / "encoder_model.onnx").is_file()
     assert not (data / "logs").exists()
-    assert not (data / "rapidocr").exists()
+    assert not (data / "texteller").exists()
     assert (data / "run" / "backend.pid").read_text(encoding="utf-8") == "4242\n"
     assert (data / "README.md").is_file()
     db = json.loads((install / "config" / "database.json").read_text(encoding="utf-8"))
@@ -314,16 +317,15 @@ def test_pin_library_cache_env_overrides_home_dir(
     install.mkdir()
     leak = Path.home() / ".cache" / "huggingface"
     monkeypatch.setenv("HF_HOME", str(leak))
-    monkeypatch.setenv("TORCH_HOME", str(Path.home() / ".cache" / "torch"))
-    monkeypatch.setenv("EASYOCR_MODULE_PATH", str(Path.home() / ".EasyOCR"))
+    monkeypatch.setenv("PIP_CACHE_DIR", str(Path.home() / ".cache" / "pip"))
     monkeypatch.delenv("TMPDIR", raising=False)
 
     applied = pin_library_cache_env(install=install)
     hf = Path(applied["HF_HOME"])
     assert hf == (install / "data" / "cache" / "huggingface").resolve()
     assert os.environ["HF_HOME"] == str(hf)
-    assert path_in_install(Path(applied["TORCH_HOME"]), install)
-    assert path_in_install(Path(applied["EASYOCR_MODULE_PATH"]), install)
+    assert path_in_install(Path(applied["PIP_CACHE_DIR"]), install)
+    assert "TORCH_HOME" not in applied
     assert path_in_install(Path(applied["TMPDIR"]), install)
     assert Path(applied["HF_HUB_CACHE"]) == hf / "hub"
 
@@ -362,18 +364,13 @@ def test_migrate_spilled_copies_owned_weights_and_leaves_shared_hf(
     (snap / "config.json").write_text("{}\n", encoding="utf-8")
     shared = home / ".cache" / "huggingface" / ".agent_harnesses.json"
     shared.write_text("{}\n", encoding="utf-8")
-    easy = home / ".EasyOCR" / "model"
-    easy.mkdir(parents=True)
-    (easy / "craft_mlt_25k.pth").write_bytes(b"craft")
-    (home / ".EasyOCR" / "other.bin").write_bytes(b"nope")
 
     copied = migrate_spilled_library_caches(install=install, home=home)
     models = install / "data" / "models"
     assert (models / "texteller" / "encoder_model.onnx").read_bytes() == b"enc"
-    assert (models / "easyocr" / "craft_mlt_25k.pth").read_bytes() == b"craft"
+    assert not (models / "easyocr").exists()
     assert not (install / "data" / "cache" / "huggingface" / ".agent_harnesses.json").exists()
     assert shared.is_file()
-    assert (easy / "craft_mlt_25k.pth").is_file()
     assert any("encoder_model.onnx" in item.replace("\\", "/") for item in copied)
 
     (models / "texteller" / "encoder_model.onnx").write_bytes(b"keep")
@@ -454,3 +451,30 @@ def test_cleanup_legacy_install_tree_skips_env_and_secret(tmp_path: Path) -> Non
     assert (models / "decoder_model.onnx").is_file()
     for name in LEFTOVER_TEXTTELLER_FILES:
         assert not (models / name).exists()
+
+
+def test_cleanup_removes_retired_ocr_weights_but_keeps_texteller(tmp_path: Path) -> None:
+    install = tmp_path / "zhange-stats"
+    for rel in ("data/models/rapidocr/v5", "data/models/easyocr", "data/cache/torch/hub"):
+        (install / rel).mkdir(parents=True)
+    (install / "data/models/rapidocr/v5/det.onnx").write_bytes(b"x")
+    (install / "data/models/ocr_REVISION").write_text("1", encoding="utf-8")
+    (install / "data/cache/paddleocr").mkdir(parents=True)
+    (install / "config").mkdir(parents=True)
+    (install / "config/ocr.json").write_text("{}", encoding="utf-8")
+    (install / "config/app.json").write_text("{}", encoding="utf-8")
+    texteller = install / "data/models/texteller"
+    texteller.mkdir(parents=True)
+    (texteller / "encoder_model.onnx").write_bytes(b"keep")
+
+    removed = cleanup_legacy_install_tree(install)
+
+    assert "data/models/rapidocr/" in removed
+    assert "data/models/ocr_REVISION" in removed
+    assert not (install / "data/models/rapidocr").exists()
+    assert not (install / "data/models/easyocr").exists()
+    assert not (install / "data/cache/torch").exists()
+    assert not (install / "data/cache/paddleocr").exists()
+    assert not (install / "config/ocr.json").exists()
+    assert (install / "config/app.json").is_file()
+    assert (texteller / "encoder_model.onnx").is_file()

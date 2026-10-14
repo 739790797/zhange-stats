@@ -14,7 +14,7 @@ import {
   mapSlugKeys,
   normalizeRaidPrepMapId,
   raidPrepMapOptions,
-} from "@/lib/tarkovRaidPrep";
+} from "@/lib/tarkovMapSlugs";
 
 export const TARKOV_TASK_DONES_STORAGE_KEY = "zhange.guides.tarkov.taskDones.v1";
 export const ANY_TASK_MAP = "any";
@@ -102,11 +102,17 @@ export type TarkovTaskDonesState = {
   questProfileResetPending?: { pvp?: boolean; pve?: boolean };
   /** 玩家清空进度后，下一次任务同步从当前模式最新 ProfileId 重放。 */
   questSyncFromLatest?: { pvp?: boolean; pve?: boolean };
+  /** 本机点「清空进度」的时刻，还没被带日志的同步定成下限。登录时以账号的 pending_clear_at 为准。 */
+  questClearedAt?: { pvp?: string; pve?: string };
   /**
-   * 清空进度或转生之后的回放下限（北京墙钟）。
-   * 同一 ProfileId 的转生不会换 id，更早的完成日志不能再写回。
+   * 回放下限（北京墙钟）的本机缓存，只增不减。登录时以账号的 reset_at 为准，这里只是缓存与访客兜底。
    */
   questProgressFloor?: { pvp?: string; pve?: string };
+  /**
+   * 本机这份任务账基于账号的哪个 reset_epoch。和账号对不上说明别处清空 / 重置过，本机账作废、以账号为准；
+   * 批量写入也带它，服务端对不上回 409。
+   */
+  questServerEpoch?: { pvp?: number; pve?: number };
 };
 
 let questLedgerEpoch = 0;
@@ -261,6 +267,26 @@ function asClockMap(
   return {
     ...(pvp ? { pvp } : {}),
     ...(pve ? { pve } : {}),
+  };
+}
+
+function asEpoch(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function asEpochMap(
+  value: unknown,
+): { pvp?: number; pve?: number } | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as { pvp?: unknown; pve?: unknown };
+  const pvp = asEpoch(row.pvp);
+  const pve = asEpoch(row.pve);
+  if (pvp === undefined && pve === undefined) return undefined;
+  return {
+    ...(pvp !== undefined ? { pvp } : {}),
+    ...(pve !== undefined ? { pve } : {}),
   };
 }
 
@@ -911,7 +937,9 @@ export function parseTaskDonesStateRaw(
           pvp: Boolean(parsed.questSyncFromLatest?.pvp),
           pve: Boolean(parsed.questSyncFromLatest?.pve),
         },
+        questClearedAt: asClockMap(parsed.questClearedAt),
         questProgressFloor: asClockMap(parsed.questProgressFloor),
+        questServerEpoch: asEpochMap(parsed.questServerEpoch),
       };
     }
   } catch {
@@ -935,9 +963,12 @@ function writeState(state: TarkovTaskDonesState): void {
 export function mergeGuestTaskProgress(
   current: TarkovTaskDonesState,
   guest: TarkovTaskDonesState,
+  skipModes: ReadonlySet<TarkovGameMode> = new Set(),
 ): TarkovTaskDonesState {
   const next: TarkovTaskDonesState = { ...current };
   for (const mode of ["pvp", "pve"] as const) {
+    // 账号这个模式清空 / 转生重置过：访客账没有时间可比，并进来可能正是清空前的旧任务；交给下次日志同步按边界重放
+    if (skipModes.has(mode)) continue;
     const merged = unionTaskProgress(
       {
         done: asIdList(current[mode]),
@@ -964,9 +995,12 @@ export function mergeGuestTaskProgress(
   return next;
 }
 
-export function importGuestTaskProgress(raw: string | null | undefined): void {
+export function importGuestTaskProgress(
+  raw: string | null | undefined,
+  skipModes: ReadonlySet<TarkovGameMode> = new Set(),
+): void {
   if (!raw) return;
-  writeState(mergeGuestTaskProgress(readState(), parseTaskDonesStateRaw(raw)));
+  writeState(mergeGuestTaskProgress(readState(), parseTaskDonesStateRaw(raw), skipModes));
 }
 
 export function saveTaskDoneIds(
@@ -1105,6 +1139,23 @@ export function loadTaskClearedDone(mode: TarkovGameMode): Map<string, string> {
   return new Map(Object.entries(readState().clearedDone?.[mode] || {}));
 }
 
+/**
+ * 按下限重放时仍要认的手动取消：晚于下限的取消挡住下限之后、取消之前的那次完成；
+ * 不晚于下限的已被下限覆盖。下限为空（不重置）时原样全认。
+ */
+export function clearedDoneAfter(
+  cleared: ReadonlyMap<string, string>,
+  floor: string,
+): Map<string, string> {
+  const at = asClock(floor);
+  if (!at) return new Map(cleared);
+  const out = new Map<string, string>();
+  for (const [id, stamp] of cleared) {
+    if (compareBeijingClock(stamp, at) > 0) out.set(id, stamp);
+  }
+  return out;
+}
+
 export function loadQuestProfileId(mode: TarkovGameMode): string {
   return asProfileId(readState().questProfileId?.[mode]);
 }
@@ -1129,12 +1180,151 @@ export function loadQuestProgressFloor(mode: TarkovGameMode): string {
   return asClock(readState().questProgressFloor?.[mode]);
 }
 
+/** 本机缓存的回放下限只增不减：更早的时刻会把清空 / 转生之前的旧任务放回来。 */
 export function saveQuestProgressFloor(mode: TarkovGameMode, at: string): void {
   const stamp = asClock(at);
   if (!stamp) return;
   const state = readState();
+  const current = asClock(state.questProgressFloor?.[mode]);
+  if (current && compareBeijingClock(current, stamp) >= 0) return;
   state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
   writeState(state);
+}
+
+/** 账号读到的边界写进本机缓存：下限只往后挪。账号记过边界（epoch>0）时，待同步的清空也以账号为准。 */
+export function adoptQuestBoundary(
+  mode: TarkovGameMode,
+  boundary: {
+    resetAt: string;
+    pendingClearAt: string;
+    profileId: string;
+    epoch: number;
+  },
+): void {
+  const state = readState();
+  let changed = false;
+  const resetAt = asClock(boundary.resetAt);
+  const current = asClock(state.questProgressFloor?.[mode]);
+  if (resetAt && (!current || compareBeijingClock(current, resetAt) < 0)) {
+    state.questProgressFloor = { ...state.questProgressFloor, [mode]: resetAt };
+    changed = true;
+  }
+  const profileId = asProfileId(boundary.profileId);
+  if (profileId && asProfileId(state.questProfileId?.[mode]) !== profileId) {
+    state.questProfileId = { ...state.questProfileId, [mode]: profileId };
+    changed = true;
+  }
+  if (boundary.epoch > 0) {
+    const pendingAt = asClock(boundary.pendingClearAt);
+    if (Boolean(state.questSyncFromLatest?.[mode]) !== Boolean(pendingAt)) {
+      state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: Boolean(pendingAt) };
+      changed = true;
+    }
+    if (asClock(state.questClearedAt?.[mode]) !== pendingAt) {
+      state.questClearedAt = { ...state.questClearedAt, [mode]: pendingAt };
+      changed = true;
+    }
+  }
+  if (changed) writeState(state);
+}
+
+/** 本机任务账基于账号的哪个 reset_epoch；undefined = 还没和账号对过（新浏览器 / 登出后 / 升级前）。 */
+export function loadQuestServerEpoch(mode: TarkovGameMode): number | undefined {
+  return readState().questServerEpoch?.[mode];
+}
+
+/**
+ * 本标签页内存里那份进度（面板 state）基于的 reset_epoch。批量写入带的是它，不是 localStorage 里的：
+ * 别的标签页清空后 localStorage 已是新 epoch，这个页还拿着清空前的账，必须被服务端 409 拦下。
+ */
+const tabQuestEpochs = new Map<TarkovGameMode, number>();
+
+export function loadTabQuestEpoch(mode: TarkovGameMode): number | undefined {
+  return tabQuestEpochs.get(mode);
+}
+
+export function saveQuestServerEpoch(mode: TarkovGameMode, epoch: number): void {
+  if (!Number.isInteger(epoch) || epoch < 0) return;
+  tabQuestEpochs.set(mode, epoch);
+  const state = readState();
+  if (state.questServerEpoch?.[mode] === epoch) return;
+  state.questServerEpoch = { ...state.questServerEpoch, [mode]: epoch };
+  writeState(state);
+}
+
+/** 别的标签页改了本机账、并已对齐到新的 epoch：本页内存进度随之换成 localStorage 那份。 */
+export function followStoredQuestEpoch(mode: TarkovGameMode): boolean {
+  const stored = loadQuestServerEpoch(mode);
+  if (stored === undefined || tabQuestEpochs.get(mode) === stored) return false;
+  tabQuestEpochs.set(mode, stored);
+  return true;
+}
+
+/** 测试用：模拟换标签页。 */
+export function resetTabQuestEpochsForTests(): void {
+  tabQuestEpochs.clear();
+}
+
+/**
+ * 本机账已过期：账号在别处清空 / 转生重置过（reset_epoch 对不上），或本机从没和账号对过而账号已有边界。
+ * 账号 epoch 为 0（从没清空过）时本机账照常与账号并集。
+ */
+export function questLedgerIsStale(
+  localEpoch: number | undefined,
+  serverEpoch: number,
+): boolean {
+  if (serverEpoch <= 0) return localEpoch !== undefined && localEpoch !== serverEpoch;
+  return localEpoch !== serverEpoch;
+}
+
+/**
+ * 以账号为准整份替换本模式本机账（别处清空 / 重置过）。清除标记取账号的，再留本机比账号下限更晚的。
+ */
+export function adoptServerTaskLedger(
+  mode: TarkovGameMode,
+  data: {
+    done: readonly string[];
+    started: readonly string[];
+    failed: readonly string[];
+    objectives: readonly TaskObjectivePair[];
+    cleared: ReadonlyMap<string, string>;
+    boundary: { resetAt: string; pendingClearAt: string; profileId: string; epoch: number };
+  },
+): void {
+  const state = readState();
+  const cleaned = cleanTaskProgress(data.done, data.started, data.failed);
+  const floor = asClock(data.boundary.resetAt);
+  const modeCleared: Record<string, string> = {};
+  for (const [id, at] of Object.entries(state.clearedDone?.[mode] || {})) {
+    if (floor && compareBeijingClock(at, floor) <= 0) continue;
+    modeCleared[id] = at;
+  }
+  for (const [id, at] of data.cleared) {
+    const prev = modeCleared[id] || "";
+    modeCleared[id] = laterBeijingClock(prev, at);
+  }
+  for (const id of cleaned.done) delete modeCleared[id];
+  state[mode] = cleaned.done;
+  state.started = { ...state.started, [mode]: cleaned.started };
+  state.failed = { ...state.failed, [mode]: cleaned.failed };
+  state.objectives = { ...state.objectives, [mode]: asObjectivePairs(data.objectives) };
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  state.questProfileResetPending = { ...state.questProfileResetPending, [mode]: false };
+  state.questServerEpoch = { ...state.questServerEpoch, [mode]: data.boundary.epoch };
+  tabQuestEpochs.set(mode, data.boundary.epoch);
+  state.migrated = { ...state.migrated, [mode]: true };
+  state.startedMigrated = { ...state.startedMigrated, [mode]: true };
+  writeState(state);
+  adoptQuestBoundary(mode, data.boundary);
+  bumpQuestLedgerEpoch();
+}
+
+/** 批量写入被账号 409 拒掉（本机账过期）时广播；账号同步钩子收到后重新拉账号并替换本机账。 */
+export const TARKOV_TASK_LEDGER_STALE_EVENT = "zhange-tarkov-task-ledger-stale";
+
+export function notifyTaskLedgerStale(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(TARKOV_TASK_LEDGER_STALE_EVENT));
 }
 
 export function clearQuestSyncFromLatest(mode: TarkovGameMode): void {
@@ -1167,9 +1357,10 @@ export function releaseClearedTasks(
 }
 
 /**
- * 清空当前模式的任务账。
- * 同一 ProfileId 时，下一次同步不再写回这次清空之前的任务日志。
- * 日志里已经换成新角色时，从该角色第一次出现重放。
+ * 清空当前模式的任务账，并记下待同步的清空。
+ * 下一次带日志的同步：识别出转生或换了角色就从那一刻回放，否则从清空时刻回放；
+ * 定下来的下限写回账号（登录时），之后任何设备都不会把它之前的任务写回。
+ * 本机的回放下限不在这里设：未登录时由同步定，登录时以账号为准。
  */
 export function clearTaskProgressForResync(mode: TarkovGameMode): void {
   const state = readState();
@@ -1191,11 +1382,86 @@ export function clearTaskProgressForResync(mode: TarkovGameMode): void {
   state.objectives = { ...state.objectives, [mode]: [] };
   state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
   state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: true };
-  state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
+  state.questClearedAt = { ...state.questClearedAt, [mode]: stamp };
   state.questProfileResetPending = {
     ...state.questProfileResetPending,
     [mode]: true,
   };
+  writeState(state);
+  bumpQuestLedgerEpoch();
+}
+
+/** 本机未提交的清空时刻（访客 / 离线时用；登录时以账号的 pending_clear_at 为准）。 */
+export function loadQuestClearedAt(mode: TarkovGameMode): string {
+  return asClock(readState().questClearedAt?.[mode]);
+}
+
+/**
+ * 本机缓存的回放边界（访客用；登录时与账号合并，见 combineQuestBoundary）。
+ * 升级前点过清空的本机账只有 questSyncFromLatest + questProgressFloor，把下限当作清空时刻。
+ */
+export function loadLocalQuestBoundary(mode: TarkovGameMode): {
+  resetAt: string;
+  pendingClearAt: string;
+  profileId: string;
+  epoch: number;
+} {
+  const state = readState();
+  const resetAt = asClock(state.questProgressFloor?.[mode]);
+  const pending = state.questSyncFromLatest?.[mode]
+    ? asClock(state.questClearedAt?.[mode]) || resetAt || nowBeijingStamp()
+    : "";
+  return {
+    resetAt,
+    pendingClearAt: pending,
+    profileId: asProfileId(state.questProfileId?.[mode]),
+    epoch: 0,
+  };
+}
+
+/**
+ * 一次带日志的回放整表替换了本模式进度：写入结果，推进本机下限，撤掉待同步的清空。
+ * 保留 clearedDone 里结果没用到的标记（下限之后才勾掉的那些仍要挡住）。
+ */
+export function applyQuestReplayReset(
+  mode: TarkovGameMode,
+  input: {
+    profileId: string;
+    fromAt: string;
+    done: readonly string[];
+    started: readonly string[];
+    failed: readonly string[];
+  },
+): void {
+  const state = readState();
+  const cleaned = cleanTaskProgress(input.done, input.started, input.failed);
+  const kept = new Set([...cleaned.done, ...cleaned.started, ...cleaned.failed]);
+  const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
+  const floor = asClock(input.fromAt);
+  for (const [id, at] of Object.entries(modeCleared)) {
+    if (kept.has(id) || (floor && compareBeijingClock(at, floor) <= 0)) {
+      delete modeCleared[id];
+    }
+  }
+  state[mode] = cleaned.done;
+  state.started = { ...state.started, [mode]: cleaned.started };
+  state.failed = { ...state.failed, [mode]: cleaned.failed };
+  state.objectives = { ...state.objectives, [mode]: [] };
+  state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
+  const profileId = asProfileId(input.profileId);
+  if (profileId) state.questProfileId = { ...state.questProfileId, [mode]: profileId };
+  const current = asClock(state.questProgressFloor?.[mode]);
+  if (floor && (!current || compareBeijingClock(current, floor) < 0)) {
+    state.questProgressFloor = { ...state.questProgressFloor, [mode]: floor };
+  }
+  state.questSyncFromLatest = { ...state.questSyncFromLatest, [mode]: false };
+  state.questClearedAt = { ...state.questClearedAt, [mode]: "" };
+  state.questProfileResetPending = {
+    ...state.questProfileResetPending,
+    [mode]: true,
+  };
+  state.migrated = { ...state.migrated, [mode]: true };
+  state.startedMigrated = { ...state.startedMigrated, [mode]: true };
   writeState(state);
   bumpQuestLedgerEpoch();
 }
@@ -1237,7 +1503,10 @@ export function resetTaskProgressForProfile(
   state.objectives = { ...state.objectives, [mode]: [] };
   state.clearedDone = { ...state.clearedDone, [mode]: modeCleared };
   state.questProfileId = { ...state.questProfileId, [mode]: id };
-  state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
+  const current = asClock(state.questProgressFloor?.[mode]);
+  if (!current || compareBeijingClock(current, stamp) < 0) {
+    state.questProgressFloor = { ...state.questProgressFloor, [mode]: stamp };
+  }
   state.questProfileResetPending = {
     ...state.questProfileResetPending,
     [mode]: true,

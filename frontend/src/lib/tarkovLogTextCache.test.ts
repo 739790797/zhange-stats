@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readTarkovLogText, type TarkovLogTextEntry } from "./tarkovLogTextCache";
+import {
+  logTextGrownFrom,
+  readTarkovLogText,
+  type TarkovLogTextEntry,
+} from "./tarkovLogTextCache";
 
 const encoder = new TextEncoder();
 
@@ -78,6 +82,8 @@ describe("readTarkovLogText", () => {
     expect(second.reads).toHaveLength(1);
     expect(second.reads[0]).toBeGreaterThan(encoder.encode(prefix).length - 300);
     expect(second.entry.read).not.toBe(first.entry.read);
+    expect(logTextGrownFrom(second.entry.read)).toBe(first.entry.read);
+    expect(logTextGrownFrom(first.entry.read)).toBeUndefined();
   });
 
   it("re-decodes a multibyte character split at the previous end", async () => {
@@ -105,6 +111,7 @@ describe("readTarkovLogText", () => {
     const truncated = await step(bytesOf("row 0\n"), 2, first.entry);
     expect(truncated.entry.read.text).toBe("row 0\n");
     expect(truncated.reads).toEqual([0]);
+    expect(logTextGrownFrom(truncated.entry.read)).toBeUndefined();
 
     const rewritten = await step(bytesOf(long.replace("row 49", "ROW 49"), "more\n"), 3, first.entry);
     expect(rewritten.entry.read.text).toBe(rewritten.expected);

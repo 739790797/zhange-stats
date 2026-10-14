@@ -53,7 +53,7 @@ jobs:
           path: frontend/dist
           retention-days: 3
 
-  # Python 依赖与生产同法安装：先 CPU torch，再 -c constraints.txt + 已装 torch 版本
+  # Python 依赖与生产同法安装：-c constraints.txt
   backend-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -72,13 +72,9 @@ jobs:
             backend/requirements*.txt
             backend/constraints.txt
 
-      - name: Install backend deps (CPU torch + constraints)
+      - name: Install backend deps (constraints)
         working-directory: backend
-        run: |
-          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
-          python -m pip install -r requirements.txt -r requirements-dev.txt \
-            -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
 
       - name: Ruff
         working-directory: backend
@@ -127,13 +123,9 @@ jobs:
             backend/requirements*.txt
             backend/constraints.txt
 
-      - name: Install backend deps (CPU torch + constraints)
+      - name: Install backend deps (constraints)
         working-directory: backend
-        run: |
-          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
-          python -m pip install -r requirements.txt -r requirements-dev.txt \
-            -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
 
       - name: Alembic upgrade head (twice for idempotency)
         working-directory: backend
@@ -192,12 +184,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install backend deps (CPU torch + constraints)
+      - name: Install backend deps (constraints)
         working-directory: backend
-        run: |
-          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          python -m pip freeze | grep -E '^(torch|torchvision)==' > "${RUNNER_TEMP}/torch-pins.txt"
-          python -m pip install -r requirements.txt -c constraints.txt -c "${RUNNER_TEMP}/torch-pins.txt"
+        run: python -m pip install -r requirements.txt -c constraints.txt
 
       - name: Export OpenAPI & check drift
         env:
@@ -237,7 +226,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 审计实际安装的锁定版本；torch 及其直接依赖不在锁里（见 constraints.txt 头注释）
+      # 审计实际安装的锁定版本
       - name: pip-audit (constraints.txt)
         if: always()
         working-directory: backend

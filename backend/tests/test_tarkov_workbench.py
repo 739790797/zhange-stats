@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from app.services.tarkov import workbench as svc
@@ -362,3 +364,77 @@ def test_validate_build_rejects_illegal_mod_and_ammo(index: svc.WorkbenchIndex):
     with pytest.raises(svc.TarkovWorkbenchError) as illegal_ammo:
         svc.validate_build(index, gun, [], ammo_id="ammo-other")
     assert illegal_ammo.value.status_code == 400
+
+
+def _add_slot(index: svc.WorkbenchIndex, owner: str, slot_id: str, allowed: list[str]) -> None:
+    slot = svc.WbSlot(
+        id=slot_id,
+        name=slot_id,
+        name_id="mod_mount",
+        required=False,
+        parent_item_id=owner,
+        allowed_ids=allowed,
+    )
+    index.items[owner].slots.append(slot)
+    index.slots[slot_id] = slot
+
+
+# 成环：gun1 → grip1 → rail1 → (slot-back) grip1，外加 rail1 自指
+CYCLIC_PAIRS = [
+    ("slot-grip", "grip1"),
+    ("slot-rail", "rail1"),
+    ("slot-back", "grip1"),
+    ("slot-self", "rail1"),
+]
+
+
+def make_cyclic(index: svc.WorkbenchIndex) -> None:
+    _add_slot(index, "rail1", "slot-back", ["grip1"])
+    _add_slot(index, "rail1", "slot-self", ["rail1"])
+
+
+def test_cyclic_pairs_do_not_recurse_forever(index: svc.WorkbenchIndex):
+    make_cyclic(index)
+    gun = index.items["gun1"]
+    svc.validate_build(index, gun, CYCLIC_PAIRS)
+    installed = svc._pairs_map(CYCLIC_PAIRS)
+    assert svc._collect_installed_ids(index, "gun1", installed) == ["grip1", "rail1"]
+    tree = svc.build_slot_tree(index, "gun1", installed)
+    grip = next(n for n in tree if n["id"] == "slot-grip")
+    rail = grip["children"][0]
+    assert rail["installed"]["id"] == "rail1"
+    # 回指的槽仍列出，但祖先链上的件不再展开
+    back = {n["id"]: n for n in rail["children"]}
+    assert back["slot-back"]["installed"] is None
+    assert back["slot-self"]["installed"] is None
+    assert back["slot-back"]["children"] == []
+    stats = svc.calculate_stats(index, "gun1", CYCLIC_PAIRS)
+    assert stats["weight"] == pytest.approx(1.0 + 0.1 + 0.05)
+    assert svc.compatible_pairs(index, gun, CYCLIC_PAIRS) == [
+        ("slot-grip", "grip1"),
+        ("slot-rail", "rail1"),
+    ]
+
+
+def test_slot_tree_fan_out_is_bounded(index: svc.WorkbenchIndex):
+    # m0 有 3 个槽都装 m1，m1 的 3 个槽都装 m2……无环但路径数 3^n
+    depth = 15
+    pairs: list[tuple[str, str]] = [("slot-grip", "m0")]
+    index.slots["slot-grip"].allowed_ids.append("m0")
+    base = index.items["rail1"]
+    for i in range(depth + 1):
+        index.items[f"m{i}"] = dataclasses.replace(base, id=f"m{i}", slots=[])
+    for i in range(depth):
+        for k in range(3):
+            pairs.append((f"m{i}-s{k}", f"m{i + 1}"))
+    for i in range(depth):
+        for k in range(3):
+            _add_slot(index, f"m{i}", f"m{i}-s{k}", [f"m{i + 1}"])
+    installed = svc._pairs_map(pairs)
+    ids = svc._collect_installed_ids(index, "gun1", installed)
+    assert len(ids) <= svc.MAX_TREE_NODES
+
+    def count(nodes: list[dict]) -> int:
+        return sum(1 + count(n["children"]) for n in nodes if n["installed"])
+
+    assert count(svc.build_slot_tree(index, "gun1", installed)) <= svc.MAX_TREE_NODES

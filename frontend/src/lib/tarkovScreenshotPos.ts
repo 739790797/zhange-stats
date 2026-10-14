@@ -9,6 +9,14 @@ export type TarkovScreenshotPos = {
 
 const HEAD_RE = /^(\d{4}-\d{2}-\d{2})\[(\d{1,2}-\d{2})\]_(.+)$/;
 const NUM_RE = /-?\d+(?:\.\d+)?/g;
+const TIME_RE = /^(\d{4}-\d{2}-\d{2})\[(\d{1,2})-(\d{2})\]/;
+
+/** 文件名里的拍摄时刻 `YYYY-MM-DD HH:MM`（游戏本机墙钟，只到分钟；小时可能是一位数）。 */
+export function parseTarkovScreenshotTime(fileName: string): string | null {
+  const m = TIME_RE.exec((fileName || "").trim());
+  if (!m) return null;
+  return `${m[1]} ${m[2]!.padStart(2, "0")}:${m[3]}`;
+}
 
 function parseNumberList(part: string): number[] {
   const matches = part.match(NUM_RE) || [];

@@ -13,7 +13,7 @@ describe("adminContentShell", () => {
     expect(adminContentShell("/settings/auth")).toBe("wide");
     expect(adminContentShell("/settings/integrations")).toBe("wide");
     expect(adminContentShell("/settings/email")).toBe("wide");
-    expect(adminContentShell("/settings/ocr")).toBe("wide");
+    expect(adminContentShell("/settings/email")).toBe("wide");
     expect(adminContentShell("/settings/users")).toBe("wide");
     expect(adminContentShell("/settings/runtime")).toBe("wide");
     expect(adminContentShell("/settings/system")).toBe("wide");

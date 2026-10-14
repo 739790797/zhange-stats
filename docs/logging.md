@@ -71,7 +71,7 @@
 ## logger 名
 
 - 模块内默认 `logging.getLogger(__name__)`，biz 从包路径推（`app.services.skland.checkin` → `skland.checkin`）
-- 横切用稳定名：`zhange.http` / `zhange.scheduler` / `zhange.startup` / `zhange.client` / `zhange.csp` / `zhange.ocr` / `zhange.migrate`
+- 横切用稳定名：`zhange.http` / `zhange.scheduler` / `zhange.startup` / `zhange.client` / `zhange.csp` / `zhange.migrate`
 - 需要筛成员或任务时：`with log_context(platform="skland", member_id=bind.member_id, job="checkin")`
 
 ## 前端

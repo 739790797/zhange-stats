@@ -129,31 +129,7 @@ def _new_release_031(*, extra_files: dict[str, str] | None = None) -> tuple[u.Re
     return rel, {rel.assets[name].url: blob for name, blob in blobs.items()}
 
 
-def test_cpu_torch_pip_uses_official_cpu_index():
-    python = Path("/venv/bin/python")
-    cmd = u.cpu_torch_pip_cmd(python)
-    assert cmd[0] == str(python)
-    assert cmd[-2:] == ["--index-url", u.TORCH_CPU_INDEX]
-    assert "torch" in cmd and "torchvision" in cmd
-    assert "cuda" not in " ".join(cmd).lower()
-
-
-def test_torch_constraint_lines_only_pins_torch_family():
-    freeze = "\n".join(
-        [
-            "easyocr==1.7.2",
-            "torch==2.8.0+cpu",
-            "torchvision==0.23.0+cpu",
-            "nvidia-cudnn-cu13==9.24.0.43",
-        ]
-    )
-    assert u.torch_constraint_lines(freeze) == [
-        "torch==2.8.0+cpu",
-        "torchvision==0.23.0+cpu",
-    ]
-
-
-def test_pip_install_requirements_pins_cpu_torch_before_requirements(
+def test_pip_install_requirements_installs_lock_then_drops_retired_ocr_packages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     install = tmp_path / "install"
@@ -161,7 +137,8 @@ def test_pip_install_requirements_pins_cpu_torch_before_requirements(
     venv_py = backend / ".venv" / "bin" / "python"
     venv_py.parent.mkdir(parents=True)
     venv_py.write_text("", encoding="utf-8")
-    (backend / "requirements.txt").write_text("easyocr>=1.7.2\n", encoding="utf-8")
+    (backend / "requirements.txt").write_text("fastapi>=0.110\n", encoding="utf-8")
+    (backend / "constraints.txt").write_text("fastapi==0.115.0\n", encoding="utf-8")
     calls: list[list[str]] = []
 
     class FakePopen:
@@ -174,12 +151,10 @@ def test_pip_install_requirements_pins_cpu_torch_before_requirements(
 
     class FakeProc:
         returncode = 0
-        stdout = "torch==2.8.0+cpu\ntorchvision==0.23.0+cpu\neasyocr==1.7.2\n"
+        stdout = ""
         stderr = ""
 
-    def fake_run(cmd, **kwargs):
-        if list(cmd)[1:4] == ["-m", "pip", "freeze"]:
-            return FakeProc()
+    def fake_run(cmd, **_kwargs):
         calls.append(list(cmd))
         return FakeProc()
 
@@ -187,13 +162,12 @@ def test_pip_install_requirements_pins_cpu_torch_before_requirements(
     monkeypatch.setattr(u.subprocess, "run", fake_run)
     u.pip_install_requirements(install)
     joined = [" ".join(c) for c in calls]
-    assert any(u.TORCH_CPU_INDEX in c and "torchvision" in c for c in joined)
-    req_cmds = [c for c in calls if "-r" in c]
-    assert req_cmds
-    assert "-c" in req_cmds[0]
-    constraint = Path(req_cmds[0][req_cmds[0].index("-c") + 1])
-    assert not constraint.exists()
-    assert any("opencv-python-headless" in c for c in joined)
+    assert not any("download.pytorch.org" in c for c in joined)
+    req_cmd = next(c for c in calls if "-r" in c)
+    assert str(backend / "constraints.txt") in req_cmd
+    uninstall = next(c for c in calls if "uninstall" in c)
+    assert {"torch", "easyocr", "rapidocr"} <= set(uninstall)
+    assert calls.index(req_cmd) < calls.index(uninstall)
 
 
 def test_compare_version_semver():
@@ -1331,8 +1305,8 @@ def test_pip_install_requirements_uses_staged_constraints(
     venv_py.write_text("", encoding="utf-8")
     staged = tmp_path / "staged-backend"
     staged.mkdir()
-    (staged / "requirements.txt").write_text("easyocr>=1.7.2\n", encoding="utf-8")
-    (staged / "constraints.txt").write_text("easyocr==1.7.2\n", encoding="utf-8")
+    (staged / "requirements.txt").write_text("fastapi>=0.110\n", encoding="utf-8")
+    (staged / "constraints.txt").write_text("fastapi==0.115.0\n", encoding="utf-8")
     calls: list[list[str]] = []
 
     class FakePopen:
@@ -1345,7 +1319,7 @@ def test_pip_install_requirements_uses_staged_constraints(
 
     class FakeProc:
         returncode = 0
-        stdout = "torch==2.8.0+cpu\n"
+        stdout = ""
         stderr = ""
 
     def fake_run(cmd, **_kwargs):
@@ -1356,14 +1330,9 @@ def test_pip_install_requirements_uses_staged_constraints(
     monkeypatch.setattr(u.subprocess, "run", fake_run)
     u.pip_install_requirements(install, staged)
 
-    lock = str(staged / "constraints.txt")
-    torch_cmd = next(c for c in calls if u.TORCH_CPU_INDEX in c)
-    assert "-c" not in torch_cmd
     req_cmd = next(c for c in calls if "-r" in c)
     assert req_cmd[req_cmd.index("-r") + 1] == str(staged / "requirements.txt")
-    assert lock in req_cmd
-    opencv_cmd = next(c for c in calls if "opencv-python-headless>=4.8.0" in c)
-    assert lock in opencv_cmd
+    assert str(staged / "constraints.txt") in req_cmd
 
 
 def test_enqueue_update_keeps_background_task_reference(

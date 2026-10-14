@@ -38,9 +38,9 @@ describe("fileManager", () => {
 
   it("joins and splits relative paths", () => {
     expect(joinFileRel("", "data")).toBe("data");
-    expect(joinFileRel("data", "rapidocr")).toBe("data/rapidocr");
-    expect(joinFileRel("data\\rapidocr", "det.onnx")).toBe("data/rapidocr/det.onnx");
-    expect(parentFileRel("data/rapidocr/det.onnx")).toBe("data/rapidocr");
+    expect(joinFileRel("data", "texteller")).toBe("data/texteller");
+    expect(joinFileRel("data\\texteller", "encoder_model.onnx")).toBe("data/texteller/encoder_model.onnx");
+    expect(parentFileRel("data/texteller/encoder_model.onnx")).toBe("data/texteller");
     expect(parentFileRel("data")).toBe("");
     expect(parentFileRel("")).toBe("");
   });

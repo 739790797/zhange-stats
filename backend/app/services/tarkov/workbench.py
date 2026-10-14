@@ -469,42 +469,67 @@ def _pairs_map(pairs: list[tuple[str, str]]) -> dict[str, str]:
     return out
 
 
+# 槽树展开上限：真实改装远小于此；防同一件被多个槽反复挂出的指数展开。
+MAX_TREE_NODES = 400
+
+
 def build_slot_tree(
     index: WorkbenchIndex,
     item_id: str,
     installed: dict[str, str],
 ) -> list[dict[str, Any]]:
-    item = index.items.get(item_id)
-    if not item:
-        return []
-    tree: list[dict[str, Any]] = []
-    for slot in item.slots:
-        child_id = installed.get(slot.id, "")
-        child = index.items.get(child_id) if child_id else None
-        node = {
-            **slot_out(slot),
-            "installed": item_summary(child) if child else None,
-            "children": build_slot_tree(index, child.id, installed) if child else [],
-        }
-        tree.append(node)
-    return tree
+    # 用户给的 pairs 可能成环（A 槽装 B、B 槽装 A）；祖先链上已出现的件视为未装。
+    budget = [MAX_TREE_NODES]
+
+    def walk(cur_id: str, path: set[str]) -> list[dict[str, Any]]:
+        item = index.items.get(cur_id)
+        if not item:
+            return []
+        tree: list[dict[str, Any]] = []
+        for slot in item.slots:
+            child_id = installed.get(slot.id, "")
+            child = None
+            if child_id and child_id not in path and budget[0] > 0:
+                child = index.items.get(child_id)
+            children: list[dict[str, Any]] = []
+            if child:
+                budget[0] -= 1
+                path.add(child.id)
+                children = walk(child.id, path)
+                path.discard(child.id)
+            tree.append(
+                {
+                    **slot_out(slot),
+                    "installed": item_summary(child) if child else None,
+                    "children": children,
+                }
+            )
+        return tree
+
+    return walk(item_id, {item_id})
 
 
 def _collect_installed_ids(
     index: WorkbenchIndex, gun_id: str, installed: dict[str, str]
 ) -> list[str]:
     ids: list[str] = []
+    path: set[str] = {gun_id}
 
     def walk(item_id: str) -> None:
         item = index.items.get(item_id)
         if not item:
             return
         for slot in item.slots:
+            if len(ids) >= MAX_TREE_NODES:
+                return
             child_id = installed.get(slot.id, "")
-            if not child_id:
+            # 祖先链上已有 = 成环，剪掉
+            if not child_id or child_id in path:
                 continue
             ids.append(child_id)
+            path.add(child_id)
             walk(child_id)
+            path.discard(child_id)
 
     walk(gun_id)
     return ids
@@ -692,6 +717,7 @@ def compatible_pairs(
             continue
         installed[slot_id] = item_id
     out: list[tuple[str, str]] = []
+    path: set[str] = {gun.id}
 
     def walk(item_id: str) -> None:
         if len(out) >= _MAX_COMPAT_PAIRS:
@@ -701,10 +727,13 @@ def compatible_pairs(
             return
         for slot in item.slots:
             child_id = installed.get(slot.id, "")
-            if not child_id:
+            # 成环剪掉，同 _collect_installed_ids
+            if not child_id or child_id in path:
                 continue
             out.append((slot.id, child_id))
+            path.add(child_id)
             walk(child_id)
+            path.discard(child_id)
 
     walk(gun.id)
     return out

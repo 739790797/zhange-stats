@@ -22,7 +22,6 @@ CONFIG_NAMES = (
     "auth",
     "integrations",
     "email",
-    "ocr",
     "jobs",
 )
 VERSION_KEY = "_version"

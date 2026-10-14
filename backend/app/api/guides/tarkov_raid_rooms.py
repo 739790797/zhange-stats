@@ -14,7 +14,6 @@ from app.api.guides.schemas import (
     TarkovRaidRoomCreateIn,
     TarkovRaidRoomDetailOut,
     TarkovRaidRoomObjectiveDonesIn,
-    TarkovRaidRoomGameModeIn,
     TarkovRaidRoomHostIn,
     TarkovRaidRoomJoinIn,
     TarkovRaidRoomLobbyOut,
@@ -69,11 +68,14 @@ def room_action(
     public_id: str,
     run: Callable[[], _T],
     publish: Callable[[_T], None] | None = None,
+    extra_keys: Callable[[], list[str]] | None = None,
 ) -> _T:
     """房间写操作统一出口：按房间串行；失败回滚；commit 后才踢 socket / 关房。
 
     `publish` 在 commit 之后、**仍持有房间锁**时调用：广播必须在锁内入队，否则并发写的
     广播会按「谁先抢到 CPU」而不是「谁先提交」的顺序发出，后到的旧快照会盖掉新状态。
+    `extra_keys` 给换房用的**其他房间号**（旧房）：和 `key` 一起按房间号排序后上锁，
+    两笔换房不会以相反顺序互等；不给也能跑（`_require_room_locks` 会报缺锁后补锁重跑）。
     """
     try:
         result = rooms_svc.run_in_room_tx(
@@ -81,6 +83,7 @@ def room_action(
             run,
             key=public_id,
             on_commit=publish,
+            extra_keys=extra_keys,
         )
     except rooms_svc.RaidRoomError as exc:
         _raise(exc)
@@ -88,6 +91,15 @@ def room_action(
     except IntegrityError as exc:
         raise HTTPException(status_code=409, detail="房间状态刚变过，请刷新后重试") from exc
     return _stamp_seq(result)
+
+
+def _my_other_rooms(db: Session, user: User, keep: str) -> Callable[[], list[str]]:
+    """本人在座的其他房间号（换房时要连旧房的锁一起拿）。"""
+
+    def keys() -> list[str]:
+        return [pid for pid in rooms_svc.occupant_public_ids(db, user.id) if pid != keep]
+
+    return keys
 
 
 def read_action(run: Callable[[], _T]) -> _T:
@@ -224,21 +236,30 @@ def _strip_viewer_flags(snapshot: dict) -> dict:
     return {key: value for key, value in snapshot.items() if key not in _VIEWER_FIELDS}
 
 
+def _vacated_of(result: object) -> list[dict]:
+    if isinstance(result, tuple) and len(result) >= 3 and isinstance(result[2], list):
+        return result[2]
+    return []
+
+
 def _publish_vacated(vacated: list[dict], user_id: int) -> None:
+    """在 room_action 的 on_commit 里调用：旧房的锁（extra_keys）此时仍握在手里。
+
+    必须在**同一段**持锁里发：先出锁再回锁的话，旧房里插进来的一笔写会先拿到 seq N，
+    这帧完整快照再拿 N+1，晚到却更旧，把那笔写在各端盖掉。
+    """
     for snap in vacated:
         vacated_id = str(snap.get("public_id") or "").strip()
         if not vacated_id:
             continue
-        # 腾出的旧房不在本请求的房间锁里。占号与入队都要在它的锁里一次做完：
-        # 先出锁再 publish 的话，该房一笔并发写可以抢先推进 sent_seq，
-        # 这帧就带着更小的 seq 被判成旧帧直接丢掉，旧房成员看不到人已经走了。
+        # room_lock 可重入：on_commit 里旧房的锁已在手，这里只是兜底。
         with rooms_svc.room_lock(vacated_id):
             _publish(
                 vacated_id,
                 "member_leave",
                 snap,
                 extra={"user_id": user_id},
-                seq=hub.next_seq(vacated_id),
+                seq=hub.reserve_seq(vacated_id),
             )
 
 
@@ -339,23 +360,30 @@ def create_tarkov_raid_room(
         )
 
     def publish(result: object) -> None:
+        _publish_vacated(_vacated_of(result), user.id)
         snapshot = _snapshot_of(result)
         if snapshot is None:
             return
         pid = str(snapshot.get("public_id") or "")
         published.append(pid)
         if pid:
-            # 新房第一帧按真实房间号占 seq。
+            # 新房第一帧按真实房间号占 seq；没人连就不占，免得空房在 _seq 里留条目。
             _publish(
                 pid,
                 "member_join",
                 snapshot,
                 extra={"user_id": user.id, "display_name": user.display_name},
-                seq=hub.next_seq(pid),
+                seq=hub.reserve_seq(pid),
             )
 
-    data, _joined_now, vacated = room_action(db, "", run, publish)
-    _publish_vacated(vacated, user.id)
+    data, _joined_now, _vacated = room_action(
+        db,
+        "",
+        run,
+        publish,
+        # 建房也要先腾掉旧房的座位：旧房的锁一并按房间号排序拿好。
+        extra_keys=_my_other_rooms(db, user, ""),
+    )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
 
@@ -370,7 +398,15 @@ def set_tarkov_raid_room_map(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    # 每次都要改库 + 给全房推一整帧快照，和别的写操作同一个限流桶。
+    _hit_room_write(user)
     map_slug = body.map
+
+    def on_commit(result: object) -> None:
+        # 查看图先落 hub 再广播，帧里 view_maps / can_edit 与进程内状态一致。
+        rooms_svc.apply_view_map(public_id, user.id, map_slug)
+        _publisher(public_id, "snapshot")(result)
+
     data = room_action(
         db,
         public_id,
@@ -382,7 +418,7 @@ def set_tarkov_raid_room_map(
             online_user_ids=hub.online_user_ids(public_id),
             log_phases=hub.log_phases(public_id),
         ),
-        _publisher(public_id, "snapshot"),
+        on_commit,
     )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -467,6 +503,7 @@ def join_tarkov_raid_room(
         return result
 
     def publish(result: object) -> None:
+        _publish_vacated(_vacated_of(result), user.id)
         if not announced or not announced[-1]:
             return
         _publish(
@@ -476,29 +513,12 @@ def join_tarkov_raid_room(
             extra={"user_id": user.id, "display_name": user.display_name},
         )
 
-    data, joined_now, vacated = room_action(db, public_id, run, publish)
-    _publish_vacated(vacated, user.id)
-    return TarkovRaidRoomDetailOut.model_validate(data)
-
-
-@router.post(
-    "/raid-rooms/{public_id}/game-mode",
-    response_model=TarkovRaidRoomDetailOut,
-    dependencies=[_FEATURE],
-)
-def set_tarkov_raid_room_game_mode(
-    public_id: str,
-    body: TarkovRaidRoomGameModeIn,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> TarkovRaidRoomDetailOut:
-    _hit_room_write(user)
-    mode = body.game_mode
-    data = room_action(
+    data, joined_now, _vacated = room_action(
         db,
         public_id,
-        lambda: rooms_svc.set_room_game_mode(db, public_id, user, mode),
-        _publisher(public_id, "snapshot"),
+        run,
+        publish,
+        extra_keys=_my_other_rooms(db, user, public_id),
     )
     return TarkovRaidRoomDetailOut.model_validate(data)
 
@@ -600,6 +620,8 @@ def put_tarkov_raid_room_task_progress(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomDetailOut:
+    # 一次最多 400 + 800 个 id，还要重算重叠并推整帧，和别的写操作同一个限流桶。
+    _hit_room_write(user)
     started_ids = body.started_ids
     done_ids = body.done_ids
     data = room_action(
@@ -638,31 +660,6 @@ def claim_tarkov_raid_room_task(
             public_id,
             "claim_add",
             lambda _result: {"task_id": task, "user_id": user.id},
-            when=_result_flag(1),
-        ),
-    )
-    return TarkovRaidRoomDetailOut.model_validate(data)
-
-
-@router.post(
-    "/raid-rooms/{public_id}/claims/from-progress",
-    response_model=TarkovRaidRoomDetailOut,
-    dependencies=[_FEATURE],
-)
-def seed_tarkov_raid_room_claims_from_progress(
-    public_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> TarkovRaidRoomDetailOut:
-    _hit_room_write(user)
-    data, _added = room_action(
-        db,
-        public_id,
-        lambda: rooms_svc.seed_claims_from_progress(db, public_id, user),
-        _publisher(
-            public_id,
-            "claim_add",
-            lambda _result: {"user_id": user.id},
             when=_result_flag(1),
         ),
     )

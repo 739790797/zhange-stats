@@ -92,10 +92,10 @@ def test_sync_upgrades_existing_file(tmp_path: Path) -> None:
 
 
 def test_fill_missing_keeps_user_lists() -> None:
-    template = {"_version": 2, "engines": ["paddle", "easyocr"], "flag": True}
-    current = {"_version": 1, "engines": ["paddle"]}
+    template = {"_version": 2, "engines": ["alpha", "beta"], "flag": True}
+    current = {"_version": 1, "engines": ["alpha"]}
     got = fill_missing(template, current)
-    assert got["engines"] == ["paddle"]
+    assert got["engines"] == ["alpha"]
     assert got["flag"] is True
     assert got["_version"] == 2
 

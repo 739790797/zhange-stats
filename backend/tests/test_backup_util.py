@@ -171,9 +171,9 @@ def test_sqlite_backup_is_consistent_and_skips_transient_files(tmp_path: Path) -
         (runtime / "setup-token").write_text("tok", encoding="utf-8")
         (root / "data" / "uploads" / "avatars").mkdir(parents=True)
         (root / "data" / "uploads" / "avatars" / "1.jpg").write_bytes(b"jpg")
-        (root / "data" / "models" / "easyocr").mkdir(parents=True)
-        (root / "data" / "models" / "easyocr" / "m.pth").write_bytes(b"m")
-        (root / "data" / "models" / "easyocr" / "m.pth.part").write_bytes(b"partial")
+        (root / "data" / "models" / "texteller").mkdir(parents=True)
+        (root / "data" / "models" / "texteller" / "m.pth").write_bytes(b"m")
+        (root / "data" / "models" / "texteller" / "m.pth.part").write_bytes(b"partial")
         (root / "data" / "cache").mkdir()
         (root / "data" / "cache" / "junk").write_text("x", encoding="utf-8")
 
@@ -194,7 +194,7 @@ def test_sqlite_backup_is_consistent_and_skips_transient_files(tmp_path: Path) -
         "data/runtime/logs/app.jsonl",
         "data/runtime/zhange.sqlite",
         "data/uploads/avatars/1.jpg",
-        "data/models/easyocr/m.pth",
+        "data/models/texteller/m.pth",
     } <= names
     for gone in (
         "data/runtime/zhange.sqlite-wal",
@@ -202,7 +202,7 @@ def test_sqlite_backup_is_consistent_and_skips_transient_files(tmp_path: Path) -
         "data/runtime/update-tmp",
         "data/runtime/update.lock",
         "data/runtime/setup-token",
-        "data/models/easyocr/m.pth.part",
+        "data/models/texteller/m.pth.part",
         "data/cache/junk",
     ):
         assert gone not in names

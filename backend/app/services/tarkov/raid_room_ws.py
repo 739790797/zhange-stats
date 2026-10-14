@@ -16,7 +16,13 @@ from app.core.session_cookies import access_token_from_websocket
 from app.models.user import User
 from app.services.platform_features import is_feature_enabled
 from app.services.tarkov import raid_rooms as rooms_svc
-from app.services.tarkov.raid_room_hub import CLOSE_SLOW_CONSUMER, hub, presence_client
+from app.services.tarkov.raid_room_hub import (
+    CLOSE_SLOW_CONSUMER,
+    CLOSE_TOO_MANY_SOCKETS,
+    RoomSocketLimit,
+    hub,
+    presence_client,
+)
 from app.services.tarkov.ws_limits import (
     CLOSE_TOO_LARGE,
     FrameTooLarge,
@@ -209,7 +215,14 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         await client.close(code=CLOSE_FORBIDDEN)
         return
 
-    online = await hub.join(public_id, client, user.id, presence_client(first.get("client")))
+    try:
+        online = await hub.join(
+            public_id, client, user.id, presence_client(first.get("client"))
+        )
+    except RoomSocketLimit:
+        # 同一账号或同一房间的 socket 太多：每条连接各有一套令牌桶，不限量就是 N 倍画笔速率。
+        await client.close(code=CLOSE_TOO_MANY_SOCKETS)
+        return
     seat = _SeatCheck(public_id, user)
     await seat.touch(force=True)
     try:
