@@ -682,7 +682,7 @@ export async function recordTarkovTaskProfile(profileId: string, gameMode: Tarko
 /** 取消转生归档：清掉回放下限，任务进度保留。带本页 epoch，旧页面清不掉别处刚记下的下限。 */
 export async function releaseTarkovTaskReset(gameMode: TarkovGameMode) {
   const epoch = loadTabQuestEpoch(gameMode);
-  const { data } = await guardStaleLedger(
+  return guardStaleLedger(
     client
       .post<TarkovTaskDones>(
         "/guides/tarkov/task-dones/reset/release",
@@ -697,7 +697,6 @@ export async function releaseTarkovTaskReset(gameMode: TarkovGameMode) {
       )
       .then((response) => response.data),
   );
-  return data;
 }
 
 /** 带日志的同步定下回放下限（只增不减），并整表替换该模式进度账。409 = 别处已清空 / 重置，要重拉账号。 */
