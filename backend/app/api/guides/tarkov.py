@@ -1090,7 +1090,10 @@ def guides_tarkov_boss_catalog(
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     etag, hit = _catalog_fresh(
-        request, "bosses", maps_svc.maps_cache_token(db)
+        request,
+        "bosses",
+        bosses_svc.CATALOG_PROJECTION_REV,
+        maps_svc.maps_cache_token(db),
     )
     if hit is not None:
         return hit
@@ -1186,6 +1189,7 @@ def guides_tarkov_map_detail(
     etag, hit = _catalog_fresh(
         request,
         "map-detail",
+        bosses_svc.CATALOG_PROJECTION_REV,
         map_slug,
         int(loot_loose),
         int(loot_containers),

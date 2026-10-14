@@ -41,12 +41,30 @@ export function isFollowerMobId(id: string | undefined | null): boolean {
     .startsWith("follower");
 }
 
-/** parent_ids 里第一个具名 Boss（如 bossBoar）。 */
+/** 黑色军团各分身都不是具名 Boss，即使 dump id 以 boss 开头。 */
+const HUB_OTHER_IDS = new Set([
+  "blackdivision",
+  "bossbullyblackdiv",
+  "pmcbotblackdiv",
+]);
+
+function isHubOtherId(id: string | undefined | null): boolean {
+  return HUB_OTHER_IDS.has(
+    String(id || "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+/** parent_ids 里第一个具名 Boss（如 bossBoar）。自身不算上级。 */
 export function namedBossParentId(
   parentIds: readonly (string | null | undefined)[] | null | undefined,
+  selfId?: string | null,
 ): string {
+  const self = String(selfId || "").trim();
   for (const raw of parentIds || []) {
     const id = String(raw || "").trim();
+    if (!id || id === self) continue;
     if (isNamedBossId(id)) return id;
   }
   return "";
@@ -57,7 +75,8 @@ export function isTopLevelNamedBoss(
   id: string | undefined | null,
   parentIds?: readonly (string | null | undefined)[] | null,
 ): boolean {
-  return isNamedBossId(id) && !namedBossParentId(parentIds);
+  if (isHubOtherId(id) || !isNamedBossId(id)) return false;
+  return !namedBossParentId(parentIds, id);
 }
 
 export function selectTopLevelNamedBosses<
@@ -71,7 +90,7 @@ export function isHangableUnderNamedBoss(
   id: string | undefined | null,
   parentIds?: readonly (string | null | undefined)[] | null,
 ): boolean {
-  const parent = namedBossParentId(parentIds);
+  const parent = namedBossParentId(parentIds, id);
   if (!parent) return false;
   const self = String(id || "").trim();
   if (!self || self === parent) return false;
@@ -85,6 +104,7 @@ export function bossHubSectionForRow(
 ): TarkovBossHubSection {
   const self = String(id || "").trim();
   if (!self) return "boss";
+  if (isHubOtherId(self)) return "other";
   if (isTopLevelNamedBoss(self, parentIds) || isHangableUnderNamedBoss(self, parentIds)) {
     return "boss";
   }
@@ -154,14 +174,17 @@ export function groupBossCatalogTree<
       const id = row.id || "";
       if (!id || nestedIds.has(id)) return false;
       if (!isHangableUnderNamedBoss(id, row.parent_ids)) return false;
-      if (namedBossParentId(row.parent_ids) !== parentId) return false;
+      if (namedBossParentId(row.parent_ids, id) !== parentId) return false;
       nestedIds.add(id);
       return true;
     });
     return children.length ? { ...parent, children } : { ...parent };
   });
-  const others = items.filter(
-    (row) => !isNamedBossId(row.id) && !nestedIds.has(row.id || ""),
-  );
+  const others = items.filter((row) => {
+    const id = row.id || "";
+    if (!id || nestedIds.has(id)) return false;
+    if (isHubOtherId(id)) return true;
+    return !isNamedBossId(id);
+  });
   return { bosses: bossTrees, others };
 }

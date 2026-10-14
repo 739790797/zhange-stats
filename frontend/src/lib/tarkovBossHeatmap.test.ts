@@ -479,6 +479,17 @@ describe("heatmap spawn map helpers", () => {
       ],
     });
     expect(overlay.spawn_chance).toBe(45);
+    expect(overlay.kind).toBe("boss");
+    expect(
+      bossSpawnOverlay({
+        id: "pmcBEAR",
+        slug: "bear",
+        name: "BEAR",
+        kind: "soldier",
+        chancePct: 100,
+        points: [],
+      }).kind,
+    ).toBe("soldier");
     expect(overlay.locations).toEqual([
       {
         name: "Center",

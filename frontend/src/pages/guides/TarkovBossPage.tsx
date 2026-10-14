@@ -37,7 +37,10 @@ export default function TarkovBossPage() {
     detailQuery.data?.id,
     detailQuery.data?.parent_ids,
   );
-  const parentId = namedBossParentId(detailQuery.data?.parent_ids);
+  const parentId = namedBossParentId(
+    detailQuery.data?.parent_ids,
+    detailQuery.data?.id,
+  );
   const catalogQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,

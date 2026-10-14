@@ -335,7 +335,10 @@ def test_aliases():
 
 def test_classify_boss_kind_splits_soldiers_and_elites():
     assert bosses.classify_boss_kind("bossKilla", "killa") == "boss"
-    assert bosses.classify_boss_kind("blackDivision", "black-div") == "boss"
+    assert bosses.classify_boss_kind("bossWedge", "the-wedge") == "boss"
+    assert bosses.classify_boss_kind("blackDivision", "black-div") == "elite"
+    assert bosses.classify_boss_kind("bossBullyBlackDiv", "boss-bully-black-div") == "elite"
+    assert bosses.classify_boss_kind("pmcBotBlackDiv", "pmc-bot-black-div") == "elite"
     assert bosses.classify_boss_kind("PmcBot", "raider") == "elite"
     assert bosses.classify_boss_kind("exUsec", "rogue") == "elite"
     assert bosses.classify_boss_kind("ExUsec", "rogue") == "elite"
@@ -346,6 +349,149 @@ def test_classify_boss_kind_splits_soldiers_and_elites():
     assert bosses.classify_boss_kind("Sentry", "sentry") == "soldier"
     assert bosses.classify_boss_kind("pmcBEAR", "bear") == "soldier"
     assert bosses.classify_boss_kind("pmcUSEC", "usec") == "soldier"
+
+
+def test_fold_black_division_and_rogues_and_keep_wedge_as_boss():
+    payload = {
+        "maps": {
+            "terminal": {
+                "id": "terminal",
+                "name": "Terminal",
+                "normalizedName": "terminal",
+                "bosses": [
+                    {
+                        "mob": "blackDivision",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Port", "chance": 1}],
+                        "escorts": [],
+                    }
+                ],
+            },
+            "icebreaker": {
+                "id": "icebreaker",
+                "name": "Icebreaker",
+                "normalizedName": "icebreaker",
+                "bosses": [
+                    {
+                        "mob": "bossBullyBlackDiv",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Deck", "chance": 1}],
+                        "escorts": [
+                            {
+                                "mob": "followerBullyBlackDiv",
+                                "amount": [{"chance": 1, "count": 3}],
+                            }
+                        ],
+                    },
+                    {
+                        "mob": "pmcBotBlackDiv",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Hold", "chance": 1}],
+                        "escorts": [],
+                    },
+                    {
+                        "mob": "bossWedge",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Bow", "chance": 1}],
+                        "escorts": [
+                            {"mob": "bossWedge", "amount": [{"chance": 1, "count": 1}]}
+                        ],
+                    },
+                    {
+                        "mob": "ExUsec",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Stern", "chance": 1}],
+                        "escorts": [],
+                    },
+                ],
+            },
+            "lighthouse": {
+                "id": "lighthouse",
+                "name": "Lighthouse",
+                "normalizedName": "lighthouse",
+                "bosses": [
+                    {
+                        "mob": "exUsecFree",
+                        "spawnChance": 1,
+                        "spawnLocations": [{"name": "Chalet", "chance": 1}],
+                        "escorts": [],
+                    }
+                ],
+            },
+        },
+        "mobs": {
+            mob_id: {
+                "id": mob_id,
+                "name": mob_id,
+                "normalizedName": slug,
+                "health": [],
+                "items": [],
+                "equipment": [],
+            }
+            for mob_id, slug in {
+                "blackDivision": "black-division",
+                "bossBullyBlackDiv": "boss-bully-black-div",
+                "pmcBotBlackDiv": "pmc-bot-black-div",
+                "followerBullyBlackDiv": "black-div-guard",
+                "bossWedge": "the-wedge",
+                "ExUsec": "ex-usec",
+                "exUsecFree": "ex-usec-free",
+            }.items()
+        },
+        "locale": {
+            "blackDivision": "黑色军团",
+            "bossBullyBlackDiv": "黑色军团",
+            "pmcBotBlackDiv": "黑色军团",
+            "followerBullyBlackDiv": "黑色军团 保镖",
+            "bossWedge": "The Wedge",
+            "ExUsec": "游荡者",
+            "exUsecFree": "游荡者",
+            "Terminal": "码头",
+            "Icebreaker": "破冰船",
+            "Lighthouse": "灯塔",
+        },
+    }
+    rows = bosses.parse_boss_rows(payload)
+    by_id = {row["id"]: row for row in rows}
+    assert set(by_id) == {
+        "blackDivision",
+        "followerBullyBlackDiv",
+        "bossWedge",
+        "exUsecFree",
+    }
+    black = by_id["blackDivision"]
+    assert black["kind"] == "elite"
+    assert black["slug"] == "black-division"
+    assert black["name"] == "黑色军团"
+    assert "码头" in black["maps_label"]
+    assert "破冰船" in black["maps_label"]
+    locations = {
+        (loc.get("map_slug"), loc.get("name"))
+        for group in black["spawn_groups"]
+        for loc in group.get("locations") or []
+    }
+    assert ("terminal", "Port") in locations
+    assert ("icebreaker", "Deck") in locations
+    assert ("icebreaker", "Hold") in locations
+    assert bosses.resolve_boss_slug("boss-bully-black-div") == "black-division"
+    assert bosses.resolve_boss_slug("pmc-bot-black-div") == "black-division"
+    wedge = by_id["bossWedge"]
+    assert wedge["kind"] == "boss"
+    assert wedge["parent_ids"] == []
+    rogue = by_id["exUsecFree"]
+    assert rogue["kind"] == "elite"
+    assert rogue["slug"] == "ex-usec-free"
+    assert rogue["name"] == "游荡者"
+    assert "灯塔" in rogue["maps_label"]
+    assert "破冰船" in rogue["maps_label"]
+    rogue_locations = {
+        (loc.get("map_slug"), loc.get("name"))
+        for group in rogue["spawn_groups"]
+        for loc in group.get("locations") or []
+    }
+    assert ("lighthouse", "Chalet") in rogue_locations
+    assert ("icebreaker", "Stern") in rogue_locations
+    assert by_id["followerBullyBlackDiv"]["parent_ids"] == ["bossBullyBlackDiv"]
 
 
 def test_exusec_free_is_elite_rogue_not_named_boss():
@@ -674,9 +820,9 @@ def test_parse_keeps_duplicate_normalized_names():
     assert by_id["PmcBot"]["kind"] == "elite"
     assert by_id["PmcBot"]["name"] == "掠夺者"
     assert by_id["blackDivision"]["slug"] == "black-div"
-    assert by_id["blackDivision"]["kind"] == "boss"
+    assert by_id["blackDivision"]["kind"] == "elite"
     assert by_id["blackDivision"]["name"] == "黑色军团"
-    assert [r["kind"] for r in rows] == ["boss", "elite", "soldier", "soldier", "soldier"]
+    assert [r["kind"] for r in rows] == ["elite", "elite", "soldier", "soldier", "soldier"]
     assert by_id["Sentry"]["maps_label"] == "海岸线"
     assert "码头" in by_id["vsRF"]["maps_label"]
     assert "实验室" in by_id["PmcBot"]["maps_label"]

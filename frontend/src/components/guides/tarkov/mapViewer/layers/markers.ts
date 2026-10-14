@@ -35,6 +35,7 @@ import {
 } from "@/lib/tarkovMapExtracts";
 import {
   TARKOV_SPAWN_KIND_LABELS,
+  tarkovBossMarkerIcon,
   tarkovSpawnIconAnchor,
   tarkovSpawnIconUrl,
   type TarkovSpawnKind,
@@ -202,14 +203,15 @@ export function collectBossMarkers(
       (loc.positions || []).forEach((point, pointIndex) => {
         if (point.x == null || point.z == null) return;
         const locLabel = loc.name ? tarkovMapLabel(loc.name, mapKey) : "";
+        const icon = tarkovBossMarkerIcon(boss.kind);
         out.push(
           withFloorFade(point, floor, floorBands, {
             id: `boss:${boss.id || bossIndex}:${locIndex}:${pointIndex}`,
             x: point.x,
             z: point.z,
-            iconUrl: tarkovSpawnIconUrl("boss"),
-            iconSize: CANVAS_ICON_SIZE,
-            iconAnchor: tarkovSpawnIconAnchor("boss"),
+            iconUrl: icon.iconUrl,
+            iconSize: icon.iconSize,
+            iconAnchor: icon.iconAnchor,
             tooltipHtml: [
               `<strong>${escapeHtml(label)}</strong>`,
               chance ? `<div>出生率 ${escapeHtml(chance)}</div>` : "",

@@ -199,6 +199,7 @@ function overlayBoss(spawn: SpawnPick): TarkovMapBoss {
     id: spawn.boss.id,
     slug: spawn.boss.slug,
     name: spawn.boss.name,
+    kind: spawn.boss.kind,
     chancePct: spawn.chancePct,
     points: spawn.points,
   });

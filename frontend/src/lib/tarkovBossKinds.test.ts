@@ -63,6 +63,8 @@ describe("tarkovBossKinds", () => {
     expect(namedBossParentId(["bossBoar"])).toBe("bossBoar");
     expect(namedBossParentId(["followerBoar", "bossBoar"])).toBe("bossBoar");
     expect(isTopLevelNamedBoss("bossBoar", [])).toBe(true);
+    expect(isTopLevelNamedBoss("bossWedge", ["bossWedge"])).toBe(true);
+    expect(isTopLevelNamedBoss("bossBullyBlackDiv", [])).toBe(false);
     expect(isTopLevelNamedBoss("bossBoarSniper", ["bossBoar"])).toBe(false);
     expect(isHangableUnderNamedBoss("bossBoarSniper", ["bossBoar"])).toBe(true);
     expect(isHangableUnderNamedBoss("followerGluharAssault", ["bossGluhar"])).toBe(
@@ -123,6 +125,8 @@ describe("tarkovBossKinds", () => {
 
   it("puts exUsecFree on the 非 Boss crumb even if kind is still missing", () => {
     expect(bossHubSectionForRow("bossKilla")).toBe("boss");
+    expect(bossHubSectionForRow("bossWedge", ["bossWedge"])).toBe("boss");
+    expect(bossHubSectionForRow("bossBullyBlackDiv")).toBe("other");
     expect(bossHubSectionForRow("followerBigPipe", ["bossKnight"])).toBe("boss");
     expect(bossHubSectionForRow("exUsecFree")).toBe("other");
     expect(bossHubSectionForRow("exUsecFree", ["exUsecFree"])).toBe("other");
@@ -131,6 +135,8 @@ describe("tarkovBossKinds", () => {
 
   it("only badges top-level named bosses and lists everyone else under 非 Boss", () => {
     expect(showBossKindBadge("bossKilla")).toBe(true);
+    expect(showBossKindBadge("bossWedge", ["bossWedge"])).toBe(true);
+    expect(showBossKindBadge("bossBullyBlackDiv")).toBe(false);
     expect(showBossKindBadge("exUsecFree")).toBe(false);
     expect(showBossKindBadge("blackDivision")).toBe(false);
     expect(showBossKindBadge("vsRF")).toBe(false);
@@ -142,9 +148,11 @@ describe("tarkovBossKinds", () => {
         { id: "exUsecFree", parent_ids: ["exUsecFree"] },
         { id: "vsRF", parent_ids: [] },
         { id: "blackDivision", parent_ids: [] },
+        { id: "bossWedge", parent_ids: ["bossWedge"] },
+        { id: "bossBullyBlackDiv", parent_ids: [] },
         { id: "followerBigPipe", parent_ids: ["bossKnight"] },
         { id: "bossBoarSniper", parent_ids: ["bossBoar"] },
       ]).map((row) => row.id),
-    ).toEqual(["exUsecFree", "vsRF", "blackDivision"]);
+    ).toEqual(["exUsecFree", "vsRF", "blackDivision", "bossBullyBlackDiv"]);
   });
 });

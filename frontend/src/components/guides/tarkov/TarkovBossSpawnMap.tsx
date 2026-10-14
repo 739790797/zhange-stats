@@ -42,10 +42,11 @@ export function TarkovBossSpawnMap({ detail }: Props) {
       id: detail.id,
       slug: detail.slug,
       name: detail.name,
+      kind: detail.kind,
       chancePct: active.chancePct,
       points: active.points,
     });
-  }, [active, detail.id, detail.name, detail.slug]);
+  }, [active, detail.id, detail.kind, detail.name, detail.slug]);
   const overlayBosses = useMemo(() => (overlay ? [overlay] : []), [overlay]);
 
   useEffect(() => {

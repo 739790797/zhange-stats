@@ -24,6 +24,8 @@ from app.services.tarkov.parse_cache import ModeCache
 logger = logging.getLogger(__name__)
 
 DOWNLOAD_TIMEOUT = 180
+# 目录投影变了就改这里，避免浏览器凭旧 ETag 一直 304。
+CATALOG_PROJECTION_REV = "20261015-boss-fold"
 
 
 SLUG_ALIASES = {
@@ -33,6 +35,13 @@ SLUG_ALIASES = {
     "cultist": "cultist-priest",
     "bear": "vs-rf",
     "usec": "vs-rf-sniper",
+    # 同一单位的分身 slug，详情页收成一条。
+    "boss-bully-black-div": "black-division",
+    "pmc-bot-black-div": "black-division",
+    # 合并前单条记录用过的 normalizedName。
+    "black-div": "black-division",
+    "ex-usec": "ex-usec-free",
+    "exusecfree": "ex-usec-free",
 }
 
 # 社区俗称只用于站内搜索，不进公开 schema / 页面。
@@ -1237,6 +1246,12 @@ def _exusec_family(mob_id: str, slug: str = "") -> bool:
     return ident.startswith("exusec") or sl.startswith("exusec")
 
 
+def _black_division_family(mob_id: str, slug: str = "") -> bool:
+    ident = (mob_id or "").strip().lower()
+    sl = (slug or "").strip().lower()
+    return "blackdiv" in ident or "black-div" in sl or sl == "black-division"
+
+
 def classify_boss_kind(mob_id: str, slug: str = "") -> str:
     """区分具名 BOSS、精英小队、地图 dump 里的阵营小兵。"""
     ident = (mob_id or "").strip().lower()
@@ -1249,6 +1264,7 @@ def classify_boss_kind(mob_id: str, slug: str = "") -> str:
         or ident.startswith("sectant")
         or ident.startswith("arenafighter")
         or _exusec_family(mob_id, slug)
+        or _black_division_family(mob_id, slug)
     ):
         return BOSS_KIND_ELITE
     return BOSS_KIND_BOSS
@@ -1683,6 +1699,84 @@ def _project_mob(
     }
 
 
+# 列表只留一条：码头 / 破冰船 / 实验室的黑色军团，以及灯塔 / 破冰船的游荡者。
+_FOLD_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("blackDivision", ("bossBullyBlackDiv", "pmcBotBlackDiv"), "black-division"),
+    ("exUsecFree", ("ExUsec",), "ex-usec-free"),
+)
+
+
+def _absorb_boss_maps(primary: dict[str, Any], extra: dict[str, Any]) -> None:
+    by_key = {
+        str(row.get("slug") or row.get("id") or ""): row
+        for row in primary.get("maps") or []
+    }
+    for incoming in extra.get("maps") or []:
+        if not isinstance(incoming, dict):
+            continue
+        key = str(incoming.get("slug") or incoming.get("id") or "")
+        host = by_key.get(key)
+        if host is None:
+            primary.setdefault("maps", []).append(incoming)
+            if key:
+                by_key[key] = incoming
+            continue
+        host.setdefault("waves", []).extend(incoming.get("waves") or [])
+        host.setdefault("spawns", []).extend(incoming.get("spawns") or [])
+
+
+def _prefer_richer_gear(primary: dict[str, Any], extra: dict[str, Any]) -> None:
+    extra_gear = extra.get("equipment") or []
+    if len(extra_gear) > len(primary.get("equipment") or []):
+        primary["equipment"] = extra_gear
+    seen = {str(item) for item in primary.get("item_ids") or []}
+    merged = list(primary.get("item_ids") or [])
+    for item in extra.get("item_ids") or []:
+        key = str(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    primary["item_ids"] = merged
+    for field in ("portrait_link", "poster_link", "description", "bio", "wiki_link"):
+        if not str(primary.get(field) or "").strip() and str(extra.get(field) or "").strip():
+            primary[field] = extra[field]
+
+
+def collapse_folded_bosses(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同名分身并成一条，各地图和刷法留在这一条的刷新表里。"""
+    by_id = {str(row.get("id") or ""): row for row in rows}
+    drop: set[str] = set()
+    touched: set[str] = set()
+    for canonical_id, member_ids, slug in _FOLD_GROUPS:
+        present = [by_id[item] for item in (canonical_id, *member_ids) if item in by_id]
+        if len(present) < 2:
+            continue
+        primary = by_id.get(canonical_id) or present[0]
+        for extra in present:
+            if extra is primary:
+                continue
+            _absorb_boss_maps(primary, extra)
+            _prefer_richer_gear(primary, extra)
+            drop.add(str(extra.get("id") or ""))
+        primary["slug"] = slug
+        touched.add(str(primary.get("id") or ""))
+    kept: list[dict[str, Any]] = []
+    for row in rows:
+        ident = str(row.get("id") or "")
+        if ident in drop:
+            continue
+        row["parent_ids"] = [
+            parent
+            for parent in (row.get("parent_ids") or [])
+            if parent and parent != ident
+        ]
+        if ident in touched:
+            _finish_boss_row(row)
+        kept.append(row)
+    return kept
+
+
 def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     maps = _maps_blob(payload)
     mobs = _mobs_blob(payload)
@@ -1751,6 +1845,8 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 if not isinstance(esc, dict):
                     continue
                 esc_mob_id = str(esc.get("mob") or "").strip()
+                if not esc_mob_id or esc_mob_id == mob_id:
+                    continue
                 esc_row = by_id.get(esc_mob_id)
                 if esc_row is None:
                     continue
@@ -1773,6 +1869,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not row["maps"]:
             continue
         rows.append(_finish_boss_row(row))
+    rows = collapse_folded_bosses(rows)
     rows.sort(
         key=lambda r: (
             BOSS_KIND_ORDER.get(str(r.get("kind") or ""), 9),

@@ -1,5 +1,7 @@
 /** 对齐 tarkov.dev 地图出生点：PMC / Scav / 狙击 Scav / Boss 图层与 interactive/spawn_*.png。 */
 
+import { normalizeBossKind } from "./tarkovBossKinds";
+
 export const TARKOV_SPAWN_KINDS = ["pmc", "scav", "sniper", "boss"] as const;
 
 export type TarkovSpawnKind = (typeof TARKOV_SPAWN_KINDS)[number];
@@ -26,6 +28,36 @@ export function tarkovSpawnIconUrl(kind: TarkovSpawnKind): string {
 /** PMC 三角锚在底边，其余居中；对齐 tarkov.dev map/index.jsx。 */
 export function tarkovSpawnIconAnchor(kind: TarkovSpawnKind): [number, number] {
   return kind === "pmc" ? [12, 24] : [12, 12];
+}
+
+/** 具名 BOSS 标比普通骷髅略大，给下沿的 BOSS 字留出可读高度。 */
+export const TARKOV_NAMED_BOSS_ICON_SIZE: [number, number] = [32, 32];
+export const TARKOV_NAMED_BOSS_ICON_ANCHOR: [number, number] = [16, 16];
+
+const GENERIC_BOSS_ICON_SIZE: [number, number] = [24, 24];
+
+export type TarkovBossMarkerIcon = {
+  iconUrl: string;
+  iconSize: [number, number];
+  iconAnchor: [number, number];
+};
+
+/** kind=boss 用带 BOSS 字样的骷髅；精英和小兵仍用原出生点骷髅。 */
+export function tarkovBossMarkerIcon(
+  kind: string | null | undefined,
+): TarkovBossMarkerIcon {
+  if (normalizeBossKind(kind) === "boss") {
+    return {
+      iconUrl: "/tarkov/map-icons/spawn_boss_named.png",
+      iconSize: TARKOV_NAMED_BOSS_ICON_SIZE,
+      iconAnchor: TARKOV_NAMED_BOSS_ICON_ANCHOR,
+    };
+  }
+  return {
+    iconUrl: tarkovSpawnIconUrl("boss"),
+    iconSize: GENERIC_BOSS_ICON_SIZE,
+    iconAnchor: tarkovSpawnIconAnchor("boss"),
+  };
 }
 
 export function spawnKindsPresent(input: {

@@ -4,6 +4,7 @@ import {
   anyPresentSpawnKindOn,
   defaultSpawnKindFlags,
   spawnKindsPresent,
+  tarkovBossMarkerIcon,
   tarkovSpawnIconAnchor,
   tarkovSpawnIconUrl,
   withSpawnKindsForPresent,
@@ -18,6 +19,22 @@ describe("tarkov map spawn styles", () => {
     );
     expect(tarkovSpawnIconAnchor("pmc")).toEqual([12, 24]);
     expect(tarkovSpawnIconAnchor("scav")).toEqual([12, 12]);
+  });
+
+  it("uses the BOSS badge only for units classified as boss", () => {
+    expect(tarkovBossMarkerIcon("boss")).toEqual({
+      iconUrl: "/tarkov/map-icons/spawn_boss_named.png",
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+    expect(tarkovBossMarkerIcon("elite").iconUrl).toBe(
+      "/tarkov/map-icons/spawn_boss.png",
+    );
+    expect(tarkovBossMarkerIcon("soldier")).toMatchObject({
+      iconUrl: "/tarkov/map-icons/spawn_boss.png",
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
   });
 
   it("lists present spawn kinds from spawns + bosses", () => {

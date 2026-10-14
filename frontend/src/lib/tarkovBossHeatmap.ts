@@ -1,4 +1,4 @@
-import { isNamedBossId } from "@/lib/tarkovBossKinds";
+import { isNamedBossId, normalizeBossKind } from "@/lib/tarkovBossKinds";
 import { TARKOV_MAPS, tarkovMapMarkByName } from "@/lib/tarkovHomeNav";
 import {
   escortChipLabel,
@@ -17,6 +17,7 @@ export type HeatmapBossInput = {
   id?: string | null;
   slug?: string | null;
   name?: string | null;
+  kind?: string | null;
   portrait_link?: string | null;
   spawn_groups?: BossSpawnGroupApi[] | null;
 } & BossSpawnGroupInput;
@@ -25,6 +26,7 @@ export type HeatmapBoss = {
   id: string;
   slug: string;
   name: string;
+  kind: string;
   portrait: string;
 };
 
@@ -576,6 +578,7 @@ function toBoss(row: HeatmapBossInput): HeatmapBoss {
     id,
     slug: String(row.slug || id).trim(),
     name: String(row.name || row.slug || id).trim(),
+    kind: String(row.kind || "").trim(),
     portrait: String(row.portrait_link || "").trim(),
   };
 }
@@ -658,7 +661,7 @@ export type BossSpawnOverlay = {
   id: string;
   slug: string;
   name: string;
-  kind: "boss";
+  kind: string;
   spawn_chance: number;
   locations: {
     name: string;
@@ -717,6 +720,7 @@ export function bossSpawnOverlay(args: {
   id: string;
   slug: string;
   name: string;
+  kind?: string | null;
   chancePct: number;
   points: readonly HeatmapSpawnPoint[];
 }): BossSpawnOverlay {
@@ -730,7 +734,7 @@ export function bossSpawnOverlay(args: {
     id: args.id,
     slug: args.slug,
     name: args.name,
-    kind: "boss",
+    kind: normalizeBossKind(args.kind),
     spawn_chance: Math.round(args.chancePct),
     locations: [...byName.entries()].map(([name, pts]) => ({
       name,
