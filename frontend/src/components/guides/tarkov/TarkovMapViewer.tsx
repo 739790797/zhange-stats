@@ -15,8 +15,9 @@ import { Spin } from "antd";
 import {
   TarkovMapFullscreenRootContext,
   exitMapFullscreen,
-  mapFullscreenElement,
   mapFullscreenEnabled,
+  mapFullscreenTarget,
+  mapWrapInFullscreen,
   requestMapFullscreen,
 } from "@/lib/tarkovMapFullscreen";
 import { useNavigate } from "react-router-dom";
@@ -178,6 +179,7 @@ import {
   tarkovLooseLootKindIconUrl,
 } from "@/lib/tarkovMapLootLoose";
 import { useTarkovScreenshotPosition } from "@/lib/useTarkovScreenshotPosition";
+import floatStyles from "./TarkovMapFloat.module.css";
 import styles from "./TarkovMapViewer.module.css";
 import {
   type MapRuntime,
@@ -536,8 +538,8 @@ export function TarkovMapViewer({
   const toggleMapFullscreen = useCallback(() => {
     const wrap = wrapElRef.current;
     if (!wrap) return;
-    if (mapFullscreenElement() === wrap) void exitMapFullscreen();
-    else void requestMapFullscreen(wrap);
+    if (mapWrapInFullscreen(wrap)) void exitMapFullscreen();
+    else void requestMapFullscreen(mapFullscreenTarget(wrap));
   }, []);
   const setWrapEl = useCallback((el: HTMLDivElement | null) => {
     wrapElRef.current = el;
@@ -1823,7 +1825,7 @@ export function TarkovMapViewer({
     ro?.observe(wrap);
     window.addEventListener("resize", refresh);
     const onFullscreen = () => {
-      setMapFullscreen(mapFullscreenElement() === wrap);
+      setMapFullscreen(mapWrapInFullscreen(wrap));
       refresh();
     };
     document.addEventListener("fullscreenchange", onFullscreen);
@@ -2316,13 +2318,13 @@ export function TarkovMapViewer({
         {topLeft ? <div className={styles.topLeftExtra}>{topLeft}</div> : null}
       {canSvg || canTile || floors.length || interactive ? (
         <div
-          className={styles.filterPanel}
+          className={`${floatStyles.panel} ${styles.filterPanel}`}
           data-open={filterPanelOpen ? "true" : "false"}
           aria-label="地图筛选"
         >
           <div className={styles.filterPanelHead}>
             {filterPanelOpen ? (
-              <span className={styles.filterGroupTitle}>图层</span>
+              <span className={`${styles.filterGroupTitle} ${floatStyles.lg}`}>图层</span>
             ) : null}
             <button
               type="button"
@@ -2915,10 +2917,7 @@ export function TarkovMapViewer({
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              const wrap = wrapElRef.current;
-              if (!wrap) return;
-              if (mapFullscreenElement() === wrap) void exitMapFullscreen();
-              else void requestMapFullscreen(wrap);
+              toggleMapFullscreen();
             }}
           >
             {mapFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}

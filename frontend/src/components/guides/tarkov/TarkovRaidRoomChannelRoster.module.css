@@ -7,29 +7,19 @@
   max-width: 100%;
   max-height: min(42vh, 320px);
   overflow: auto;
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  background: rgba(18, 20, 16, 0.55);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  color: #c7c5b3;
-  font-size: 12px;
-  line-height: 1.35;
 }
 
 .title {
   margin: 0;
   color: #eee9d6;
-  font-size: 15px;
+  font-size: var(--map-float-lg);
   font-weight: 700;
   line-height: 1.3;
 }
 
 .meta {
   color: #b0ae9a;
-  font-size: 12px;
+  font-size: var(--map-float-md);
   line-height: 1.4;
 }
 
@@ -59,7 +49,7 @@
   background: rgba(255, 255, 255, 0.06);
   color: #eee9d6;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--map-float-sm);
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
@@ -86,7 +76,7 @@
   background: rgba(255, 255, 255, 0.06);
   color: #eee9d6;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--map-float-md);
   cursor: pointer;
 }
 
@@ -117,6 +107,15 @@
   table-layout: fixed;
 }
 
+.colMember {
+  width: 60%;
+}
+
+.colMap,
+.colStatus {
+  width: 20%;
+}
+
 .table th,
 .table td {
   padding: 3px 8px 3px 0;
@@ -131,12 +130,11 @@
 .table th:last-child,
 .table td:last-child {
   padding-right: 0;
-  text-align: right;
 }
 
 .table th {
   color: #8e8c7c;
-  font-size: 11px;
+  font-size: var(--map-float-sm);
 }
 
 .table tr[data-status="in_raid"] td:last-child {
@@ -151,7 +149,7 @@
 .presence {
   flex: none;
   color: #8f8d7c;
-  font-size: 11px;
+  font-size: var(--map-float-sm);
   white-space: nowrap;
 }
 

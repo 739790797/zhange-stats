@@ -334,6 +334,13 @@
   overflow: hidden;
 }
 
+.workspace:fullscreen,
+.workspace:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  background: #101010;
+}
+
 .stage[data-pick="true"] .drawDock {
   display: none;
 }
@@ -468,14 +475,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  background: rgba(18, 20, 16, 0.42);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
 .dock .changeMapBtn,
@@ -530,6 +530,27 @@
 .dock .taskStatusSelect:hover,
 .dock .taskStatusSelect:focus {
   background-color: rgba(255, 255, 255, 0.06);
+}
+
+.dock .dockSearch,
+.dock .changeMapBtn,
+.dock .empty,
+.dock .dockHint,
+.dock .taskName,
+.dock .taskObjTitle,
+.dock .taskObjLine,
+.dock .taskObjOtherMapLabel,
+.dock .taskObjOtherMapLine {
+  font-size: var(--map-float-md);
+}
+
+.dock .taskStatus,
+.dock .taskStatusSelect,
+.dock .taskGroupLabel,
+.dock .taskSubGroupLabel,
+.dock .taskObjOtherMapsLead,
+.dock .meta {
+  font-size: var(--map-float-sm);
 }
 
 .resizeHandle {

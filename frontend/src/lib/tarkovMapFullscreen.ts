@@ -13,6 +13,27 @@ export const TarkovMapFullscreenRootContext =
     toggle: () => {},
   });
 
+/** 房间地图把左右栏和地图放在同一层，全屏这个节点才能带着两侧的展开/收起一起走。 */
+export const RAID_WORKSPACE_SELECTOR = "[data-raid-workspace]";
+
+export function mapFullscreenTarget(wrap: HTMLElement): HTMLElement {
+  const workspace = wrap.closest(RAID_WORKSPACE_SELECTOR);
+  return workspace instanceof HTMLElement ? workspace : wrap;
+}
+
+/** 全屏元素是地图本身，或包着地图的房间工作区。 */
+export function fullscreenElementIncludesMap(
+  fullscreenEl: Element | null,
+  wrap: Element | null,
+): boolean {
+  if (!fullscreenEl || !wrap) return false;
+  return fullscreenEl === wrap || fullscreenEl.contains(wrap);
+}
+
+export function mapWrapInFullscreen(wrap: HTMLElement | null): boolean {
+  return fullscreenElementIncludesMap(mapFullscreenElement(), wrap);
+}
+
 /** 全屏时把弹层挂到地图根节点，否则走页面 body。 */
 export function resolveMapOverlayContainer(
   root: HTMLElement | null | undefined,

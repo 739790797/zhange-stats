@@ -1,0 +1,31 @@
+/* 地图上的悬浮卡（房间信息、图层、任务栏）共用这一层。
+   字号只走三档：小 10 / 中 12 / 大 15。卡片根上带 --map-float-*，子元素用变量，不要再写别的 px。 */
+
+.panel {
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(18, 20, 16, 0.6);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: #c7c5b3;
+  font-size: var(--map-float-md);
+  line-height: 1.35;
+  --map-float-sm: 10px;
+  --map-float-md: 12px;
+  --map-float-lg: 15px;
+}
+
+.sm {
+  font-size: var(--map-float-sm, 10px);
+}
+
+.md {
+  font-size: var(--map-float-md, 12px);
+}
+
+.lg {
+  font-size: var(--map-float-lg, 15px);
+}

@@ -4,6 +4,7 @@ import {
   isTarkovRaidDockDesktop,
   TARKOV_RAID_DOCK_DESKTOP_MQ,
 } from "@/lib/tarkovRaidDockPrefs";
+import floatStyles from "./TarkovMapFloat.module.css";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
 const SIDE_WIDTH_KEY = "zhange.tarkov.raidSideWidths";
@@ -163,7 +164,7 @@ export function TarkovRaidWorkspace({
         </div>
       ) : null}
       {belowBar}
-      <div className={styles.workspace}>
+      <div className={styles.workspace} data-raid-workspace="">
         <div className={styles.mapPane}>
           {goonMapId ? <TarkovGoonRoomNotice mapId={goonMapId} /> : null}
           {showDock && onToggleDock && !desktopDock ? (
@@ -195,7 +196,7 @@ export function TarkovRaidWorkspace({
         {showDock && dock ? (
           <aside
             id="tarkov-raid-dock"
-            className={styles.dock}
+            className={`${floatStyles.panel} ${styles.dock}`}
             aria-label="任务列表"
           >
             {dock}

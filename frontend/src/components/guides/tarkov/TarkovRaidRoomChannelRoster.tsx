@@ -7,6 +7,7 @@ import {
   raidRoomMemberActivity,
   type RaidRoomViewMapLike,
 } from "@/lib/tarkovRaidRooms";
+import floatStyles from "./TarkovMapFloat.module.css";
 import styles from "./TarkovRaidRoomChannelRoster.module.css";
 
 export type ChannelRosterMember = {
@@ -45,7 +46,7 @@ export function TarkovRaidRoomChannelRoster({
     (viewMaps || []).map((row) => [row.user_id, (row.map_slug || "").trim()]),
   );
   return (
-    <section className={styles.roster} aria-label="房间信息">
+    <section className={`${floatStyles.panel} ${styles.roster}`} aria-label="房间信息">
       {title || meta || corner ? (
         <div className={styles.head}>
           <div className={styles.headText}>
@@ -58,6 +59,11 @@ export function TarkovRaidRoomChannelRoster({
       {actions ? <div className={styles.actions}>{actions}</div> : null}
       {members.length ? (
         <table className={styles.table}>
+          <colgroup>
+            <col className={styles.colMember} />
+            <col className={styles.colMap} />
+            <col className={styles.colStatus} />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">成员</th>
