@@ -192,6 +192,48 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     assert by_id["extras"]["ok"] is True
 
 
+def test_sync_all_projects_files_that_were_not_modified(monkeypatch) -> None:
+    """304 的 items 不在本轮下载里，投影仍用库里上一份，不能报 dump 缺少 items。"""
+    stored = {
+        "data": {
+            "items": {"a1": {"id": "a1"}},
+            "skills": [{"id": "endurance"}],
+            "playerLevels": [{"level": 1, "exp": 0}],
+        }
+    }
+    files = {key: value for key, value in _sample_dump().items() if key != "items"}
+    monkeypatch.setattr(
+        upstream_svc,
+        "download_site_json",
+        lambda **_k: upstream_svc.SiteDump(
+            files=files,
+            upstream_times={"items": "2026-08-20T01:00:00+00:00"},
+            unchanged=frozenset({"items"}),
+        ),
+    )
+    monkeypatch.setattr(upstream_svc, "persist_site_json", lambda *_a, **_k: [])
+    monkeypatch.setattr(upstream_svc, "load_raw", lambda *_a, **_k: stored)
+    monkeypatch.setattr(
+        upstream_svc,
+        "persist_raw",
+        lambda *_a, **_k: {
+            "id": "extras",
+            "ok": True,
+            "source": "json.tarkov.dev",
+            "synced_at": "t",
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(items_svc, "rebuild_from_raw", lambda *_a, **_k: _ok())
+    _stub_overlay_sync(monkeypatch)
+
+    out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
+    by_id = {row["id"]: row for row in out["domains"]}
+    assert by_id["items"]["ok"] is True
+    assert by_id["extras"]["ok"] is True
+    assert "缺少" not in (by_id["items"].get("error") or "")
+
+
 def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         upstream_svc,

@@ -830,6 +830,29 @@ def persist_site_json(
     return rows
 
 
+def hydrate_unchanged_dump(
+    db: Session,
+    dump: dict[str, dict[str, Any]],
+    unchanged: set[str] | frozenset[str],
+    *,
+    lang: str = "zh",
+) -> None:
+    """304 的文件不在本轮下载里。投影和补集仍要读上一份已落库的 raw。"""
+    if not unchanged:
+        return
+    for resource, res_lang, _domain_id in site_dump_specs(lang=lang):
+        key = resource_key(resource, lang=res_lang)
+        if key not in unchanged or key in dump:
+            continue
+        try:
+            payload = load_raw(db, resource, lang=res_lang)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("tarkov %s hydrate failed: %s", key, exc)
+            continue
+        if isinstance(payload, dict) and payload:
+            dump[key] = payload
+
+
 def stored_dump_validators(db: Session, *, lang: str = "zh") -> dict[str, str]:
     """从已落库 raw 的 note（「· 上游 <iso>」）取上次上游时间，条件请求用。
 

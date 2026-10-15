@@ -457,6 +457,11 @@ def _sync_current_mode(
             _domain_row("dump", ok=False, error=str(exc)),
         ]
 
+    if site.unchanged:
+        upstream_svc.hydrate_unchanged_dump(
+            db, dump, site.unchanged, lang=lang
+        )
+
     try:
         if tracker is not None:
             tracker.patch("overlay", status="downloading", ok=False)
