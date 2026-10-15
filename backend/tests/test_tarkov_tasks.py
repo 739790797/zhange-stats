@@ -1435,3 +1435,79 @@ def test_collect_raid_prep_includes_gunsmith_and_other_maps():
     assert stripped["on_this_map"] is False
 
 
+def test_task_detail_fills_images_from_tasks_dump(tmp_path) -> None:
+    """成就 / 声望 / 外观目录读 json.tarkov.dev 的 tasks 文件，不另查补集表。"""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.database import Base
+    from app.services.tarkov import upstream as upstream_svc
+    from app.services.tarkov.game_mode import game_mode_scope
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'tarkov.db'}")
+    Base.metadata.create_all(bind=eng)
+    db = sessionmaker(bind=eng)()
+    try:
+        with game_mode_scope("pvp"):
+            upstream_svc.persist_raw(
+                db,
+                "tasks",
+                {
+                    "data": {
+                        "tasks": {
+                            "t1": {
+                                "id": "t1",
+                                "name": "Debut",
+                                "trader": PRAPOR,
+                                "objectives": [],
+                                "requiredPrestige": {"id": "p1"},
+                                "startRewards": {
+                                    "achievement": [{"id": "ach1"}],
+                                },
+                                "finishRewards": {
+                                    "customization": [{"id": "c1"}],
+                                },
+                            }
+                        },
+                        "achievements": {
+                            "ach1": {
+                                "id": "ach1",
+                                "name": "欢迎",
+                                "imageLink": "https://img/a.png",
+                            }
+                        },
+                        "prestige": {
+                            "p1": {
+                                "id": "p1",
+                                "name": "声望 1",
+                                "prestigeLevel": 1,
+                                "imageLink": "https://img/p.png",
+                            }
+                        },
+                        "customization": {
+                            "c1": {
+                                "id": "c1",
+                                "name": "帽子",
+                                "imageLink": "https://img/c.png",
+                            }
+                        },
+                    }
+                },
+                source="json.tarkov.dev",
+                note="tasks",
+            )
+            detail = tasks.get_task_detail(db, "t1")
+    finally:
+        db.close()
+        eng.dispose()
+    achievement = detail["start_rewards"]["achievement"][0]
+    assert achievement["name"] == "欢迎"
+    assert achievement["image_link"] == "https://img/a.png"
+    assert detail["required_prestige"]["name"] == "声望 1"
+    assert detail["required_prestige"]["prestige_level"] == 1
+    assert detail["required_prestige"]["image_link"] == "https://img/p.png"
+    customization = detail["finish_rewards"]["customization"][0]
+    assert customization["name"] == "帽子"
+    assert customization["image_link"] == "https://img/c.png"
+
+

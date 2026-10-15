@@ -23,7 +23,7 @@ users 1 ── 1 members ── * play_sessions / presence_segments
 system_configs · register_challenges · oauth_exchange_tickets · job_runs · steam_apps · rum_samples
 arknights_operators · arknights_catalog_meta · game_schedule_raws
 tarkov_items_raws · tarkov_maps_raws · tarkov_tasks_raws · tarkov_traders_raws
-tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_extras_raws · tarkov_overlay_raws
+tarkov_hideout_raws · tarkov_barters_raws · tarkov_crafts_raws · tarkov_overlay_raws
 tarkov_ammo · tarkov_guns
 tarkov_raid_rooms ── * tarkov_raid_room_members / tarkov_raid_room_task_claims / tarkov_raid_room_key_brings / tarkov_raid_room_objective_dones / tarkov_raid_room_marks
 tarkov_map_places
@@ -59,7 +59,7 @@ articles ── * article_versions
 | `endfield_attendance_raws` | 终末地签到日历 GET attendance 原始 JSON（按 member+role 最新一份；跨月或 force / 签到后回源） |
 | `arknights_operators` | 明日方舟干员图鉴（自开源 character_table 同步） |
 | `arknights_catalog_meta` | 图鉴同步元数据（单行，含版本与同步时间） |
-| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`。回源只打 json.tarkov.dev（PVP=`/regular/`，PVE=`/pve/`），**不**请求 `api.tarkov.dev` GraphQL。json 文件一张表；`overlay` 为社区补丁。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/extras/overlay 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，任务/物品/制作在 parse 前与 overlay 内存合入，不落合并表。ORM 里 `raw_json` 为延迟加载（只读 `source` / `synced_at` 等元数据时不拉整列，表结构不变）。UTF-8 超过 4MiB 的 `raw_json` 存 `gz1:`（gzip 后再 base64），避免单条 UPDATE 超过 MySQL 默认 16MiB 包上限；明文旧行仍可读，读取走 `decode_raw_json`。详见 `.cursor/rules/tarkov-upstream.mdc`。 |
+| `tarkov_*_raws`（图鉴） | 命名：`tarkov_{resource}_raws`。回源只打 json.tarkov.dev（PVP=`/regular/`，PVE=`/pve/`），**不**请求 `api.tarkov.dev` GraphQL。json 文件一张表；`overlay` 为社区补丁。列完全相同：`id` 自增主键、`mode_id`（1=PVP / 2=PVE）、`lang`（主文件 `''`，locale 为 `zh`；barters/crafts/overlay 只有主文件）、`source` / `raw_json` / `synced_at` / `note`。唯一 `(mode_id, lang)`。失败不覆盖该行。栏目读对应 raw，任务/物品/制作在 parse 前与 overlay 内存合入，不落合并表。ORM 里 `raw_json` 为延迟加载（只读 `source` / `synced_at` 等元数据时不拉整列，表结构不变）。UTF-8 超过 4MiB 的 `raw_json` 存 `gz1:`（gzip 后再 base64），避免单条 UPDATE 超过 MySQL 默认 16MiB 包上限；明文旧行仍可读，读取走 `decode_raw_json`。详见 `.cursor/rules/tarkov-upstream.mdc`。 |
 | `tarkov_items_raws` | json.tarkov.dev `/items` + `/items_zh`。弹药/枪械派生与目录列表的 `source` / `synced_at` / `note` 读当前模式主文件行 |
 | `tarkov_maps_raws` | json.tarkov.dev `/maps` + `/maps_zh`（含 mobs；地图与 BOSS 共用） |
 | `tarkov_tasks_raws` | json.tarkov.dev `/tasks` + `/tasks_zh` |
@@ -67,7 +67,6 @@ articles ── * article_versions
 | `tarkov_hideout_raws` | json.tarkov.dev `/hideout` + `/hideout_zh` |
 | `tarkov_barters_raws` | json.tarkov.dev `/barters` |
 | `tarkov_crafts_raws` | json.tarkov.dev `/crafts` |
-| `tarkov_extras_raws` | 从 json.tarkov.dev items/maps/tasks dump 抽出的 extras（技能、跳蚤规则、成就等） |
 | `tarkov_overlay_raws` | [tarkov-data-overlay](https://github.com/MiwiDots/tarkov-data-overlay) `dist/overlay.json`（原 tarkovtracker-org 仓 2026-10 起匿名 404，现跟社区 fork；`TARKOV_OVERLAY_URL` 可换源）。文件含 `modes.regular` / `modes.pve`，PVP/PVE 各存一行；读任务/物品/制作 raw 时内存合入，不改 json.tarkov.dev 各表 |
 | `tarkov_ammo` | 弹药派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；含 `ammo_type` / `icon_link` / 初速 / 精度·后坐·流血修正 / 曳光 / 碎弹率 / 跳弹率） |
 | `tarkov_guns` | 枪械派生读模型（按 `mode_id` 分列；主键 `(mode_id, item_id)`；口径/射速/人机/后坐/`allowed_ammo` 等） |

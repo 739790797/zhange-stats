@@ -1846,6 +1846,15 @@ def task_detail_base(
     return source, synced_at, note, payload_base[0], payload_base[1], payload_base[2]
 
 
+_TASK_CATALOG_KEYS = (
+    "questItems",
+    "achievements",
+    "prestige",
+    "customization",
+    "customizations",
+)
+
+
 def _store_tasks_raw_payload(payload: dict[str, Any]) -> dict[str, Any]:
     store = {k: v for k, v in payload.items() if k != "locale"}
     if isinstance(store.get("data"), dict):
@@ -1853,9 +1862,9 @@ def _store_tasks_raw_payload(payload: dict[str, Any]) -> dict[str, Any]:
     tasks = store.get("tasks")
     if isinstance(tasks, (dict, list)):
         data: dict[str, Any] = {"tasks": tasks}
-        quest_items = store.get("questItems")
-        if quest_items is not None:
-            data["questItems"] = quest_items
+        for key in _TASK_CATALOG_KEYS:
+            if store.get(key) is not None:
+                data[key] = store[key]
         return {"data": data}
     return store
 
@@ -2548,7 +2557,7 @@ def list_raid_prep(
 
 
 def task_detail_cache_parts(db: Session) -> tuple[str, ...]:
-    """任务详情 ETag 的表头部分：任务 / items / 藏身处 / overlay / extras，任一重新同步即失效。"""
+    """任务详情 ETag 的表头部分：任务 / items / 藏身处 / overlay，任一重新同步即失效。"""
     from app.services.tarkov import upstream as upstream_svc
     from app.services.tarkov import items as items_svc
     from app.services.tarkov.guides import guides_cache_token
@@ -2564,10 +2573,6 @@ def task_detail_cache_parts(db: Session) -> tuple[str, ...]:
         items_synced or "",
         guides_cache_token(db),
         overlay_cache_token(db),
-        upstream_svc.raw_row_header(
-            upstream_svc.load_raw_row(db, upstream_svc.EXTRAS_RESOURCE)
-        )[1]
-        or "",
     )
 
 
@@ -2595,7 +2600,7 @@ def get_task_detail(
     _enrich_items_from_catalog(db, detail, quest_items=quest_items)
     _enrich_stations_from_hideout(db, detail)
     _enrich_crafts_from_guides(db, detail)
-    _enrich_image_refs_from_extras(db, detail)
+    _enrich_image_refs_from_tasks(db, detail)
     return detail
 
 
@@ -2911,22 +2916,37 @@ def _iter_image_refs(*details: dict[str, Any]):
                     yield "customization", row
 
 
-def _enrich_image_refs_from_extras(db: Session, detail: dict[str, Any]) -> None:
+def _dump_field(payload: dict[str, Any], *keys: str) -> Any:
+    """json.tarkov.dev 文件里的目录，可能在根上，也可能包在 data 里。"""
+    layers: list[dict[str, Any]] = [payload]
+    data = payload.get("data")
+    if isinstance(data, dict):
+        layers.append(data)
+    for layer in layers:
+        for key in keys:
+            if key in layer:
+                return layer[key]
+    return None
+
+
+def _enrich_image_refs_from_tasks(db: Session, detail: dict[str, Any]) -> None:
     refs = list(_iter_image_refs(detail))
     if not refs:
         return
     try:
         from app.services.tarkov import upstream as upstream_svc
+
+        payload = upstream_svc.load_raw(db, "tasks")
     except Exception:  # noqa: BLE001
         return
-    payload = upstream_svc.load_raw(db, "extras")
     if not isinstance(payload, dict):
         return
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     catalogs = {
-        "achievements": _id_map(data.get("achievements")),
-        "prestige": _id_map(data.get("prestige")),
-        "customization": _id_map(data.get("customization") or data.get("customizations")),
+        "achievements": _id_map(_dump_field(payload, "achievements")),
+        "prestige": _id_map(_dump_field(payload, "prestige")),
+        "customization": _id_map(
+            _dump_field(payload, "customization", "customizations")
+        ),
     }
     for kind, ref in refs:
         ident = str(ref.get("id") or "").strip()

@@ -12,7 +12,7 @@ alwaysApply: true
 | 契约 | 改 FastAPI 路由/schema 后 `npm run export:openapi && npm run gen:api` 并提交 `generated/` | 只改手写 `types.ts` 当契约 | `frontend/src/api/generated/README.md` |
 | 签到/盒子 | 盒子/旁路 raw 读库优先；签到**展示**打开页始终 force 回源；编排走 `checkin.orchestrator` + Adapter | status 改 `last_checkin_*`；签到页展示执行记录；新平台抄整份编排 | `.cursor/rules/platform-raw-cache.mdc`、`backend-conventions.mdc` |
 | 森空岛上游 | 官/B 渠道语义、补奖、`unknown`、cred 缓存按上游规则 | B服当未签；`gameId` 回退官服；B服 GET 补奖 | `.cursor/rules/skland-upstream.mdc` |
-| 塔科夫图鉴 | 回源 json.tarkov.dev（`/regular/`·`/pve/`）落 `tarkov_*_raws`；extras 从 dump 抽出；overlay 只内存合入 | 回源 `api.tarkov.dev` GraphQL；为补字段再加 GraphQL 请求 | `.cursor/rules/tarkov-upstream.mdc`、`docs/database.md` |
+| 塔科夫图鉴 | 回源 json.tarkov.dev（`/regular/`·`/pve/`）落 `tarkov_*_raws`，一张上游文件一张表；overlay 只内存合入 | 回源 `api.tarkov.dev` GraphQL；为补字段再加 GraphQL 请求；再抽一份补集 raw | `.cursor/rules/tarkov-upstream.mdc`、`docs/database.md` |
 | 塔科夫工作台出图 | 底板用 dump 枪图，在图上点槽位换配件；不再默认代理 image-gen | 把出图站当图鉴源；pytest 打真站 | `.cursor/rules/tarkov-upstream.mdc` |
 | 塔科夫联机 | 未登录可看大厅列表（含公开房在座昵称、每人地图与相位）与房间预览；非成员 GET 房间只给预览（标题/模式/人数/是否要密码等，无棋盘、无人员）；公开或私密在创建时确定；写操作与 WS 须入座 | 房间码当秘密；非成员 GET 房间把棋盘/钥匙/人员/各人查看图回给路人；访客占座；创建后再改公开或私密 | `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」、`docs/database.md` |
 | 战鸽助手 | WebView 打开站点同源地址；嵌入标记下不画 `AppLayout` 侧栏；截图/日志读盘走文件桥，解析与摘要留在站点 | iframe 嵌站；生产把 Tauri 源当会话；助手重写解析；新接口收日志原文或定位原图 | `.cursor/rules/zhange-assistant.mdc`、`docs/security.md`「战鸽助手」 |

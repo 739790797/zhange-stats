@@ -31,7 +31,6 @@ const DOMAIN_LABELS: Record<string, string> = {
   hideout: "藏身处",
   traders: "商人",
   locks: "门锁",
-  extras: "补集",
   barters: "交换",
   crafts: "制作",
   overlay: "overlay",

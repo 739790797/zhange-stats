@@ -173,19 +173,6 @@ def _check_locks(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _apply_extras(db: Session, dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    incoming = upstream_svc.extras_from_site_dump(dump)
-    previous = upstream_svc.load_raw(db, upstream_svc.EXTRAS_RESOURCE)
-    data = upstream_svc.merge_extras(previous, incoming)
-    return upstream_svc.persist_raw(
-        db,
-        upstream_svc.EXTRAS_RESOURCE,
-        data,
-        source=SOURCE_JSON_API,
-        note=f"json.tarkov.dev/{json_api_prefix()} extras",
-    )
-
-
 _APPLY_STEPS: tuple[tuple[str, Any, type[Exception]], ...] = (
     ("items", _apply_items, items_svc.TarkovItemsError),
     ("tasks", _apply_tasks, tasks_svc.TarkovTasksError),
@@ -198,7 +185,6 @@ _APPLY_STEPS: tuple[tuple[str, Any, type[Exception]], ...] = (
 APPLY_DOMAIN_IDS: tuple[str, ...] = (
     "overlay",
     *(step[0] for step in _APPLY_STEPS),
-    "extras",
 )
 
 ProgressFn = Callable[[str, dict[str, Any]], None]
@@ -536,28 +522,6 @@ def _sync_current_mode(
             if tracker is not None:
                 tracker.patch(domain_id, status="error", ok=False, error=str(exc))
 
-    if tracker is not None:
-        tracker.patch("extras", status="applying", ok=False)
-        tracker.emit("apply", file="extras")
-    try:
-        extras = _apply_extras(db, dump)
-        domains.append(_domain_row("extras", ok=True, result=extras))
-        if tracker is not None:
-            tracker.patch(
-                "extras",
-                status="ok",
-                ok=True,
-                error=None,
-                source=extras.get("source"),
-                synced_at=extras.get("synced_at"),
-                upstream_at=extras.get("upstream_at"),
-            )
-    except upstream_svc.TarkovUpstreamError as exc:
-        logger.warning("tarkov extras dump failed: %s", exc)
-        domains.append(_domain_row("extras", ok=False, error=str(exc)))
-        if tracker is not None:
-            tracker.patch("extras", status="error", ok=False, error=str(exc))
-
     return domains
 
 
@@ -568,7 +532,7 @@ def sync_all_from_upstream(
     lang: str = "zh",
     progress: ProgressFn | None = None,
 ) -> dict[str, Any]:
-    """拉齐 json.tarkov.dev 全文件；raw 只写一次，再派生弹药/枪械。 extras 从 dump 投影。"""
+    """拉齐 json.tarkov.dev 全文件；raw 只写一次，再派生弹药/枪械。"""
     modes = sync_modes(game_mode)
     tracker = _SyncProgress(planned_full_sync_domains(modes, lang=lang), progress)
     tracker.emit("start")

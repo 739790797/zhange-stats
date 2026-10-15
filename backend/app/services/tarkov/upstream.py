@@ -1,4 +1,4 @@
-"""塔科夫上游整站 dump：json.tarkov.dev 全文件（含 extras 投影）。"""
+"""塔科夫上游整站 dump：json.tarkov.dev 全文件，一张文件一张 raw 表。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from app.models.tarkov import (
     TarkovBartersRaw,
     TarkovCatalogRawMixin,
     TarkovCraftsRaw,
-    TarkovExtrasRaw,
     TarkovHideoutRaw,
     TarkovOverlayRaw,
     TarkovItemsRaw,
@@ -63,7 +62,6 @@ JSON_LOCALES: tuple[str, ...] = (
     "traders",
     "hideout",
 )
-EXTRAS_RESOURCE = "extras"
 
 RAW_MODELS: dict[str, type[TarkovCatalogRawMixin]] = {
     "items": TarkovItemsRaw,
@@ -73,26 +71,8 @@ RAW_MODELS: dict[str, type[TarkovCatalogRawMixin]] = {
     "hideout": TarkovHideoutRaw,
     "barters": TarkovBartersRaw,
     "crafts": TarkovCraftsRaw,
-    "extras": TarkovExtrasRaw,
     "overlay": TarkovOverlayRaw,
 }
-
-EXTRAS_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (
-        "items",
-        (
-            "skills",
-            "playerLevels",
-            "fleaMarket",
-            "armorMaterials",
-            "itemCategories",
-            "handbookCategories",
-            "mastering",
-        ),
-    ),
-    ("maps", ("lootContainers", "stationaryWeapons")),
-    ("tasks", ("achievements", "prestige", "questItems")),
-)
 
 
 class TarkovUpstreamError(Exception):
@@ -888,27 +868,3 @@ def locale_data(dump: dict[str, dict[str, Any]], resource: str, *, lang: str = "
     data = unwrap_json_blob(blob)
     return data if isinstance(data, dict) else {}
 
-
-def extras_from_site_dump(dump: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """从已下载的 json.tarkov.dev dump 抽出原 GraphQL extras 字段。"""
-    out: dict[str, Any] = {}
-    for resource, keys in EXTRAS_KEYS:
-        blob = unwrap_json_blob(dump.get(resource) or {})
-        if not isinstance(blob, dict):
-            continue
-        for key in keys:
-            if key in blob:
-                out[key] = blob[key]
-    if not out:
-        raise TarkovUpstreamError("json.tarkov.dev dump 未解析到 extras")
-    return out
-
-
-def merge_extras(
-    previous: dict[str, Any] | None,
-    incoming: dict[str, Any],
-) -> dict[str, Any]:
-    """extras 只写这次真下到的字段：dump 缺 items 时别把上一份技能 / 跳蚤价抹成空。"""
-    out: dict[str, Any] = dict(previous) if isinstance(previous, dict) else {}
-    out.update(incoming)
-    return out

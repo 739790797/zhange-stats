@@ -147,8 +147,6 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
     assert "maps" in ids
     assert "locks" in ids
     assert "overlay" in ids
-    assert "extras" in ids
-
 
 def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -189,8 +187,6 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     assert "tasks down" in (by_id["tasks"]["error"] or "")
     assert by_id["items"]["ok"] is True
     assert by_id["overlay"]["ok"] is True
-    assert by_id["extras"]["ok"] is True
-
 
 def test_sync_all_projects_files_that_were_not_modified(monkeypatch) -> None:
     """304 的 items 不在本轮下载里，投影仍用库里上一份，不能报 dump 缺少 items。"""
@@ -230,7 +226,6 @@ def test_sync_all_projects_files_that_were_not_modified(monkeypatch) -> None:
     out = full_sync.sync_all_from_upstream(_Db(), game_mode="pvp")
     by_id = {row["id"]: row for row in out["domains"]}
     assert by_id["items"]["ok"] is True
-    assert by_id["extras"]["ok"] is True
     assert "缺少" not in (by_id["items"].get("error") or "")
 
 
@@ -263,8 +258,6 @@ def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
     assert by_id["overlay"]["ok"] is False
     assert "cdn down" in (by_id["overlay"]["error"] or "")
     assert by_id["items"]["ok"] is True
-    assert by_id["extras"]["ok"] is True
-
 
 def test_sync_all_raises_when_dump_fails(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -356,13 +349,6 @@ def test_persist_site_json_writes_eight_raw_tables() -> None:
     db = _RawDb()
     with game_mode_scope("pvp"):
         rows = upstream_svc.persist_site_json(db, _sample_dump())
-        extras = upstream_svc.persist_raw(
-            db,
-            upstream_svc.EXTRAS_RESOURCE,
-            {"skills": []},
-            source="json.tarkov.dev",
-            note="json.tarkov.dev/regular extras",
-        )
         overlay = upstream_svc.persist_raw(
             db,
             overlay_svc.OVERLAY_RESOURCE,
@@ -370,7 +356,6 @@ def test_persist_site_json_writes_eight_raw_tables() -> None:
             source=overlay_svc.SOURCE_OVERLAY,
             note="overlay",
         )
-    assert extras["ok"] is True
     assert overlay["ok"] is True
     ok_ids = {row["id"] for row in rows if row["ok"]}
     assert "dump:items" in ok_ids
@@ -537,14 +522,6 @@ def test_persist_site_json_records_upstream_last_modified() -> None:
     assert "上游 2026-08-26T09:01:54+00:00" in (items.note or "")
 
 
-def test_extras_from_site_dump_pulls_nested_catalogs() -> None:
-    extras = upstream_svc.extras_from_site_dump(_sample_dump())
-    assert extras["skills"] == [{"id": "endurance"}]
-    assert extras["playerLevels"] == [{"level": 1, "exp": 0}]
-    assert extras["lootContainers"] == {}
-    assert extras["achievements"] == {}
-
-
 def _stored(db, resource: str) -> str:
     """当前模式主文件 raw_json（直接读替身 session 里的行）。"""
     model = upstream_svc.RAW_MODELS[resource]
@@ -651,16 +628,6 @@ def test_persist_site_json_skips_locale_that_lost_its_content() -> None:
         if (r.lang or "") == "zh"
     )
     assert zh_row.raw_json == good_zh
-
-
-def test_merge_extras_keeps_fields_missing_from_this_dump() -> None:
-    """extras 只写这次真下到的字段：dump 缺 items 时别把上一份技能抹成空。"""
-    previous = {"skills": [{"id": "endurance"}], "fleaMarket": {"x": 1}}
-    incoming = {"lootContainers": {}, "achievements": {}}
-    merged = upstream_svc.merge_extras(previous, incoming)
-    assert merged["skills"] == [{"id": "endurance"}]
-    assert merged["fleaMarket"] == {"x": 1}
-    assert merged["achievements"] == {}
 
 
 def _all_validators() -> dict[str, str]:
@@ -808,7 +775,6 @@ def test_planned_full_sync_domains_include_dump_and_apply() -> None:
     ids = [row["id"] for row in rows]
     assert ids[0] == "dump:items"
     assert "overlay" in ids
-    assert "extras" in ids
     assert "locks" in ids
     assert all(row["status"] == "pending" and row["mode"] == "pvp" for row in rows)
 
