@@ -7,6 +7,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Session
 
+from app.api.settings_steamcmd import router as steamcmd_login_router
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.public_url import resolve_backend_base
@@ -54,6 +55,7 @@ from app.services.site_config import (
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+router.include_router(steamcmd_login_router)
 
 
 class EmailSettingsOut(BaseModel):
@@ -125,6 +127,8 @@ class IntegrationsOut(BaseModel):
     minecraft_public_host: str = ""
     minecraft_public_port: int = 25565
     minecraft_public_configured: bool = False
+    steamcmd_username: str = ""
+    steamcmd_logged_in: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -149,6 +153,7 @@ class IntegrationsUpdate(BaseModel):
     clear_minecraft_rcon_password: bool = False
     minecraft_public_host: str | None = None
     minecraft_public_port: int | None = Field(default=None, ge=0, le=65535)
+    steamcmd_username: str | None = None
 
 
 class AuthAdminBrief(BaseModel):

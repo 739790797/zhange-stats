@@ -1,0 +1,75 @@
+.wikiBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 14px 10px;
+  width: auto;
+  color: #efefef;
+  font-family: var(--ror2-display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  text-shadow: var(--ror2-shadow);
+  background: #425161;
+  border: 3px solid #536678;
+  outline: 1px solid rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  appearance: none;
+}
+
+.wikiBtn:hover,
+.wikiBtnOn {
+  color: #efefef;
+  background: #bcbe92;
+  border-color: #e0e2a8;
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.wikiBtn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.wikiBtnQuiet {
+  cursor: default;
+}
+
+.wikiBtnQuiet:hover {
+  color: #efefef;
+  background: #425161;
+  border-color: #536678;
+  outline: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.frame {
+  position: relative;
+  background:
+    linear-gradient(#f4f7fb, #f4f7fb) left top / 14px 2px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) left top / 2px 14px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) right top / 14px 2px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) right top / 2px 14px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) left bottom / 14px 2px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) left bottom / 2px 14px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) right bottom / 14px 2px no-repeat,
+    linear-gradient(#f4f7fb, #f4f7fb) right bottom / 2px 14px no-repeat,
+    rgba(5, 10, 11, 0.55);
+  border: 1px solid rgba(180, 196, 210, 0.45);
+}
+
+.icon,
+.iconFallback {
+  display: block;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  object-fit: contain;
+  background: #0b0d11;
+  border: 2px solid #f2f2f2;
+  box-sizing: border-box;
+}

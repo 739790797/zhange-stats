@@ -22,3 +22,4 @@ numpy>=1.26
 tokenizers>=0.15.0
 nh3>=0.2.18
 patchright==1.62.3
+pywinpty>=2.0.0; sys_platform == "win32"

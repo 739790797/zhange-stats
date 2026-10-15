@@ -32,6 +32,7 @@ KEEP_DAYS = 14
 # 与侧栏业务对齐：游戏 / 平台 / 社区 / 我的 / 管理
 RUM_BIZ_LABELS: dict[str, str] = {
     "tarkov": "逃离塔科夫",
+    "ror2": "雨中冒险2",
     "minecraft": "Minecraft",
     "steam": "Steam",
     "skland": "森空岛",
@@ -48,6 +49,7 @@ RUM_BIZ_LABELS: dict[str, str] = {
 
 _API_BIZ_PREFIXES: tuple[tuple[str, str], ...] = (
     ("guides/tarkov", "tarkov"),
+    ("guides/ror2", "ror2"),
     ("guides/minecraft", "minecraft"),
     ("profile/steam", "steam"),
     ("profile/daily-tasks", "daily"),
@@ -71,6 +73,7 @@ _API_BIZ_PREFIXES: tuple[tuple[str, str], ...] = (
 
 _IMG_HOST_MARKERS: tuple[tuple[str, str], ...] = (
     ("tarkov.dev", "tarkov"),
+    ("riskofrain2.wiki.gg", "ror2"),
     ("tarkov-market.com", "tarkov"),
     ("steamstatic.com", "steam"),
     ("steamcommunity.com", "steam"),

@@ -106,6 +106,7 @@ export function JobRunResultModal({
   watch: JobRunWatch | null;
   onClose: () => void;
 }) {
+  const logRef = useRef<HTMLPreElement>(null);
   const open = Boolean(watch);
   const startedAtRef = useRef(Date.now());
   const [timedOut, setTimedOut] = useState(false);
@@ -162,6 +163,11 @@ export function JobRunResultModal({
     if (waiting) return "active" as const;
     return "normal" as const;
   }, [finished, run?.status, waiting]);
+
+  useEffect(() => {
+    const node = logRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [run?.live_log]);
 
   return (
     <Modal
@@ -226,7 +232,7 @@ export function JobRunResultModal({
                 style={{ display: "block", marginTop: 4 }}
               />
             </div>
-          ) : waiting ? (
+          ) : waiting && !run?.live_log ? (
             <div style={{ textAlign: "center", padding: "16px 0" }}>
               <Spin />
             </div>
@@ -255,6 +261,11 @@ export function JobRunResultModal({
                 </div>
               ) : null}
             </div>
+          ) : null}
+          {run?.live_log ? (
+            <pre ref={logRef} style={preStyle}>
+              {run.live_log}
+            </pre>
           ) : null}
           {domainRows.length ? (
             <Table<JobRunDomainRow>

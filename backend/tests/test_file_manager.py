@@ -118,6 +118,9 @@ def test_is_sensitive_name() -> None:
     assert fm.rel_is_sensitive("data/backups/zhange-20260101-000000.tar.gz")
     assert fm.rel_is_sensitive("var/backups/zhange-20260101-000000.tar.gz")
     assert fm.rel_is_sensitive("zhange.sql")
+    assert fm.rel_is_sensitive("steamcmd/config/config.vdf")
+    assert fm.rel_is_sensitive("steamcmd/ssfn1234567890")
+    assert not fm.rel_is_sensitive("steamcmd/steamcmd.exe")
     assert not fm.rel_is_sensitive("config.example/app.json")
     assert not fm.rel_is_sensitive("scripts/config.example/app.json")
 

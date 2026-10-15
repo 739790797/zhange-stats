@@ -55,6 +55,7 @@ cd frontend && npm install && npm run dev
 - 塔科夫找人线本地演示（仅 `npm run dev`）：http://127.0.0.1:6131/guides/tarkov/raid-prep/pulse-demo ；你看海关，甲乙在海关战局里错开换定位，丙每 30 秒在森林和海关之间换图，丁已回大厅。左上角名单带地图和状态。不写库、不进大厅。单人准备顶栏也有「找人线演示」入口。生产构建不挂这条路由。
 - 塔科夫枪械工作台中间用 dump 枪图做底板，在图上点槽位换配件。第三方出图默认关闭。枪匠求解读本站 tasks dump 的 `buildWeapon`，在本站做约束满足，不打 EFTForge。
 - 塔科夫 `/guides/tarkov` 不包 `PrivateRoute`：图鉴、枪匠求解、大厅预览未登录可读；个人中心与开房在壳内登录。用户等待在 **管理 → 运行维护 → 用户等待**。
+- 雨中冒险 2 `/guides/ror2` 同样不包 `PrivateRoute`。图鉴从 riskofrain2.wiki.gg 落入 `guide_raws` 后再解析；定时任务 `ror2_wiki_sync`。
 - 启动时：已选库则自动 `alembic upgrade`（SQLite 首次为 `create_all` + stamp）；改表：`alembic revision --autogenerate -m "..."`（见 [`backend/alembic/README.md`](../backend/alembic/README.md)），并同步 [`database.md`](database.md)
 - 战鸽助手（zhange-app）用 WebView 打开站点同源地址，首页是 `/app`（先确认登录，未登录去登录页）。嵌入侧栏、截图/日志读盘与会话边界见 [`security.md`](security.md)「战鸽助手」。Steam 日时间轴昵称链到 Steam 社区资料，不再有单独的成员游玩页。
 - 站点配置字段见 [`scripts/config.example/`](../scripts/config.example/)。`install` / `run` / `restart` / `update` 与启动会按文件 `_version` 把模板里的新键补进 `config/`，不覆盖已有值。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；本地 Vite 与战鸽助手（Tauri `https://tauri.localhost`）走默认正则，可在「运行环境」覆盖 `CORS_ORIGINS` / `CORS_ORIGIN_REGEX`。QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `data/runtime/`、`data/uploads/`）。Hugging Face / pip 等第三方缓存启动时 pin 到 `data/cache`，tempfile 与备份暂存在 `data/tmp`。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 在运行环境配置

@@ -256,6 +256,8 @@ describe("jobRunResult", () => {
 
   it("reads live progress from stats.domains and download bytes", () => {
     expect(jobRunPhaseLabel("download")).toBe("下载 dump");
+    expect(jobRunPhaseLabel("steamcmd_download")).toBe("下载游戏");
+    expect(jobRunPhaseLabel("steamcmd_verify")).toBe("校验游戏");
     expect(jobRunDomainStatusLabel("downloading")).toBe("下载中");
     const run = {
       id: 9,

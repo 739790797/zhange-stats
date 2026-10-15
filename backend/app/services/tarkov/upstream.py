@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import gzip
 import json
 import logging
 from collections.abc import Callable
@@ -17,6 +15,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, SessionTransaction, undefer
 
 from app.core.timeutil import now_naive
+from app.services.guide_raw.codec import GZIP_PREFIX, RawTooLarge, pack_raw_text, unpack_raw_text
 from app.models.tarkov import (
     TarkovBartersRaw,
     TarkovCatalogRawMixin,
@@ -81,49 +80,27 @@ class TarkovUpstreamError(Exception):
         self.message = message
 
 
-# MariaDB / MySQL 默认 max_allowed_packet 是 16MiB，协议单帧上限也是 16MiB-1。
-# 物品 dump 已超过这个数；SSL 连接上多帧包会被对端直接掐掉（2006 gone away / SSLEOFError）。
 # 超过阈值的 raw 压成 gz1:（gzip 后再 base64），读的时候再展开。明文旧行仍按 JSON 读。
-_RAW_JSON_GZIP_PREFIX = "gz1:"
+# 实现在 guide_raw.codec；这里的阈值仍可被测试替换，调用时再读。
+_RAW_JSON_GZIP_PREFIX = GZIP_PREFIX
 _RAW_JSON_GZIP_MIN_BYTES = 4 * 1024 * 1024
 _RAW_JSON_PACKET_BUDGET = 12 * 1024 * 1024
 
 
-def _gzip_b64(encoded: bytes, *, compresslevel: int) -> str:
-    blob = gzip.compress(encoded, compresslevel=compresslevel, mtime=0)
-    return _RAW_JSON_GZIP_PREFIX + base64.b64encode(blob).decode("ascii")
-
-
 def _pack_raw_json(text: str) -> str:
     """大 JSON 压到单包预算以内。小文档保持明文，方便直接看库。"""
-    encoded = text.encode("utf-8")
-    if len(encoded) < _RAW_JSON_GZIP_MIN_BYTES:
-        return text
-    packed = _gzip_b64(encoded, compresslevel=6)
-    if len(packed.encode("utf-8")) >= len(encoded):
-        packed = text
-    if len(packed.encode("utf-8")) > _RAW_JSON_PACKET_BUDGET and packed != text:
-        tighter = _gzip_b64(encoded, compresslevel=9)
-        if len(tighter) < len(packed):
-            packed = tighter
-    stored_bytes = len(packed.encode("utf-8"))
-    if stored_bytes > _RAW_JSON_PACKET_BUDGET:
-        raise TarkovUpstreamError(
-            "图鉴 raw 压缩后仍超过数据库单包上限，已中止写入，库里的旧数据还在"
+    try:
+        return pack_raw_text(
+            text,
+            min_bytes=_RAW_JSON_GZIP_MIN_BYTES,
+            packet_budget=_RAW_JSON_PACKET_BUDGET,
         )
-    if packed.startswith(_RAW_JSON_GZIP_PREFIX):
-        logger.debug("tarkov raw packed %s bytes -> %s", len(encoded), stored_bytes)
-    return packed
+    except RawTooLarge as exc:
+        raise TarkovUpstreamError(str(exc)) from exc
 
 
 def _unpack_raw_json(stored: str) -> str:
-    if not stored.startswith(_RAW_JSON_GZIP_PREFIX):
-        return stored
-    try:
-        blob = base64.b64decode(stored[len(_RAW_JSON_GZIP_PREFIX):], validate=True)
-        return gzip.decompress(blob).decode("utf-8")
-    except (OSError, ValueError, EOFError, UnicodeDecodeError) as exc:
-        raise ValueError("invalid gz1 raw_json") from exc
+    return unpack_raw_text(stored)
 
 
 @dataclass(frozen=True)

@@ -17,6 +17,7 @@ def test_resolve_biz_tag_platform_services() -> None:
     assert resolve_biz_tag("app.services.skland.checkin") == "skland.checkin"
     assert resolve_biz_tag("app.services.taygedo.boxes") == "taygedo.boxes"
     assert resolve_biz_tag("app.services.mihoyo.checkin") == "mihoyo.checkin"
+    assert resolve_biz_tag("app.services.ror2.wiki") == "ror2.wiki"
     assert resolve_biz_tag("app.services.checkin.orchestrator") == "checkin.orchestrator"
     assert resolve_biz_tag("zhange.scheduler") == "scheduler"
     assert resolve_biz_tag("uvicorn.access") == "infra.http"

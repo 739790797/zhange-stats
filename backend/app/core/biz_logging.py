@@ -23,6 +23,7 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
     "steam",
     "minecraft",
     "tarkov",
+    "ror2",
     "arknights",
     "pelican",
     "qq",

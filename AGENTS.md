@@ -63,6 +63,7 @@ alembic upgrade head
 - Button 内联 `#1a2332` 锁死主色；主应用引入第二套 UI 库或抄塔科夫暗色主题
 - 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
 - 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
+- 雨中冒险2图鉴回源 riskofrain2.wiki.gg 以外的接口，或把游戏语言文件当在线数据源
 - 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/模式/人数/是否要密码等，无棋盘、无人员）；房间码当秘密；访客占座；创建后再改公开或私密。公开大厅列表可以带在座昵称和每人地图/相位
 - 战鸽助手用 iframe 嵌站，或生产用 `tauri.localhost` 跨源当登录；为读游戏目录新开收日志原文/定位原图的接口；在助手里重写截图文件名与日志解析
 - `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
@@ -88,6 +89,7 @@ alembic upgrade head
 - [ ] 改签到/盒子：盒子符合 raw 读库优先；签到展示始终 force 回源、不展示执行记录
 - [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
 - [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
+- [ ] 改雨中冒险2图鉴：只走 riskofrain2.wiki.gg，相关 `test_ror2_*` 通过
 - [ ] 改塔科夫联机：未登录可看大厅与房间预览；非成员 GET 仅为预览；访客不能占座；限流与 `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」一致
 - [ ] 改战鸽助手嵌入 / 本机目录：对照 `zhange-assistant.mdc`（同源 WebView、侧栏、文件桥不收原文）
 - [ ] 改文件管理：只扫安装根；密钥 / 含口令的 `config/*.json` / 在用 SQLite 库 / MariaDB 数据 / 备份不可下/改/删，符号链接一律拒绝；相关 `test_file_manager` 通过

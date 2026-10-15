@@ -62,6 +62,20 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_full",
     },
     {
+        "id": "ror2_wiki_sync",
+        "name": "图鉴数据更新",
+        "description": "回源 riskofrain2.wiki.gg 的道具、装备、幸存者模块，落入 guide_raws 后再解析展示",
+        "kind": "cron",
+        "platform": "ror2_wiki",
+    },
+    {
+        "id": "ror2_lang_sync",
+        "name": "简体中文语言文件",
+        "description": "使用已登录的 SteamCMD 缓存更新游戏（在集成密钥里登录一次），再读 Language/zh-CN。文件增减自动跟着变；后编号的 DLC 覆盖先读的同名键",
+        "kind": "cron",
+        "platform": "ror2_lang",
+    },
+    {
         "id": "texteller_model_sync",
         "name": "公式识别模型",
         "description": "对照 hf-mirror 上的 OleehyO/TexTeller 更新本地公式识别权重（data/models/texteller）",

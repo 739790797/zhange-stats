@@ -26,7 +26,7 @@ export const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
   terms: {
     id: "terms",
     title: "服务条款",
-    updated: "2026-09-04",
+    updated: "2026-10-15",
     paragraphs: [
       TARKOV_PUBLIC_DISCLAIMER,
       "战鸽数据提供账号、圈子功能，以及逃离塔科夫图鉴与联机房间等第三方工具。使用即表示你同意本条款。",
@@ -34,6 +34,7 @@ export const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
       RAID_ROOM_TITLE_POLICY +
         "运营者可删除违规房间或限制账号。禁止利用本站从事违法活动或干扰他人游戏。",
       "图鉴数据来自 tarkov.dev 等社区来源，可能滞后或不准确。游戏本身及其商标归 Battlestate Games 所有。",
+      "《雨中冒险 2》图鉴文字来自 Risk of Rain 2 Wiki（CC BY-SA 4.0），可能滞后或不准确。游戏本身及其商标归其权利人所有。",
       "服务按现状提供。公开引流时容量为单机部署，高峰可能降级或暂停联机房间。我们可随时调整功能或下线模块。",
       TERMS_TAIL_LAW,
     ],

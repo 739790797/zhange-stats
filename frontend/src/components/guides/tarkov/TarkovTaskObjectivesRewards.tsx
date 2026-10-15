@@ -13,6 +13,8 @@ import {
   formatTaskCompare,
   formatTaskExtractLines,
   formatTaskObjectiveExtraLines,
+  tarkovCustomizationTypeLabel,
+  tarkovFailConditionText,
   tarkovObjectiveTypeLabel,
   tarkovObjectiveTypeTone,
   taskRequirementStatusLabel,
@@ -634,7 +636,9 @@ function RewardsBlock({
                 name={
                   <>
                     {namedLabel(row)}
-                    {row.customization_type ? `（${row.customization_type}）` : ""}
+                    {row.customization_type
+                      ? `（${tarkovCustomizationTypeLabel(row.customization_type)}）`
+                      : ""}
                   </>
                 }
               />
@@ -694,7 +698,7 @@ function FailSection({
         ) : null}
         {leftover.map((row) => (
           <div key={row.id || row.description} className={styles.failRow}>
-            {row.description || row.type}
+            {tarkovFailConditionText(row)}
           </div>
         ))}
       </div>

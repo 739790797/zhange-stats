@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config_sync import sync_site_config
 from app.core.crypto_secret import encrypt_secret
 from app.core.database import Base
-from app.core.file_config import config_dir, read_json, write_json
+from app.core.file_config import config_dir, config_schema_version, read_example, read_json, write_json
 from app.models.system_config import SystemConfig
 from app.services import config_import as ci
 from app.services.auth_config import load_auth_config
@@ -89,7 +89,7 @@ def test_template_created_files_do_not_block_the_import(install: Path, db: Sessi
     assert not (config_dir() / "ocr.json").exists()
     assert load_scheduler_config()["steam_presence"] == {"enabled": False, "interval_minutes": 5}
     assert read_json("jobs")["features"] == {"skland": False}
-    assert read_json("integrations")["_version"] == 1
+    assert read_json("integrations")["_version"] == config_schema_version(read_example("integrations"))
 
 
 def test_values_the_admin_already_set_are_kept(install: Path, db: Session) -> None:

@@ -714,6 +714,58 @@ export interface paths {
         patch: operations["update_member_profile_api_members__member_id__profile_patch"];
         trace?: never;
     };
+    "/api/settings/integrations/steamcmd/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Steamcmd Login */
+        get: operations["read_steamcmd_login_api_settings_integrations_steamcmd_login_get"];
+        put?: never;
+        /** Begin Steamcmd Login */
+        post: operations["begin_steamcmd_login_api_settings_integrations_steamcmd_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/integrations/steamcmd/login/guard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Steamcmd Guard */
+        post: operations["submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/integrations/steamcmd/login/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Steamcmd Login */
+        post: operations["cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/email": {
         parameters: {
             query?: never;
@@ -4250,6 +4302,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guides/ror2/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 雨中冒险2图鉴
+         * @description 道具、装备、幸存者。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。
+         */
+        get: operations["ror2_catalog_api_guides_ror2_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/guides/minecraft/files": {
         parameters: {
             query?: never;
@@ -7515,6 +7587,16 @@ export interface components {
              * @default false
              */
             minecraft_public_configured: boolean;
+            /**
+             * Steamcmd Username
+             * @default
+             */
+            steamcmd_username: string;
+            /**
+             * Steamcmd Logged In
+             * @default false
+             */
+            steamcmd_logged_in: boolean;
         };
         /**
          * IntegrationsStatusOut
@@ -7592,6 +7674,8 @@ export interface components {
             minecraft_public_host?: string | null;
             /** Minecraft Public Port */
             minecraft_public_port?: number | null;
+            /** Steamcmd Username */
+            steamcmd_username?: string | null;
         };
         /** JobConfigUpdateItem */
         JobConfigUpdateItem: {
@@ -7631,6 +7715,8 @@ export interface components {
             stats?: {
                 [key: string]: unknown;
             } | null;
+            /** Live Log */
+            live_log?: string | null;
         };
         /** JobRunsPageOut */
         JobRunsPageOut: {
@@ -10469,6 +10555,162 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** Ror2CatalogOut */
+        Ror2CatalogOut: {
+            /** Source */
+            source: string;
+            /** Fetched At */
+            fetched_at: string;
+            /** Items */
+            items: components["schemas"]["Ror2ItemOut"][];
+            /** Equipment */
+            equipment: components["schemas"]["Ror2ItemOut"][];
+            /** Survivors */
+            survivors: components["schemas"]["Ror2SurvivorOut"][];
+        };
+        /** Ror2ItemOut */
+        Ror2ItemOut: {
+            /** Name */
+            name: string;
+            /**
+             * Rarity
+             * @default
+             */
+            rarity: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Categories */
+            categories?: string[];
+            /**
+             * Unlock
+             * @default
+             */
+            unlock: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /**
+             * Internal Name
+             * @default
+             */
+            internal_name: string;
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Corrupt
+             * @default
+             */
+            corrupt: string;
+            /**
+             * Uncorrupt
+             * @default
+             */
+            uncorrupt: string;
+            /**
+             * Boss
+             * @default
+             */
+            boss: string;
+            /**
+             * Cooldown
+             * @default
+             */
+            cooldown: string;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
+            /** Stats */
+            stats?: components["schemas"]["Ror2StatOut"][];
+        };
+        /** Ror2StatOut */
+        Ror2StatOut: {
+            /** Label */
+            label: string;
+            /**
+             * Value
+             * @default
+             */
+            value: string;
+            /**
+             * Stack
+             * @default
+             */
+            stack: string;
+            /**
+             * Add
+             * @default
+             */
+            add: string;
+        };
+        /** Ror2SurvivorOut */
+        Ror2SurvivorOut: {
+            /** Name */
+            name: string;
+            /**
+             * Umbra
+             * @default
+             */
+            umbra: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Unlock
+             * @default
+             */
+            unlock: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /**
+             * Phrase Escape
+             * @default
+             */
+            phrase_escape: string;
+            /**
+             * Phrase Vanish
+             * @default
+             */
+            phrase_vanish: string;
+            /** Health */
+            health?: number | null;
+            /** Health Per Level */
+            health_per_level?: number | null;
+            /** Damage */
+            damage?: number | null;
+            /** Damage Per Level */
+            damage_per_level?: number | null;
+            /** Regen */
+            regen?: number | null;
+            /** Regen Per Level */
+            regen_per_level?: number | null;
+            /** Speed */
+            speed?: number | null;
+            /** Armor */
+            armor?: number | null;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
+        };
         /** RumBizSummaryOut */
         RumBizSummaryOut: {
             /** Biz */
@@ -11237,6 +11479,31 @@ export interface components {
             /** Members */
             members?: components["schemas"]["SteamCalendarMemberSeries"][];
             visibility?: components["schemas"]["SteamVisibilityMeta"] | null;
+        };
+        /** SteamCmdLoginGuard */
+        SteamCmdLoginGuard: {
+            /** Code */
+            code: string;
+        };
+        /** SteamCmdLoginStart */
+        SteamCmdLoginStart: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
+        };
+        /** SteamCmdLoginStatus */
+        SteamCmdLoginStatus: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "idle" | "starting" | "need_guard" | "need_mobile" | "ok" | "error";
+            /**
+             * Message
+             * @default
+             */
+            message: string;
         };
         /** SteamDayMemberSummary */
         SteamDayMemberSummary: {
@@ -18504,6 +18771,112 @@ export interface operations {
             };
         };
     };
+    read_steamcmd_login_api_settings_integrations_steamcmd_login_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
+                };
+            };
+        };
+    };
+    begin_steamcmd_login_api_settings_integrations_steamcmd_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SteamCmdLoginStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SteamCmdLoginGuard"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
+                };
+            };
+        };
+    };
     get_email_settings_api_settings_email_get: {
         parameters: {
             query?: never;
@@ -25705,6 +26078,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ror2_catalog_api_guides_ror2_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ror2CatalogOut"];
                 };
             };
         };

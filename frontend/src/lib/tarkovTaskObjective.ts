@@ -181,9 +181,51 @@ export const TARKOV_BODY_PART_LABELS: Record<string, string> = {
 };
 
 export const TARKOV_SHOT_TYPE_LABELS: Record<string, string> = {
-  Kill: "击杀",
-  Damage: "造成伤害",
+  kill: "击杀",
+  damage: "造成伤害",
+  hit: "命中",
 };
+
+export function tarkovShotTypeLabel(value: string): string {
+  const key = value.trim().toLowerCase();
+  return TARKOV_SHOT_TYPE_LABELS[key] || value.trim();
+}
+
+const CUSTOMIZATION_TYPE_LABELS: Record<string, string> = {
+  floor: "地板",
+  wall: "墙",
+  ceiling: "天花板",
+  shootingrangemark: "靶场标记",
+};
+
+export function tarkovCustomizationTypeLabel(value: string | null | undefined): string {
+  const text = (value || "").trim();
+  if (!text) return "";
+  return CUSTOMIZATION_TYPE_LABELS[text.toLowerCase()] || text;
+}
+
+export function tarkovTaskFactionLabel(value: string | null | undefined): string {
+  const text = (value || "").trim();
+  if (!text) return "—";
+  if (text.toLowerCase() === "any") return "任意";
+  return text;
+}
+
+const TARKOV_HEX_ID_RE = /^[a-f0-9]{24}$/i;
+
+/** 失败说明若只是主键，改显示目标类型，不把 id 画出来。 */
+export function tarkovFailConditionText(row: {
+  id?: string | null;
+  type?: string | null;
+  description?: string | null;
+}): string {
+  const desc = (row.description || "").trim();
+  const ident = (row.id || "").trim();
+  if (!desc || desc === ident || TARKOV_HEX_ID_RE.test(desc)) {
+    return tarkovObjectiveTypeLabel(row.type || "");
+  }
+  return desc;
+}
 
 const COMPARE_SYMBOL: Record<string, string> = {
   ">=": "≥",
@@ -367,6 +409,13 @@ function joinLabels(values: string[]): string {
   return values.filter(Boolean).join("、");
 }
 
+function isOpenDistance(distance?: TaskCompareLike | null): boolean {
+  if (!distance || distance.value == null || Number.isNaN(Number(distance.value))) return false;
+  if (Number(distance.value) !== 0) return false;
+  const cmp = (distance.compare_method || "").trim();
+  return cmp === ">=" || cmp === ">" || cmp === "=>";
+}
+
 function healthEffectLine(prefix: string, raw?: TaskHealthEffectLike | null): string {
   if (!raw) return "";
   const parts = (raw.body_parts || []).map((row) => tarkovBodyPartLabel(String(row)));
@@ -415,11 +464,14 @@ export function formatTaskObjectiveExtraLines(obj: {
   if (targets.length) lines.push(`目标：${joinLabels(targets)}`);
   const parts = (obj.body_parts || []).map((row) => tarkovBodyPartLabel(String(row)));
   if (parts.length) lines.push(`部位：${joinLabels(parts)}`);
-  const shot = (obj.shot_type || "").trim();
-  if (shot) lines.push(`方式：${TARKOV_SHOT_TYPE_LABELS[shot] || shot}`);
-  const distance = formatTaskCompare(obj.distance?.compare_method, obj.distance?.value);
+  const shot = tarkovShotTypeLabel(obj.shot_type || "");
+  if (shot) lines.push(`方式：${shot}`);
+  const distance = isOpenDistance(obj.distance)
+    ? ""
+    : formatTaskCompare(obj.distance?.compare_method, obj.distance?.value);
   if (distance) lines.push(`距离 ${distance} m`);
-  if (obj.time_from_hour != null || obj.time_until_hour != null) {
+  const openHours = obj.time_from_hour === 0 && obj.time_until_hour === 0;
+  if (!openHours && (obj.time_from_hour != null || obj.time_until_hour != null)) {
     const from = obj.time_from_hour == null ? "?" : String(obj.time_from_hour).padStart(2, "0");
     const until = obj.time_until_hour == null ? "?" : String(obj.time_until_hour).padStart(2, "0");
     lines.push(`游戏内时段 ${from}:00–${until}:00`);

@@ -585,6 +585,108 @@ def test_sort_task_rows_trader_then_level():
     assert [r["id"] for r in ordered] == ["a1", "a2", "b"]
 
 
+def test_project_localizes_objective_tokens_from_locale():
+    locale = {
+        "Any": "任意目标：",
+        "Savage": "Scav：",
+        "marathon Name": "转移",
+        "QuestCondition/Elimination/Kill/BodyPart/Head": "头部",
+        "Dehydration": "脱水",
+        "5448f3a64bdc2d60728b456a Name": "兴奋剂",
+        "StressResistance": "抗压",
+        "TroubleShooting": "TroubleShooting",
+        "WOO_TRANSIT_17": "转移点03",
+    }
+    detail = tasks.project_task_detail(
+        {
+            "id": "t-loc",
+            "name": "Loc",
+            "trader": PRAPOR,
+            "objectives": [
+                {
+                    "id": "o",
+                    "type": "shoot",
+                    "description": "still english",
+                    "targetNames": ["Any", "Savage", "any boss"],
+                    "bodyParts": [
+                        "QuestCondition/Elimination/Kill/BodyPart/Head",
+                        "head",
+                    ],
+                    "exitStatus": ["ExpBonusmarathon Name", "Survived"],
+                    "exitName": "WOO_TRANSIT_17",
+                    "healthEffect": {
+                        "effects": ["Dehydration", "5448f3a64bdc2d60728b456a Name"]
+                    },
+                    "containsCategory": [{"id": "550aa4cd4bdc2dd8348b456c"}],
+                }
+            ],
+            "finishRewards": {
+                "skillLevelReward": [
+                    {"name": "StressResistance", "level": 1},
+                    {"name": "TroubleShooting", "level": 1},
+                ],
+                "customization": [
+                    {"id": "c1", "name": "标", "customizationType": "Floor"}
+                ],
+            },
+        },
+        locale,
+        maps_locale={"WOO_TRANSIT_17_DESC": "前往灯塔"},
+        items_locale={"550aa4cd4bdc2dd8348b456c Name": "消音器"},
+        include_unlocks=False,
+    )
+    assert detail is not None
+    obj = detail["objectives"][0]
+    assert obj["description"] == "still english"
+    assert obj["target_names"] == ["任意目标", "Scav", "任意 Boss"]
+    assert obj["body_parts"] == ["头部"]
+    assert obj["exit_status"] == ["转移", "Survived"]
+    assert obj["exit_name"] == "转移点03（前往灯塔）"
+    assert obj["health_effect"]["effects"] == ["脱水", "兴奋剂"]
+    assert obj["contains_category"][0]["name"] == "消音器"
+    rewards = detail["finish_rewards"]
+    assert [row["name"] for row in rewards["skill_level_reward"]] == [
+        "抗压",
+        "TroubleShooting",
+    ]
+    assert rewards["customization"][0]["customization_type"] == "地板"
+    assert detail["faction_name"] == "Any"
+
+
+def test_localize_exit_name_space_alias_and_plain_extract():
+    assert (
+        tasks._localize_exit_name(
+            "V-Ex_light",
+            {" V-Ex_light": "通往军事基地的载具撤离点"},
+        )
+        == "通往军事基地的载具撤离点"
+    )
+    assert (
+        tasks._localize_exit_name(
+            "customs_sniper_exit",
+            {},
+            {"ex_customs_pmc_flare": "铁路通道（信号弹）"},
+        )
+        == "铁路通道（信号弹）"
+    )
+    assert (
+        tasks._localize_exit_name(
+            "Gate_o",
+            {"Gate_o": "庭院大门"},
+            {"Gate_o": "庭院大门"},
+        )
+        == "庭院大门"
+    )
+    assert (
+        tasks._localize_exit_name(
+            "SAN_TRANSIT_1",
+            {"SAN_TRANSIT_1": "转移点01"},
+            {"SAN_TRANSIT_1_DESC": "前往塔科夫街区"},
+        )
+        == "转移点01（前往塔科夫街区）"
+    )
+
+
 def test_normalize_objective_exit_exp_bonus_is_status_not_extract():
     statuses, name = tasks.normalize_objective_exit(
         {
@@ -1335,7 +1437,7 @@ def test_project_objective_structured_fields():
     assert detail is not None
     shoot, build, hideout, related, item = detail["objectives"]
     assert shoot["target_names"] == ["Scavs"]
-    assert shoot["body_parts"] == ["Head"]
+    assert shoot["body_parts"] == ["头部"]
     assert shoot["distance"]["value"] == 40
     assert shoot["using_weapon"][0]["id"] == "gun1"
     assert shoot["using_weapon_mods"][0][0]["id"] == "mod1"

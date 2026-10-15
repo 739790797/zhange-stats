@@ -35,6 +35,7 @@ describe("legal docs", () => {
     expect(RAID_ROOM_TITLE_POLICY).toContain("禁止违法");
     const terms = legalDoc("terms").paragraphs.join("\n");
     expect(terms).toContain("透视");
+    expect(terms).toContain("Risk of Rain 2 Wiki");
     expect(terms).toContain("入座成员");
     expect(terms).toContain(RAID_ROOM_TITLE_POLICY);
     const privacy = legalDoc("privacy").paragraphs.join("\n");

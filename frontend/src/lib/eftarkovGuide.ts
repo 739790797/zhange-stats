@@ -2,11 +2,11 @@ import { isBareTarkovId } from "@/lib/tarkovItemFormat";
 
 export const EFTARKOV_GUIDE_ORIGIN = "https://www.eftarkov.com";
 
-/** eftarkov 任务攻略页（与 tarkov.dev / 战鸽 task id 对齐） */
+/** eftarkov 任务页上的图文指引（地图、实景、点位说明）。旧 /news/id/{id}.html 已 404。 */
 export function eftarkovTaskGuideUrl(taskId: string): string | null {
   const id = taskId.trim();
   if (!isBareTarkovId(id)) return null;
-  return `${EFTARKOV_GUIDE_ORIGIN}/news/id/${encodeURIComponent(id)}.html`;
+  return `${EFTARKOV_GUIDE_ORIGIN}/task/${encodeURIComponent(id)}`;
 }
 
 /** 点任务名打开攻略时保留该 id；未指定才回落到已勾选的第一条。 */

@@ -6,9 +6,13 @@ import {
   formatTaskExtractLines,
   formatTaskObjectiveExtraLines,
   orderObjectiveTypes,
+  tarkovCustomizationTypeLabel,
   tarkovExitStatusLabel,
+  tarkovFailConditionText,
   tarkovObjectiveTypeLabel,
   tarkovObjectiveTypeTone,
+  tarkovShotTypeLabel,
+  tarkovTaskFactionLabel,
   taskRequirementStatusLabel,
   taskUnlockStatusLabel,
 } from "./tarkovTaskObjective";
@@ -104,6 +108,34 @@ describe("task detail extras", () => {
       "目标状态：头部 · 疼痛",
       "配件分类：瞄具",
     ]);
+    expect(tarkovShotTypeLabel("kill")).toBe("击杀");
+    expect(tarkovShotTypeLabel("hit")).toBe("命中");
+    expect(
+      formatTaskObjectiveExtraLines({
+        shot_type: "kill",
+        distance: { compare_method: ">=", value: 0 },
+        time_from_hour: 0,
+        time_until_hour: 0,
+      }),
+    ).toEqual(["方式：击杀"]);
+    expect(tarkovTaskFactionLabel("Any")).toBe("任意");
+    expect(tarkovTaskFactionLabel("USEC")).toBe("USEC");
+    expect(tarkovCustomizationTypeLabel("Floor")).toBe("地板");
+    expect(tarkovCustomizationTypeLabel("ShootingRangeMark")).toBe("靶场标记");
+    expect(
+      tarkovFailConditionText({
+        id: "597a19ff86f774792c2e36f2",
+        type: "plantItem",
+        description: "597a19ff86f774792c2e36f2",
+      }),
+    ).toBe("藏匿");
+    expect(
+      tarkovFailConditionText({
+        id: "f1",
+        type: "shoot",
+        description: "不得击杀游荡者",
+      }),
+    ).toBe("不得击杀游荡者");
     expect(
       formatTaskObjectiveExtraLines({
         attributes: [

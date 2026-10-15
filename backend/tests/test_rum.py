@@ -228,6 +228,7 @@ def test_ingest_is_one_bulk_insert_and_clips_fields() -> None:
 
 def test_classify_rum_biz_matches_sidebar() -> None:
     assert classify_rum_biz("api", "GET /api/guides/tarkov/items/{id}") == "tarkov"
+    assert classify_rum_biz("api", "GET /api/guides/ror2/catalog") == "ror2"
     assert classify_rum_biz("api", "GET /api/guides/minecraft/status") == "minecraft"
     assert classify_rum_biz("api", "GET /api/steam/now") == "steam"
     assert classify_rum_biz("api", "POST /api/profile/steam/preview") == "steam"
@@ -248,6 +249,7 @@ def test_classify_rum_biz_matches_sidebar() -> None:
     assert classify_rum_biz("api", "GET /api/users") == "site"
     assert classify_rum_biz("api", "GET /api/unknown") == "other"
     assert classify_rum_biz("img", "", "assets.tarkov.dev") == "tarkov"
+    assert classify_rum_biz("img", "", "riskofrain2.wiki.gg") == "ror2"
     assert (
         classify_rum_biz(
             "img",
@@ -257,6 +259,7 @@ def test_classify_rum_biz_matches_sidebar() -> None:
         == "steam"
     )
     assert rum_biz_label("tarkov") == "逃离塔科夫"
+    assert rum_biz_label("ror2") == "雨中冒险2"
     assert rum_biz_label("") == "其他"
 
 

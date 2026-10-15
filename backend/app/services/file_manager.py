@@ -317,6 +317,11 @@ def rel_is_sensitive(rel: str) -> bool:
         return True
     if name.startswith("zhange-") and name.endswith(".tar.gz"):
         return True
+    if parts and parts[0].lower() == "steamcmd":
+        if any(part.lower() == "config" for part in parts[1:]):
+            return True
+        if name.startswith("ssfn"):
+            return True
     return False
 
 

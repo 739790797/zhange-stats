@@ -22,7 +22,10 @@ _TOKENS = {
     "pelican_application_token": "papp_abcdefghijklmnop5678",
 }
 _RCON_PASSWORD = "rcon-password-long-enough-1234"
-_ALL_SECRETS = {**_TOKENS, "minecraft_rcon_password": _RCON_PASSWORD}
+_ALL_SECRETS = {
+    **_TOKENS,
+    "minecraft_rcon_password": _RCON_PASSWORD,
+}
 _SMTP_PASSWORD = "smtp-secret-password"
 
 

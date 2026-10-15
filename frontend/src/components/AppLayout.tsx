@@ -140,6 +140,8 @@ export function AppLayout() {
   const isMobile = screens.md === false;
   const assistantEmbed = isAssistantEmbed();
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
+  const isRor2Guide = location.pathname.startsWith("/guides/ror2");
+  const isFullBleedGuide = isTarkovGuide || isRor2Guide;
   const contentShell = adminContentShell(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -227,10 +229,10 @@ export function AppLayout() {
 
   useLayoutEffect(() => {
     mainRef.current?.scrollTo(0, 0);
-    if (!isTarkovGuide) {
+    if (!isFullBleedGuide) {
       focusWithoutVisibleRing(mainRef.current);
     }
-  }, [location.pathname, isTarkovGuide]);
+  }, [location.pathname, isFullBleedGuide]);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -601,8 +603,14 @@ export function AppLayout() {
   );
 
   return (
-    <Layout style={{ height: "100vh", overflow: "hidden" }}>
-      {isTarkovGuide ? null : (
+    <Layout
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        background: isTarkovGuide ? "#161710" : isRor2Guide ? "#121216" : undefined,
+      }}
+    >
+      {isFullBleedGuide ? null : (
         <a className="skip-to-main" href="#app-main">
           跳到正文
         </a>
@@ -625,7 +633,8 @@ export function AppLayout() {
           width={220}
           style={{
             background: BRAND_NAVY,
-            height: "100vh",
+            height: "100%",
+            alignSelf: "stretch",
             position: "sticky",
             top: 0,
             left: 0,
@@ -641,7 +650,7 @@ export function AppLayout() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          background: isTarkovGuide ? "#161710" : undefined,
+          background: isTarkovGuide ? "#161710" : isRor2Guide ? "#121216" : undefined,
         }}
       >
         {isMobile && !assistantEmbed ? (
@@ -682,11 +691,11 @@ export function AppLayout() {
         <AppReloadBanner />
         <Content
           ref={mainRef}
-          id={isTarkovGuide ? undefined : "app-main"}
-          role={isTarkovGuide ? undefined : "main"}
-          tabIndex={isTarkovGuide ? undefined : -1}
+          id={isFullBleedGuide ? undefined : "app-main"}
+          role={isFullBleedGuide ? undefined : "main"}
+          tabIndex={isFullBleedGuide ? undefined : -1}
           className={[
-            isTarkovGuide ? "app-main-tarkov" : "app-main-scroll",
+            isFullBleedGuide ? "app-main-canvas" : "app-main-scroll",
             !assistantEmbed && !isMobile && siderCollapsed
               ? "app-main--sider-collapsed"
               : "",
@@ -694,7 +703,7 @@ export function AppLayout() {
             .filter(Boolean)
             .join(" ")}
           style={
-            isTarkovGuide
+            isFullBleedGuide
               ? { flex: 1, minHeight: 0, margin: 0, overflow: "hidden" }
               : {
                   flex: 1,
@@ -710,9 +719,9 @@ export function AppLayout() {
                 }
           }
         >
-          {isTarkovGuide ? (
+          {isFullBleedGuide ? (
             <Suspense fallback={<RouteFallback />}>
-              <RouteErrorBoundary resetKey="/guides/tarkov">
+              <RouteErrorBoundary resetKey={isRor2Guide ? "/guides/ror2" : "/guides/tarkov"}>
                 <Outlet />
               </RouteErrorBoundary>
             </Suspense>
@@ -753,7 +762,7 @@ export function AppLayout() {
               </Suspense>
             </div>
           )}
-          {isTarkovGuide ? null : <IcpBeianFooter />}
+          {isFullBleedGuide ? null : <IcpBeianFooter />}
         </Content>
       </Layout>
       {assistantEmbed || isMobile || !siderCollapsed ? null : (

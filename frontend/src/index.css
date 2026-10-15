@@ -244,12 +244,14 @@ a {
   max-width: 100%;
 }
 
-.app-main-tarkov {
+.app-main-tarkov,
+.app-main-canvas {
   display: flex;
   flex-direction: column;
 }
 
-.app-main-tarkov > * {
+.app-main-tarkov > *,
+.app-main-canvas > * {
   flex: 1;
   min-height: 0;
 }

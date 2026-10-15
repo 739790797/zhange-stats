@@ -5,6 +5,7 @@ from app.models.arknights_rogue import ArknightsRogueRaw
 from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.exastris import ExastrisBoxRaw
 from app.models.game_schedule import GameScheduleRaw
+from app.models.guide_raw import GuideRaw
 from app.models.oauth_ticket import OAuthExchangeTicket
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -108,6 +109,7 @@ __all__ = [
     "EndfieldAttendanceRaw",
     "ExastrisBoxRaw",
     "GameScheduleRaw",
+    "GuideRaw",
     "TarkovItemsRaw",
     "TarkovMapsRaw",
     "TarkovTasksRaw",

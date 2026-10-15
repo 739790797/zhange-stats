@@ -180,6 +180,7 @@ export default function PlatformLogsPage() {
             { value: "steam", label: "steam.*" },
             { value: "minecraft", label: "minecraft.*" },
             { value: "tarkov", label: "tarkov.*" },
+            { value: "ror2", label: "ror2.*" },
             { value: "arknights", label: "arknights.*" },
             { value: "infra", label: "infra.*" },
             { value: "http", label: "http.*" },

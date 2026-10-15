@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   fetchJobRuns,
   fetchPlatformFeaturesAdmin,
+  fetchScheduledJobs,
   triggerScheduledJob,
   updatePlatformFeatures,
   type PlatformFeatureNode,
@@ -55,6 +56,13 @@ function collectReservedIds(
   return out;
 }
 
+function parseJobTime(value: string | null | undefined): number {
+  if (!value) return Number.NaN;
+  const text = value.includes("T") ? value : value.replace(" ", "T");
+  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text) ? text : `${text}+08:00`;
+  return Date.parse(zoned);
+}
+
 function collectJobs(nodes: PlatformFeatureNode[], out: DraftJobs = {}) {
   for (const node of nodes) {
     if (node.job_id && node.schedule) {
@@ -75,6 +83,7 @@ function FeatureRow({
   flags,
   jobs,
   triggeringJobId,
+  runningJobIds,
   onToggle,
   onJobPatch,
   onManualRun,
@@ -84,6 +93,7 @@ function FeatureRow({
   flags: DraftFlags;
   jobs: DraftJobs;
   triggeringJobId: string | null;
+  runningJobIds: ReadonlySet<string>;
   onToggle: (id: string, enabled: boolean) => void;
   onJobPatch: (jobId: string, patch: DraftJobs[string]) => void;
   onManualRun: (jobId: string, jobName: string) => void;
@@ -93,6 +103,10 @@ function FeatureRow({
   const reserved = Boolean(node.reserved);
   const canEdit = parentOk && !reserved;
   const jobDraft = node.job_id ? jobs[node.job_id] : undefined;
+  const executing = Boolean(
+    node.job_id &&
+      (runningJobIds.has(node.job_id) || triggeringJobId === node.job_id),
+  );
   const icon = featureTreeIcon(node.id, node.kind);
   const canManualRun =
     Boolean(node.job_id) &&
@@ -223,11 +237,12 @@ function FeatureRow({
           {canManualRun && node.job_id ? (
             <Button
               size="small"
-              icon={<PlayCircleOutlined />}
-              loading={triggeringJobId === node.job_id}
+              disabled={executing}
+              loading={executing}
+              icon={executing ? undefined : <PlayCircleOutlined />}
               onClick={() => onManualRun(node.job_id!, node.name)}
             >
-              手动同步
+              {executing ? "执行中" : "手动同步"}
             </Button>
           ) : null}
           <Switch
@@ -248,6 +263,7 @@ function FeatureRow({
           flags={flags}
           jobs={jobs}
           triggeringJobId={triggeringJobId}
+          runningJobIds={runningJobIds}
           onToggle={onToggle}
           onJobPatch={onJobPatch}
           onManualRun={onManualRun}
@@ -264,11 +280,26 @@ export default function TaskConfigPage() {
     jobs: DraftJobs;
   } | null>(null);
   const [triggeringJobId, setTriggeringJobId] = useState<string | null>(null);
+  const [pendingRun, setPendingRun] = useState<{
+    jobId: string;
+    at: number;
+  } | null>(null);
   const [runWatch, setRunWatch] = useState<JobRunWatch | null>(null);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
     queryFn: fetchPlatformFeaturesAdmin,
+  });
+
+  const scheduledJobs = useQuery({
+    queryKey: ["scheduled-jobs"],
+    queryFn: fetchScheduledJobs,
+    refetchInterval: (q) => {
+      const running = (q.state.data?.jobs || []).some(
+        (job) => job.last_run?.status === "running",
+      );
+      return running || pendingRun ? 2000 : false;
+    },
   });
 
   const baseline = useMemo(() => {
@@ -285,6 +316,28 @@ export default function TaskConfigPage() {
 
   const flags = draft?.flags ?? baseline?.flags;
   const jobs = draft?.jobs ?? baseline?.jobs;
+  const runningJobIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const job of scheduledJobs.data?.jobs || []) {
+      if (job.last_run?.status === "running") ids.add(job.id);
+    }
+    if (pendingRun) ids.add(pendingRun.jobId);
+    return ids;
+  }, [pendingRun, scheduledJobs.data]);
+
+  useEffect(() => {
+    if (!pendingRun) return;
+    const job = scheduledJobs.data?.jobs?.find((item) => item.id === pendingRun.jobId);
+    if (job?.last_run?.status === "running") {
+      setPendingRun(null);
+      return;
+    }
+    const started = parseJobTime(job?.last_run?.started_at);
+    if (Number.isNaN(started) || started < pendingRun.at - 5000) return;
+    if (job?.last_run?.status === "ok" || job?.last_run?.status === "error") {
+      setPendingRun(null);
+    }
+  }, [pendingRun, scheduledJobs.data]);
 
   const save = useMutation({
     mutationFn: (payload: PlatformFeaturesUpdate) =>
@@ -323,6 +376,7 @@ export default function TaskConfigPage() {
     },
     onMutate: ({ jobId }) => {
       setTriggeringJobId(jobId);
+      setPendingRun({ jobId, at: Date.now() });
     },
     onSuccess: ({ data, jobId, jobName, sinceRunId }) => {
       setRunWatch({
@@ -332,11 +386,15 @@ export default function TaskConfigPage() {
         acceptedAt: Date.now(),
         acceptedMessage: data.message || "已提交执行",
       });
+      void queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-ammo"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-guns"] });
       void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-bosses"] });
     },
-    onError: (e: unknown) => message.error(apiError(e, "同步失败")),
+    onError: (e: unknown) => {
+      setPendingRun(null);
+      message.error(apiError(e, "同步失败"));
+    },
     onSettled: () => setTriggeringJobId(null),
   });
 
@@ -406,6 +464,7 @@ export default function TaskConfigPage() {
               flags={flags}
               jobs={jobs}
               triggeringJobId={triggeringJobId}
+              runningJobIds={runningJobIds}
               onToggle={(id, enabled) =>
                 setDraft({
                   flags: { ...flags, [id]: enabled },

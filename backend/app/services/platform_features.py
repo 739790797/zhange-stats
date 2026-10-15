@@ -246,6 +246,27 @@ FEATURE_TREE: list[dict[str, Any]] = [
                     },
                 ],
             },
+            {
+                "id": "guides.ror2",
+                "name": "雨中冒险2",
+                "kind": "game",
+                "children": [
+                    {
+                        "id": "guides.ror2.wiki_sync",
+                        "name": "图鉴数据更新",
+                        "kind": "job",
+                        "job_id": "ror2_wiki_sync",
+                        "schedule": "cron",
+                    },
+                    {
+                        "id": "guides.ror2.lang_sync",
+                        "name": "简体中文语言文件",
+                        "kind": "job",
+                        "job_id": "ror2_lang_sync",
+                        "schedule": "cron",
+                    },
+                ],
+            },
             # Minecraft 页面已停用（总览 / 启动 / 管理 / 插件 / 模组，以及在线时长轮询）。
             # {
             #     "id": "guides.minecraft",
@@ -278,6 +299,8 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
+    "ror2_wiki_sync": "guides.ror2.wiki_sync",
+    "ror2_lang_sync": "guides.ror2.lang_sync",
     "texteller_model_sync": "zhange.texteller_model",
 }
 
@@ -304,6 +327,8 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "guides": "游戏",
     # "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
+    "ror2_wiki": "雨中冒险2图鉴",
+    "ror2_lang": "雨中冒险2语言文件",
 }
 
 # 旧平台 id → 现行节点。战鸽酒馆仍用 require_feature("tavern")，与「战鸽数据」同开同关。

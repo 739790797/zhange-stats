@@ -19,6 +19,8 @@ export const PLATFORM_ICON_SRC = {
   bh2: "/platform-icons/bh2.png",
   tarkov: "/platform-icons/tarkov.png",
   minecraft: "/platform-icons/minecraft.png",
+  // Steam 社区客户端图标（app 632360）
+  ror2: "/platform-icons/ror2.png",
 } as const;
 
 export type PlatformIconName = keyof typeof PLATFORM_ICON_SRC;
@@ -44,6 +46,7 @@ const FEATURE_ICON_BY_ID: Record<string, PlatformIconName> = {
   "kujiequ.pgr": "pgr",
   "guides.tarkov": "tarkov",
   "guides.minecraft": "minecraft",
+  "guides.ror2": "ror2",
 };
 
 export function featureIconName(featureId: string): PlatformIconName | null {

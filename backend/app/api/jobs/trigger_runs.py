@@ -199,21 +199,33 @@ def list_job_runs(
         .limit(page_size)
         .all()
     )
-    items = [
-        JobRunOut(
-            id=row.id,
-            job_key=row.job_key,
-            status=row.status,
-            started_at=_fmt_dt(row.started_at),
-            finished_at=_fmt_dt(row.finished_at),
-            message=row.message,
-            stats=row.stats,
-        )
-        for row in rows
-    ]
+    items = [_job_run_out(job_id, row) for row in rows]
     return JobRunsPageOut(
         total=int(total),
         page=page,
         page_size=page_size,
         items=items,
+    )
+
+
+def _job_run_out(job_id: str, row: JobRun) -> JobRunOut:
+    stats = row.stats
+    live_log = None
+    if job_id == "ror2_lang_sync" and row.status == "running":
+        from app.services.ror2.steamcmd import console_log_tail
+
+        tail, progress = console_log_tail()
+        live_log = tail or None
+        if progress:
+            stats = dict(row.stats or {})
+            stats.update(progress)
+    return JobRunOut(
+        id=row.id,
+        job_key=row.job_key,
+        status=row.status,
+        started_at=_fmt_dt(row.started_at),
+        finished_at=_fmt_dt(row.finished_at),
+        message=row.message,
+        stats=stats,
+        live_log=live_log,
     )

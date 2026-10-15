@@ -9,7 +9,7 @@ import {
 describe("eftarkovGuide", () => {
   it("builds guide url from upstream task id", () => {
     expect(eftarkovTaskGuideUrl("639135d89444fb141f4e6eea")).toBe(
-      `${EFTARKOV_GUIDE_ORIGIN}/news/id/639135d89444fb141f4e6eea.html`,
+      `${EFTARKOV_GUIDE_ORIGIN}/task/639135d89444fb141f4e6eea`,
     );
   });
 

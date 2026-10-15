@@ -62,6 +62,11 @@ const SystemUpdatePage = lazyWithReload(() => import("@/pages/SystemUpdatePage")
 const TarkovGuidesOutlet = lazyWithReload(
   () => import("@/pages/guides/TarkovGuidesOutlet"),
 );
+const Ror2GuidesOutlet = lazyWithReload(
+  () => import("@/pages/guides/Ror2GuidesOutlet"),
+);
+const Ror2HomePage = lazyWithReload(() => import("@/pages/guides/Ror2HomePage"));
+const Ror2ItemsPage = lazyWithReload(() => import("@/pages/guides/Ror2ItemsPage"));
 const TarkovHomePage = lazyWithReload(() => import("@/pages/guides/TarkovHomePage"));
 const TarkovItemsHubPage = lazyWithReload(
   () => import("@/pages/guides/TarkovItemsHubPage"),
@@ -350,6 +355,10 @@ export default function App() {
                     path="progression"
                     element={<TarkovProgressionPage />}
                   />
+                </Route>
+                <Route path="/guides/ror2" element={<Ror2GuidesOutlet />}>
+                  <Route index element={<Ror2HomePage />} />
+                  <Route path="items" element={<Ror2ItemsPage />} />
                 </Route>
                 <Route element={<PrivateRoute />}>
                 <Route

@@ -14,6 +14,7 @@ import {
 } from "@/lib/tarkovHomeNav";
 import { TarkovTaskObjectivesRewards } from "@/components/guides/tarkov/TarkovTaskObjectivesRewards";
 import { TarkovTaskDetailSection } from "@/components/guides/tarkov/TarkovTaskDetailSection";
+import { eftarkovTaskGuideUrl } from "@/lib/eftarkovGuide";
 import { TarkovTraderThumb } from "@/components/guides/tarkov/TarkovTraderThumb";
 import { useTarkovDocumentTitle } from "@/lib/tarkovDocumentTitle";
 import {
@@ -24,6 +25,7 @@ import {
   orderObjectiveTypes,
   tarkovObjectiveTypeLabel,
   tarkovObjectiveTypeTone,
+  tarkovTaskFactionLabel,
   taskRequirementStatusLabel,
   taskUnlockStatusLabel,
 } from "@/lib/tarkovTaskObjective";
@@ -246,7 +248,8 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
     traderEnglish,
     detail.trader_requirements,
   );
-  const factionLabel = (detail.faction_name || "").trim() || "—";
+  const factionLabel = tarkovTaskFactionLabel(detail.faction_name);
+  const guideUrl = eftarkovTaskGuideUrl(detail.id);
   const related = (
     <>
       {prereqs.length ? (
@@ -289,7 +292,8 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
           detail.lightkeeper_required ||
           detail.prestige_cycle ||
           detail.restartable ||
-          detail.wiki_link ? (
+          detail.wiki_link ||
+          guideUrl ? (
             <div className={styles.heroTop}>
               <div className={styles.headRow}>
                 {detail.kappa_required ? (
@@ -305,16 +309,31 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                   <span className={styles.progressBadge}>可重开</span>
                 ) : null}
               </div>
-              {detail.wiki_link ? (
-                <a
-                  className={styles.wiki}
-                  href={detail.wiki_link}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Wiki
-                  <ExportOutlined />
-                </a>
+              {detail.wiki_link || guideUrl ? (
+                <div className={styles.jumpLinks}>
+                  {detail.wiki_link ? (
+                    <a
+                      className={styles.wiki}
+                      href={detail.wiki_link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Wiki
+                      <ExportOutlined />
+                    </a>
+                  ) : null}
+                  {guideUrl ? (
+                    <a
+                      className={styles.wiki}
+                      href={guideUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      eftarkov
+                      <ExportOutlined />
+                    </a>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -438,10 +457,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
             </div>
           </div>
           {intro ? <div className={styles.intro}>{intro}</div> : null}
-          <TarkovTaskObjectivesRewards
-            detail={detail}
-            afterObjectives={related}
-          />
+          <TarkovTaskObjectivesRewards detail={detail} afterObjectives={related} />
           {hasDialogue ? (
             <section id="task-dialogue" className={styles.section}>
               <h2 className={styles.sectionHead}>

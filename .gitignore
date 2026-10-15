@@ -33,6 +33,7 @@ Thumbs.db
 /static/
 /static.new/
 /static.prev/
+/steamcmd/
 backend/data/
 frontend/data/
 backend/var/

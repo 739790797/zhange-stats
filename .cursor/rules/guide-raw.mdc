@@ -1,0 +1,26 @@
+---
+description: 图鉴上游原文落库后再解析。新游戏走 guide_raw，塔科夫仍用自己的表。
+globs: backend/app/services/guide_raw/**/*.py,backend/app/services/ror2/**/*.py,backend/app/models/guide_raw.py
+alwaysApply: false
+---
+
+# 图鉴 raw
+
+外部图鉴的标准是：一份上游文件一行 `guide_raws`，失败不覆盖，页面读库再解析。模板在 `app.services.guide_raw`。
+
+## 必须
+
+- 新游戏用 `GuideRawPipeline`：`RawSpec.fetch` 拿原文，`accept` 解析通过才 `upsert_raw`
+- 展示只 `load_texts` 再加工。库空才 `SyncGate.fill_once` 冷启动；平时靠定时任务
+- 大正文走 `codec.pack_raw_text`（`gz1:`）。不要 `json.loads(row.raw_body)` 去猜明文
+- pytest 不打真上游
+
+## 禁止
+
+- 再为新游戏各抄一张 raw 表和一套 gzip
+- 把解析结果再落一份「展示表」当权威；权威是 raw
+- 回源失败时覆盖上一份合格 raw
+
+## 塔科夫
+
+`tarkov_*_raws` 按 PVP/PVE × 语言拆行，不并进 `guide_raws`。压缩和「失败不覆盖」与本模板同一套 `codec`。

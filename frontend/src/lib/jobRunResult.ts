@@ -9,6 +9,7 @@ export type JobRunLike = {
   finished_at?: string | null;
   message?: string | null;
   stats?: Record<string, unknown> | null;
+  live_log?: string | null;
 };
 
 export type JobRunWatch = {
@@ -167,6 +168,12 @@ export function jobRunPhaseLabel(phase?: string | null): string {
       return "完成";
     case "error":
       return "失败";
+    case "steamcmd_download":
+      return "下载游戏";
+    case "steamcmd_verify":
+      return "校验游戏";
+    case "steamcmd_commit":
+      return "写入游戏";
     default:
       return "";
   }

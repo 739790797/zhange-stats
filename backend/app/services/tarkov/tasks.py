@@ -375,6 +375,219 @@ def canonicalize_exit_status(token: str) -> str | None:
     return _EXIT_STATUS_CANON.get(key)
 
 
+def _strip_exp_bonus(token: str) -> str:
+    cur = (token or "").strip()
+    while True:
+        match = _EXP_BONUS_RE.match(cur)
+        if not match:
+            return cur
+        cur = match.group(1).strip()
+
+
+def _locale_phrase(locale: dict[str, Any], *keys: str) -> str:
+    """词表译文。去掉句尾冒号；译文和键本身一样时当没有译文。"""
+    text = _locale_lookup(locale, *keys)
+    if not text:
+        return ""
+    stripped = text.strip().rstrip("：:").strip()
+    if not stripped:
+        return ""
+    raw_keys = {str(key).strip() for key in keys if str(key).strip()}
+    if stripped in raw_keys:
+        return ""
+    return stripped
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+# 任务词表没有独立条目的击杀目标。官方中文包里 Boss 专名保持原文，这里不另译。
+_TARGET_FALLBACK = {
+    "any pmc operatives": "任意 PMC",
+    "rogue": "游荡者",
+    "any boss": "任意 Boss",
+    "cultist priest": "邪教祭司",
+    "cultist warrior": "邪教徒",
+}
+
+_BODY_PART_FALLBACK = {
+    "head": "头部",
+    "chest": "胸腔",
+    "thorax": "胸腔",
+    "stomach": "胃部",
+    "leftarm": "左臂",
+    "rightarm": "右臂",
+    "leftleg": "左腿",
+    "rightleg": "右腿",
+}
+
+_CUSTOMIZATION_TYPE_LABELS = {
+    "floor": "地板",
+    "wall": "墙",
+    "ceiling": "天花板",
+    "shootingrangemark": "靶场标记",
+}
+
+
+def _localize_exit_status(token: str, locale: dict[str, Any]) -> str:
+    raw = (token or "").strip()
+    if not raw:
+        return ""
+    bare = _strip_exp_bonus(raw)
+    canon = canonicalize_exit_status(bare) or canonicalize_exit_status(raw)
+    if canon:
+        return canon
+    phrase = _locale_phrase(locale, raw, bare, f"{bare} Name", f"{bare} name")
+    return phrase or bare or raw
+
+
+def _localize_target(token: str, locale: dict[str, Any]) -> str:
+    raw = (token or "").strip()
+    if not raw:
+        return ""
+    phrase = _locale_phrase(locale, raw, f"{raw} Name", f"{raw} name")
+    if phrase:
+        return phrase
+    return _TARGET_FALLBACK.get(raw.lower(), raw)
+
+
+def _localize_body_part(token: str, locale: dict[str, Any]) -> str:
+    raw = (token or "").strip()
+    if not raw:
+        return ""
+    phrase = _locale_phrase(locale, raw, f"{raw} Name", f"{raw} name")
+    if phrase:
+        return phrase
+    tail = raw.rsplit("/", 1)[-1]
+    if tail != raw:
+        phrase = _locale_phrase(locale, tail, f"{tail} Name", f"{tail} name")
+        if phrase:
+            return phrase
+    return _BODY_PART_FALLBACK.get(tail.lower(), raw)
+
+
+def _localize_effect(token: str, locale: dict[str, Any]) -> str:
+    raw = (token or "").strip()
+    if not raw:
+        return ""
+    return _locale_phrase(locale, raw, f"{raw} Name", f"{raw} name") or raw
+
+
+def _localize_skill(name: str, locale: dict[str, Any]) -> str:
+    raw = (name or "").strip()
+    if not raw:
+        return ""
+    return _locale_phrase(locale, raw, f"{raw} Name", f"{raw} name") or raw
+
+
+# 任务 dump 用的旧撤离点 id。地图词表里对应的是现行 name。
+_EXIT_NAME_ALIASES = {
+    "customs_sniper_exit": "ex_customs_pmc_flare",
+}
+
+
+def _locale_key_folded(locale: dict[str, Any] | None, raw: str) -> str:
+    """键只差首尾空白时也能对上，例如 ' V-Ex_light'。"""
+    if not locale or not raw:
+        return ""
+    folded = raw.strip().lower()
+    for key, val in locale.items():
+        if str(key).strip().lower() != folded:
+            continue
+        text = str(val).strip().rstrip("：:").strip()
+        if text and text.strip().lower() != folded:
+            return text
+    return ""
+
+
+def _exit_place_and_desc(
+    token: str, locales: tuple[dict[str, Any] | None, ...]
+) -> tuple[str, str]:
+    place = ""
+    desc = ""
+    for locale in locales:
+        if not locale:
+            continue
+        if not place:
+            place = _locale_phrase(locale, token, f"{token} Name", f"{token} name")
+            if not place:
+                place = _locale_key_folded(locale, token)
+        if not desc:
+            desc = _locale_phrase(locale, f"{token}_DESC")
+    return place, desc
+
+
+def _localize_exit_name(name: str, *locales: dict[str, Any] | None) -> str:
+    """点名在任务词表；转移点去向在地图词表的 `{id}_DESC`。两边都有且不同则一起显示。"""
+    raw = (name or "").strip()
+    if not raw:
+        return ""
+    tokens = [raw]
+    alias = _EXIT_NAME_ALIASES.get(raw)
+    if alias and alias not in tokens:
+        tokens.append(alias)
+    place = ""
+    desc = ""
+    for token in tokens:
+        got_place, got_desc = _exit_place_and_desc(token, locales)
+        if got_place and not place:
+            place = got_place
+        if got_desc and not desc:
+            desc = got_desc
+    if place and desc and place != desc:
+        return f"{place}（{desc}）"
+    return place or desc or raw
+
+
+def _localize_customization_type(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    return _CUSTOMIZATION_TYPE_LABELS.get(raw.lower(), raw)
+
+
+def _localize_health_effect(
+    effect: dict[str, Any] | None,
+    locale: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not effect:
+        return effect
+    out = dict(effect)
+    out["body_parts"] = _unique_texts(
+        [_localize_body_part(part, locale) for part in (effect.get("body_parts") or [])]
+    )
+    out["effects"] = _unique_texts(
+        [_localize_effect(item, locale) for item in (effect.get("effects") or [])]
+    )
+    return out
+
+
+def _localize_categories(
+    rows: list[dict[str, Any]],
+    items_locale: dict[str, Any] | None,
+) -> None:
+    if not items_locale:
+        return
+    for ref in rows:
+        ident = str(ref.get("id") or "").strip()
+        if not ident:
+            continue
+        phrase = _locale_phrase(
+            items_locale, f"{ident} Name", f"{ident} name", ident
+        )
+        if phrase:
+            ref["name"] = phrase
+
+
 def normalize_objective_exit(obj: dict[str, Any]) -> tuple[list[str], str]:
     """对齐 tarkov.dev：exitStatus 译成撤离状态；ExpBonus* 不是撤离点名。"""
     seen: list[str] = []
@@ -823,9 +1036,9 @@ def _project_image_ref(raw: Any, locale: dict[str, Any]) -> dict[str, Any] | Non
             or raw.get("image_link")
             or ""
         ).strip()
-        extra_type = str(
-            raw.get("customizationType") or raw.get("customization_type") or ""
-        ).strip()
+        extra_type = _localize_customization_type(
+            str(raw.get("customizationType") or raw.get("customization_type") or "")
+        )
         if ident:
             loc = _locale_lookup(locale, f"{ident} name", f"{ident} Name", ident)
             if loc:
@@ -1016,6 +1229,8 @@ def _project_objective(
     *,
     quest_items: dict[str, dict[str, Any]] | None = None,
     tasks_by_id: dict[str, dict[str, Any]] | None = None,
+    maps_locale: dict[str, Any] | None = None,
+    items_locale: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     maps_raw = obj.get("maps") if isinstance(obj.get("maps"), list) else []
     maps = [_named_ref(m, locale, kind="map") for m in maps_raw if _id_of(m)]
@@ -1033,15 +1248,22 @@ def _project_objective(
         items.append(ref)
     count = obj.get("count")
     exit_status, exit_name = normalize_objective_exit(obj)
-    target_names = [
-        str(name).strip()
-        for name in (obj.get("targetNames") or [])
-        if str(name).strip()
-    ]
+    exit_status = _unique_texts(
+        [_localize_exit_status(status, locale) for status in exit_status]
+    )
+    exit_name = _localize_exit_name(exit_name, locale, maps_locale)
+    target_names = _unique_texts(
+        [
+            _localize_target(str(name), locale)
+            for name in (obj.get("targetNames") or [])
+            if str(name).strip()
+        ]
+    )
     target = str(obj.get("target") or "").strip()
-    if target and target not in target_names:
-        target_names.append(target)
+    if target:
+        target_names = _unique_texts([*target_names, _localize_target(target, locale)])
     skill_name, skill_level = _project_skill(obj.get("skillLevel") or obj.get("skill"))
+    skill_name = _localize_skill(skill_name, locale)
     trader_raw = obj.get("trader")
     trader = (
         _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
@@ -1058,6 +1280,8 @@ def _project_objective(
         standing_cmp = _project_number_compare(
             {"compareMethod": obj.get("compareMethod"), "value": obj.get("value")}
         )
+    categories = _named_refs(obj.get("containsCategory"), locale, kind="category")
+    _localize_categories(categories, items_locale)
     return {
         "id": str(obj.get("id") or ""),
         "type": obj_type,
@@ -1078,11 +1302,13 @@ def _project_objective(
         ),
         "zone_names": _project_zone_names(obj.get("zoneNames")),
         "target_names": target_names,
-        "body_parts": [
-            str(part).strip()
-            for part in (obj.get("bodyParts") or [])
-            if str(part).strip()
-        ],
+        "body_parts": _unique_texts(
+            [
+                _localize_body_part(str(part), locale)
+                for part in (obj.get("bodyParts") or [])
+                if str(part).strip()
+            ]
+        ),
         "shot_type": str(obj.get("shotType") or "").strip(),
         "distance": _project_number_compare(obj.get("distance")),
         "using_weapon": _named_refs(
@@ -1103,13 +1329,17 @@ def _project_objective(
         "contains_all": _named_refs(
             obj.get("containsAll"), locale, kind="item", quest_items=quest_items
         ),
-        "contains_category": _named_refs(
-            obj.get("containsCategory"), locale, kind="category"
-        ),
+        "contains_category": categories,
         "attributes": _project_objective_attributes(obj),
-        "health_effect": _project_health_effect(obj.get("healthEffect")),
-        "player_health_effect": _project_health_effect(obj.get("playerHealthEffect")),
-        "enemy_health_effect": _project_health_effect(obj.get("enemyHealthEffect")),
+        "health_effect": _localize_health_effect(
+            _project_health_effect(obj.get("healthEffect")), locale
+        ),
+        "player_health_effect": _localize_health_effect(
+            _project_health_effect(obj.get("playerHealthEffect")), locale
+        ),
+        "enemy_health_effect": _localize_health_effect(
+            _project_health_effect(obj.get("enemyHealthEffect")), locale
+        ),
         "time_from_hour": _opt_int(obj.get("timeFromHour")),
         "time_until_hour": _opt_int(obj.get("timeUntilHour")),
         "dog_tag_level": _opt_int(obj.get("dogTagLevel")),
@@ -1183,6 +1413,9 @@ def _project_fail_condition(
     tasks_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     exit_status, _exit_name = normalize_objective_exit(obj)
+    exit_status = _unique_texts(
+        [_localize_exit_status(status, locale) for status in exit_status]
+    )
     task_ref = _fail_task_ref(obj.get("task"), locale, tasks_by_id)
     trader_raw = obj.get("trader")
     trader = (
@@ -1405,6 +1638,7 @@ def _project_rewards(
     skills: list[dict[str, Any]] = []
     for row in raw.get("skillLevelReward") or []:
         name, level = _project_skill(row)
+        name = _localize_skill(name, locale)
         if not name and level is None:
             continue
         skills.append({"name": name, "level": 0 if level is None else level})
@@ -1572,6 +1806,8 @@ def project_task_detail(
     quest_items: dict[str, dict[str, Any]] | None = None,
     tasks_by_id: dict[str, dict[str, Any]] | None = None,
     include_unlocks: bool = True,
+    maps_locale: dict[str, Any] | None = None,
+    items_locale: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     summary = project_task_summary(raw, locale)
     if summary is None:
@@ -1579,7 +1815,12 @@ def project_task_detail(
     locale = locale or {}
     objectives = [
         _project_objective(
-            obj, locale, quest_items=quest_items, tasks_by_id=tasks_by_id
+            obj,
+            locale,
+            quest_items=quest_items,
+            tasks_by_id=tasks_by_id,
+            maps_locale=maps_locale,
+            items_locale=items_locale,
         )
         for obj in (raw.get("objectives") or [])
         if isinstance(obj, dict)
@@ -2573,7 +2814,21 @@ def task_detail_cache_parts(db: Session) -> tuple[str, ...]:
         items_synced or "",
         guides_cache_token(db),
         overlay_cache_token(db),
+        # 投影规则变了但 raw 时间不变时，ETag 也要变，否则页面继续用旧详情。
+        "2026-10-15-exit-locale",
     )
+
+
+def _resource_locale(db: Session, resource: str) -> dict[str, Any]:
+    """地图 / 物品词表。缺文件时任务详情仍可打开。"""
+    from app.services.tarkov import upstream as upstream_svc
+
+    try:
+        payload = upstream_svc.load_main_payload(db, resource)[1]
+    except Exception:  # noqa: BLE001
+        return {}
+    locale = payload.get("locale") if isinstance(payload, dict) else None
+    return locale if isinstance(locale, dict) else {}
 
 
 def get_task_detail(
@@ -2592,6 +2847,8 @@ def get_task_detail(
         locale,
         quest_items=quest_items,
         tasks_by_id=tasks,
+        maps_locale=_resource_locale(db, "maps"),
+        items_locale=_resource_locale(db, "items"),
     )
     if detail is None:
         raise TarkovTasksError(f"未找到任务: {task_id}")

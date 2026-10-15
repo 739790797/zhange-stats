@@ -67,6 +67,7 @@ def _defaults() -> dict[str, str]:
         "minecraft_rcon_password": "",
         "minecraft_public_host": "",
         "minecraft_public_port": "25565",
+        "steamcmd_username": "",
     }
 
 
@@ -93,6 +94,8 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
         merged["minecraft_public_host"] = str(stored.get("minecraft_public_host") or "").strip()
     if stored.get("minecraft_public_port") is not None:
         merged["minecraft_public_port"] = str(stored.get("minecraft_public_port") or "").strip()
+    if stored.get("steamcmd_username") is not None:
+        merged["steamcmd_username"] = str(stored.get("steamcmd_username") or "").strip()
     for key in SECRET_FIELDS:
         if key not in stored or stored.get(key) is None:
             continue
@@ -111,11 +114,24 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
         "minecraft_rcon_password": merged.get("minecraft_rcon_password") or "",
         "minecraft_public_host": (merged.get("minecraft_public_host") or "").strip(),
         "minecraft_public_port": str(_parse_game_port(merged.get("minecraft_public_port"))),
+        "steamcmd_username": (merged.get("steamcmd_username") or "").strip(),
     }
 
 
+_RETIRED_STEAMCMD_KEYS = (
+    "steamcmd_password",
+    "steamcmd_guard_code",
+    "steamcmd_path",
+    "steamcmd_install_dir",
+)
+
+
 def load_integrations(_db: Session | None = None) -> dict[str, str]:
-    return _normalize(read_json("integrations"))
+    raw = read_json("integrations")
+    if isinstance(raw, dict) and any(key in raw for key in _RETIRED_STEAMCMD_KEYS):
+        raw = {key: value for key, value in raw.items() if key not in _RETIRED_STEAMCMD_KEYS}
+        write_json("integrations", raw)
+    return _normalize(raw)
 
 
 def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str, str]:
@@ -150,6 +166,8 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
         stored["minecraft_public_host"] = str(payload.get("minecraft_public_host") or "").strip()
     if "minecraft_public_port" in payload and payload.get("minecraft_public_port") is not None:
         stored["minecraft_public_port"] = str(_parse_game_port(payload.get("minecraft_public_port")))
+    if "steamcmd_username" in payload and payload.get("steamcmd_username") is not None:
+        stored["steamcmd_username"] = str(payload.get("steamcmd_username") or "").strip()
     rcon_changed = any(
         key in payload
         for key in (
@@ -194,6 +212,8 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "minecraft_public_host": public_host,
         "minecraft_public_port": _parse_game_port(cfg.get("minecraft_public_port")),
         "minecraft_public_configured": bool(public_host),
+        "steamcmd_username": cfg.get("steamcmd_username") or "",
+        "steamcmd_logged_in": _steamcmd_logged_in(cfg.get("steamcmd_username") or ""),
     }
     for key, value in values.items():
         out[key] = ""
@@ -201,6 +221,15 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         if key in HINTED_SECRET_FIELDS:
             out[f"{key}_hint"] = secret_hint(value)
     return out
+
+
+def _steamcmd_logged_in(username: str) -> bool:
+    from app.services.ror2.steamcmd import cached_account
+
+    saved = (username or "").strip().lower()
+    if not saved:
+        return False
+    return cached_account().strip().lower() == saved
 
 
 def get_steam_api_key(_db: Session | None = None) -> str:

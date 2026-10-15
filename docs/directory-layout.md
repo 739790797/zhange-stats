@@ -31,7 +31,7 @@ zhange-stats/
   backend/app/
     api/                    # 已成包的保持；单文件平台 API 胀大再升包
     services/
-      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ articles/ user_files/
+      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ ror2/ guide_raw/ articles/ user_files/
       （横切仍留根上，见下表）
     models/ schemas/ core/
 ```

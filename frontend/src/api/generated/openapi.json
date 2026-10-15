@@ -1969,6 +1969,152 @@
         }
       }
     },
+    "/api/settings/integrations/steamcmd/login": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Read Steamcmd Login",
+        "operationId": "read_steamcmd_login_api_settings_integrations_steamcmd_login_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Begin Steamcmd Login",
+        "operationId": "begin_steamcmd_login_api_settings_integrations_steamcmd_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteamCmdLoginStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/integrations/steamcmd/login/guard": {
+      "post": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Submit Steamcmd Guard",
+        "operationId": "submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteamCmdLoginGuard"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/integrations/steamcmd/login/cancel": {
+      "post": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Cancel Steamcmd Login",
+        "operationId": "cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/settings/email": {
       "get": {
         "tags": [
@@ -14347,6 +14493,29 @@
         }
       }
     },
+    "/api/guides/ror2/catalog": {
+      "get": {
+        "tags": [
+          "guides",
+          "guides"
+        ],
+        "summary": "雨中冒险2图鉴",
+        "description": "道具、装备、幸存者。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
+        "operationId": "ror2_catalog_api_guides_ror2_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ror2CatalogOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/guides/minecraft/files": {
       "get": {
         "tags": [
@@ -22382,6 +22551,16 @@
             "type": "boolean",
             "title": "Minecraft Public Configured",
             "default": false
+          },
+          "steamcmd_username": {
+            "type": "string",
+            "title": "Steamcmd Username",
+            "default": ""
+          },
+          "steamcmd_logged_in": {
+            "type": "boolean",
+            "title": "Steamcmd Logged In",
+            "default": false
           }
         },
         "type": "object",
@@ -22597,6 +22776,17 @@
               }
             ],
             "title": "Minecraft Public Port"
+          },
+          "steamcmd_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steamcmd Username"
           }
         },
         "type": "object",
@@ -22746,6 +22936,17 @@
               }
             ],
             "title": "Stats"
+          },
+          "live_log": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Log"
           }
         },
         "type": "object",
@@ -28276,6 +28477,321 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "Ror2CatalogOut": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "fetched_at": {
+            "type": "string",
+            "title": "Fetched At"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "equipment": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2ItemOut"
+            },
+            "type": "array",
+            "title": "Equipment"
+          },
+          "survivors": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2SurvivorOut"
+            },
+            "type": "array",
+            "title": "Survivors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "fetched_at",
+          "items",
+          "equipment",
+          "survivors"
+        ],
+        "title": "Ror2CatalogOut"
+      },
+      "Ror2ItemOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rarity": {
+            "type": "string",
+            "title": "Rarity",
+            "default": ""
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "unlock": {
+            "type": "string",
+            "title": "Unlock",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "internal_name": {
+            "type": "string",
+            "title": "Internal Name",
+            "default": ""
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "default": ""
+          },
+          "corrupt": {
+            "type": "string",
+            "title": "Corrupt",
+            "default": ""
+          },
+          "uncorrupt": {
+            "type": "string",
+            "title": "Uncorrupt",
+            "default": ""
+          },
+          "boss": {
+            "type": "string",
+            "title": "Boss",
+            "default": ""
+          },
+          "cooldown": {
+            "type": "string",
+            "title": "Cooldown",
+            "default": ""
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2StatOut"
+            },
+            "type": "array",
+            "title": "Stats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2ItemOut"
+      },
+      "Ror2StatOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "default": ""
+          },
+          "stack": {
+            "type": "string",
+            "title": "Stack",
+            "default": ""
+          },
+          "add": {
+            "type": "string",
+            "title": "Add",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "Ror2StatOut"
+      },
+      "Ror2SurvivorOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "umbra": {
+            "type": "string",
+            "title": "Umbra",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "unlock": {
+            "type": "string",
+            "title": "Unlock",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "phrase_escape": {
+            "type": "string",
+            "title": "Phrase Escape",
+            "default": ""
+          },
+          "phrase_vanish": {
+            "type": "string",
+            "title": "Phrase Vanish",
+            "default": ""
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health"
+          },
+          "health_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Per Level"
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage"
+          },
+          "damage_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Per Level"
+          },
+          "regen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen"
+          },
+          "regen_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen Per Level"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "armor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Armor"
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2SurvivorOut"
+      },
       "RumBizSummaryOut": {
         "properties": {
           "biz": {
@@ -30231,6 +30747,69 @@
           "total_seconds"
         ],
         "title": "SteamCalendarResponse"
+      },
+      "SteamCmdLoginGuard": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "SteamCmdLoginGuard"
+      },
+      "SteamCmdLoginStart": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "SteamCmdLoginStart"
+      },
+      "SteamCmdLoginStatus": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "starting",
+              "need_guard",
+              "need_mobile",
+              "ok",
+              "error"
+            ],
+            "title": "State"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "SteamCmdLoginStatus"
       },
       "SteamDayMemberSummary": {
         "properties": {

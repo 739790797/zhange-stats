@@ -81,6 +81,7 @@ class JobRunOut(BaseModel):
     finished_at: str | None = None
     message: str | None = None
     stats: dict[str, Any] | None = None
+    live_log: str | None = None
 
 
 class JobRunsPageOut(BaseModel):
