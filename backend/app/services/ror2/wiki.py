@@ -19,7 +19,13 @@ from app.services.job_runs_prune import fail_job_run
 from app.services.ror2.catalog import (
     WIKI_ORIGIN,
     Ror2WikiError,
+    artifacts_from_module,
+    challenges_from_module,
+    drones_from_module,
+    environments_from_module,
+    interactables_from_module,
     items_from_module,
+    monsters_from_module,
     survivors_from_module,
 )
 from app.services.ror2.schemas import Ror2CatalogOut
@@ -59,6 +65,27 @@ def _accept_survivors(body: str) -> None:
     survivors_from_module(body)
 
 
+def _accept_enemies(body: str) -> None:
+    monsters_from_module(body)
+    drones_from_module(body)
+
+
+def _accept_environments(body: str) -> None:
+    environments_from_module(body)
+
+
+def _accept_challenges(body: str) -> None:
+    challenges_from_module(body)
+
+
+def _accept_interactables(body: str) -> None:
+    interactables_from_module(body)
+
+
+def _accept_artifacts(body: str) -> None:
+    artifacts_from_module(body)
+
+
 def _spec(resource: str, title: str, accept: Callable[[str], None]) -> RawSpec:
     return RawSpec(
         resource=resource,
@@ -74,6 +101,11 @@ PIPELINE = GuideRawPipeline(
         _spec("items", "Module:Items/Data", _accept_items),
         _spec("equipment", "Module:Equipment/Data", _accept_equipment),
         _spec("survivors", "Module:Survivors/Data", _accept_survivors),
+        _spec("enemies", "Module:Enemies/Data", _accept_enemies),
+        _spec("environments", "Module:Environments/Data", _accept_environments),
+        _spec("challenges", "Module:Challenges/Data", _accept_challenges),
+        _spec("interactables", "Module:Interactables/Data", _accept_interactables),
+        _spec("artifacts", "Module:Artifacts/Data", _accept_artifacts),
     ),
 )
 
@@ -119,6 +151,12 @@ def get_catalog(db: Session, *, fetch: Callable[[RawSpec], str] | None = None) -
         items=items_from_module(texts["items"]),
         equipment=items_from_module(texts["equipment"], default_rarity="Equipment"),
         survivors=survivors_from_module(texts["survivors"]),
+        monsters=monsters_from_module(texts["enemies"]),
+        drones=drones_from_module(texts["enemies"]),
+        environments=environments_from_module(texts["environments"]),
+        challenges=challenges_from_module(texts["challenges"]),
+        interactables=interactables_from_module(texts["interactables"]),
+        artifacts=artifacts_from_module(texts["artifacts"]),
     )
     _MEMO.clear()
     _MEMO[token] = catalog

@@ -7,8 +7,10 @@ import {
   ROR2_HOME_PATH,
   ROR2_LICENSE,
   ROR2_WIKI_ITEMS,
+  ror2Crumbs,
   ror2PageTitle,
 } from "@/lib/ror2Home";
+import { Ror2SurvivorMenu } from "./Ror2SurvivorMenu";
 import styles from "./Ror2GuideShell.module.css";
 import "./ror2Fonts.css";
 
@@ -19,6 +21,7 @@ type Props = {
 export function Ror2GuideShell({ children }: Props) {
   const { pathname } = useLocation();
   const bodyRef = useRef<HTMLElement>(null);
+  const crumbs = ror2Crumbs(pathname);
   useDocumentTitle(ror2PageTitle(pathname));
 
   useLayoutEffect(() => {
@@ -32,10 +35,29 @@ export function Ror2GuideShell({ children }: Props) {
         跳到正文
       </a>
       <header className={styles.topbar}>
-        <Link to={ROR2_HOME_PATH} className={styles.brand} aria-label="雨中冒险2">
-          <span className={styles.brandEn}>RISK OF RAIN 2</span>
-          <span className={styles.brandZh}>雨中冒险2</span>
-        </Link>
+        <div className={styles.lead}>
+          <Link to={ROR2_HOME_PATH} className={styles.brand} aria-label="雨中冒险2">
+            <span className={styles.brandEn}>RISK OF RAIN 2</span>
+            <span className={styles.brandZh}>雨中冒险2</span>
+          </Link>
+          {crumbs.length > 0 ? (
+            <nav className={styles.crumbNav} aria-label="面包屑">
+              <ol className={styles.crumbs}>
+                {crumbs.map((crumb) => (
+                  <li key={crumb.label} className={styles.crumb}>
+                    <span className={styles.sep} aria-hidden="true">
+                      /
+                    </span>
+                    <span aria-current="page">{crumb.label}</span>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          ) : null}
+        </div>
+        <nav className={styles.topnav} aria-label="图鉴">
+          <Ror2SurvivorMenu />
+        </nav>
       </header>
       <main ref={bodyRef} id="ror2-main" tabIndex={-1} className={styles.body}>
         <div className={styles.page}>{children}</div>

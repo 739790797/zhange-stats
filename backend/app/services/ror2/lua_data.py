@@ -86,7 +86,8 @@ class _Parser:
             if ident == "nil":
                 return None
             if ident not in self.env:
-                self._fail(f"未知名字 {ident}")
+                # 模块里有未声明的标记，例如 Category = { Masterless }。保留这个名字，不把整份模块判失败。
+                return ident
             return self.env[ident]
         self._fail("无法解析的值")
         return None

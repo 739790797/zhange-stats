@@ -18,6 +18,7 @@ import App from "./App";
 import "./index.css";
 import "@/lib/time";
 import { rememberAssistantEmbed } from "@/lib/assistantShell";
+import { startOverlayScrollbars } from "@/lib/overlayScrollbar";
 import { startRum } from "@/lib/rumCollect";
 import {
   claimQueryPersistOwner,
@@ -110,6 +111,7 @@ const appTree = queryPersister ? (
 );
 
 rememberAssistantEmbed();
+startOverlayScrollbars();
 startRum();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>{appTree}</StrictMode>,

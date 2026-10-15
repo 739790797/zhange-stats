@@ -401,6 +401,21 @@
   min-width: 0;
 }
 
+/* 短页撑开正文，页脚靠滚动区底部；长页仍跟在正文后。铺满页和搜索另有高度链。 */
+.body:not(.bodyFill):not(.bodySearch) > .bodyPage {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.body:not(.bodyFill):not(.bodySearch) > .bodyPage > :global(.app-motion-page) {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
 .bodyFill > .bodyPage {
   flex: 1;
   min-height: 0;

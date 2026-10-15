@@ -4,21 +4,6 @@
   padding: 24px 24px 12px;
 }
 
-.crumb {
-  margin: 0 0 14px;
-  color: var(--ror2-muted);
-  font-size: 13px;
-}
-
-.crumb a {
-  color: var(--ror2-link);
-  text-decoration: none;
-}
-
-.crumb a:hover {
-  color: var(--ror2-gold);
-}
-
 .title {
   margin: 0;
   font-family: var(--ror2-display);
@@ -50,7 +35,6 @@
   max-height: calc(100vh - 96px);
   overflow: auto;
   padding: 4px 4px 8px 0;
-  scrollbar-color: #536678 transparent;
 }
 
 .groupLabel {
@@ -163,6 +147,22 @@
   padding: 12px;
 }
 
+.faceCard {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.face,
+.faceFallback {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.faceFallback {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .nameRow {
   display: flex;
   flex-wrap: wrap;
@@ -214,6 +214,73 @@
 .retry {
   display: flex;
   justify-content: center;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(28, 32, 36, 0.92);
+  color: var(--ror2-text);
+  font-size: 15px;
+}
+
+.table th,
+.table td {
+  border: 1px solid #3c4652;
+  padding: 12px;
+  vertical-align: middle;
+}
+
+.table thead th {
+  color: #fff;
+  font-family: var(--ror2-display);
+  font-size: 16px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.challenge {
+  color: var(--ror2-link);
+  font-family: var(--ror2-display);
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.unlocks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.unlock,
+.coin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+  color: var(--ror2-link);
+  text-align: center;
+}
+
+.coin {
+  flex-direction: row;
+  justify-content: center;
+  color: var(--ror2-text);
+}
+
+.unlock img,
+.coin img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 @media (max-width: 860px) {

@@ -1,15 +1,15 @@
 import { useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import type { Ror2Item } from "@/api/ror2Api";
 import { apiError } from "@/lib/apiError";
 import { ror2ItemStackLabel, ror2RarityAccent } from "@/lib/ror2Catalog";
 import {
-  ROR2_HOME_PATH,
   filterRor2Items,
   groupRor2ItemsByRarity,
   ror2ActiveRarity,
   ror2CatalogItems,
   ror2ItemSections,
+  ror2RarityLabel,
 } from "@/lib/ror2Home";
 import { useRor2Catalog } from "@/lib/useRor2Catalog";
 import { Ror2ItemIcon } from "./Ror2ItemIcon";
@@ -52,11 +52,6 @@ export function Ror2ItemsView() {
 
   return (
     <div className={styles.page}>
-      <p className={styles.crumb}>
-        <Link to={ROR2_HOME_PATH}>雨中冒险2</Link>
-        <span aria-hidden> / </span>
-        物品
-      </p>
       <h1 className={styles.title}>物品</h1>
       {catalog.isPending ? <p className={styles.status}>正在读取图鉴</p> : null}
       {catalog.isError ? (
@@ -117,10 +112,10 @@ export function Ror2ItemsView() {
               <div className={styles.groups}>
                 {groups.map((group) => (
                   <section key={group.rarity}>
-                    {cat === "all" ? <h2 className={styles.groupHead}>{group.rarity}</h2> : null}
+                    {cat === "all" ? <h2 className={styles.groupHead}>{ror2RarityLabel(group.rarity)}</h2> : null}
                     <div className={styles.list}>
-                      {group.items.map((item) => (
-                        <ItemCard key={`${item.rarity}-${item.code}-${item.name}`} item={item} />
+                      {group.items.map((item, index) => (
+                        <ItemCard key={`${group.rarity}-${index}-${item.code}-${item.name}`} item={item} />
                       ))}
                     </div>
                   </section>

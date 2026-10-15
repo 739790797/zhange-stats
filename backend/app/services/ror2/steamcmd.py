@@ -1,7 +1,7 @@
 """用战鸽根目录里的 SteamCMD 更新已购买的《雨中冒险 2》。
 
 可执行文件固定在安装根 ``steamcmd/``。没有就从 Valve 的安装包下载并解压，不走 apt / winget。
-不指定安装目录，游戏落在该目录自己的 ``steamapps/common``。
+不指定安装目录。Windows 上游戏落在 ``steamcmd/steamapps``；Linux 上落在运行用户主目录的 ``Steam/steamapps``（服务用户的家目录是安装根时，就是安装根下的 ``Steam``）。
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def steamcmd_home() -> Path:
 
 
 def lang_dir_from_steamcmd(executable: Path) -> Path:
-    """游戏落在 SteamCMD 自己的 steamapps 里。"""
+    """Windows 默认位置：可执行文件旁边的 steamapps。Linux 另见语言同步的库查找。"""
     return (
         executable.resolve().parent
         / "steamapps"

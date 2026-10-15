@@ -16,7 +16,7 @@ router = APIRouter(prefix="/ror2", tags=["guides"])
     "/catalog",
     response_model=Ror2CatalogOut,
     summary="雨中冒险2图鉴",
-    description="道具、装备、幸存者。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
+    description="道具、装备、幸存者、怪物、无人机、环境、成就、可交互物、神器。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
     dependencies=[Depends(require_feature("guides.ror2"))],
 )
 def ror2_catalog(db: Session = Depends(get_db)) -> Ror2CatalogOut:

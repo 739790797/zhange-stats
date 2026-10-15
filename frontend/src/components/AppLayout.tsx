@@ -711,8 +711,7 @@ export function AppLayout() {
                   minHeight: 0,
                   margin: pageGutter,
                   overflowX: "hidden",
-                  overflowY: "scroll",
-                  scrollbarGutter: "stable",
+                  overflowY: "auto",
                   ...(contentShell === "flush"
                     ? { background: token.colorBgLayout }
                     : {}),

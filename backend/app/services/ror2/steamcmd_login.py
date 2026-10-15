@@ -36,6 +36,7 @@ class _LoginRun:
         self.io: ConsoleIO | None = None
         self._login_sent = False
         self._state_lock = threading.Lock()
+        self.output = ""
 
     def public(self) -> dict[str, str]:
         with self._state_lock:
@@ -54,6 +55,9 @@ class _LoginRun:
             if secret:
                 redacted = redacted.replace(secret, "***")
         return redacted
+
+    def remember(self, line: str) -> None:
+        self.output = (self.output + "\n" + line)[-4000:]
 
 
 def login_status() -> dict[str, str]:
@@ -190,10 +194,13 @@ def _loop(run: _LoginRun) -> None:
             if chunk:
                 pending = _drain(run, pending + chunk)
             if console.poll() is not None:
+                extra = console.read(0)
+                if extra:
+                    pending += extra
                 if pending.strip():
                     _drain(run, pending + "\n")
                 if run.public()["state"] not in {"ok", "error"}:
-                    run.set_state("error", "SteamCMD 已退出，登录未完成")
+                    run.set_state("error", explain_steamcmd_exit(run.output))
                 break
     except OSError:
         if run.public()["state"] not in {"ok", "error"}:
@@ -207,7 +214,11 @@ def _loop(run: _LoginRun) -> None:
             console.wait(15)
         else:
             console.kill()
-        log.info("steamcmd 登录结束 state=%s", run.public()["state"])
+        finished = run.public()
+        if finished["state"] == "error":
+            log.warning("steamcmd 登录失败 %s", finished["message"])
+        else:
+            log.info("steamcmd 登录结束 state=%s", finished["state"])
 
 
 def _drain(run: _LoginRun, pending: str) -> str:
@@ -226,6 +237,7 @@ def _handle_line(run: _LoginRun, line: str) -> None:
     visible = run.redact(_ANSI.sub("", line)).strip()
     if not visible:
         return
+    run.remember(visible)
     if "steam>" in visible.lower() and not run._login_sent and run.io is not None:
         run._login_sent = True
         token = _console_token(run.username)
@@ -246,6 +258,33 @@ def _handle_line(run: _LoginRun, line: str) -> None:
 
 def _console_token(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def explain_steamcmd_exit(text: str) -> str:
+    """进程在登录完成前退出。把能对上的启动失败说清楚，其余留下最后几行。"""
+    low = text.lower()
+    if "exec format error" in low or "cannot execute binary file" in low:
+        return "SteamCMD 无法启动：程序是 x86 32 位的，当前系统架构无法执行。"
+    if any(bit in low for bit in ("steam.dll", "vcruntime", "msvcp140")):
+        return "SteamCMD 无法启动：Windows 缺少 Visual C++ 运行库。"
+    if "permission denied" in low and "steamcmd" in low:
+        return "SteamCMD 无法启动：程序没有执行权限。"
+    if (
+        "error while loading shared libraries" in low
+        or "ld-linux.so.2" in low
+        or ("no such file or directory" in low and "steamcmd" in low)
+    ):
+        return (
+            "SteamCMD 无法启动：系统缺少 32 位运行库。"
+            "请在主机执行 sudo apt-get install -y libc6-i386 lib32gcc-s1 后再登录。"
+        )
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "SteamCMD 已退出，登录未完成"
+    tail = " | ".join(lines[-3:])
+    if len(tail) > 180:
+        tail = tail[-180:]
+    return f"SteamCMD 已退出，登录未完成：{tail}"
 
 
 def _error_message(line: str) -> str:

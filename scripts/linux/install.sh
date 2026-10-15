@@ -19,6 +19,10 @@ need_cmd apt-get
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip curl ca-certificates
+# Valve 的 SteamCMD 是 x86 32 位程序。没有 ld-linux.so.2 时，登录弹窗只会看到进程退出。
+if [[ "$(uname -m)" == "x86_64" ]]; then
+  apt-get install -y -qq libc6-i386 lib32gcc-s1
+fi
 
 if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   useradd --system --home-dir "${REPO_ROOT}" --shell /usr/sbin/nologin "${SERVICE_USER}"

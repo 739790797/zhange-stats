@@ -57,30 +57,30 @@ def ensure_lang_dir(path: Path) -> Path:
     if path.is_symlink():
         raise Ror2LangError("语言目录不能是符号链接")
     resolved = path.resolve()
-    if resolved.name.lower() != "zh-cn" or not resolved.is_dir():
+    if resolved.name.lower() != "zh-cn":
         raise Ror2LangError("语言目录必须是 zh-CN")
+    if not resolved.is_dir():
+        raise Ror2LangError(f"没有找到语言目录：{resolved}")
     return resolved
 
 
+def locate_lang_dir(executable: Path) -> Path:
+    """先认 steamcmd 旁边的库，再认 Linux 上安装根或主目录里的 Steam 库。"""
+    from app.services.ror2.steamcmd import lang_dir_from_steamcmd
+
+    parent = executable.resolve().parent
+    roots = [parent] if not parent.is_symlink() else []
+    roots.extend(_posix_steam_roots())
+    found = _pick_lang_dir(_lang_dirs_under(roots))
+    if found is not None:
+        return found
+    return lang_dir_from_steamcmd(executable)
+
+
 def discover_steam_lang_dir() -> Path | None:
-    for library in steam_libraries():
-        candidate = (
-            library
-            / "steamapps"
-            / "common"
-            / "Risk of Rain 2"
-            / "Risk of Rain 2_Data"
-            / "StreamingAssets"
-            / "Language"
-            / "zh-CN"
-        )
-        try:
-            if candidate.is_symlink() or not candidate.is_dir():
-                continue
-            return candidate.resolve()
-        except OSError:
-            continue
-    return None
+    roots = list(steam_libraries())
+    roots.extend(_posix_steam_roots())
+    return _pick_lang_dir(_lang_dirs_under(roots))
 
 
 def steam_libraries() -> list[Path]:
@@ -278,24 +278,108 @@ def _group_line(kind: str, rows: list[Ror2ItemOut], strings: dict[str, str]) -> 
 
 
 def _lang_dir_for_job() -> Path:
-    """配了 SteamCMD 就先 app_update，再读根目录 steamcmd 里的 zh-CN。否则沿用原来的目录。"""
+    """配了 SteamCMD 就先 app_update，再读已经装好的 zh-CN。否则沿用原来的目录。"""
     from app.services.integrations_config import load_integrations
-    from app.services.ror2.steamcmd import (
-        SteamCmdError,
-        lang_dir_from_steamcmd,
-        run_ror2_update,
-        steamcmd_ready,
-    )
+    from app.services.ror2.steamcmd import SteamCmdError, run_ror2_update, steamcmd_ready
 
     cfg = load_integrations()
     if not steamcmd_ready(cfg):
         return resolve_lang_dir()
     try:
         executable = run_ror2_update(cfg)
-        folder = lang_dir_from_steamcmd(executable)
+        folder = locate_lang_dir(executable)
     except SteamCmdError as exc:
         raise Ror2LangError(str(exc)) from exc
     return ensure_lang_dir(folder)
+
+
+def _posix_steam_roots() -> list[Path]:
+    """Linux SteamCMD 的默认库。服务用户的家目录是安装根时，库就在安装根的 Steam/。"""
+    from app.core.paths import resolve_install_dir
+
+    home = Path.home()
+    folders = (
+        resolve_install_dir() / "Steam",
+        home / "Steam",
+        home / ".local" / "share" / "Steam",
+        home / ".steam" / "steam",
+    )
+    roots: list[Path] = []
+    for folder in folders:
+        try:
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+        except OSError:
+            continue
+        roots.append(folder)
+    return roots
+
+
+def _lang_dirs_under(roots: list[Path]) -> list[Path]:
+    from app.services.ror2.steamcmd import LANG_DIR_PARTS
+
+    ordered: list[Path] = []
+    seen: set[Path] = set()
+    libraries: list[Path] = []
+    for root in roots:
+        libraries.append(root)
+        libraries.extend(_libraries_under(root))
+    for library in libraries:
+        candidate = (library / "steamapps" / "common" / "Risk of Rain 2").joinpath(*LANG_DIR_PARTS)
+        try:
+            key = candidate.resolve()
+        except OSError:
+            key = candidate
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(candidate)
+    return ordered
+
+
+def _libraries_under(root: Path) -> list[Path]:
+    found: list[Path] = []
+    for relative in ("steamapps/libraryfolders.vdf", "config/libraryfolders.vdf"):
+        path = root / relative
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in _PATH_RE.finditer(text):
+            folder = Path(match.group(1).replace("\\\\", "\\"))
+            try:
+                if folder.is_symlink() or not folder.is_dir():
+                    continue
+            except OSError:
+                continue
+            found.append(folder)
+    return found
+
+
+def _pick_lang_dir(candidates: list[Path]) -> Path | None:
+    usable = [path for path in candidates if _usable_lang_dir(path)]
+    for path in usable:
+        try:
+            has_json = any(
+                item.is_file() and not item.is_symlink() and item.suffix.lower() == ".json"
+                for item in path.iterdir()
+            )
+        except OSError:
+            continue
+        if has_json:
+            return path.resolve()
+    if not usable:
+        return None
+    return usable[0].resolve()
+
+
+def _usable_lang_dir(path: Path) -> bool:
+    try:
+        return not path.is_symlink() and path.is_dir() and path.name.lower() == "zh-cn"
+    except OSError:
+        return False
 
 
 def _configured_dir() -> str:

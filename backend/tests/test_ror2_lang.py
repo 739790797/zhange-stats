@@ -16,6 +16,7 @@ from app.services.ror2.lang import (
     coverage_report,
     ensure_lang_dir,
     lang_file_sort_key,
+    locate_lang_dir,
     string_table,
     sync_lang,
 )
@@ -142,6 +143,52 @@ def test_lang_dir_must_be_zh_cn(tmp_path: Path) -> None:
     (folder / "output.json").write_text("{}", encoding="utf-8")
     with pytest.raises(Ror2LangError, match="zh-CN"):
         ensure_lang_dir(folder)
+
+
+def test_missing_zh_cn_directory_names_the_path(tmp_path: Path) -> None:
+    missing = tmp_path / "Language" / "zh-CN"
+    with pytest.raises(Ror2LangError, match="没有找到语言目录"):
+        ensure_lang_dir(missing)
+
+
+def _zh_cn(root: Path) -> Path:
+    folder = (
+        root
+        / "steamapps"
+        / "common"
+        / "Risk of Rain 2"
+        / "Risk of Rain 2_Data"
+        / "StreamingAssets"
+        / "Language"
+        / "zh-CN"
+    )
+    folder.mkdir(parents=True)
+    return folder
+
+
+def test_locate_lang_dir_uses_the_linux_steam_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    install = tmp_path / "opt" / "zhange-stats"
+    executable = install / "steamcmd" / "steamcmd.sh"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    folder = _zh_cn(install / "Steam")
+    (folder / "output.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    monkeypatch.setattr("app.services.ror2.lang.Path.home", lambda: tmp_path / "home")
+    assert locate_lang_dir(executable) == folder.resolve()
+
+
+def test_locate_lang_dir_prefers_a_library_that_has_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    install = tmp_path / "opt" / "zhange-stats"
+    executable = install / "steamcmd" / "steamcmd.sh"
+    executable.parent.mkdir(parents=True)
+    empty = _zh_cn(executable.parent)
+    assert not any(empty.glob("*.json"))
+    folder = _zh_cn(install / "Steam")
+    (folder / "output.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
+    monkeypatch.setattr("app.services.ror2.lang.Path.home", lambda: tmp_path / "home")
+    assert locate_lang_dir(executable) == folder.resolve()
 
 
 def test_coverage_counts_name_desc_and_pickup() -> None:

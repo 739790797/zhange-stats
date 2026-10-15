@@ -17,7 +17,7 @@ from app.core.file_config import read_json, write_json
 from app.services.integrations_config import load_integrations
 from app.services.ror2 import steamcmd_login as login
 from app.services.ror2.console_io import open_console
-from app.services.ror2.steamcmd_login import classify_steamcmd_text
+from app.services.ror2.steamcmd_login import classify_steamcmd_text, explain_steamcmd_exit
 
 
 class _FakeConsole:
@@ -61,6 +61,24 @@ def _reset_login():
     login.reset_login_for_tests()
     yield
     login.reset_login_for_tests()
+
+
+def test_explain_missing_i386_loader() -> None:
+    text = (
+        "steamcmd.sh: line 29: /opt/zhange-stats/steamcmd/linux32/steamcmd: "
+        "No such file or directory"
+    )
+    message = explain_steamcmd_exit(text)
+    assert "libc6-i386" in message
+    assert "lib32gcc-s1" in message
+
+
+def test_explain_keeps_unclassified_tail() -> None:
+    text = "threadtools.cpp (1474) : Assertion Failed: deadlock"
+    assert explain_steamcmd_exit(text).endswith(text)
+    assert explain_steamcmd_exit(text).startswith("SteamCMD 已退出，登录未完成")
+    assert explain_steamcmd_exit("") == "SteamCMD 已退出，登录未完成"
+    assert "无法执行" in explain_steamcmd_exit("cannot execute binary file: Exec format error")
 
 
 def test_classify_guard_mobile_and_success() -> None:
@@ -115,6 +133,48 @@ def test_load_drops_retired_steamcmd_secrets() -> None:
     assert "secret-pass" not in raw
     assert "ABCDE" not in raw
     assert "steamcmd_install_dir" not in raw
+
+
+def test_early_exit_reports_the_loader_and_hides_the_password(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class _DyingConsole:
+        def __init__(self) -> None:
+            self._pending = (
+                "steamcmd.sh: line 29: /opt/zhange-stats/steamcmd/linux32/steamcmd: "
+                "No such file or directory\n"
+                "echo secret-pass\n"
+            )
+
+        def read(self, timeout: float) -> str:
+            text, self._pending = self._pending, ""
+            return text
+
+        def write(self, text: str) -> None:
+            return None
+
+        def poll(self) -> int | None:
+            return 127 if self._pending == "" else None
+
+        def kill(self) -> None:
+            self._pending = ""
+
+        def wait(self, timeout: float) -> int:
+            return 127
+
+        def close(self) -> None:
+            self.kill()
+
+    monkeypatch.setattr(login, "ensure_steamcmd", lambda: tmp_path / "steamcmd.sh")
+    login.start_login("alice", "secret-pass", console_factory=lambda _argv, cwd: _DyingConsole())
+    deadline = time.monotonic() + 3
+    current = login.login_status()
+    while time.monotonic() < deadline and current["state"] != "error":
+        time.sleep(0.02)
+        current = login.login_status()
+    assert current["state"] == "error"
+    assert "libc6-i386" in current["message"]
+    assert "secret-pass" not in current["message"]
 
 
 def test_login_route_does_not_echo_the_password(monkeypatch: pytest.MonkeyPatch) -> None:

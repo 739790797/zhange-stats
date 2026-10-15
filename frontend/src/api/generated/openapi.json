@@ -14500,7 +14500,7 @@
           "guides"
         ],
         "summary": "雨中冒险2图鉴",
-        "description": "道具、装备、幸存者。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
+        "description": "道具、装备、幸存者、怪物、无人机、环境、成就、可交互物、神器。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
         "operationId": "ror2_catalog_api_guides_ror2_catalog_get",
         "responses": {
           "200": {
@@ -28477,6 +28477,57 @@
         ],
         "title": "RoleMembershipTreeOut"
       },
+      "Ror2ArtifactOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "code": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Code"
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "unlock": {
+            "type": "string",
+            "title": "Unlock",
+            "default": ""
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2ArtifactOut"
+      },
       "Ror2CatalogOut": {
         "properties": {
           "source": {
@@ -28507,6 +28558,48 @@
             },
             "type": "array",
             "title": "Survivors"
+          },
+          "monsters": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2MonsterOut"
+            },
+            "type": "array",
+            "title": "Monsters"
+          },
+          "drones": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2DroneOut"
+            },
+            "type": "array",
+            "title": "Drones"
+          },
+          "environments": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2EnvironmentOut"
+            },
+            "type": "array",
+            "title": "Environments"
+          },
+          "challenges": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2ChallengeOut"
+            },
+            "type": "array",
+            "title": "Challenges"
+          },
+          "interactables": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2InteractableOut"
+            },
+            "type": "array",
+            "title": "Interactables"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2ArtifactOut"
+            },
+            "type": "array",
+            "title": "Artifacts"
           }
         },
         "type": "object",
@@ -28518,6 +28611,318 @@
           "survivors"
         ],
         "title": "Ror2CatalogOut"
+      },
+      "Ror2ChallengeOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "unlock": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unlock"
+          },
+          "coins": {
+            "type": "string",
+            "title": "Coins",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2ChallengeOut"
+      },
+      "Ror2DroneOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "rarity": {
+            "type": "string",
+            "title": "Rarity",
+            "default": ""
+          },
+          "type2": {
+            "type": "string",
+            "title": "Type2",
+            "default": ""
+          },
+          "cost": {
+            "type": "string",
+            "title": "Cost",
+            "default": ""
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health"
+          },
+          "health_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Per Level"
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage"
+          },
+          "damage_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Per Level"
+          },
+          "regen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen"
+          },
+          "regen_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen Per Level"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "armor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Armor"
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2DroneOut"
+      },
+      "Ror2EnvironmentOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": ""
+          },
+          "subtitle": {
+            "type": "string",
+            "title": "Subtitle",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "soundtrack": {
+            "type": "string",
+            "title": "Soundtrack",
+            "default": ""
+          },
+          "lunar_seer": {
+            "type": "string",
+            "title": "Lunar Seer",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2EnvironmentOut"
+      },
+      "Ror2InteractableOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "cost": {
+            "type": "string",
+            "title": "Cost",
+            "default": ""
+          },
+          "link": {
+            "type": "string",
+            "title": "Link",
+            "default": ""
+          },
+          "location": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2InteractableOut"
       },
       "Ror2ItemOut": {
         "properties": {
@@ -28616,6 +29021,165 @@
           "wiki_url"
         ],
         "title": "Ror2ItemOut"
+      },
+      "Ror2MonsterOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "boss_name": {
+            "type": "string",
+            "title": "Boss Name",
+            "default": ""
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "is_ally": {
+            "type": "boolean",
+            "title": "Is Ally",
+            "default": false
+          },
+          "do_not_count": {
+            "type": "boolean",
+            "title": "Do Not Count",
+            "default": false
+          },
+          "is_subtype": {
+            "type": "boolean",
+            "title": "Is Subtype",
+            "default": false
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health"
+          },
+          "health_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Per Level"
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage"
+          },
+          "damage_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Per Level"
+          },
+          "regen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen"
+          },
+          "regen_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen Per Level"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "armor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Armor"
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2MonsterOut"
       },
       "Ror2StatOut": {
         "properties": {

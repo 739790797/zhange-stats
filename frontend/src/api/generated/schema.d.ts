@@ -4311,7 +4311,7 @@ export interface paths {
         };
         /**
          * 雨中冒险2图鉴
-         * @description 道具、装备、幸存者。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。
+         * @description 道具、装备、幸存者、怪物、无人机、环境、成就、可交互物、神器。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。
          */
         get: operations["ror2_catalog_api_guides_ror2_catalog_get"];
         put?: never;
@@ -10555,6 +10555,32 @@ export interface components {
             /** Roles */
             roles?: components["schemas"]["RoleMembershipNodeOut"][];
         };
+        /** Ror2ArtifactOut */
+        Ror2ArtifactOut: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Code */
+            code?: string[];
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /**
+             * Unlock
+             * @default
+             */
+            unlock: string;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
+        };
         /** Ror2CatalogOut */
         Ror2CatalogOut: {
             /** Source */
@@ -10567,6 +10593,177 @@ export interface components {
             equipment: components["schemas"]["Ror2ItemOut"][];
             /** Survivors */
             survivors: components["schemas"]["Ror2SurvivorOut"][];
+            /** Monsters */
+            monsters?: components["schemas"]["Ror2MonsterOut"][];
+            /** Drones */
+            drones?: components["schemas"]["Ror2DroneOut"][];
+            /** Environments */
+            environments?: components["schemas"]["Ror2EnvironmentOut"][];
+            /** Challenges */
+            challenges?: components["schemas"]["Ror2ChallengeOut"][];
+            /** Interactables */
+            interactables?: components["schemas"]["Ror2InteractableOut"][];
+            /** Artifacts */
+            artifacts?: components["schemas"]["Ror2ArtifactOut"][];
+        };
+        /** Ror2ChallengeOut */
+        Ror2ChallengeOut: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Unlock */
+            unlock?: string[];
+            /**
+             * Coins
+             * @default
+             */
+            coins: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /** Wiki Url */
+            wiki_url: string;
+        };
+        /** Ror2DroneOut */
+        Ror2DroneOut: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Rarity
+             * @default
+             */
+            rarity: string;
+            /**
+             * Type2
+             * @default
+             */
+            type2: string;
+            /**
+             * Cost
+             * @default
+             */
+            cost: string;
+            /** Health */
+            health?: number | null;
+            /** Health Per Level */
+            health_per_level?: number | null;
+            /** Damage */
+            damage?: number | null;
+            /** Damage Per Level */
+            damage_per_level?: number | null;
+            /** Regen */
+            regen?: number | null;
+            /** Regen Per Level */
+            regen_per_level?: number | null;
+            /** Speed */
+            speed?: number | null;
+            /** Armor */
+            armor?: number | null;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /** Ror2EnvironmentOut */
+        Ror2EnvironmentOut: {
+            /** Name */
+            name: string;
+            /**
+             * Stage
+             * @default
+             */
+            stage: string;
+            /**
+             * Subtitle
+             * @default
+             */
+            subtitle: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Soundtrack
+             * @default
+             */
+            soundtrack: string;
+            /**
+             * Lunar Seer
+             * @default
+             */
+            lunar_seer: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /** Ror2InteractableOut */
+        Ror2InteractableOut: {
+            /** Name */
+            name: string;
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+            /**
+             * Effect
+             * @default
+             */
+            effect: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /**
+             * Cost
+             * @default
+             */
+            cost: string;
+            /**
+             * Link
+             * @default
+             */
+            link: string;
+            /** Location */
+            location?: string[];
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
         };
         /** Ror2ItemOut */
         Ror2ItemOut: {
@@ -10635,6 +10832,68 @@ export interface components {
             image_url?: string | null;
             /** Stats */
             stats?: components["schemas"]["Ror2StatOut"][];
+        };
+        /** Ror2MonsterOut */
+        Ror2MonsterOut: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /**
+             * Boss Name
+             * @default
+             */
+            boss_name: string;
+            /** Categories */
+            categories?: string[];
+            /**
+             * Is Ally
+             * @default false
+             */
+            is_ally: boolean;
+            /**
+             * Do Not Count
+             * @default false
+             */
+            do_not_count: boolean;
+            /**
+             * Is Subtype
+             * @default false
+             */
+            is_subtype: boolean;
+            /** Health */
+            health?: number | null;
+            /** Health Per Level */
+            health_per_level?: number | null;
+            /** Damage */
+            damage?: number | null;
+            /** Damage Per Level */
+            damage_per_level?: number | null;
+            /** Regen */
+            regen?: number | null;
+            /** Regen Per Level */
+            regen_per_level?: number | null;
+            /** Speed */
+            speed?: number | null;
+            /** Armor */
+            armor?: number | null;
+            /** Wiki Url */
+            wiki_url: string;
+            /** Image Url */
+            image_url?: string | null;
         };
         /** Ror2StatOut */
         Ror2StatOut: {

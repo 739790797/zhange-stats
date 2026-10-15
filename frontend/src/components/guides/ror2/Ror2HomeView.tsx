@@ -6,9 +6,12 @@ import { ror2RarityAccent } from "@/lib/ror2Catalog";
 import {
   ROR2_HOME_TILES,
   ROR2_SIDE_LINKS,
+  ROR2_UNRELEASED_GROUPS,
+  ROR2_UNRELEASED_PATH,
   filterRor2Items,
   ror2CatalogItems,
   ror2ItemsHref,
+  ror2SectionHref,
 } from "@/lib/ror2Home";
 import { useRor2Catalog } from "@/lib/useRor2Catalog";
 import { Ror2ItemIcon } from "./Ror2ItemIcon";
@@ -91,8 +94,8 @@ export function Ror2HomeView() {
         </form>
       </section>
 
-      <div className={styles.layout}>
-        <div className={styles.main}>
+      <div className={styles.columns}>
+        <div className={styles.stack}>
           <section className={`${theme.frame} ${styles.panel}`}>
             <h2 className={styles.heading}>{searching ? "搜索结果" : "内容"}</h2>
             {searching ? (
@@ -103,32 +106,12 @@ export function Ror2HomeView() {
                 hits={hits}
               />
             ) : (
-              <div className={styles.grid}>
-                {ROR2_HOME_TILES.map((tile) =>
-                  tile.href ? (
-                    <Link
-                      key={tile.id}
-                      to={ror2ItemsHref("", draft)}
-                      className={`${theme.wikiBtn} ${styles.tile}`}
-                    >
-                      {tile.label}
-                    </Link>
-                  ) : (
-                    <span
-                      key={tile.id}
-                      className={`${theme.wikiBtn} ${theme.wikiBtnQuiet} ${styles.tile}`}
-                      aria-disabled="true"
-                      title="尚未开放"
-                    >
-                      {tile.label}
-                    </span>
-                  ),
-                )}
-              </div>
+              <TileGrid items={ROR2_HOME_TILES} draft={draft} />
             )}
           </section>
+          <Ror2MiscPanel />
         </div>
-        <Ror2SideRail />
+        <UnreleasedRail />
       </div>
     </div>
   );
@@ -181,22 +164,61 @@ function SearchResults({
   );
 }
 
-function Ror2SideRail() {
+function TileGrid({
+  items,
+  draft,
+}: {
+  items: Array<{ id: string; label: string; href?: string }>;
+  draft: string;
+}) {
   return (
-    <aside className={`${theme.frame} ${styles.panel} ${styles.rail}`} aria-label="杂项">
-      <h2 className={styles.heading}>杂项</h2>
-      <nav className={styles.railList}>
-        {ROR2_SIDE_LINKS.map((item) => (
+    <div className={styles.grid}>
+      {items.map((tile) =>
+        tile.href ? (
+          <Link
+            key={tile.id}
+            to={tile.id === "items" ? ror2ItemsHref("", draft) : tile.href}
+            className={`${theme.wikiBtn} ${styles.tile}`}
+          >
+            {tile.label}
+          </Link>
+        ) : (
           <span
-            key={item.id}
-            className={`${theme.wikiBtn} ${theme.wikiBtnQuiet} ${styles.railBtn}`}
+            key={tile.id}
+            className={`${theme.wikiBtn} ${theme.wikiBtnQuiet} ${styles.tile}`}
             aria-disabled="true"
             title="尚未开放"
           >
-            {item.label}
+            {tile.label}
           </span>
+        ),
+      )}
+    </div>
+  );
+}
+
+function UnreleasedRail() {
+  return (
+    <aside className={`${theme.frame} ${styles.rail}`}>
+      <h2 className={styles.railTitle}>
+        <Link to={ROR2_UNRELEASED_PATH}>Unreleased Items</Link>
+      </h2>
+      <nav className={styles.railNav} aria-label="Unreleased Items">
+        {ROR2_UNRELEASED_GROUPS.map((group) => (
+          <Link key={group.id} to={ror2SectionHref(ROR2_UNRELEASED_PATH, group.id)} className={styles.railLink}>
+            {group.label}
+          </Link>
         ))}
       </nav>
     </aside>
+  );
+}
+
+function Ror2MiscPanel() {
+  return (
+    <section className={`${theme.frame} ${styles.panel}`}>
+      <h2 className={styles.heading}>杂项</h2>
+      <TileGrid items={ROR2_SIDE_LINKS} draft="" />
+    </section>
   );
 }

@@ -2,6 +2,55 @@
   box-sizing: border-box;
 }
 
+/* 经典滚动条出现时会占掉宽度，把页面挤向一侧。原生条不占位，拇指由 overlayScrollbar 浮在内容上。 */
+* {
+  scrollbar-width: none !important;
+}
+
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.app-overlay-scrollbar {
+  position: fixed;
+  width: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(26, 35, 50, 0.32);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  z-index: 30;
+}
+
+.app-overlay-scrollbar--x {
+  height: 8px;
+  width: auto;
+}
+
+.app-overlay-scrollbar--on-dark {
+  background: rgba(239, 239, 239, 0.38);
+}
+
+.app-overlay-scrollbar:hover,
+.app-overlay-scrollbar.is-active {
+  background: rgba(26, 35, 50, 0.52);
+}
+
+.app-overlay-scrollbar--on-dark:hover,
+.app-overlay-scrollbar--on-dark.is-active {
+  background: rgba(239, 239, 239, 0.62);
+}
+
+@media print {
+  .app-overlay-scrollbar {
+    display: none !important;
+  }
+}
+
 html,
 body,
 #root,
@@ -42,47 +91,16 @@ a {
   outline-offset: 2px;
 }
 
-/* 侧栏菜单：统一底色，选中项浅色；滚动条贴合深色侧栏 */
+/* 侧栏菜单：统一底色，选中项浅色 */
 .sider-menu.ant-menu-dark,
 .sider-menu.ant-menu-dark .ant-menu-sub.ant-menu-inline {
   background: #1a2332 !important;
 }
 
-.sider-menu {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
-}
-
-.sider-menu::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sider-menu::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sider-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 3px;
-}
-
-.sider-menu::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32);
-}
-
-.sider-menu::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-/* 主栏页内滚动：贴合浅色内容区，避免浏览器窗口条 */
+/* 主栏页内滚动，避免浏览器窗口条。滚动条本身不占宽度。 */
 .app-main-scroll {
   display: flex;
   flex-direction: column;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(26, 35, 50, 0.28) transparent;
 }
 
 .app-main-scroll:focus {
@@ -96,30 +114,6 @@ a {
 
 .app-main-scroll.app-route-focus:focus-visible {
   outline: none;
-}
-
-.app-main-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.app-main-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.app-main-scroll::-webkit-scrollbar-thumb {
-  background: rgba(26, 35, 50, 0.22);
-  border-radius: 4px;
-}
-
-.app-main-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(26, 35, 50, 0.38);
-}
-
-.app-main-scroll::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
 }
 
 /* 备案号在文档流末尾（短页靠底，长页滚到最后才见），不钉视口 */

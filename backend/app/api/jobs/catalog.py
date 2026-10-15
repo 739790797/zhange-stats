@@ -64,7 +64,7 @@ JOB_CATALOG: list[dict[str, Any]] = [
     {
         "id": "ror2_wiki_sync",
         "name": "图鉴数据更新",
-        "description": "回源 riskofrain2.wiki.gg 的道具、装备、幸存者模块，落入 guide_raws 后再解析展示",
+        "description": "回源 riskofrain2.wiki.gg 的道具、装备、幸存者、敌人、环境、成就、可交互物、神器模块，落入 guide_raws 后再解析展示",
         "kind": "cron",
         "platform": "ror2_wiki",
     },
