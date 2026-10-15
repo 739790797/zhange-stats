@@ -723,8 +723,8 @@ export function ror2SectionRows(
   const drones = (catalog.drones ?? []).filter((row) =>
     WIKI_DRONE_ORIGINS.includes((row.type2 || "") as (typeof WIKI_DRONE_ORIGINS)[number]),
   );
-  const challenges = (catalog.challenges ?? []).filter((row) => !ror2IsHiddenCategory(row));
-  const artifacts = (catalog.artifacts ?? []).filter((row) => !ror2IsHiddenCategory(row));
+  const challenges = catalog.challenges ?? [];
+  const artifacts = catalog.artifacts ?? [];
   const interactables = (catalog.interactables ?? []).filter((row) => !ror2IsHiddenCategory(row));
   if (section === "monsters") {
     return monsters.map((row) => ({
