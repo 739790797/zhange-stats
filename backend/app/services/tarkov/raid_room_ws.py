@@ -328,8 +328,11 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 phase = rooms_svc.parse_log_phase(raw)
                 if phase is None:
                     continue
+                previous = hub.log_phase_of(public_id, user.id)
                 phases = hub.set_log_phase(public_id, user.id, phase)
-                changed = rooms_svc.note_view_map_from_phase(public_id, user.id, phase)
+                changed = rooms_svc.note_view_map_from_phase(
+                    public_id, user.id, phase, previous=previous
+                )
                 payload: dict[str, Any] = {
                     "event": "log_phase",
                     "user_id": user.id,

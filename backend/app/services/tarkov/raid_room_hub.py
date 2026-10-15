@@ -118,6 +118,11 @@ class RaidRoomHub:
             room = dict(self._log_phases.get(public_id) or {})
         return [{"user_id": uid, **dict(payload)} for uid, payload in room.items()]
 
+    def log_phase_of(self, public_id: str, user_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            payload = (self._log_phases.get(public_id) or {}).get(int(user_id))
+        return dict(payload) if payload else None
+
     def set_log_phase(
         self, public_id: str, user_id: int, payload: dict[str, Any]
     ) -> list[dict[str, Any]]:

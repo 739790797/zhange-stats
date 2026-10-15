@@ -914,12 +914,29 @@ def _require_view_map(public_id: str, user_id: int) -> str:
     return slug
 
 
-def note_view_map_from_phase(public_id: str, user_id: int, phase: dict[str, Any]) -> bool:
-    """带地图的进图相位只改这个人的查看图。退出和取消匹配不清除。"""
+def note_view_map_from_phase(
+    public_id: str,
+    user_id: int,
+    phase: dict[str, Any],
+    *,
+    previous: dict[str, Any] | None = None,
+) -> bool:
+    """进图相位第一次带上这张图时，把这个人的查看图跟过去。退出和取消匹配不清除。
+
+    同一局、同一张图的相位重发（重连后再报、snapshot 后再报）不改查看图，
+    否则手动换图会被下一条日志拉回去。
+    """
     kind = str(phase.get("kind") or "")
     slug = normalize_room_map_slug(str(phase.get("map_id") or ""))
     if kind not in VIEW_MAP_PHASE_KINDS or not slug:
         return False
+    if previous is not None:
+        prev_slug = normalize_room_map_slug(str(previous.get("map_id") or ""))
+        prev_raid = normalize_raid_id(previous.get("raid_id"))
+        raid = normalize_raid_id(phase.get("raid_id"))
+        same_raid = (not raid and not prev_raid) or bool(raid and raid == prev_raid)
+        if prev_slug == slug and same_raid:
+            return False
     from app.services.tarkov.raid_room_hub import hub
 
     if hub.view_map_of(public_id, int(user_id)) == slug:

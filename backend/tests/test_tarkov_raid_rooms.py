@@ -320,7 +320,7 @@ def test_same_raid_id_lets_member_set_map() -> None:
     assert rooms.note_view_map_from_phase(
         pid,
         guest.id,
-        {"kind": "raid_started", "map_id": "woods"},
+        {"kind": "raid_started", "map_id": "woods", "raid_id": "PQXKR6"},
     )
     assert rooms.note_view_map_from_phase(
         pid,
@@ -330,6 +330,32 @@ def test_same_raid_id_lets_member_set_map() -> None:
     from app.services.tarkov.raid_room_hub import hub
 
     assert hub.view_map_of(pid, guest.id) == "woods"
+
+
+def test_repeat_raid_phase_keeps_manual_view_map() -> None:
+    """同一局同一张图再报一次，不把手动换的查看图拉回去。"""
+    db = _session()
+    host = _user(db, "host", "甲")
+    guest = _user(db, "guest", "乙")
+    now = now_naive()
+    pid = _open(db, host, now=now)
+    rooms.join_room(db, pid, guest, now=now + timedelta(seconds=1))
+    phase = {"kind": "raid_started", "map_id": "woods", "raid_id": "PQXKR6"}
+    from app.services.tarkov.raid_room_hub import hub
+
+    hub.set_log_phase(pid, guest.id, phase)
+    rooms.set_room_map(db, pid, guest, "factory", now=now)
+    assert (
+        rooms.note_view_map_from_phase(pid, guest.id, phase, previous=phase) is False
+    )
+    assert hub.view_map_of(pid, guest.id) == "factory"
+    assert rooms.note_view_map_from_phase(
+        pid,
+        guest.id,
+        {"kind": "raid_started", "map_id": "customs", "raid_id": "NEXT01"},
+        previous=phase,
+    )
+    assert hub.view_map_of(pid, guest.id) == "customs"
 
 
 def test_writes_require_map() -> None:

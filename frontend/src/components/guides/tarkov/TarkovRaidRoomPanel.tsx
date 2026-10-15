@@ -833,32 +833,44 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       setStatsOpen(false);
       return;
     }
+    const previous = mapIdRef.current;
     setPickingMap(true);
+    mapIdRef.current = slug;
     writeRaidRoomViewMap(publicId, slug);
     setViewMapId(slug);
     setPendingMarks([]);
-    void run(() => setTarkovRaidRoomMap(publicId, slug)).finally(() => {
-      setPickingMap(false);
-      setStatsOpen(false);
-    });
+    void run(() => setTarkovRaidRoomMap(publicId, slug))
+      .then((ok) => {
+        if (ok || mapIdRef.current !== slug) return;
+        mapIdRef.current = previous;
+        writeRaidRoomViewMap(publicId, previous);
+        setViewMapId(previous);
+      })
+      .finally(() => {
+        setPickingMap(false);
+        setStatsOpen(false);
+      });
   }, [mapId, pickingMap, publicId, run]);
 
   const serverViewMap = raidRoomViewerMapSlug(room?.view_maps, me?.id);
   useEffect(() => {
+    // 只在服务端查看图变化时跟上。本地刚选的图还没回到响应里，不能拿旧的服务端值盖掉。
     if (!room?.is_member) return;
+    const current = mapIdRef.current;
     if (!serverViewMap) {
-      if (!mapId) return;
-      const sig = `publish:${publicId}:${mapId}`;
+      if (!current) return;
+      const sig = `publish:${publicId}:${current}`;
       if (publishViewSigRef.current === sig) return;
       publishViewSigRef.current = sig;
-      void run(() => setTarkovRaidRoomMap(publicId, mapId));
+      void run(() => setTarkovRaidRoomMap(publicId, current));
       return;
     }
-    if (!mapId || raidPrepMapsEquivalent(serverViewMap, mapId)) return;
+    if (current && raidPrepMapsEquivalent(serverViewMap, current)) return;
     const slug = normalizeRaidPrepMapId(serverViewMap) || serverViewMap;
+    mapIdRef.current = slug;
     writeRaidRoomViewMap(publicId, slug);
     setViewMapId(slug);
-  }, [mapId, publicId, room?.is_member, run, serverViewMap]);
+  }, [publicId, room?.is_member, run, serverViewMap]);
   useEffect(() => {
     if (!room?.is_member || !me?.id || logPhaseRoomRef.current !== publicId) return;
     const mine = logPhases.find((row) => row.userId === me.id);
@@ -892,10 +904,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     if (!room?.is_member || !isRaidPrepAutoMapKind(lastLogPhase?.kind)) return;
     const next = normalizeRaidPrepMapId(lastLogPhase?.mapId || lastLogMapId || "");
     if (!next || pickingMap) return;
-    if (mapIdRef.current && raidPrepMapsEquivalent(next, mapIdRef.current)) return;
+    // 先记下这一局：已经在这张图上时也算跟过，手动换图后不要被同一条日志拉回去。
     const sig = `${publicId}:${next}:${lastLogPhase?.kind || ""}:${lastLogPhase?.raidId || ""}`;
     if (autoMapSigRef.current === sig) return;
     autoMapSigRef.current = sig;
+    if (mapIdRef.current && raidPrepMapsEquivalent(next, mapIdRef.current)) return;
     pickOwnMap(next);
   }, [
     lastLogMapId,
