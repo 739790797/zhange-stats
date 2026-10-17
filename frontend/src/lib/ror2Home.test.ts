@@ -12,17 +12,30 @@ import {
   ror2CatalogItems,
   ror2Crumbs,
   ror2DirectoryGroups,
+  ror2ItemCooldownText,
   ror2ItemSections,
+  ror2ItemSource,
   ror2ItemsHref,
   ror2PageTitle,
   ror2SectionRows,
+  ror2DrizzleArmor,
+  ror2InfoboxAcceleration,
+  ror2PerLevel,
+  ror2ReplaceTerms,
+  ror2SurvivorNamePairs,
+  ror2SurvivorHref,
+  ror2SurvivorPacks,
   ror2SurvivorSections,
   ror2SurvivorStatLine,
+  ror2SurvivorTableCells,
   ror2SurvivorsHref,
+  ror2TierValue,
+  sortRor2Items,
   ror2UnlockIcon,
   ror2UnreleasedRows,
+  sortRor2Survivors,
 } from "./ror2Home";
-import { ror2ItemStackLabel, ror2RarityAccent } from "./ror2Catalog";
+import { ror2ItemStackLabel, ror2ItemTableStack, ror2RarityAccent } from "./ror2Catalog";
 
 const ROWS = [
   { name: "Syringe", rarity: "Common", description: "speed <style=cIsDamage>15%</style>" },
@@ -72,15 +85,17 @@ describe("ror2 home directory", () => {
       { name: "Operator", expansion: "AC" },
       { name: "Enforcer", expansion: "HC" },
       { name: "Guest", expansion: "ZZ" },
+      { name: "Clay Man", expansion: "Junk" },
       { name: "Huntress", expansion: "  " },
     ]);
-    expect(sections.map((section) => `${section.id}:${section.label}`)).toEqual([
-      "base:本体",
-      "SotV:虚空幸存者",
-      "SotS:风暴探寻者",
-      "AC:合金意念",
-      "HC:万象归衡",
-      "ZZ:ZZ",
+    expect(sections.map((section) => `${section.id}:${section.label}:${section.title}`)).toEqual([
+      "base:本体:本体",
+      "SotV:Survivors of the Void:Survivors of the Void",
+      "SotS:Seekers of the Storm:Seekers of the Storm",
+      "AC:Alloyed Collective:Alloyed Collective",
+      "HC:Hallowed Concepts:Hallowed Concepts",
+      "ZZ:ZZ:ZZ",
+      "Junk:Junk:Junk",
     ]);
     expect(sections[0]?.survivors.map((row) => row.name)).toEqual([
       "Commando",
@@ -118,9 +133,32 @@ describe("ror2 home directory", () => {
   it("drops the home crumb because the brand mark stands in for it", () => {
     expect(ror2Crumbs("/guides/ror2")).toEqual([]);
     expect(ror2Crumbs("/guides/ror2/")).toEqual([]);
-    expect(ror2Crumbs("/guides/ror2/survivors")).toEqual([{ label: "幸存者" }]);
-    expect(ror2Crumbs("/guides/ror2/survivors/")).toEqual([{ label: "幸存者" }]);
+    expect(ror2Crumbs("/guides/ror2/survivors")).toEqual([{ label: "幸存者列表" }]);
+    expect(ror2Crumbs("/guides/ror2/survivors/")).toEqual([{ label: "幸存者列表" }]);
     expect(ror2Crumbs("/guides/ror2/items")).toEqual([{ label: "物品" }]);
+    expect(ror2Crumbs("/guides/ror2/survivors/False%20Son")).toEqual([
+      { label: "幸存者列表", href: "/guides/ror2/survivors" },
+      { label: "False Son" },
+    ]);
+    expect(ror2PageTitle("/guides/ror2/survivors/Commando")).toBe("雨中冒险2 · Commando");
+    expect(ror2SurvivorHref("False Son")).toBe("/guides/ror2/survivors/False%20Son");
+    const pairs = ror2SurvivorNamePairs([
+      { name: "Acrid", name_zh: "呛鼻毒师" },
+      { name: "False Son", name_zh: "虚假子嗣" },
+      { name: "REX", name_zh: "雷克斯" },
+    ]);
+    expect(ror2ReplaceTerms("Acrid: Bad Medicine", pairs)).toBe("呛鼻毒师: Bad Medicine");
+    expect(ror2ReplaceTerms("False Son and Acrid", pairs)).toBe("虚假子嗣 and 呛鼻毒师");
+    expect(ror2ReplaceTerms("REXX stays", pairs)).toBe("REXX stays");
+    expect(ror2TierValue(0.2, 0.6)).toBe(0.12);
+    expect(ror2TierValue(1, 1.5)).toBe(1.5);
+    expect(ror2InfoboxAcceleration(null)).toBe(80);
+    expect(ror2InfoboxAcceleration(0)).toBe(0);
+    expect(ror2DrizzleArmor(0)).toBe(70);
+    expect(ror2DrizzleArmor(20)).toBe(90);
+    expect(ror2PerLevel(0.3)).toBe("+0.3");
+    expect(ror2PerLevel(-1.2)).toBe("-1.2");
+    expect(ror2PerLevel(0)).toBe("0");
   });
 });
 
@@ -134,8 +172,22 @@ describe("ror2 survivor list", () => {
     expect(ror2ActiveExpansion("SotV", rows)).toBe("SotV");
     expect(ror2ActiveExpansion("missing", rows)).toBe("all");
     expect(ror2ActiveExpansion("base", rows)).toBe("base");
+    expect(ror2ActiveExpansion("SotS", rows)).toBe("all");
     expect(filterRor2Survivors(rows, "", "SotV").map((row) => row.name)).toEqual(["Railgunner"]);
     expect(filterRor2Survivors(rows, "slinger", "all").map((row) => row.name)).toEqual(["Commando"]);
+    expect(
+      filterRor2Survivors(
+        [{ name: "Commando", name_zh: "指挥官", description: "jack" }],
+        "指挥",
+        "all",
+        true,
+      ).map((row) => row.name),
+    ).toEqual(["Commando"]);
+    expect(
+      filterRor2Survivors([{ name: "Commando", name_zh: "指挥官", description: "jack" }], "指挥", "all").map(
+        (row) => row.name,
+      ),
+    ).toEqual([]);
     expect(ror2SurvivorsHref()).toBe("/guides/ror2/survivors");
     expect(ror2SurvivorsHref("all", "  ")).toBe("/guides/ror2/survivors");
     expect(ror2SurvivorsHref("base", "a b")).toBe("/guides/ror2/survivors?cat=base&q=a+b");
@@ -144,6 +196,135 @@ describe("ror2 survivor list", () => {
   it("formats growth stats and skips zero armor", () => {
     expect(ror2SurvivorStatLine(rows[0]!)).toBe("生命 110 (+33) · 伤害 12 (+2.4) · 移速 7");
     expect(ror2SurvivorStatLine(rows[1]!)).toBe("生命 110 · 伤害 12 · 回复 -6 (-1.2) · 护甲 20");
+  });
+
+  it("numbers filters from the expansions that exist, and keeps later numbers stable", () => {
+    const packs = ror2SurvivorPacks([
+      ...rows,
+      { name: "Guest", expansion: "ZZ" },
+    ]);
+    expect(packs.map((pack) => `${pack.label}:${pack.iconUrl ?? ""}:${pack.count}`)).toEqual([
+      "本体:/platform-icons/ror2.png:1",
+      "Survivors of the Void:https://riskofrain2.wiki.gg/images/SotV_Icon.png:1",
+      "ZZ:https://riskofrain2.wiki.gg/images/ZZ_Icon.png:1",
+    ]);
+    const scoped = ror2SurvivorPacks(
+      [{ expansion: "" }, { expansion: "ZZ" }],
+      [{ expansion: "SotV" }, { expansion: "SotS" }, { expansion: "AC" }, { expansion: "HC" }, { expansion: "ZZ" }],
+    );
+    expect(scoped.map((pack) => pack.label)).toEqual(["本体", "ZZ"]);
+  });
+
+  it("formats the comparison table the way the wiki does", () => {
+    expect(ror2SurvivorTableCells(rows[0]!)).toMatchObject({
+      health: "110",
+      healthGrowth: "(+33)",
+      regen: "—",
+      damage: "12",
+      damageGrowth: "(+2.4)",
+      speed: "7 m/s",
+      acceleration: "80",
+      mass: "—",
+      armor: "0",
+    });
+    expect(ror2SurvivorTableCells(rows[1]!)).toMatchObject({
+      regen: "-6/s",
+      regenGrowth: "(-1.2/s)",
+      armor: "20",
+    });
+    expect(
+      ror2SurvivorTableCells({
+        health: 130,
+        health_per_level: 39,
+        regen: 0,
+        regen_per_level: 0,
+        damage: 12,
+        damage_per_level: 2.4,
+        speed: 7,
+        acceleration: 0,
+        mass: 150,
+        armor: 0,
+      }),
+    ).toEqual({
+      health: "130",
+      healthGrowth: "(+39)",
+      regen: "0/s",
+      regenGrowth: "(0/s)",
+      damage: "12",
+      damageGrowth: "(+2.4)",
+      speed: "7 m/s",
+      acceleration: "80",
+      mass: "150",
+      armor: "0",
+    });
+    expect(
+      ror2SurvivorTableCells({
+        regen: 0.75,
+        regen_per_level: 0.15,
+        acceleration: 40,
+      }),
+    ).toMatchObject({
+      regen: "0.75/s",
+      regenGrowth: "(+0.15/s)",
+      acceleration: "40",
+    });
+  });
+
+  it("sorts the comparison table and keeps missing numbers at the bottom", () => {
+    const table = [
+      { name: "Bandit", health: 110, acceleration: 80, mass: 100 },
+      { name: "Acrid", health: 160, mass: 300 },
+      { name: "CHEF", health: 110, acceleration: 80, mass: 100 },
+      { name: "Artificer", health: 110, acceleration: 40 },
+    ];
+    expect(sortRor2Survivors(table, "name", "asc").map((row) => row.name)).toEqual([
+      "Acrid",
+      "Artificer",
+      "Bandit",
+      "CHEF",
+    ]);
+    expect(
+      sortRor2Survivors(
+        [
+          { name: "Captain" },
+          { name: "CHEF" },
+          { name: "Mercenary" },
+          { name: "MUL-T" },
+          { name: "Railgunner" },
+          { name: "REX" },
+        ],
+        "name",
+        "asc",
+      ).map((row) => row.name),
+    ).toEqual(["CHEF", "Captain", "MUL-T", "Mercenary", "REX", "Railgunner"]);
+    expect(
+      sortRor2Survivors(
+        [
+          { name: "Commando", name_zh: "指挥官" },
+          { name: "Captain", name_zh: "船长" },
+        ],
+        "name",
+        "asc",
+      ).map((row) => row.name_zh),
+    ).toEqual(["指挥官", "船长"]);
+    expect(sortRor2Survivors(table, "acceleration", "asc").map((row) => row.name)).toEqual([
+      "Artificer",
+      "Acrid",
+      "Bandit",
+      "CHEF",
+    ]);
+    expect(sortRor2Survivors(table, "health", "desc").map((row) => row.name)).toEqual([
+      "Acrid",
+      "Artificer",
+      "Bandit",
+      "CHEF",
+    ]);
+    expect(sortRor2Survivors(table, "mass", "desc").map((row) => row.name)).toEqual([
+      "Acrid",
+      "Bandit",
+      "CHEF",
+      "Artificer",
+    ]);
   });
 });
 
@@ -207,6 +388,33 @@ describe("ror2 directory pages", () => {
     ],
     artifacts: [{ name: "Spite", description: "Bombs.", code: ["▲●▲"], expansion: "" }],
   };
+
+  it("numbers expansion notes from every expansion in the catalog", () => {
+    expect(
+      ror2SectionRows("monsters", {
+        monsters: [
+          { name: "Beetle", kind: "Normal", expansion: "SotV" },
+          { name: "Clay Man", kind: "Normal", expansion: "Junk" },
+          { name: "Larva", kind: "Normal", expansion: "ZZ" },
+        ],
+        items: [
+          { name: "A", expansion: "SotS" },
+          { name: "B", expansion: "AC" },
+          { name: "C", expansion: "HC" },
+        ],
+      }).map((row) => `${row.name}:${row.dlcIconUrl ?? ""}`),
+    ).toEqual([
+      "Beetle:https://riskofrain2.wiki.gg/images/SotV_Icon.png",
+      "Clay Man:",
+      "Larva:https://riskofrain2.wiki.gg/images/ZZ_Icon.png",
+    ]);
+    expect(
+      ror2SectionRows("interactables", {
+        interactables: [{ name: "Shrine", category: "Shrines", expansion: "ZZ" }],
+        items: [{ name: "A", expansion: "SotV" }],
+      })[0]?.dlcIconUrl,
+    ).toBe("https://riskofrain2.wiki.gg/images/ZZ_Icon.png");
+  });
 
   it("keeps interactables, including shrines, and lists newt altar stages", () => {
     expect(ror2SectionRows("monsters", catalog)).toHaveLength(1);
@@ -298,10 +506,43 @@ describe("ror2 item list", () => {
     expect(ror2ActiveRarity("Untiered", ROWS)).toBe("Untiered");
   });
 
-  it("filters by rarity, then by visible text", () => {
+  it("filters by rarity, source, then by visible text", () => {
+    const sourced = [
+      ...ROWS.map((row) => ({ ...row, expansion: "" })),
+      { name: "Mocha", rarity: "Common", description: "speed", expansion: "SotV" },
+    ];
+    expect(ror2ItemSource(null, sourced)).toBe("all");
+    expect(ror2ItemSource("SotV", sourced)).toBe("SotV");
+    expect(ror2ItemSource("missing", sourced)).toBe("all");
     expect(filterRor2Items(ROWS, "", "Equipment").map((row) => row.name)).toEqual(["Radar"]);
     expect(filterRor2Items(ROWS, "15%", "all").map((row) => row.name)).toEqual(["Syringe"]);
     expect(filterRor2Items(ROWS, "cIsDamage", "Common")).toEqual([]);
+    expect(filterRor2Items(sourced, "", "Common", "SotV").map((row) => row.name)).toEqual(["Mocha"]);
+    const bilingual = [{ name: "Soldier's Syringe", name_zh: "士兵的注射器", description: "attack speed", description_zh: "攻击速度", rarity: "Common" }];
+    expect(filterRor2Items(bilingual, "注射", "all", "", true).map((row) => row.name)).toEqual(["Soldier's Syringe"]);
+    expect(filterRor2Items(bilingual, "Syringe", "all", "", true).map((row) => row.name)).toEqual(["Soldier's Syringe"]);
+    expect(filterRor2Items(bilingual, "注射", "all")).toEqual([]);
+    expect(sortRor2Items(
+      [
+        { name: "Bison", description: "health", stats: [{ stack: "Linear" }] },
+        { name: "Armor", description: "boss", stats: [{ stack: "Hyperbolic" }] },
+      ],
+      "stack",
+      "asc",
+    ).map((row) => row.name)).toEqual(["Armor", "Bison"]);
+    expect(ror2ItemCooldownText("20")).toBe("20s");
+    expect(ror2ItemCooldownText("0.1")).toBe("0.1s");
+    expect(ror2ItemCooldownText("")).toBe("");
+    expect(sortRor2Items(
+      [
+        { name: "Card", cooldown: "0.1" },
+        { name: "Shower", cooldown: "20" },
+        { name: "Fuel", cooldown: "" },
+        { name: "Opus", cooldown: "100" },
+      ],
+      "cooldown",
+      "asc",
+    ).map((row) => row.name)).toEqual(["Card", "Shower", "Opus", "Fuel"]);
     expect(groupRor2ItemsByRarity(ROWS).map((group) => group.rarity)).toEqual([
       "Common",
       "Legendary",
@@ -325,5 +566,6 @@ describe("ror2 item list", () => {
     expect(ror2ItemStackLabel([{ stack: "Linear" }, { stack: "Linear" }, { stack: "None" }])).toBe(
       "Linear / None",
     );
+    expect(ror2ItemTableStack([{ stack: "Linear" }, { stack: "ProcCoeff" }])).toBe("Linear");
   });
 });

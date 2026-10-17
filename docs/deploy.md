@@ -22,7 +22,6 @@ sudo bash scripts/linux/run.sh       # 向导未完成时会打印安装令牌
 - **前端 static**：`static/` 不入库。`install.sh` 发现 `static/index.html` 不存在时，下载当前 `VERSION` 对应 Release 的 `zhange-stats-<VERSION>-static.tar.gz`，校验 sha256 后放进 `static/`（不需要数据库）；有 systemd 单元时 `run.sh` / `restart.sh` 也会补一次。下载失败只告警、后端照常启动，但页面在补上 `static/` 之前打不开。补救：`sudo bash scripts/linux/update.sh --static-only --proxy <GitHub 代理前缀>` 重试；主干上的 `VERSION` 可能还没发版，可 `git fetch --tags` 后检出已发布的 tag 再 `install`；或本机 `cd frontend && npm ci && npm run build`，把 `frontend/dist/` 里的文件复制到 `static/`。
 - **安装令牌**：向导要求填写 `data/runtime/setup-token` 的内容（0600，只在服务器上）。`run.sh` / `restart.sh` 在向导未完成时把它打印出来；读不到时 `sudo cat` 该文件。向导完成后令牌自动删除。
 - **属主**：以 root 跑 `install` / `run` / `restart` / `update` 时，建 venv、pip、npm、站点配置同步和更新器都以服务用户 `zhange` 身份执行（`runuser`）。脚本退出时（失败也算）会把安装树里属主不对的文件改回 `zhange`，`data/mariadb/` 除外。
-- **SteamCMD**：雨中冒险 2 用的官方程序是 x86 32 位。`install.sh` 在 x86_64 上会装 `libc6-i386` 和 `lib32gcc-s1`。已经装过的机器补一次：`sudo apt-get install -y libc6-i386 lib32gcc-s1`。缺这两个包时，管理端登录会看到 SteamCMD 刚启动就退出。
 
 ### systemd 单元与 `config/systemd.env`
 

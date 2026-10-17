@@ -15,7 +15,7 @@ alwaysApply: true
 | 塔科夫图鉴 | 回源 json.tarkov.dev（`/regular/`·`/pve/`）落 `tarkov_*_raws`，一张上游文件一张表；overlay 只内存合入 | 回源 `api.tarkov.dev` GraphQL；为补字段再加 GraphQL 请求；再抽一份补集 raw | `.cursor/rules/tarkov-upstream.mdc`、`docs/database.md` |
 | 塔科夫工作台出图 | 底板用 dump 枪图，在图上点槽位换配件；不再默认代理 image-gen | 把出图站当图鉴源；pytest 打真站 | `.cursor/rules/tarkov-upstream.mdc` |
 | 塔科夫联机 | 未登录可看大厅列表（含公开房在座昵称、每人地图与相位）与房间预览；非成员 GET 房间只给预览（标题/模式/人数/是否要密码等，无棋盘、无人员）；公开或私密在创建时确定；写操作与 WS 须入座 | 房间码当秘密；非成员 GET 房间把棋盘/钥匙/人员/各人查看图回给路人；访客占座；创建后再改公开或私密 | `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」、`docs/database.md` |
-| 雨中冒险2 | 图鉴走 `guide_raws`：wiki.gg Module 原文落库，读库再解析（`ror2_wiki_sync`）；简体中文只读本机 `Language/zh-CN`（`ror2_lang_sync`），用 `LocalizationInternalName` 加 `_NAME`/`_DESC`/`_PICKUP` 核对 | 回源其他图鉴接口；把社区汉化或语言文件当网上数据源；再落一份解析结果表；pytest 打真站 | `.cursor/rules/guide-raw.mdc`、`docs/security.md`「雨中冒险2」 |
+| 雨中冒险2 | 图鉴走 `guide_raws`：一次请求一份原文（`ror2_wiki_sync`）；整份文件进 Weblate，译文保持同一格式（`ror2_weblate_sync`），展示只解析 `zh-Hans/` 下指纹一致的译文，没有就空 | 回源其他图鉴接口；先解析再拆字符串去翻译；语言文件当页面上的第二层覆盖；站内用 SteamCMD 更新游戏；再落一份解析结果表；pytest 打真站或真 Weblate | `.cursor/rules/guide-raw.mdc`、`docs/security.md`「雨中冒险2」 |
 | 图鉴 raw | 新游戏用 `GuideRawPipeline`（一份上游文件一行 `guide_raws`，失败不覆盖） | 再抄一套 gzip / raw 表；解析结果当权威 | `.cursor/rules/guide-raw.mdc` |
 | 战鸽助手 | WebView 打开站点同源地址；嵌入标记下不画 `AppLayout` 侧栏；截图/日志读盘走文件桥，解析与摘要留在站点 | iframe 嵌站；生产把 Tauri 源当会话；助手重写解析；新接口收日志原文或定位原图 | `.cursor/rules/zhange-assistant.mdc`、`docs/security.md`「战鸽助手」 |
 | DB | Alembic 迁移 + 同步 `docs/database.md`；新 migration 可移植（`sa.JSON()` / `LongText`） | 启动时绕过 Alembic `create_all` / `ALTER`；`CAST(... AS JSON)` / MySQL 专属 `MODIFY COLUMN` | `.cursor/rules/db-schema-readme.mdc` |

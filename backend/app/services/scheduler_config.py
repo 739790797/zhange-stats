@@ -24,7 +24,7 @@ JOB_IDS = (
     "mihoyo_checkin",
     "tarkov_full_sync",
     "ror2_wiki_sync",
-    "ror2_lang_sync",
+    "ror2_weblate_sync",
     "texteller_model_sync",
     "job_runs_prune",
 )
@@ -64,7 +64,7 @@ def _code_defaults() -> dict[str, dict[str, Any]]:
         "game_schedule_endfield_sync": {"enabled": True, "hour": 5, "minute": 0},
         "tarkov_full_sync": {"enabled": True, "hour": 4, "minute": 25},
         "ror2_wiki_sync": {"enabled": True, "hour": 4, "minute": 40},
-        "ror2_lang_sync": {"enabled": True, "hour": 4, "minute": 55, "lang_dir": ""},
+        "ror2_weblate_sync": {"enabled": True, "hour": 4, "minute": 55},
         "texteller_model_sync": {"enabled": True, "hour": 4, "minute": 50},
         "taygedo_checkin": {"enabled": True, "hour": 0, "minute": 1},
         "exilium_checkin": {"enabled": True, "hour": 0, "minute": 1},
@@ -99,8 +99,6 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
             raw.get("retention_days", fallback.get("retention_days", 90)),
             90,
         )
-    if job_id == "ror2_lang_sync":
-        out["lang_dir"] = str(raw.get("lang_dir", fallback.get("lang_dir", "")) or "").strip()
     return out
 
 
@@ -120,6 +118,10 @@ def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any
             "game_schedule_endfield_sync",
         ):
             legacy = stored.get("game_schedule_sync")
+            if isinstance(legacy, dict):
+                item = legacy
+        if not isinstance(item, dict) and jid == "ror2_weblate_sync":
+            legacy = stored.get("ror2_lang_sync")
             if isinstance(legacy, dict):
                 item = legacy
         if isinstance(item, dict):

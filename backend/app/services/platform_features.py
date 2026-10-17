@@ -259,10 +259,10 @@ FEATURE_TREE: list[dict[str, Any]] = [
                         "schedule": "cron",
                     },
                     {
-                        "id": "guides.ror2.lang_sync",
-                        "name": "简体中文语言文件",
+                        "id": "guides.ror2.weblate_sync",
+                        "name": "图鉴译文",
                         "kind": "job",
-                        "job_id": "ror2_lang_sync",
+                        "job_id": "ror2_weblate_sync",
                         "schedule": "cron",
                     },
                 ],
@@ -300,7 +300,7 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "mihoyo_checkin": "mihoyo.checkin",
     "tarkov_full_sync": "guides.tarkov.full_sync",
     "ror2_wiki_sync": "guides.ror2.wiki_sync",
-    "ror2_lang_sync": "guides.ror2.lang_sync",
+    "ror2_weblate_sync": "guides.ror2.weblate_sync",
     "texteller_model_sync": "zhange.texteller_model",
 }
 
@@ -328,7 +328,7 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     # "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
     "ror2_wiki": "雨中冒险2图鉴",
-    "ror2_lang": "雨中冒险2语言文件",
+    "ror2_weblate": "雨中冒险2译文",
 }
 
 # 旧平台 id → 现行节点。战鸽酒馆仍用 require_feature("tavern")，与「战鸽数据」同开同关。
@@ -372,6 +372,8 @@ def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) ->
     if "zhange.texteller_model" not in flags:
         if "tavern.texteller_sync" in flags:
             base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])
+    if "guides.ror2.weblate_sync" not in flags and "guides.ror2.lang_sync" in flags:
+        base["guides.ror2.weblate_sync"] = bool(flags["guides.ror2.lang_sync"])
 
 
 def invalidate_feature_cache() -> None:

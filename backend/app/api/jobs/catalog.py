@@ -64,16 +64,16 @@ JOB_CATALOG: list[dict[str, Any]] = [
     {
         "id": "ror2_wiki_sync",
         "name": "图鉴数据更新",
-        "description": "回源 riskofrain2.wiki.gg 的道具、装备、幸存者、敌人、环境、成就、可交互物、神器模块，落入 guide_raws 后再解析展示",
+        "description": "回源 riskofrain2.wiki.gg 的 Module 命名空间全部页面，以及每个幸存者词条。图鉴用的十份模块解析不过就不覆盖；其余模块只存原文",
         "kind": "cron",
         "platform": "ror2_wiki",
     },
     {
-        "id": "ror2_lang_sync",
-        "name": "简体中文语言文件",
-        "description": "使用已登录的 SteamCMD 缓存更新游戏（在集成密钥里登录一次），再读 Language/zh-CN。文件增减自动跟着变；后编号的 DLC 覆盖先读的同名键",
+        "id": "ror2_weblate_sync",
+        "name": "图鉴译文",
+        "description": "把每份已落库的 Wiki 原文拆成字符串推到 Weblate。Lua 表按路径编号；有令牌的挂在令牌下。已审且原文未变的译文写回快照",
         "kind": "cron",
-        "platform": "ror2_lang",
+        "platform": "ror2_weblate",
     },
     {
         "id": "texteller_model_sync",

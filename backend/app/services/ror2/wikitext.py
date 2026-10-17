@@ -10,9 +10,11 @@ _MARKUP = re.compile(r"'''?|</?[^>]+>")
 _SPACE = re.compile(r"[ \t]*\n[ \t]*|[ \t]{2,}")
 _HEX = re.compile(r"#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3}){0,2}")
 _ALLOWED_TAG = re.compile(
-    r"^</?(?:style(?:=[A-Za-z0-9_]+)?|color(?:=#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3}){0,2})?|u)>$",
+    r"^</?(?:style(?:=[A-Za-z0-9_]+)?|color(?:=#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3}){0,2})?|u|b|i)>$",
     re.IGNORECASE,
 )
+_BOLD = re.compile(r"'''(.+?)'''", re.DOTALL)
+_ITALIC = re.compile(r"''(.+?)''", re.DOTALL)
 # Wiki Color 快捷名里，和游戏 TMP 样式表色值一致的，换成对应样式名。
 _COLOR_STYLE = {
     "d": "cIsDamage",
@@ -38,6 +40,16 @@ _WIKI_COLOR_HEX = {
     "hallowed": "#9368F9",
     "lunar": "#307FFF",
 }
+
+
+def inline_wikitext(text: str) -> str:
+    """和 plain_wikitext 一样收模板，但留下换行，给日志和词条段落用。"""
+    raw = html.unescape(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    raw = _BOLD.sub(r"<b>\1</b>", raw)
+    raw = _ITALIC.sub(r"<i>\1</i>", raw)
+    flattened = _templates(raw)
+    flattened = _LINK.sub(r"\1", flattened)
+    return _strip_markup(flattened).strip()
 
 
 def plain_wikitext(text: str) -> str:

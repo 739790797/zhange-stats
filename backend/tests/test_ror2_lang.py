@@ -1,40 +1,16 @@
-"""官方 zh-CN 目录：只收这个文件夹，并按 wiki 令牌核对覆盖。"""
+"""已落库的游戏中文：只用于给 Weblate 提建议。"""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
-from app.models.guide_raw import GuideRaw
-from app.services.ror2.catalog import Ror2WikiError
-from app.services.ror2.lang import (
-    Ror2LangError,
-    coverage_report,
-    ensure_lang_dir,
-    lang_file_sort_key,
-    locate_lang_dir,
-    string_table,
-    sync_lang,
-)
+from app.services.ror2.lang import apply_item_language, apply_survivor_language, lang_file_sort_key, string_table
 from app.services.ror2.schemas import Ror2CatalogOut, Ror2ItemOut, Ror2SurvivorOut
 
 
 def _strings(names: dict[str, str]) -> str:
     return json.dumps({"strings": names}, ensure_ascii=False)
 
-
-def _write_lang(root: Path, output: dict[str, str], extra: dict[str, str] | None = None) -> Path:
-    folder = root / "zh-CN"
-    folder.mkdir()
-    (folder / "language.json").write_text('{"language": "zh-CN"}', encoding="utf-8")
-    (folder / "output.json").write_text(_strings(output), encoding="utf-8")
-    if extra is not None:
-        (folder / "DLC4.json").write_text(_strings(extra), encoding="utf-8")
-    return folder
 
 
 def _catalog() -> Ror2CatalogOut:
@@ -95,148 +71,103 @@ def test_lang_file_order_puts_base_before_numbered_dlc() -> None:
     ]
 
 
-def test_sync_follows_folder_as_it_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    folder = tmp_path / "zh-CN"
-    folder.mkdir()
-    (folder / "language.json").write_text('{"language": "zh-CN"}', encoding="utf-8")
-    (folder / "DLC1.json").write_text(_strings({"ITEM_SYRINGE_NAME": "旧名"}), encoding="utf-8")
-    (folder / "DLC3.json").write_text(_strings({"ITEM_SYRINGE_DESC": "旧说明"}), encoding="utf-8")
-    (folder / "Items.json").write_text(_strings({"ITEM_SYRINGE_PICKUP": "拾取"}), encoding="utf-8")
-    engine = create_engine("sqlite://")
-    GuideRaw.__table__.create(engine)
-    db: Session = sessionmaker(bind=engine)()
-    monkeypatch.setattr("app.services.ror2.wiki.PIPELINE.missing", lambda _db: False)
-    monkeypatch.setattr("app.services.ror2.wiki.get_catalog", lambda _db: _catalog())
-
-    first = sync_lang(db, folder)
-    assert "读取 Items.json、DLC1.json、DLC3.json" in first
-    assert sorted(row.resource for row in db.query(GuideRaw).all()) == [
-        "zh-CN/DLC1.json",
-        "zh-CN/DLC3.json",
-        "zh-CN/Items.json",
-    ]
-
-    for path in folder.glob("*.json"):
-        if path.name != "language.json":
-            path.unlink()
-    (folder / "output.json").write_text(
-        _strings({"ITEM_SYRINGE_NAME": "士兵的注射器", "ITEM_SYRINGE_DESC": "提高攻击速度。"}),
-        encoding="utf-8",
+def test_item_language_overlays_name_desc_and_pickup() -> None:
+    catalog = _catalog()
+    syringe = catalog.items[0]
+    syringe.description = "Increases attack speed."
+    syringe.quote = "Attack speed."
+    apply_item_language(
+        catalog.items + catalog.equipment,
+        {
+            "ITEM_SYRINGE_NAME": "士兵的注射器",
+            "ITEM_SYRINGE_DESC": "提高<style=cIsDamage>攻击速度</style>。",
+            "ITEM_SYRINGE_PICKUP": "提高攻击速度。",
+            "EQUIPMENT_SCANNER_NAME": "雷达扫描器",
+        },
     )
-    (folder / "DLC4.json").write_text(
-        _strings({"ITEM_SYRINGE_NAME": "新注射器"}),
-        encoding="utf-8",
+    assert syringe.name == "Soldier's Syringe"
+    assert syringe.description == "Increases attack speed."
+    assert syringe.quote == "Attack speed."
+    assert syringe.name_zh == "士兵的注射器"
+    assert syringe.description_zh == "提高<style=cIsDamage>攻击速度</style>。"
+    assert catalog.items[1].name == "BurnNearby"
+    assert catalog.items[1].name_zh == ""
+    assert catalog.equipment[0].name == "Radar Scanner"
+    assert catalog.equipment[0].name_zh == "雷达扫描器"
+    assert catalog.equipment[0].description_zh == ""
+    assert catalog.survivors[0].name == "Commando"
+    assert catalog.survivors[0].name_zh == ""
+
+
+def test_survivor_language_uses_body_tokens_and_keeps_english() -> None:
+    catalog = _catalog()
+    catalog.survivors.extend(
+        [
+            Ror2SurvivorOut(name="MUL-T", wiki_url="https://riskofrain2.wiki.gg/wiki/MUL-T"),
+            Ror2SurvivorOut(name="Operator", wiki_url="https://riskofrain2.wiki.gg/wiki/Operator"),
+            Ror2SurvivorOut(name="Guest", wiki_url="https://riskofrain2.wiki.gg/wiki/Guest"),
+        ]
     )
-    second = sync_lang(db, folder)
-    assert "读取 output.json、DLC4.json" in second
-    assert "已去掉：" in second
-    assert sorted(row.resource for row in db.query(GuideRaw).all()) == [
-        "zh-CN/DLC4.json",
-        "zh-CN/output.json",
-    ]
-    db.close()
-
-
-def test_lang_dir_must_be_zh_cn(tmp_path: Path) -> None:
-    folder = tmp_path / "en"
-    folder.mkdir()
-    (folder / "output.json").write_text("{}", encoding="utf-8")
-    with pytest.raises(Ror2LangError, match="zh-CN"):
-        ensure_lang_dir(folder)
-
-
-def test_missing_zh_cn_directory_names_the_path(tmp_path: Path) -> None:
-    missing = tmp_path / "Language" / "zh-CN"
-    with pytest.raises(Ror2LangError, match="没有找到语言目录"):
-        ensure_lang_dir(missing)
-
-
-def _zh_cn(root: Path) -> Path:
-    folder = (
-        root
-        / "steamapps"
-        / "common"
-        / "Risk of Rain 2"
-        / "Risk of Rain 2_Data"
-        / "StreamingAssets"
-        / "Language"
-        / "zh-CN"
+    apply_survivor_language(
+        catalog.survivors,
+        {
+            "COMMANDO_BODY_NAME": "指挥官",
+            "TOOLBOT_BODY_NAME": "多功能枪兵",
+            "DRONETECH_BODY_NAME": "操作员",
+        },
     )
-    folder.mkdir(parents=True)
-    return folder
+    commando, mult, operator, guest = catalog.survivors
+    assert commando.name == "Commando"
+    assert commando.name_zh == "指挥官"
+    assert mult.name == "MUL-T"
+    assert mult.name_zh == "多功能枪兵"
+    assert operator.name == "Operator"
+    assert operator.name_zh == "操作员"
+    assert guest.name_zh == ""
 
 
-def test_locate_lang_dir_uses_the_linux_steam_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    install = tmp_path / "opt" / "zhange-stats"
-    executable = install / "steamcmd" / "steamcmd.sh"
-    executable.parent.mkdir(parents=True)
-    executable.write_text("#!/bin/sh\n", encoding="utf-8")
-    folder = _zh_cn(install / "Steam")
-    (folder / "output.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
-    monkeypatch.setattr("app.services.ror2.lang.Path.home", lambda: tmp_path / "home")
-    assert locate_lang_dir(executable) == folder.resolve()
-
-
-def test_locate_lang_dir_prefers_a_library_that_has_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    install = tmp_path / "opt" / "zhange-stats"
-    executable = install / "steamcmd" / "steamcmd.sh"
-    executable.parent.mkdir(parents=True)
-    empty = _zh_cn(executable.parent)
-    assert not any(empty.glob("*.json"))
-    folder = _zh_cn(install / "Steam")
-    (folder / "output.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("APP_INSTALL_DIR", str(install))
-    monkeypatch.setattr("app.services.ror2.lang.Path.home", lambda: tmp_path / "home")
-    assert locate_lang_dir(executable) == folder.resolve()
-
-
-def test_coverage_counts_name_desc_and_pickup() -> None:
-    strings = {
-        "ITEM_SYRINGE_NAME": "士兵的注射器",
-        "ITEM_SYRINGE_DESC": "提高攻击速度。",
-        "EQUIPMENT_SCANNER_NAME": "雷达扫描器",
-    }
-    report = coverage_report(_catalog(), strings)
-    assert "items 有令牌 1/2，NAME 1/1，DESC 1/1，PICKUP 0/1" in report
-    assert "wiki 无令牌：BurnNearby" in report
-    assert "equipment 有令牌 1/1，NAME 1/1，DESC 0/1，PICKUP 0/1" in report
-    assert "缺 NAME：EQUIPMENT_SCANNER" not in report
-    assert "DESC 0/1" in report
-    assert "survivors 1，wiki 模块没有 LocalizationInternalName" in report
-
-
-def test_sync_lang_stores_files_and_reports_gaps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    folder = _write_lang(
-        tmp_path,
-        {"ITEM_SYRINGE_NAME": "士兵的注射器", "ITEM_SYRINGE_DESC": "提高攻击速度。"},
-        {"EQUIPMENT_SCANNER_NAME": "雷达扫描器", "EQUIPMENT_SCANNER_DESC": "显示交互物。"},
+def test_item_language_uses_confirmed_token_aliases() -> None:
+    wisp = Ror2ItemOut(
+        name="Will-o'-the-wisp",
+        internal_name="ITEM_EXPODEONDEATH",
+        description="lava pillar",
+        wiki_url="https://riskofrain2.wiki.gg/wiki/Will-o'-the-wisp",
     )
-    engine = create_engine("sqlite://")
-    GuideRaw.__table__.create(engine)
-    db: Session = sessionmaker(bind=engine)()
-    monkeypatch.setattr(
-        "app.services.ror2.wiki.PIPELINE.missing",
-        lambda _db: False,
+    lantern = Ror2ItemOut(
+        name="Bolstering Lantern",
+        internal_name="ITEM_LOWERHEALTHHIGHERDAMAGE",
+        wiki_url="https://riskofrain2.wiki.gg/wiki/Bolstering_Lantern",
     )
-    monkeypatch.setattr(
-        "app.services.ror2.wiki.get_catalog",
-        lambda _db: _catalog(),
+    whispers = Ror2ItemOut(
+        name="Sonorous Whispers",
+        internal_name="ITEM_RESETCHESTS",
+        wiki_url="https://riskofrain2.wiki.gg/wiki/Sonorous_Whispers",
     )
-    report = sync_lang(db, folder)
-    names = sorted(row.resource for row in db.query(GuideRaw).all())
-    assert names == ["zh-CN/DLC4.json", "zh-CN/output.json"]
-    assert "NAME 1/1，DESC 1/1，PICKUP 0/1" in report
-    assert "EQUIPMENT_SCANNER" not in report.split("缺 NAME")[-1] if "缺 NAME" in report else True
-    db.close()
-
-
-def test_sync_lang_refuses_wiki_gap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    folder = _write_lang(tmp_path, {"ITEM_SYRINGE_NAME": "士兵的注射器"})
-    engine = create_engine("sqlite://")
-    GuideRaw.__table__.create(engine)
-    db = sessionmaker(bind=engine)()
-    monkeypatch.setattr("app.services.ror2.wiki.PIPELINE.missing", lambda _db: True)
-    with pytest.raises(Ror2WikiError, match="还没有落库"):
-        sync_lang(db, folder)
-    db.close()
+    antlers = Ror2ItemOut(
+        name="Elusive Antlers",
+        internal_name="ITEM_NEGATEATTACK",
+        wiki_url="https://riskofrain2.wiki.gg/wiki/Elusive_Antlers",
+    )
+    alpha = Ror2ItemOut(
+        name="Berzerkers Pauldron (Alpha)",
+        internal_name="ITEM_WARCRYONCOMBAT",
+        wiki_url="https://riskofrain2.wiki.gg/wiki/Berzerkers_Pauldron_(Alpha)",
+    )
+    apply_item_language(
+        [wisp, lantern, whispers, antlers, alpha],
+        {
+            "ITEM_EXPLODEONDEATH_NAME": "鬼火",
+            "ITEM_EXPLODEONDEATH_DESC": "击杀时召唤熔岩柱。",
+            "ITEM_ATTACKSPEEDPERNEARBYALLYORENEMY_NAME": "强化提灯",
+            "ITEM_ITEMDROPCHANCEONKILL_NAME": "嘹亮低语",
+            "ITEM_SPEEDBOOSTPICKUP_NAME": "难以捉摸的鹿角",
+            "ITEM_WARCRYONMULTIKILL_NAME": "狂战士肩甲",
+        },
+    )
+    assert wisp.name_zh == "鬼火"
+    assert wisp.description_zh == "击杀时召唤熔岩柱。"
+    assert wisp.name == "Will-o'-the-wisp"
+    assert lantern.name_zh == "强化提灯"
+    assert whispers.name_zh == "嘹亮低语"
+    assert antlers.name_zh == "难以捉摸的鹿角"
+    assert alpha.name_zh == ""

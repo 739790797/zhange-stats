@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { IcpBeianLink } from "@/components/IcpBeianLink";
 import { focusWithoutVisibleRing } from "@/lib/focusRouteTarget";
@@ -9,8 +9,12 @@ import {
   ROR2_WIKI_ITEMS,
   ror2Crumbs,
   ror2PageTitle,
+  ror2ReplaceTerms,
+  ror2SurvivorNamePairs,
 } from "@/lib/ror2Home";
+import { useRor2Catalog } from "@/lib/useRor2Catalog";
 import { Ror2SurvivorMenu } from "./Ror2SurvivorMenu";
+import { Ror2TermScope } from "./Ror2TermScope";
 import styles from "./Ror2GuideShell.module.css";
 import "./ror2Fonts.css";
 
@@ -21,8 +25,13 @@ type Props = {
 export function Ror2GuideShell({ children }: Props) {
   const { pathname } = useLocation();
   const bodyRef = useRef<HTMLElement>(null);
-  const crumbs = ror2Crumbs(pathname);
-  useDocumentTitle(ror2PageTitle(pathname));
+  const catalog = useRor2Catalog();
+  const terms = useMemo(
+    () => ror2SurvivorNamePairs(catalog.data?.survivors ?? []),
+    [catalog.data?.survivors],
+  );
+  const crumbs = ror2Crumbs(pathname).map((crumb) => ({ ...crumb, label: ror2ReplaceTerms(crumb.label, terms) }));
+  useDocumentTitle(ror2ReplaceTerms(ror2PageTitle(pathname), terms));
 
   useLayoutEffect(() => {
     bodyRef.current?.scrollTo(0, 0);
@@ -30,6 +39,7 @@ export function Ror2GuideShell({ children }: Props) {
   }, [pathname]);
 
   return (
+    <Ror2TermScope terms={terms}>
     <div className={styles.shell}>
       <a className={styles.skipLink} href="#ror2-main">
         跳到正文
@@ -43,12 +53,16 @@ export function Ror2GuideShell({ children }: Props) {
           {crumbs.length > 0 ? (
             <nav className={styles.crumbNav} aria-label="面包屑">
               <ol className={styles.crumbs}>
-                {crumbs.map((crumb) => (
+                {crumbs.map((crumb, index) => (
                   <li key={crumb.label} className={styles.crumb}>
                     <span className={styles.sep} aria-hidden="true">
                       /
                     </span>
-                    <span aria-current="page">{crumb.label}</span>
+                    {crumb.href && index < crumbs.length - 1 ? (
+                      <Link to={crumb.href}>{crumb.label}</Link>
+                    ) : (
+                      <span aria-current="page">{crumb.label}</span>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -77,5 +91,6 @@ export function Ror2GuideShell({ children }: Props) {
         </footer>
       </main>
     </div>
+    </Ror2TermScope>
   );
 }

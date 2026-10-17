@@ -54,9 +54,11 @@ const RARITY_ACCENT: Record<string, string> = {
 
 export type Ror2Searchable = {
   name: string;
+  name_zh?: string;
   rarity?: string;
   quote?: string;
   description?: string;
+  description_zh?: string;
   umbra?: string;
   internal_name?: string;
 };
@@ -79,6 +81,17 @@ export function ror2ItemStackLabel(stats: { stack?: string }[] | undefined): str
   for (const stat of stats ?? []) {
     const stack = (stat.stack || "").trim();
     if (stack && !values.includes(stack)) values.push(stack);
+  }
+  return values.join(" / ");
+}
+
+/** 列表「堆叠」列。ProcCoeff 是触发系数，不进这一列。 */
+export function ror2ItemTableStack(stats: { stack?: string }[] | undefined): string {
+  const values: string[] = [];
+  for (const stat of stats ?? []) {
+    const stack = (stat.stack || "").trim();
+    if (!stack || stack === "ProcCoeff" || values.includes(stack)) continue;
+    values.push(stack);
   }
   return values.join(" / ");
 }

@@ -159,39 +159,6 @@ export async function testMinecraftRconConnection(
   return data;
 }
 
-export type SteamCmdLoginStatus = components["schemas"]["SteamCmdLoginStatus"];
-
-export async function fetchSteamCmdLogin() {
-  const { data } = await client.get<SteamCmdLoginStatus>(
-    "/settings/integrations/steamcmd/login",
-  );
-  return data;
-}
-
-export async function startSteamCmdLogin(payload: { username: string; password: string }) {
-  const { data } = await client.post<SteamCmdLoginStatus>(
-    "/settings/integrations/steamcmd/login",
-    payload,
-    { timeout: 120_000 },
-  );
-  return data;
-}
-
-export async function submitSteamCmdGuard(code: string) {
-  const { data } = await client.post<SteamCmdLoginStatus>(
-    "/settings/integrations/steamcmd/login/guard",
-    { code },
-  );
-  return data;
-}
-
-export async function cancelSteamCmdLogin() {
-  const { data } = await client.post<SteamCmdLoginStatus>(
-    "/settings/integrations/steamcmd/login/cancel",
-  );
-  return data;
-}
-
 export async function fetchAuthSettings(params?: { check_weak?: boolean }) {
   const { data } = await client.get<AuthSettings>("/settings/auth", {
     params: params?.check_weak ? { check_weak: true } : undefined,

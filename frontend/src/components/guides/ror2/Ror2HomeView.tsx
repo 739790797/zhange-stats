@@ -10,10 +10,12 @@ import {
   ROR2_UNRELEASED_PATH,
   filterRor2Items,
   ror2CatalogItems,
+  ror2DlcMark,
   ror2ItemsHref,
   ror2SectionHref,
 } from "@/lib/ror2Home";
 import { useRor2Catalog } from "@/lib/useRor2Catalog";
+import { Ror2ExpansionIcon } from "./Ror2ExpansionIcon";
 import { Ror2ItemIcon } from "./Ror2ItemIcon";
 import { Ror2RichText } from "./Ror2RichText";
 import styles from "./Ror2HomeView.module.css";
@@ -144,7 +146,9 @@ function SearchResults({
   if (!hits.length) return <p className={styles.empty}>没有匹配的物品</p>;
   return (
     <div className={styles.results}>
-      {hits.map((item) => (
+      {hits.map((item) => {
+        const dlc = ror2DlcMark(item.expansion);
+        return (
         <Link
           key={`${item.rarity}-${item.name}`}
           to={ror2ItemsHref(item.rarity, item.name)}
@@ -152,14 +156,18 @@ function SearchResults({
         >
           <Ror2ItemIcon src={item.image_url} accent={ror2RarityAccent(item.rarity)} />
           <span className={styles.resultBody}>
-            <span className={styles.resultName}>{item.name}</span>
+            <span className={styles.resultName}>
+              {dlc ? <Ror2ExpansionIcon src={dlc.iconUrl} label={dlc.label} /> : null}
+              {item.name}
+            </span>
             {item.rarity ? <span className={styles.resultMeta}>{item.rarity}</span> : null}
             {item.description ? (
               <Ror2RichText className={styles.excerpt} text={item.description} />
             ) : null}
           </span>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

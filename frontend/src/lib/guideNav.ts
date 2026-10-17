@@ -32,14 +32,15 @@ export const GUIDE_NAV: GuideNavNode[] = [
     icon: "tarkov",
     allowGuest: true,
   },
-  {
-    kind: "leaf",
-    path: "/guides/ror2",
-    label: "雨中冒险2",
-    featureId: "guides.ror2",
-    icon: "ror2",
-    allowGuest: true,
-  },
+  // 雨中冒险2页面先隐藏，译文路径打通后再开放。
+  // {
+  //   kind: "leaf",
+  //   path: "/guides/ror2",
+  //   label: "雨中冒险2",
+  //   featureId: "guides.ror2",
+  //   icon: "ror2",
+  //   allowGuest: true,
+  // },
   // Minecraft 页面已停用（总览 / 启动 / 管理 / 插件 / 模组）。
   // {
   //   kind: "leaf",

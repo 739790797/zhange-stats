@@ -1,5 +1,5 @@
 {
-  "_version": 4,
+  "_version": 5,
   "steam_api_key": "",
   "qq_app_id": "",
   "qq_app_key": "",
@@ -13,5 +13,8 @@
   "minecraft_rcon_password": "",
   "minecraft_public_host": "",
   "minecraft_public_port": "25565",
-  "steamcmd_username": ""
+  "weblate_url": "",
+  "weblate_project": "",
+  "weblate_component": "",
+  "weblate_token": ""
 }

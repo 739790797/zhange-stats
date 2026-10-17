@@ -714,58 +714,6 @@ export interface paths {
         patch: operations["update_member_profile_api_members__member_id__profile_patch"];
         trace?: never;
     };
-    "/api/settings/integrations/steamcmd/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Steamcmd Login */
-        get: operations["read_steamcmd_login_api_settings_integrations_steamcmd_login_get"];
-        put?: never;
-        /** Begin Steamcmd Login */
-        post: operations["begin_steamcmd_login_api_settings_integrations_steamcmd_login_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/integrations/steamcmd/login/guard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit Steamcmd Guard */
-        post: operations["submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/integrations/steamcmd/login/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Steamcmd Login */
-        post: operations["cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/settings/email": {
         parameters: {
             query?: never;
@@ -4311,9 +4259,29 @@ export interface paths {
         };
         /**
          * 雨中冒险2图鉴
-         * @description 道具、装备、幸存者、怪物、无人机、环境、成就、可交互物、神器。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。
+         * @description 只解析已审且原文未变的译文文件。没有译文的栏目是空的。原文仍由定时任务落入 guide_raws。
          */
         get: operations["ror2_catalog_api_guides_ror2_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/ror2/survivors/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 雨中冒险2幸存者
+         * @description 只解析该幸存者的译文文件。没有译文时段落是空的。
+         */
+        get: operations["ror2_survivor_api_guides_ror2_survivors__name__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7588,15 +7556,40 @@ export interface components {
              */
             minecraft_public_configured: boolean;
             /**
-             * Steamcmd Username
+             * Weblate Url
              * @default
              */
-            steamcmd_username: string;
+            weblate_url: string;
             /**
-             * Steamcmd Logged In
+             * Weblate Project
+             * @default
+             */
+            weblate_project: string;
+            /**
+             * Weblate Component
+             * @default
+             */
+            weblate_component: string;
+            /**
+             * Weblate Token
+             * @default
+             */
+            weblate_token: string;
+            /**
+             * Weblate Token Set
              * @default false
              */
-            steamcmd_logged_in: boolean;
+            weblate_token_set: boolean;
+            /**
+             * Weblate Token Hint
+             * @default
+             */
+            weblate_token_hint: string;
+            /**
+             * Weblate Configured
+             * @default false
+             */
+            weblate_configured: boolean;
         };
         /**
          * IntegrationsStatusOut
@@ -7674,8 +7667,19 @@ export interface components {
             minecraft_public_host?: string | null;
             /** Minecraft Public Port */
             minecraft_public_port?: number | null;
-            /** Steamcmd Username */
-            steamcmd_username?: string | null;
+            /** Weblate Url */
+            weblate_url?: string | null;
+            /** Weblate Project */
+            weblate_project?: string | null;
+            /** Weblate Component */
+            weblate_component?: string | null;
+            /** Weblate Token */
+            weblate_token?: string | null;
+            /**
+             * Clear Weblate Token
+             * @default false
+             */
+            clear_weblate_token: boolean;
         };
         /** JobConfigUpdateItem */
         JobConfigUpdateItem: {
@@ -10560,10 +10564,20 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
              * Description
              * @default
              */
             description: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
             /** Code */
             code?: string[];
             /**
@@ -10576,6 +10590,11 @@ export interface components {
              * @default
              */
             unlock: string;
+            /**
+             * Unlock Zh
+             * @default
+             */
+            unlock_zh: string;
             /** Wiki Url */
             wiki_url: string;
             /** Image Url */
@@ -10611,6 +10630,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
              * Kind
              * @default
              */
@@ -10620,6 +10644,11 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
             /** Unlock */
             unlock?: string[];
             /**
@@ -10650,10 +10679,30 @@ export interface components {
              */
             quote: string;
             /**
+             * Quote Zh
+             * @default
+             */
+            quote_zh: string;
+            /**
              * Description
              * @default
              */
             description: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
+            /**
+             * Internal Name
+             * @default
+             */
+            internal_name: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
             /**
              * Rarity
              * @default
@@ -10705,10 +10754,25 @@ export interface components {
              */
             subtitle: string;
             /**
+             * Subtitle Zh
+             * @default
+             */
+            subtitle_zh: string;
+            /**
              * Description
              * @default
              */
             description: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
             /**
              * Soundtrack
              * @default
@@ -10729,10 +10793,44 @@ export interface components {
             /** Image Url */
             image_url?: string | null;
         };
+        /** Ror2GalleryImageOut */
+        Ror2GalleryImageOut: {
+            /** Image Url */
+            image_url: string;
+            /** Spin Url */
+            spin_url?: string | null;
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /**
+             * Caption Zh
+             * @default
+             */
+            caption_zh: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+        };
+        /** Ror2HistoryOut */
+        Ror2HistoryOut: {
+            /** Version */
+            version: string;
+            /** Items */
+            items?: components["schemas"]["Ror2WikiItemOut"][];
+        };
         /** Ror2InteractableOut */
         Ror2InteractableOut: {
             /** Name */
             name: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
             /**
              * Category
              * @default
@@ -10743,6 +10841,11 @@ export interface components {
              * @default
              */
             effect: string;
+            /**
+             * Effect Zh
+             * @default
+             */
+            effect_zh: string;
             /**
              * Expansion
              * @default
@@ -10826,6 +10929,16 @@ export interface components {
              * @default
              */
             cooldown: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
             /** Wiki Url */
             wiki_url: string;
             /** Image Url */
@@ -10857,6 +10970,21 @@ export interface components {
              * @default
              */
             boss_name: string;
+            /**
+             * Boss Name Zh
+             * @default
+             */
+            boss_name_zh: string;
+            /**
+             * Internal Name
+             * @default
+             */
+            internal_name: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
             /** Categories */
             categories?: string[];
             /**
@@ -10895,6 +11023,62 @@ export interface components {
             /** Image Url */
             image_url?: string | null;
         };
+        /** Ror2SkillGroupOut */
+        Ror2SkillGroupOut: {
+            /** Skill Type */
+            skill_type: string;
+            /** Skills */
+            skills?: components["schemas"]["Ror2SkillOut"][];
+        };
+        /** Ror2SkillOut */
+        Ror2SkillOut: {
+            /** Name */
+            name: string;
+            /**
+             * Skill Type
+             * @default
+             */
+            skill_type: string;
+            /**
+             * Cooldown
+             * @default
+             */
+            cooldown: string;
+            /**
+             * Proc
+             * @default
+             */
+            proc: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
+            /** Notes */
+            notes?: components["schemas"]["Ror2WikiItemOut"][];
+            /**
+             * Unlock
+             * @default
+             */
+            unlock: string;
+            /**
+             * Unlock Zh
+             * @default
+             */
+            unlock_zh: string;
+            /** Image Url */
+            image_url?: string | null;
+        };
         /** Ror2StatOut */
         Ror2StatOut: {
             /** Label */
@@ -10914,6 +11098,107 @@ export interface components {
              * @default
              */
             add: string;
+        };
+        /** Ror2SurvivorDetailOut */
+        Ror2SurvivorDetailOut: {
+            /** Name */
+            name: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Summary Zh
+             * @default
+             */
+            summary_zh: string;
+            /**
+             * Umbra
+             * @default
+             */
+            umbra: string;
+            /**
+             * Umbra Zh
+             * @default
+             */
+            umbra_zh: string;
+            /**
+             * Phrase Escape
+             * @default
+             */
+            phrase_escape: string;
+            /**
+             * Phrase Escape Zh
+             * @default
+             */
+            phrase_escape_zh: string;
+            /**
+             * Phrase Vanish
+             * @default
+             */
+            phrase_vanish: string;
+            /**
+             * Phrase Vanish Zh
+             * @default
+             */
+            phrase_vanish_zh: string;
+            /**
+             * Expansion
+             * @default
+             */
+            expansion: string;
+            /** Health */
+            health?: number | null;
+            /** Health Per Level */
+            health_per_level?: number | null;
+            /** Regen */
+            regen?: number | null;
+            /** Regen Per Level */
+            regen_per_level?: number | null;
+            /** Damage */
+            damage?: number | null;
+            /** Damage Per Level */
+            damage_per_level?: number | null;
+            /** Speed */
+            speed?: number | null;
+            /** Acceleration */
+            acceleration?: number | null;
+            /** Mass */
+            mass?: number | null;
+            /** Armor */
+            armor?: number | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Wiki Url */
+            wiki_url: string;
+            /**
+             * Lore
+             * @default
+             */
+            lore: string;
+            /**
+             * Lore Zh
+             * @default
+             */
+            lore_zh: string;
+            /** Skills */
+            skills?: components["schemas"]["Ror2SkillGroupOut"][];
+            /** Behaviors */
+            behaviors?: components["schemas"]["Ror2WikiBlockOut"][];
+            /** Tips */
+            tips?: components["schemas"]["Ror2WikiBlockOut"][];
+            /** Trivia */
+            trivia?: components["schemas"]["Ror2WikiBlockOut"][];
+            /** Gallery */
+            gallery?: components["schemas"]["Ror2GalleryImageOut"][];
+            /** History */
+            history?: components["schemas"]["Ror2HistoryOut"][];
         };
         /** Ror2SurvivorOut */
         Ror2SurvivorOut: {
@@ -10949,6 +11234,36 @@ export interface components {
              * @default
              */
             phrase_vanish: string;
+            /**
+             * Name Zh
+             * @default
+             */
+            name_zh: string;
+            /**
+             * Description Zh
+             * @default
+             */
+            description_zh: string;
+            /**
+             * Umbra Zh
+             * @default
+             */
+            umbra_zh: string;
+            /**
+             * Unlock Zh
+             * @default
+             */
+            unlock_zh: string;
+            /**
+             * Phrase Escape Zh
+             * @default
+             */
+            phrase_escape_zh: string;
+            /**
+             * Phrase Vanish Zh
+             * @default
+             */
+            phrase_vanish_zh: string;
             /** Health */
             health?: number | null;
             /** Health Per Level */
@@ -10963,12 +11278,50 @@ export interface components {
             regen_per_level?: number | null;
             /** Speed */
             speed?: number | null;
+            /** Acceleration */
+            acceleration?: number | null;
+            /** Mass */
+            mass?: number | null;
             /** Armor */
             armor?: number | null;
             /** Wiki Url */
             wiki_url: string;
             /** Image Url */
             image_url?: string | null;
+        };
+        /** Ror2WikiBlockOut */
+        Ror2WikiBlockOut: {
+            /** Kind */
+            kind: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Text Zh
+             * @default
+             */
+            text_zh: string;
+            /** Items */
+            items?: components["schemas"]["Ror2WikiItemOut"][];
+            /** Images */
+            images?: components["schemas"]["Ror2GalleryImageOut"][];
+        };
+        /** Ror2WikiItemOut */
+        Ror2WikiItemOut: {
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Text Zh
+             * @default
+             */
+            text_zh: string;
+            /** Children */
+            children?: components["schemas"]["Ror2WikiItemOut"][];
         };
         /** RumBizSummaryOut */
         RumBizSummaryOut: {
@@ -11738,31 +12091,6 @@ export interface components {
             /** Members */
             members?: components["schemas"]["SteamCalendarMemberSeries"][];
             visibility?: components["schemas"]["SteamVisibilityMeta"] | null;
-        };
-        /** SteamCmdLoginGuard */
-        SteamCmdLoginGuard: {
-            /** Code */
-            code: string;
-        };
-        /** SteamCmdLoginStart */
-        SteamCmdLoginStart: {
-            /** Username */
-            username: string;
-            /** Password */
-            password: string;
-        };
-        /** SteamCmdLoginStatus */
-        SteamCmdLoginStatus: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "idle" | "starting" | "need_guard" | "need_mobile" | "ok" | "error";
-            /**
-             * Message
-             * @default
-             */
-            message: string;
         };
         /** SteamDayMemberSummary */
         SteamDayMemberSummary: {
@@ -19030,112 +19358,6 @@ export interface operations {
             };
         };
     };
-    read_steamcmd_login_api_settings_integrations_steamcmd_login_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
-                };
-            };
-        };
-    };
-    begin_steamcmd_login_api_settings_integrations_steamcmd_login_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SteamCmdLoginStart"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SteamCmdLoginGuard"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SteamCmdLoginStatus"];
-                };
-            };
-        };
-    };
     get_email_settings_api_settings_email_get: {
         parameters: {
             query?: never;
@@ -26357,6 +26579,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Ror2CatalogOut"];
+                };
+            };
+        };
+    };
+    ror2_survivor_api_guides_ror2_survivors__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ror2SurvivorDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

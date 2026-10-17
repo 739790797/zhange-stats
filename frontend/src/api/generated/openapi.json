@@ -1969,152 +1969,6 @@
         }
       }
     },
-    "/api/settings/integrations/steamcmd/login": {
-      "get": {
-        "tags": [
-          "settings",
-          "settings"
-        ],
-        "summary": "Read Steamcmd Login",
-        "operationId": "read_steamcmd_login_api_settings_integrations_steamcmd_login_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "settings",
-          "settings"
-        ],
-        "summary": "Begin Steamcmd Login",
-        "operationId": "begin_steamcmd_login_api_settings_integrations_steamcmd_login_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SteamCmdLoginStart"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/settings/integrations/steamcmd/login/guard": {
-      "post": {
-        "tags": [
-          "settings",
-          "settings"
-        ],
-        "summary": "Submit Steamcmd Guard",
-        "operationId": "submit_steamcmd_guard_api_settings_integrations_steamcmd_login_guard_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SteamCmdLoginGuard"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/settings/integrations/steamcmd/login/cancel": {
-      "post": {
-        "tags": [
-          "settings",
-          "settings"
-        ],
-        "summary": "Cancel Steamcmd Login",
-        "operationId": "cancel_steamcmd_login_api_settings_integrations_steamcmd_login_cancel_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SteamCmdLoginStatus"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/settings/email": {
       "get": {
         "tags": [
@@ -14500,7 +14354,7 @@
           "guides"
         ],
         "summary": "雨中冒险2图鉴",
-        "description": "道具、装备、幸存者、怪物、无人机、环境、成就、可交互物、神器。Wiki 模块先落入 guide_raws，再解析展示。库空时冷启动回源。",
+        "description": "只解析已审且原文未变的译文文件。没有译文的栏目是空的。原文仍由定时任务落入 guide_raws。",
         "operationId": "ror2_catalog_api_guides_ror2_catalog_get",
         "responses": {
           "200": {
@@ -14509,6 +14363,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Ror2CatalogOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/ror2/survivors/{name}": {
+      "get": {
+        "tags": [
+          "guides",
+          "guides"
+        ],
+        "summary": "雨中冒险2幸存者",
+        "description": "只解析该幸存者的译文文件。没有译文时段落是空的。",
+        "operationId": "ror2_survivor_api_guides_ror2_survivors__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ror2SurvivorDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -22552,14 +22450,39 @@
             "title": "Minecraft Public Configured",
             "default": false
           },
-          "steamcmd_username": {
+          "weblate_url": {
             "type": "string",
-            "title": "Steamcmd Username",
+            "title": "Weblate Url",
             "default": ""
           },
-          "steamcmd_logged_in": {
+          "weblate_project": {
+            "type": "string",
+            "title": "Weblate Project",
+            "default": ""
+          },
+          "weblate_component": {
+            "type": "string",
+            "title": "Weblate Component",
+            "default": ""
+          },
+          "weblate_token": {
+            "type": "string",
+            "title": "Weblate Token",
+            "default": ""
+          },
+          "weblate_token_set": {
             "type": "boolean",
-            "title": "Steamcmd Logged In",
+            "title": "Weblate Token Set",
+            "default": false
+          },
+          "weblate_token_hint": {
+            "type": "string",
+            "title": "Weblate Token Hint",
+            "default": ""
+          },
+          "weblate_configured": {
+            "type": "boolean",
+            "title": "Weblate Configured",
             "default": false
           }
         },
@@ -22777,7 +22700,7 @@
             ],
             "title": "Minecraft Public Port"
           },
-          "steamcmd_username": {
+          "weblate_url": {
             "anyOf": [
               {
                 "type": "string"
@@ -22786,7 +22709,45 @@
                 "type": "null"
               }
             ],
-            "title": "Steamcmd Username"
+            "title": "Weblate Url"
+          },
+          "weblate_project": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weblate Project"
+          },
+          "weblate_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weblate Component"
+          },
+          "weblate_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weblate Token"
+          },
+          "clear_weblate_token": {
+            "type": "boolean",
+            "title": "Clear Weblate Token",
+            "default": false
           }
         },
         "type": "object",
@@ -28483,9 +28444,19 @@
             "type": "string",
             "title": "Name"
           },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
           "description": {
             "type": "string",
             "title": "Description",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
             "default": ""
           },
           "code": {
@@ -28503,6 +28474,11 @@
           "unlock": {
             "type": "string",
             "title": "Unlock",
+            "default": ""
+          },
+          "unlock_zh": {
+            "type": "string",
+            "title": "Unlock Zh",
             "default": ""
           },
           "wiki_url": {
@@ -28618,6 +28594,11 @@
             "type": "string",
             "title": "Name"
           },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
           "kind": {
             "type": "string",
             "title": "Kind",
@@ -28626,6 +28607,11 @@
           "description": {
             "type": "string",
             "title": "Description",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
             "default": ""
           },
           "unlock": {
@@ -28673,9 +28659,29 @@
             "title": "Quote",
             "default": ""
           },
+          "quote_zh": {
+            "type": "string",
+            "title": "Quote Zh",
+            "default": ""
+          },
           "description": {
             "type": "string",
             "title": "Description",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
+            "default": ""
+          },
+          "internal_name": {
+            "type": "string",
+            "title": "Internal Name",
+            "default": ""
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
             "default": ""
           },
           "rarity": {
@@ -28820,9 +28826,24 @@
             "title": "Subtitle",
             "default": ""
           },
+          "subtitle_zh": {
+            "type": "string",
+            "title": "Subtitle Zh",
+            "default": ""
+          },
           "description": {
             "type": "string",
             "title": "Description",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
+            "default": ""
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
             "default": ""
           },
           "soundtrack": {
@@ -28863,11 +28884,75 @@
         ],
         "title": "Ror2EnvironmentOut"
       },
+      "Ror2GalleryImageOut": {
+        "properties": {
+          "image_url": {
+            "type": "string",
+            "title": "Image Url"
+          },
+          "spin_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spin Url"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption",
+            "default": ""
+          },
+          "caption_zh": {
+            "type": "string",
+            "title": "Caption Zh",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "image_url"
+        ],
+        "title": "Ror2GalleryImageOut"
+      },
+      "Ror2HistoryOut": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "Ror2HistoryOut"
+      },
       "Ror2InteractableOut": {
         "properties": {
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
           },
           "category": {
             "type": "string",
@@ -28877,6 +28962,11 @@
           "effect": {
             "type": "string",
             "title": "Effect",
+            "default": ""
+          },
+          "effect_zh": {
+            "type": "string",
+            "title": "Effect Zh",
             "default": ""
           },
           "expansion": {
@@ -28992,6 +29082,16 @@
             "title": "Cooldown",
             "default": ""
           },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
+            "default": ""
+          },
           "wiki_url": {
             "type": "string",
             "title": "Wiki Url"
@@ -29046,6 +29146,21 @@
           "boss_name": {
             "type": "string",
             "title": "Boss Name",
+            "default": ""
+          },
+          "boss_name_zh": {
+            "type": "string",
+            "title": "Boss Name Zh",
+            "default": ""
+          },
+          "internal_name": {
+            "type": "string",
+            "title": "Internal Name",
+            "default": ""
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
             "default": ""
           },
           "categories": {
@@ -29181,6 +29296,97 @@
         ],
         "title": "Ror2MonsterOut"
       },
+      "Ror2SkillGroupOut": {
+        "properties": {
+          "skill_type": {
+            "type": "string",
+            "title": "Skill Type"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2SkillOut"
+            },
+            "type": "array",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill_type"
+        ],
+        "title": "Ror2SkillGroupOut"
+      },
+      "Ror2SkillOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "skill_type": {
+            "type": "string",
+            "title": "Skill Type",
+            "default": ""
+          },
+          "cooldown": {
+            "type": "string",
+            "title": "Cooldown",
+            "default": ""
+          },
+          "proc": {
+            "type": "string",
+            "title": "Proc",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiItemOut"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "unlock": {
+            "type": "string",
+            "title": "Unlock",
+            "default": ""
+          },
+          "unlock_zh": {
+            "type": "string",
+            "title": "Unlock Zh",
+            "default": ""
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Ror2SkillOut"
+      },
       "Ror2StatOut": {
         "properties": {
           "label": {
@@ -29208,6 +29414,247 @@
           "label"
         ],
         "title": "Ror2StatOut"
+      },
+      "Ror2SurvivorDetailOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "summary_zh": {
+            "type": "string",
+            "title": "Summary Zh",
+            "default": ""
+          },
+          "umbra": {
+            "type": "string",
+            "title": "Umbra",
+            "default": ""
+          },
+          "umbra_zh": {
+            "type": "string",
+            "title": "Umbra Zh",
+            "default": ""
+          },
+          "phrase_escape": {
+            "type": "string",
+            "title": "Phrase Escape",
+            "default": ""
+          },
+          "phrase_escape_zh": {
+            "type": "string",
+            "title": "Phrase Escape Zh",
+            "default": ""
+          },
+          "phrase_vanish": {
+            "type": "string",
+            "title": "Phrase Vanish",
+            "default": ""
+          },
+          "phrase_vanish_zh": {
+            "type": "string",
+            "title": "Phrase Vanish Zh",
+            "default": ""
+          },
+          "expansion": {
+            "type": "string",
+            "title": "Expansion",
+            "default": ""
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health"
+          },
+          "health_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Per Level"
+          },
+          "regen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen"
+          },
+          "regen_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regen Per Level"
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage"
+          },
+          "damage_per_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Per Level"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "acceleration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceleration"
+          },
+          "mass": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mass"
+          },
+          "armor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Armor"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "wiki_url": {
+            "type": "string",
+            "title": "Wiki Url"
+          },
+          "lore": {
+            "type": "string",
+            "title": "Lore",
+            "default": ""
+          },
+          "lore_zh": {
+            "type": "string",
+            "title": "Lore Zh",
+            "default": ""
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2SkillGroupOut"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "behaviors": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiBlockOut"
+            },
+            "type": "array",
+            "title": "Behaviors"
+          },
+          "tips": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiBlockOut"
+            },
+            "type": "array",
+            "title": "Tips"
+          },
+          "trivia": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiBlockOut"
+            },
+            "type": "array",
+            "title": "Trivia"
+          },
+          "gallery": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2GalleryImageOut"
+            },
+            "type": "array",
+            "title": "Gallery"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2HistoryOut"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "wiki_url"
+        ],
+        "title": "Ror2SurvivorDetailOut"
       },
       "Ror2SurvivorOut": {
         "properties": {
@@ -29243,6 +29690,36 @@
           "phrase_vanish": {
             "type": "string",
             "title": "Phrase Vanish",
+            "default": ""
+          },
+          "name_zh": {
+            "type": "string",
+            "title": "Name Zh",
+            "default": ""
+          },
+          "description_zh": {
+            "type": "string",
+            "title": "Description Zh",
+            "default": ""
+          },
+          "umbra_zh": {
+            "type": "string",
+            "title": "Umbra Zh",
+            "default": ""
+          },
+          "unlock_zh": {
+            "type": "string",
+            "title": "Unlock Zh",
+            "default": ""
+          },
+          "phrase_escape_zh": {
+            "type": "string",
+            "title": "Phrase Escape Zh",
+            "default": ""
+          },
+          "phrase_vanish_zh": {
+            "type": "string",
+            "title": "Phrase Vanish Zh",
             "default": ""
           },
           "health": {
@@ -29322,6 +29799,28 @@
             ],
             "title": "Speed"
           },
+          "acceleration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceleration"
+          },
+          "mass": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mass"
+          },
           "armor": {
             "anyOf": [
               {
@@ -29355,6 +29854,66 @@
           "wiki_url"
         ],
         "title": "Ror2SurvivorOut"
+      },
+      "Ror2WikiBlockOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "text_zh": {
+            "type": "string",
+            "title": "Text Zh",
+            "default": ""
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2GalleryImageOut"
+            },
+            "type": "array",
+            "title": "Images"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "Ror2WikiBlockOut"
+      },
+      "Ror2WikiItemOut": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "text_zh": {
+            "type": "string",
+            "title": "Text Zh",
+            "default": ""
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Ror2WikiItemOut"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "title": "Ror2WikiItemOut"
       },
       "RumBizSummaryOut": {
         "properties": {
@@ -31311,69 +31870,6 @@
           "total_seconds"
         ],
         "title": "SteamCalendarResponse"
-      },
-      "SteamCmdLoginGuard": {
-        "properties": {
-          "code": {
-            "type": "string",
-            "maxLength": 16,
-            "minLength": 1,
-            "title": "Code"
-          }
-        },
-        "type": "object",
-        "required": [
-          "code"
-        ],
-        "title": "SteamCmdLoginGuard"
-      },
-      "SteamCmdLoginStart": {
-        "properties": {
-          "username": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Username"
-          },
-          "password": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Password"
-          }
-        },
-        "type": "object",
-        "required": [
-          "username",
-          "password"
-        ],
-        "title": "SteamCmdLoginStart"
-      },
-      "SteamCmdLoginStatus": {
-        "properties": {
-          "state": {
-            "type": "string",
-            "enum": [
-              "idle",
-              "starting",
-              "need_guard",
-              "need_mobile",
-              "ok",
-              "error"
-            ],
-            "title": "State"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "state"
-        ],
-        "title": "SteamCmdLoginStatus"
       },
       "SteamDayMemberSummary": {
         "properties": {

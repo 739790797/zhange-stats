@@ -1,0 +1,250 @@
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 24px 48px;
+}
+
+.section {
+  margin: 28px 0 0;
+}
+
+.section h2,
+.portraitName {
+  margin: 0;
+  color: #fff;
+  font-family: var(--ror2-display);
+  font-weight: 400;
+  text-shadow: var(--ror2-shadow);
+}
+
+.section h2 {
+  margin-bottom: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(180, 196, 210, 0.35);
+  font-size: 26px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.portrait {
+  padding: 14px 14px 18px;
+  background: #2a2e33;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 3px #b7dcf6,
+    0 0 18px rgba(140, 196, 240, 0.4);
+}
+
+.portraitName {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.portraitImg,
+.portraitFallback {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
+}
+
+.portraitFallback {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.stats dt {
+  margin: 0;
+  color: #f2f2f2;
+  font-weight: 700;
+}
+
+.stats dd {
+  margin: 0;
+}
+
+.tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tierIcon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.ending {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary {
+  margin: 16px 0 0;
+  line-height: 1.55;
+}
+
+.lore {
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  background: rgba(5, 10, 11, 0.55);
+  border: 1px solid rgba(180, 196, 210, 0.35);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.group {
+  margin: 0 0 18px;
+}
+
+.group h3 {
+  margin: 0 0 8px;
+  color: var(--ror2-gold);
+  font-family: var(--ror2-display);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.skill {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.skillIcon,
+.skillFallback {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.skillFallback {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.skillName {
+  margin: 0;
+  color: var(--ror2-link);
+  font-family: var(--ror2-display);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 4px 0 0;
+  color: var(--ror2-muted);
+  font-size: 13px;
+}
+
+.skillDesc,
+.notes {
+  margin: 8px 0 0;
+}
+
+.notes,
+.list {
+  padding-left: 1.2em;
+}
+
+.notes li,
+.list li {
+  margin: 4px 0;
+}
+
+.list {
+  margin: 0;
+}
+
+.prose p {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+
+.history {
+  margin: 0 0 16px;
+}
+
+.history h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot img,
+.spin {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.shot figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.status {
+  padding: 28px 8px;
+  color: var(--ror2-muted);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .hero,
+  .stats,
+  .skill {
+    grid-template-columns: 1fr;
+  }
+
+  .portraitImg,
+  .portraitFallback {
+    height: 180px;
+  }
+}

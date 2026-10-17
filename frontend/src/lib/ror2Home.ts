@@ -1,9 +1,12 @@
 import {
   filterRor2Entries,
+  ror2ItemTableStack,
   ror2Number,
   ror2RarityKey,
   type Ror2Searchable,
 } from "@/lib/ror2Catalog";
+import { ror2RichTextPlain } from "@/lib/ror2RichText";
+import { PLATFORM_ICON_SRC } from "@/lib/platformIcons";
 
 export const ROR2_HOME_PATH = "/guides/ror2";
 export const ROR2_ITEMS_PATH = "/guides/ror2/items";
@@ -63,14 +66,20 @@ export type Ror2SideLink = {
   label: string;
 };
 
-/** Steam 简体商店名。空 expansion 归到本体。 */
-const ROR2_EXPANSIONS: { id: string; label: string }[] = [
-  { id: "", label: "本体" },
-  { id: "SotV", label: "虚空幸存者" },
-  { id: "SotS", label: "风暴探寻者" },
-  { id: "AC", label: "合金意念" },
-  { id: "HC", label: "万象归衡" },
-];
+/**
+ * Expansion 代号 → Wiki 资料片页标题。
+ * 模块原文只有代号。中文还没接入，这里不写汉化名。
+ * 顺序是发售顺序，只用来把新代号排在已知代号后面。
+ */
+const ROR2_WIKI_EXPANSIONS: Record<string, string> = {
+  SotV: "Survivors of the Void",
+  SotS: "Seekers of the Storm",
+  AC: "Alloyed Collective",
+  HC: "Hallowed Concepts",
+};
+
+/** Wiki 用这两个值标未完成或内部条目，不是资料片。 */
+const ROR2_NOT_DLCS = new Set(["Junk", "RoR2.Junk"]);
 
 /** 和 Wiki 幸存者模块的出场顺序一致。不在表里的名字排在同组末尾。 */
 const ROR2_SURVIVOR_ORDER = [
@@ -100,11 +109,13 @@ const ROR2_SURVIVOR_ORDER = [
 export type Ror2SurvivorSection<T> = {
   id: string;
   label: string;
+  title: string;
   survivors: T[];
 };
 
 export function ror2SurvivorSections<T extends { name: string; expansion?: string }>(
   survivors: readonly T[],
+  scope?: readonly { expansion?: string }[],
 ): Ror2SurvivorSection<T>[] {
   const buckets = new Map<string, T[]>();
   for (const survivor of survivors) {
@@ -113,18 +124,10 @@ export function ror2SurvivorSections<T extends { name: string; expansion?: strin
     if (rows) rows.push(survivor);
     else buckets.set(id, [survivor]);
   }
-  const known = new Set(ROR2_EXPANSIONS.map((item) => item.id));
-  const labels = new Map(ROR2_EXPANSIONS.map((item) => [item.id, item.label]));
+  const names = ror2ExpansionNames([...(scope ?? []), ...survivors]);
   const rank = new Map(ROR2_SURVIVOR_ORDER.map((name, index) => [name, index]));
-  const order = [
-    ...ROR2_EXPANSIONS.map((item) => item.id),
-    ...[...buckets.keys()].filter((id) => !known.has(id)),
-  ];
-  const sections: Ror2SurvivorSection<T>[] = [];
-  for (const id of order) {
-    const rows = buckets.get(id);
-    if (!rows?.length) continue;
-    const sorted = [...rows].sort((a, b) => {
+  const sortRows = (rows: T[]) =>
+    [...rows].sort((a, b) => {
       const left = rank.get(a.name);
       const right = rank.get(b.name);
       if (left == null && right == null) return 0;
@@ -132,11 +135,19 @@ export function ror2SurvivorSections<T extends { name: string; expansion?: strin
       if (right == null) return -1;
       return left - right;
     });
-    sections.push({
-      id: id || "base",
-      label: labels.get(id) ?? id,
-      survivors: sorted,
-    });
+  const sections: Ror2SurvivorSection<T>[] = [];
+  const used = new Set<string>();
+  for (const [id, meta] of names) {
+    const key = id === "base" ? "" : id;
+    const rows = buckets.get(key);
+    if (!rows?.length) continue;
+    used.add(key);
+    sections.push({ id, label: meta.label, title: meta.title, survivors: sortRows(rows) });
+  }
+  for (const [key, rows] of buckets) {
+    if (used.has(key) || !rows.length) continue;
+    const label = ror2SurvivorExpansionLabel(key);
+    sections.push({ id: key || "base", label, title: label, survivors: sortRows(rows) });
   }
   return sections;
 }
@@ -226,13 +237,114 @@ export function ror2SurvivorExpansionId(expansion?: string): string {
 
 export function ror2SurvivorExpansionLabel(expansion?: string): string {
   const id = ror2SurvivorExpansionKey(expansion);
-  return ROR2_EXPANSIONS.find((item) => item.id === id)?.label ?? (id || "本体");
+  return ROR2_WIKI_EXPANSIONS[id] ?? (id || "本体");
+}
+
+export type Ror2ExpansionName = {
+  id: string;
+  label: string;
+  title: string;
+  iconUrl: string | null;
+};
+
+/** 图鉴里带资料片字段的条目。序号按整份图鉴排，避免某一页把后面的 DLC 重新编成 1。 */
+export function ror2CatalogExpansionRows(catalog: {
+  items?: readonly { expansion?: string }[];
+  equipment?: readonly { expansion?: string }[];
+  survivors?: readonly { expansion?: string }[];
+  monsters?: readonly { expansion?: string }[];
+  environments?: readonly { expansion?: string }[];
+  challenges?: readonly { expansion?: string }[];
+  interactables?: readonly { expansion?: string }[];
+  artifacts?: readonly { expansion?: string }[];
+}): { expansion?: string }[] {
+  return [
+    ...(catalog.survivors ?? []),
+    ...(catalog.items ?? []),
+    ...(catalog.equipment ?? []),
+    ...(catalog.monsters ?? []),
+    ...(catalog.environments ?? []),
+    ...(catalog.challenges ?? []),
+    ...(catalog.interactables ?? []),
+    ...(catalog.artifacts ?? []),
+  ];
+}
+
+/** 本体在前。已知道的代号按发售顺序，图鉴里多出来的代号接在后面。 */
+export function ror2ExpansionOrder(rows: readonly { expansion?: string }[]): string[] {
+  const present = new Set(
+    rows
+      .map((row) => ror2SurvivorExpansionId(row.expansion))
+      .filter((id) => id === "base" || !ROR2_NOT_DLCS.has(id)),
+  );
+  const knownIds = new Set(Object.keys(ROR2_WIKI_EXPANSIONS));
+  const known = Object.keys(ROR2_WIKI_EXPANSIONS).filter((id) => present.has(id));
+  const rest = [...present].filter((id) => id !== "base" && !knownIds.has(id)).sort();
+  const dlcs = [...known, ...rest];
+  return present.has("base") ? ["base", ...dlcs] : dlcs;
+}
+
+export function ror2ExpansionIconUrl(id: string): string | null {
+  if (!id || ROR2_NOT_DLCS.has(id)) return null;
+  if (id === "base") return PLATFORM_ICON_SRC.ror2;
+  const file = `${id} Icon.png`.replace(/ /g, "_");
+  return `https://riskofrain2.wiki.gg/images/${encodeURI(file)}`;
+}
+
+/** Wiki 列表只在资料片内容的名字前放图标。本体和内部条目不放。 */
+export function ror2DlcMark(expansion?: string): { id: string; label: string; iconUrl: string } | null {
+  const id = ror2SurvivorExpansionId(expansion);
+  if (!expansion?.trim() || id === "base" || ROR2_NOT_DLCS.has(id)) return null;
+  const iconUrl = ror2ExpansionIconUrl(id);
+  if (!iconUrl) return null;
+  return { id, label: ROR2_WIKI_EXPANSIONS[id] ?? id, iconUrl };
+}
+
+export function ror2ExpansionNames(
+  rows: readonly { expansion?: string }[],
+): Map<string, Ror2ExpansionName> {
+  const names = new Map<string, Ror2ExpansionName>();
+  for (const id of ror2ExpansionOrder(rows)) {
+    if (id === "base") {
+      names.set(id, { id, label: "本体", title: "本体", iconUrl: ror2ExpansionIconUrl(id) });
+      continue;
+    }
+    const title = ROR2_WIKI_EXPANSIONS[id] ?? id;
+    names.set(id, { id, label: title, title, iconUrl: ror2ExpansionIconUrl(id) });
+  }
+  return names;
+}
+
+export type Ror2SurvivorPack = Ror2ExpansionName & {
+  count: number;
+};
+
+/** 只列出这份内容里真正有的档。scope 用来排已经知道的资料片，避免某一页把后面的代号排到前面。 */
+export function ror2SurvivorPacks<T extends { expansion?: string }>(
+  rows: readonly T[],
+  scope?: readonly { expansion?: string }[],
+): Ror2SurvivorPack[] {
+  const names = ror2ExpansionNames([...(scope ?? []), ...rows]);
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const id = ror2SurvivorExpansionId(row.expansion);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  const packs: Ror2SurvivorPack[] = [];
+  for (const [id, meta] of names) {
+    const count = counts.get(id) ?? 0;
+    if (count <= 0) continue;
+    packs.push({ ...meta, count });
+  }
+  return packs;
 }
 
 export function ror2PageTitle(pathname: string): string {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === ROR2_ITEMS_PATH) return "雨中冒险2 · 物品";
   if (path === ROR2_SURVIVORS_PATH) return "雨中冒险2 · 幸存者";
+  const survivor = ror2SurvivorSlug(path);
+  if (survivor) return `雨中冒险2 · ${survivor}`;
   const section = ror2SectionByPath(path);
   if (section) return `雨中冒险2 · ${section.label}`;
   return "雨中冒险2";
@@ -240,13 +352,16 @@ export function ror2PageTitle(pathname: string): string {
 
 export type Ror2Crumb = {
   label: string;
+  href?: string;
 };
 
 /** 顶栏路径。首页由左上标志代替，不进面包屑。 */
 export function ror2Crumbs(pathname: string): Ror2Crumb[] {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === ROR2_ITEMS_PATH) return [{ label: "物品" }];
-  if (path === ROR2_SURVIVORS_PATH) return [{ label: "幸存者" }];
+  if (path === ROR2_SURVIVORS_PATH) return [{ label: "幸存者列表" }];
+  const survivor = ror2SurvivorSlug(path);
+  if (survivor) return [{ label: "幸存者列表", href: ROR2_SURVIVORS_PATH }, { label: survivor }];
   const section = ror2SectionByPath(path);
   if (section) return [{ label: section.label }];
   return [];
@@ -265,6 +380,67 @@ export function ror2SectionById(id: string) {
     ROR2_SECTIONS.find((section) => section.id === id) ??
     ROR2_EXTRA_PAGES.find((section) => section.id === id)
   );
+}
+
+export type Ror2Term = { from: string; to: string };
+
+/** 展示用的幸存者中文名。长名字排在前面，避免短名截断长名。 */
+export function ror2SurvivorNamePairs(rows: readonly { name: string; name_zh?: string }[]): Ror2Term[] {
+  return rows
+    .filter((row): row is { name: string; name_zh: string } => Boolean(row.name && row.name_zh && row.name_zh !== row.name))
+    .map((row) => ({ from: row.name, to: row.name_zh }))
+    .sort((a, b) => b.from.length - a.from.length || a.from.localeCompare(b.from));
+}
+
+export function ror2ReplaceTerms(text: string, terms: readonly Ror2Term[]): string {
+  if (!text || terms.length === 0) return text;
+  let out = text;
+  for (const term of terms) {
+    const pattern = new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(term.from)}(?![A-Za-z0-9])`, "g");
+    out = out.replace(pattern, term.to);
+  }
+  return out;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function ror2SurvivorHref(name: string): string {
+  return `${ROR2_SURVIVORS_PATH}/${encodeURIComponent(name)}`;
+}
+
+export function ror2SurvivorSlug(pathname: string): string | null {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  const prefix = `${ROR2_SURVIVORS_PATH}/`;
+  if (!path.startsWith(prefix)) return null;
+  const slug = path.slice(prefix.length);
+  if (!slug || slug.includes("/")) return null;
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
+}
+
+/** Wiki 信息框：细雨 1.5 倍回复，暴雨原值，季风 0.6 倍。缺省加速度按模块写成 80，0 仍是 0。 */
+export function ror2TierValue(value: number | null | undefined, factor: number): number | null {
+  if (value == null) return null;
+  return Math.round(value * factor * 10000) / 10000;
+}
+
+export function ror2InfoboxAcceleration(value: number | null | undefined): number {
+  return value == null ? 80 : value;
+}
+
+export function ror2DrizzleArmor(armor: number | null | undefined): number {
+  return (armor ?? 0) + 70;
+}
+
+export function ror2PerLevel(value: number | null | undefined): string {
+  if (value == null) return "";
+  const text = ror2Number(value);
+  return value > 0 ? `+${text}` : text;
 }
 
 export function ror2SurvivorsHref(expansion = "", query = ""): string {
@@ -287,16 +463,23 @@ export function ror2ActiveExpansion(
   return known.has(cat) ? cat : "all";
 }
 
-export function filterRor2Survivors<T extends Ror2Searchable & { expansion?: string }>(
-  survivors: T[],
-  query: string,
-  expansion: string,
-): T[] {
+export function filterRor2Survivors<
+  T extends Ror2Searchable & { expansion?: string; name_zh?: string },
+>(survivors: T[], query: string, expansion: string, zh = false): T[] {
   const scoped =
     !expansion || expansion === "all"
       ? survivors
       : survivors.filter((row) => ror2SurvivorExpansionId(row.expansion) === expansion);
-  return filterRor2Entries(scoped, query, "");
+  if (!zh) return filterRor2Entries(scoped, query, "");
+  const needle = query.trim().toLowerCase();
+  if (!needle) return scoped;
+  return scoped.filter((row) =>
+    [row.name, row.name_zh, ror2RichTextPlain(row.description ?? ""), ror2RichTextPlain(row.umbra ?? "")]
+      .filter(Boolean)
+      .join("\n")
+      .toLowerCase()
+      .includes(needle),
+  );
 }
 
 export function ror2SurvivorStatLine(survivor: {
@@ -326,6 +509,129 @@ function growthText(base: number | null | undefined, per: number | null | undefi
   if (per == null || per === 0) return ror2Number(base);
   const sign = per > 0 ? "+" : "";
   return `${ror2Number(base)} (${sign}${ror2Number(per)})`;
+}
+
+const ROR2_STAT_MISSING = "—";
+
+/** Wiki 幸存者表把缺省和 0 都画成 80。 */
+export function ror2SurvivorAcceleration(value: number | null | undefined): number {
+  return value ? value : 80;
+}
+
+export type Ror2SurvivorTableCells = {
+  health: string;
+  healthGrowth: string;
+  regen: string;
+  regenGrowth: string;
+  damage: string;
+  damageGrowth: string;
+  speed: string;
+  acceleration: string;
+  mass: string;
+  armor: string;
+};
+
+type Ror2SurvivorTableSource = {
+  health?: number | null;
+  health_per_level?: number | null;
+  damage?: number | null;
+  damage_per_level?: number | null;
+  regen?: number | null;
+  regen_per_level?: number | null;
+  speed?: number | null;
+  acceleration?: number | null;
+  mass?: number | null;
+  armor?: number | null;
+};
+
+/** 和 Wiki 幸存者对照表同一套写法：基础值，成长值另起一段。 */
+export function ror2SurvivorTableCells(survivor: Ror2SurvivorTableSource): Ror2SurvivorTableCells {
+  return {
+    health: survivor.health == null ? ROR2_STAT_MISSING : ror2Number(survivor.health),
+    healthGrowth: survivor.health == null ? "" : plusGrowth(survivor.health_per_level),
+    regen: survivor.regen == null ? ROR2_STAT_MISSING : `${ror2Number(survivor.regen)}/s`,
+    regenGrowth: survivor.regen == null ? "" : rateGrowth(survivor.regen_per_level),
+    damage: survivor.damage == null ? ROR2_STAT_MISSING : ror2Number(survivor.damage),
+    damageGrowth: survivor.damage == null ? "" : plusGrowth(survivor.damage_per_level),
+    speed: survivor.speed == null ? ROR2_STAT_MISSING : `${ror2Number(survivor.speed)} m/s`,
+    acceleration: ror2Number(ror2SurvivorAcceleration(survivor.acceleration)),
+    mass: survivor.mass == null ? ROR2_STAT_MISSING : ror2Number(survivor.mass),
+    armor: survivor.armor == null ? ROR2_STAT_MISSING : ror2Number(survivor.armor),
+  };
+}
+
+function plusGrowth(per: number | null | undefined): string {
+  if (per == null) return "";
+  const sign = per < 0 ? "" : "+";
+  return `(${sign}${ror2Number(per)})`;
+}
+
+function rateGrowth(per: number | null | undefined): string {
+  if (per == null) return "";
+  const sign = per > 0 ? "+" : "";
+  return `(${sign}${ror2Number(per)}/s)`;
+}
+
+export const ROR2_SURVIVOR_SORT_KEYS = [
+  "image",
+  "name",
+  "health",
+  "regen",
+  "damage",
+  "speed",
+  "acceleration",
+  "mass",
+  "armor",
+] as const;
+
+export type Ror2SurvivorSortKey = (typeof ROR2_SURVIVOR_SORT_KEYS)[number];
+
+type Ror2SurvivorSortable = Ror2SurvivorTableSource & { name: string; name_zh?: string };
+
+export function sortRor2Survivors<T extends Ror2SurvivorSortable>(
+  rows: readonly T[],
+  key: Ror2SurvivorSortKey,
+  direction: "asc" | "desc",
+): T[] {
+  const sign = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => compareSurvivor(a, b, key, sign));
+}
+
+function compareSurvivor(
+  a: Ror2SurvivorSortable,
+  b: Ror2SurvivorSortable,
+  key: Ror2SurvivorSortKey,
+  sign: number,
+): number {
+  const byName = compareNames(survivorDisplayName(a), survivorDisplayName(b));
+  if (key === "name" || key === "image") return byName * sign;
+  const left = survivorSortNumber(a, key);
+  const right = survivorSortNumber(b, key);
+  if (left == null && right == null) return byName;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  const diff = (left - right) * sign;
+  return diff === 0 ? byName : diff;
+}
+
+function survivorDisplayName(row: { name: string; name_zh?: string }): string {
+  return row.name_zh || row.name;
+}
+
+function compareNames(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+function survivorSortNumber(row: Ror2SurvivorSortable, key: Ror2SurvivorSortKey): number | null {
+  if (key === "health") return row.health ?? null;
+  if (key === "regen") return row.regen ?? null;
+  if (key === "damage") return row.damage ?? null;
+  if (key === "speed") return row.speed ?? null;
+  if (key === "acceleration") return ror2SurvivorAcceleration(row.acceleration);
+  if (key === "mass") return row.mass ?? null;
+  if (key === "armor") return row.armor ?? null;
+  return null;
 }
 
 export function ror2ItemsHref(rarity = "", query = ""): string {
@@ -386,16 +692,108 @@ export function ror2ActiveRarity(raw: string | null | undefined, items: { rarity
   return known.has(cat) ? cat : "all";
 }
 
-export function filterRor2Items<T extends Ror2Searchable>(
+export function ror2ItemSource(
+  raw: string | null | undefined,
+  items: { expansion?: string }[],
+): string {
+  const id = (raw || "").trim();
+  if (!id || id === "all") return "all";
+  const known = new Set(items.map((item) => ror2SurvivorExpansionId(item.expansion)));
+  return known.has(id) ? id : "all";
+}
+
+export function filterRor2Items<T extends Ror2Searchable & { expansion?: string }>(
   items: T[],
   query: string,
   rarity: string,
+  source = "",
+  zh = false,
 ): T[] {
-  const scoped =
-    !rarity || rarity === "all"
+  const bySource =
+    !source || source === "all"
       ? items
-      : items.filter((item) => ror2RarityKey(item.rarity) === rarity);
-  return filterRor2Entries(scoped, query, "");
+      : items.filter((item) => ror2SurvivorExpansionId(item.expansion) === source);
+  const byRarity =
+    !rarity || rarity === "all"
+      ? bySource
+      : bySource.filter((item) => ror2RarityKey(item.rarity) === rarity);
+  if (!zh) return filterRor2Entries(byRarity, query, "");
+  const needle = query.trim().toLowerCase();
+  if (!needle) return byRarity;
+  return byRarity.filter((item) => zhHaystack(item).includes(needle));
+}
+
+function zhHaystack(item: Ror2Searchable & { name_zh?: string; description_zh?: string }): string {
+  return [
+    item.name,
+    item.name_zh,
+    ror2RichTextPlain(item.quote ?? ""),
+    ror2RichTextPlain(item.description ?? ""),
+    ror2RichTextPlain(item.description_zh ?? ""),
+    ror2RichTextPlain(item.umbra ?? ""),
+    item.internal_name,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+}
+
+export type Ror2ItemSortKey = "name" | "description" | "stack" | "cooldown";
+
+export function ror2ItemRarityIsActive(rarity: string): boolean {
+  return (ACTIVE_RARITIES as readonly string[]).includes(rarity);
+}
+
+/** Wiki 主动物品表把冷却画成 20s、0.1s。空值不补单位。 */
+export function ror2ItemCooldownText(value?: string | null): string {
+  const text = (value || "").trim();
+  if (!text) return "";
+  if (/^\d+(\.\d+)?$/.test(text)) return `${text}s`;
+  return text;
+}
+
+export function sortRor2Items<
+  T extends Ror2Searchable & { stats?: { stack?: string }[]; cooldown?: string | null },
+>(
+  items: readonly T[],
+  key: Ror2ItemSortKey,
+  direction: "asc" | "desc",
+): T[] {
+  const sign = direction === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => {
+    if (key === "cooldown") {
+      const diff = compareCooldown(a.cooldown, b.cooldown);
+      if (diff !== 0) return diff * sign;
+      return compareNames(a.name, b.name);
+    }
+    const diff = compareNames(itemSortText(a, key), itemSortText(b, key));
+    if (diff !== 0) return diff * sign;
+    return compareNames(a.name, b.name);
+  });
+}
+
+function compareCooldown(left?: string | null, right?: string | null): number {
+  const a = cooldownSeconds(left);
+  const b = cooldownSeconds(right);
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a - b;
+}
+
+function cooldownSeconds(value?: string | null): number | null {
+  const text = (value || "").trim();
+  if (!/^\d+(\.\d+)?$/.test(text)) return null;
+  return Number(text);
+}
+
+function itemSortText(
+  item: Ror2Searchable & { stats?: { stack?: string }[]; name_zh?: string; description_zh?: string },
+  key: Ror2ItemSortKey,
+): string {
+  if (key === "description") return ror2RichTextPlain(item.description_zh || item.description || "");
+  if (key === "stack") return ror2ItemTableStack(item.stats);
+  return item.name_zh || item.name;
 }
 
 export function groupRor2ItemsByRarity<T extends { rarity?: string }>(
@@ -421,7 +819,10 @@ export type Ror2DirectoryRow = Ror2Searchable & {
   group: string;
   note: string;
   imageUrl: string | null;
-  unlocks?: { name: string; imageUrl: string }[];
+  dlcIconUrl?: string | null;
+  dlcLabel?: string;
+  quote_zh?: string;
+  unlocks?: { name: string; name_zh?: string; imageUrl: string }[];
   coins?: string;
 };
 
@@ -577,13 +978,28 @@ export function ror2SectionGroupOrder(section: Ror2PageSectionId): readonly stri
   return WIKI_INTERACTABLE_CATEGORIES;
 }
 
-export function filterRor2Directory<T extends Ror2Searchable & { group: string }>(
+export function filterRor2Directory<T extends Ror2Searchable & { group: string; quote_zh?: string }>(
   rows: readonly T[],
   query: string,
   group: string,
 ): T[] {
   const scoped = !group || group === "all" ? [...rows] : rows.filter((row) => row.group === group);
-  return filterRor2Entries(scoped, query, "");
+  const needle = query.trim().toLowerCase();
+  if (!needle) return scoped;
+  return scoped.filter((row) =>
+    [
+      row.name,
+      row.name_zh,
+      ror2RichTextPlain(row.quote ?? ""),
+      ror2RichTextPlain(row.quote_zh ?? ""),
+      ror2RichTextPlain(row.description ?? ""),
+      ror2RichTextPlain(row.description_zh ?? ""),
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .toLowerCase()
+      .includes(needle),
+  );
 }
 
 export function ror2ActiveGroup(raw: string | null | undefined, rows: { group: string }[]): string {
@@ -602,15 +1018,16 @@ export function ror2SectionHref(path: string, group = "", query = ""): string {
   return qs ? `${path}?${qs}` : path;
 }
 
-type ExpansionNote = { expansion?: string };
-
-function expansionNote(row: ExpansionNote): string {
-  return row.expansion ? ror2SurvivorExpansionLabel(row.expansion) : "";
+function dlcFields(expansion?: string): { dlcIconUrl: string | null; dlcLabel: string } {
+  const mark = ror2DlcMark(expansion);
+  return { dlcIconUrl: mark?.iconUrl ?? null, dlcLabel: mark?.label ?? "" };
 }
 
 export type Ror2DirectoryCatalog = {
   monsters: (CombatFields & {
     name: string;
+    name_zh?: string;
+    boss_name_zh?: string;
     kind?: string;
     role?: string;
     expansion?: string;
@@ -623,9 +1040,12 @@ export type Ror2DirectoryCatalog = {
   })[];
   drones: (CombatFields & {
     name: string;
+    name_zh?: string;
     kind?: string;
     quote?: string;
+    quote_zh?: string;
     description?: string;
+    description_zh?: string;
     rarity?: string;
     cost?: string;
     categories?: string[];
@@ -634,9 +1054,12 @@ export type Ror2DirectoryCatalog = {
   })[];
   environments: {
     name: string;
+    name_zh?: string;
     stage?: string;
     subtitle?: string;
+    subtitle_zh?: string;
     description?: string;
+    description_zh?: string;
     soundtrack?: string;
     expansion?: string;
     categories?: string[];
@@ -644,19 +1067,23 @@ export type Ror2DirectoryCatalog = {
   }[];
   challenges: {
     name: string;
+    name_zh?: string;
     kind?: string;
     description?: string;
+    description_zh?: string;
     unlock?: string[];
     coins?: string;
     expansion?: string;
   }[];
-  items?: { name: string; image_url?: string | null }[];
-  equipment?: { name: string; image_url?: string | null }[];
-  survivors?: { name: string; image_url?: string | null }[];
+  items?: { name: string; expansion?: string; image_url?: string | null }[];
+  equipment?: { name: string; expansion?: string; image_url?: string | null }[];
+  survivors?: { name: string; expansion?: string; image_url?: string | null }[];
   interactables: {
     name: string;
+    name_zh?: string;
     category?: string;
     effect?: string;
+    effect_zh?: string;
     expansion?: string;
     cost?: string;
     location?: string[];
@@ -667,10 +1094,13 @@ export type Ror2DirectoryCatalog = {
   }[];
   artifacts: {
     name: string;
+    name_zh?: string;
     description?: string;
+    description_zh?: string;
     code?: string[];
     expansion?: string;
     unlock?: string;
+    unlock_zh?: string;
     image_url?: string | null;
   }[];
 };
@@ -729,19 +1159,25 @@ export function ror2SectionRows(
   if (section === "monsters") {
     return monsters.map((row) => ({
       name: row.name,
+      name_zh: row.name_zh,
       group: row.kind || "未分类",
       quote: row.boss_name || row.role || "",
+      quote_zh: row.boss_name_zh,
       description: ror2SurvivorStatLine(row),
-      note: expansionNote(row),
+      note: "",
       imageUrl: row.image_url ?? null,
+      ...dlcFields(row.expansion),
     }));
   }
   if (section === "drones") {
     return drones.map((row) => ({
       name: row.name,
+      name_zh: row.name_zh,
       group: row.type2 || "未分类",
       quote: row.quote || "",
+      quote_zh: row.quote_zh,
       description: row.description || "",
+      description_zh: row.description_zh,
       note: [row.cost, ror2SurvivorStatLine(row)].filter(Boolean).join(" · "),
       imageUrl: row.image_url ?? null,
     }));
@@ -753,11 +1189,15 @@ export function ror2SectionRows(
         const row = byName.get(name);
         return {
           name,
+          name_zh: row?.name_zh,
           group: group.id,
           quote: row?.subtitle || "",
+          quote_zh: row?.subtitle_zh,
           description: row?.description || "",
+          description_zh: row?.description_zh,
           note: row?.stage ? `Stage ${row.stage}` : "",
           imageUrl: row?.image_url ?? null,
+          ...dlcFields(row?.expansion),
         };
       }),
     );
@@ -766,12 +1206,15 @@ export function ror2SectionRows(
     const icons = [...(catalog.survivors ?? []), ...(catalog.items ?? []), ...(catalog.equipment ?? []), ...(catalog.artifacts ?? [])];
     return challenges.map((row) => ({
       name: row.name,
+      name_zh: row.name_zh,
       group: row.kind || "未分类",
       quote: "",
       description: row.description || "",
+      description_zh: row.description_zh,
       note: "",
       imageUrl: null,
       coins: row.coins || "",
+      ...dlcFields(row.expansion),
       unlocks: (row.unlock ?? []).map((name) => ({
         name,
         imageUrl: ror2UnlockIcon(name, icons),
@@ -781,11 +1224,14 @@ export function ror2SectionRows(
   if (section === "artifacts") {
     return artifacts.map((row) => ({
       name: row.name,
+      name_zh: row.name_zh,
       group: "Artifacts",
       quote: (row.code ?? []).join(" "),
       description: row.description || "",
-      note: row.unlock || "",
+      description_zh: row.description_zh,
+      note: row.unlock_zh || row.unlock || "",
       imageUrl: row.image_url || ror2ArtifactIconUrl(row.name),
+      ...dlcFields(row.expansion),
     }));
   }
   const listed = ror2WikiInteractables(interactables);
@@ -795,31 +1241,41 @@ export function ror2SectionRows(
       const row = byName.get(name);
       return {
         name,
+        name_zh: row?.name_zh,
         group: name,
         quote: row?.subtitle || "",
+        quote_zh: row?.subtitle_zh,
         description: row?.description || "",
+        description_zh: row?.description_zh,
         note: "",
         imageUrl: row?.image_url ?? null,
+        ...dlcFields(row?.expansion),
       };
     });
   }
   const source = listed;
   return source.map((row) => ({
     name: row.name,
+    name_zh: row.name_zh,
     group: row.category || "未分类",
     quote: row.effect || "",
+    quote_zh: row.effect_zh,
     description: [row.cost, (row.location ?? []).join("、")].filter(Boolean).join(" · "),
-    note: expansionNote(row),
+    note: "",
     imageUrl: row.image_url ?? null,
+    ...dlcFields(row.expansion),
   }));
 }
 
 type UnreleasedSource = {
   name: string;
+  name_zh?: string;
   code?: string;
   description?: string;
+  description_zh?: string;
   quote?: string;
   rarity?: string;
+  expansion?: string;
   image_url?: string | null;
 };
 
@@ -909,11 +1365,14 @@ function unreleasedRow(group: string, label: string, entry: UnreleasedSource | u
   const name = entry?.name || label;
   return {
     name,
+    name_zh: entry?.name_zh,
     group,
     quote: entry?.code && entry.name !== label ? entry.code : "",
     description: entry?.description || entry?.quote || "",
+    description_zh: entry?.description_zh,
     note: entry?.rarity || "",
     imageUrl: entry?.image_url ?? null,
+    ...dlcFields(entry?.expansion),
   };
 }
 

@@ -14,6 +14,8 @@ import {
   type Ror2PageSectionId,
 } from "@/lib/ror2Home";
 import { useRor2Catalog } from "@/lib/useRor2Catalog";
+import { Ror2ExpansionIcon } from "./Ror2ExpansionIcon";
+import { useRor2TermText } from "./Ror2TermScope";
 import { Ror2RichText } from "./Ror2RichText";
 import styles from "./Ror2ItemsView.module.css";
 import theme from "./ror2Theme.module.css";
@@ -160,6 +162,7 @@ function CatButton({
 const LUNAR_COIN = "https://riskofrain2.wiki.gg/images/LunarCoin.png";
 
 function ChallengeTable({ rows }: { rows: Ror2DirectoryRow[] }) {
+  const termText = useRor2TermText();
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -175,7 +178,8 @@ function ChallengeTable({ rows }: { rows: Ror2DirectoryRow[] }) {
           {rows.map((row, index) => (
             <tr key={`${index}-${row.name}`}>
               <th scope="row" className={styles.challenge}>
-                {row.name}
+                {row.dlcIconUrl ? <Ror2ExpansionIcon src={row.dlcIconUrl} label={row.dlcLabel} /> : null}
+                {row.name_zh || termText(row.name)}
               </th>
               <td>{row.description ? <Ror2RichText text={row.description} /> : null}</td>
               <td>
@@ -183,7 +187,7 @@ function ChallengeTable({ rows }: { rows: Ror2DirectoryRow[] }) {
                   {(row.unlocks ?? []).map((unlock) => (
                     <span key={unlock.name} className={styles.unlock}>
                       <UnlockIcon src={unlock.imageUrl} />
-                      <span>{unlock.name}</span>
+                      <span>{unlock.name_zh || termText(unlock.name)}</span>
                     </span>
                   ))}
                 </div>
@@ -220,22 +224,26 @@ function UnlockIcon({ src }: { src: string }) {
 }
 
 function DirectoryCard({ row }: { row: Ror2DirectoryRow }) {
+  const termText = useRor2TermText();
   return (
     <article className={`${theme.frame} ${styles.card} ${styles.faceCard}`}>
       <EntryFace src={row.imageUrl} />
       <div>
         <div className={styles.nameRow}>
-          <h3 className={styles.name}>{row.name}</h3>
+          <h3 className={styles.name}>
+            {row.dlcIconUrl ? <Ror2ExpansionIcon src={row.dlcIconUrl} label={row.dlcLabel} /> : null}
+            {row.name_zh || termText(row.name)}
+          </h3>
           {row.note ? <span className={styles.expansion}>{row.note}</span> : null}
         </div>
         {row.quote ? (
           <p className={styles.quote}>
-            <Ror2RichText text={row.quote} />
+            <Ror2RichText text={row.quote_zh || row.quote} />
           </p>
         ) : null}
         {row.description ? (
           <div className={styles.desc}>
-            <Ror2RichText text={row.description} />
+            <Ror2RichText text={row.description_zh || row.description} />
           </div>
         ) : null}
       </div>

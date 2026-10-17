@@ -62,13 +62,6 @@ const SystemUpdatePage = lazyWithReload(() => import("@/pages/SystemUpdatePage")
 const TarkovGuidesOutlet = lazyWithReload(
   () => import("@/pages/guides/TarkovGuidesOutlet"),
 );
-const Ror2GuidesOutlet = lazyWithReload(
-  () => import("@/pages/guides/Ror2GuidesOutlet"),
-);
-const Ror2HomePage = lazyWithReload(() => import("@/pages/guides/Ror2HomePage"));
-const Ror2ItemsPage = lazyWithReload(() => import("@/pages/guides/Ror2ItemsPage"));
-const Ror2SurvivorsPage = lazyWithReload(() => import("@/pages/guides/Ror2SurvivorsPage"));
-const Ror2DirectoryPage = lazyWithReload(() => import("@/pages/guides/Ror2DirectoryPage"));
 const TarkovHomePage = lazyWithReload(() => import("@/pages/guides/TarkovHomePage"));
 const TarkovItemsHubPage = lazyWithReload(
   () => import("@/pages/guides/TarkovItemsHubPage"),
@@ -357,19 +350,6 @@ export default function App() {
                     path="progression"
                     element={<TarkovProgressionPage />}
                   />
-                </Route>
-                <Route path="/guides/ror2" element={<Ror2GuidesOutlet />}>
-                  <Route index element={<Ror2HomePage />} />
-                  <Route path="items" element={<Ror2ItemsPage />} />
-                  <Route path="survivors" element={<Ror2SurvivorsPage />} />
-                  <Route path="monsters" element={<Ror2DirectoryPage section="monsters" />} />
-                  <Route path="environments" element={<Ror2DirectoryPage section="environments" />} />
-                  <Route path="challenges" element={<Ror2DirectoryPage section="challenges" />} />
-                  <Route path="interactables" element={<Ror2DirectoryPage section="interactables" />} />
-                  <Route path="drones" element={<Ror2DirectoryPage section="drones" />} />
-                  <Route path="artifacts" element={<Ror2DirectoryPage section="artifacts" />} />
-                  <Route path="newt-altars" element={<Ror2DirectoryPage section="newt-altars" />} />
-                  <Route path="unreleased" element={<Ror2DirectoryPage section="unreleased" />} />
                 </Route>
                 <Route element={<PrivateRoute />}>
                 <Route

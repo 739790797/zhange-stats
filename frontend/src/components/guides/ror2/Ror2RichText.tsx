@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { parseRor2RichText, type Ror2RichNode } from "@/lib/ror2RichText";
+import { useRor2TermText } from "./Ror2TermScope";
 import styles from "./Ror2RichText.module.css";
 
 type Props = {
@@ -8,9 +9,10 @@ type Props = {
 };
 
 export function Ror2RichText({ text, className }: Props) {
+  const termText = useRor2TermText();
   if (!text) return null;
   const root = className ? `${styles.rich} ${className}` : styles.rich;
-  return <span className={root}>{renderNodes(parseRor2RichText(text))}</span>;
+  return <span className={root}>{renderNodes(parseRor2RichText(termText(text)))}</span>;
 }
 
 function renderNodes(nodes: Ror2RichNode[]): ReactNode[] {

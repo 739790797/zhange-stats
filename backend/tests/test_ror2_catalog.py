@@ -27,6 +27,7 @@ from app.services.ror2.wiki import (
     fetch_module,
     get_catalog,
     module_text,
+    module_titles_from_query,
     reset_catalog_memo,
     sync_wiki,
 )
@@ -117,6 +118,8 @@ return {
 			BaseHealthRegen = 1,
 			ScalingHealthRegen = 0.2,
 			BaseSpeed = 7,
+			BaseAcceleration = 40,
+			Mass = 100,
 			BaseArmor = 0,
 			Description = "Reliable.",
 			Umbra = "Cornered Gunslinger",
@@ -188,6 +191,23 @@ return {
 }
 """
 
+_SKILLS = """
+local skills = {
+  ["Double Tap"] = { Name = "Double Tap", Desc = "Rapidly shoot.", Type = "Primary" },
+}
+local p = {}
+p.skills = skills
+return p
+"""
+
+_LORE = """
+local lore = {}
+lore["Commando"] = { Type = "Survivors", Desc = "The soldier ducked." }
+local p = {}
+p.lore = lore
+return p
+"""
+
 _FIXTURES = {
     "items": _ITEMS,
     "equipment": _EQUIPMENT,
@@ -197,6 +217,8 @@ _FIXTURES = {
     "challenges": _CHALLENGES,
     "interactables": _INTERACTABLES,
     "artifacts": _ARTIFACTS,
+    "skills": _SKILLS,
+    "lore": _LORE,
 }
 
 
@@ -333,9 +355,63 @@ def test_survivors_keep_scaling_stats() -> None:
     assert commando.health == 110
     assert commando.health_per_level == 33
     assert commando.damage_per_level == 2.4
+    assert commando.acceleration == 40
+    assert commando.mass == 100
     assert commando.armor == 0
     assert commando.umbra == "Cornered Gunslinger"
     assert commando.image_url.endswith("Commando.png")
+
+
+def test_module_list_reads_titles_and_rejects_other_namespaces() -> None:
+    titles = module_titles_from_query(
+        {"query": {"allpages": [{"title": "Module:Navbox"}, {"title": "Module:Items/Data"}]}}
+    )
+    assert titles == ["Module:Navbox", "Module:Items/Data"]
+    with pytest.raises(Ror2WikiError, match="不是模块"):
+        module_titles_from_query({"query": {"allpages": [{"title": "Commando"}]}})
+
+
+def test_extra_modules_are_stored_without_replacing_catalog_files(db: Session) -> None:
+    calls = {"n": 0}
+
+    def fetch(spec: RawSpec) -> str:
+        calls["n"] += 1
+        if spec.resource == "module/Navbox":
+            return "return {}"
+        return _FIXTURES[spec.resource]
+
+    results = sync_wiki(
+        db,
+        fetch=fetch,
+        list_modules=lambda: ["Module:Items/Data", "Module:Navbox"],
+    )
+    assert any(str(row["resource"]).startswith("其余模块 1 份") for row in results)
+    row = db.query(GuideRaw).filter_by(game="ror2", resource="module/Navbox").one()
+    assert "return {}" in row.raw_body
+    assert db.query(GuideRaw).filter_by(game="ror2", resource="module/Items/Data").one_or_none() is None
+    assert calls["n"] == len(PIPELINE.specs) + 1
+
+
+def test_failed_extra_module_keeps_the_previous_copy(db: Session) -> None:
+    def fetch(spec: RawSpec) -> str:
+        if spec.resource == "module/Navbox":
+            return "return { nav = true }"
+        return _FIXTURES[spec.resource]
+
+    sync_wiki(db, fetch=fetch, list_modules=lambda: ["Module:Navbox"])
+    kept = db.query(GuideRaw).filter_by(game="ror2", resource="module/Navbox").one().synced_at
+
+    def broken(spec: RawSpec) -> str:
+        if spec.resource == "module/Navbox":
+            raise Ror2WikiError("navbox down")
+        return _FIXTURES[spec.resource]
+
+    with pytest.raises(Ror2WikiError, match="navbox down"):
+        sync_wiki(db, fetch=broken, list_modules=lambda: ["Module:Navbox"])
+    db.expire_all()
+    row = db.query(GuideRaw).filter_by(game="ror2", resource="module/Navbox").one()
+    assert row.synced_at == kept
+    assert "nav = true" in row.raw_body
 
 
 def test_catalog_reads_database_and_skips_refetch(db: Session) -> None:
@@ -448,7 +524,7 @@ def test_feature_is_a_game_under_guides() -> None:
     ror2 = next(child for child in children if child["id"] == "guides.ror2")
     assert [child["job_id"] for child in ror2["children"]] == [
         "ror2_wiki_sync",
-        "ror2_lang_sync",
+        "ror2_weblate_sync",
     ]
     assert pf.default_features()["guides.ror2"] is True
     assert pf.default_features()["guides.ror2.wiki_sync"] is True
