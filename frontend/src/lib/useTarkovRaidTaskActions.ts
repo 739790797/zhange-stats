@@ -19,7 +19,9 @@ import {
   overlayTaskProgressCache,
 } from "@/lib/tarkovTaskTree";
 import {
+  adoptMergedObjectiveSkip,
   mergeObjectivePairs,
+  objectivePinKey,
   type RaidPrepObjectivePair,
 } from "@/lib/tarkovObjectivePairs";
 import {
@@ -50,6 +52,12 @@ type Opts = {
   objDoneView: RaidPrepSkipMap;
   replaceObjDone: (next: RaidPrepSkipMap) => void;
   toggleObjDoneLocal: (taskId: string, objectiveId: string) => void;
+  /** 本机和账号账都已按这一下改完，页面用来立刻落本图存档 / 房间记录。 */
+  onUserObjectiveToggle?: (
+    taskId: string,
+    objectiveId: string,
+    checked: boolean,
+  ) => void;
   /** 本图 overlay 用的任务（定位点从它取，缺了再回源）。 */
   overlayTasks: readonly TarkovRaidPrepTask[];
   ensureGeometry: (
@@ -76,6 +84,7 @@ export function useTarkovRaidTaskActions({
   objDoneView,
   replaceObjDone,
   toggleObjDoneLocal,
+  onUserObjectiveToggle,
   overlayTasks,
   ensureGeometry,
   locateResetKey = "",
@@ -90,6 +99,15 @@ export function useTarkovRaidTaskActions({
   const locateIndexRef = useRef<Record<string, number>>({});
   const focusSeqRef = useRef(0);
   const objToggleSeqRef = useRef(0);
+  /** 这一页上用户亲手勾过的步骤。之后的并集不能把取消的步骤加回来。 */
+  const objectivePinsRef = useRef(new Map<string, boolean>());
+  const adoptObjectiveSkip = useCallback(
+    (
+      current: RaidPrepSkipMap | null | undefined,
+      merged: RaidPrepSkipMap | null | undefined,
+    ) => adoptMergedObjectiveSkip(current, merged, objectivePinsRef.current),
+    [],
+  );
   const locateResetRef = useRef(locateResetKey);
   if (locateResetRef.current !== locateResetKey) {
     locateResetRef.current = locateResetKey;
@@ -120,6 +138,8 @@ export function useTarkovRaidTaskActions({
         viewHas: raidPrepSkippedIds(objDoneView, taskId).has(objectiveId),
         taskDone: doneSet.has(taskId),
       });
+      const pin = objectivePinKey(taskId, objectiveId);
+      if (pin) objectivePinsRef.current.set(pin, plan.nextChecked);
       if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
       const pairs = commitTaskObjective(
         gameMode,
@@ -146,6 +166,7 @@ export function useTarkovRaidTaskActions({
           ),
         ),
       );
+      onUserObjectiveToggle?.(taskId, objectiveId, plan.nextChecked);
       const applyServer = (data: {
         task_ids?: string[];
         started_ids?: string[];
@@ -190,6 +211,7 @@ export function useTarkovRaidTaskActions({
       gameMode,
       objDone,
       objDoneView,
+      onUserObjectiveToggle,
       queryClient,
       toggleObjDoneLocal,
     ],
@@ -203,6 +225,12 @@ export function useTarkovRaidTaskActions({
       const task = catalog.find((row) => row.id === taskId);
       const fillIds =
         status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
+      if (status === "done" && fillIds?.length) {
+        for (const objectiveId of fillIds) {
+          const pin = objectivePinKey(taskId, objectiveId);
+          if (pin) objectivePinsRef.current.delete(pin);
+        }
+      }
       const prev = {
         done: loadTaskDoneIds(gameMode),
         started: loadTaskStartedIds(gameMode),
@@ -342,6 +370,7 @@ export function useTarkovRaidTaskActions({
   return {
     taskStatusOf,
     toggleObjDone,
+    adoptObjectiveSkip,
     changeTaskStatus,
     locateTask,
     guideOpen,

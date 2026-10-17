@@ -18,6 +18,7 @@ import {
   joinTarkovRaidRoom,
   leaveTarkovRaidRoom,
   markTarkovRaidRoomObjectivesDone,
+  unmarkTarkovRaidRoomObjectiveDone,
   putTarkovRaidRoomTaskProgress,
   removeTarkovRaidRoomMark,
   moveTarkovRaidRoomMark,
@@ -271,6 +272,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     objDoneLegacy,
   );
   const objSeedKeyRef = useRef("");
+  const onUserObjectiveToggleRef = useRef<
+    (taskId: string, objectiveId: string, checked: boolean) => void
+  >(() => {});
+  /** 用户刚改过步骤时加一，让还没发出的 700ms 存档不要把旧勾选写回去。 */
+  const objectiveSaveGenRef = useRef(0);
   // 每张图最后一次写成功的负载：来回切图时同样的内容不再重写。
   const lastSavedRef = useRef(new Map<string, RaidPrepStateBody>());
   const lastProgressKeyRef = useRef("");
@@ -613,9 +619,16 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [catalogRich, faction, groups],
   );
   const overlayTasks = geometry.items;
+  const onUserObjectiveToggle = useCallback(
+    (taskId: string, objectiveId: string, checked: boolean) => {
+      onUserObjectiveToggleRef.current(taskId, objectiveId, checked);
+    },
+    [],
+  );
   const {
     taskStatusOf,
     toggleObjDone,
+    adoptObjectiveSkip,
     changeTaskStatus,
     locateTask,
     guideOpen,
@@ -638,6 +651,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     objDoneView,
     replaceObjDone,
     toggleObjDoneLocal,
+    onUserObjectiveToggle,
     overlayTasks,
     ensureGeometry: geometry.ensure,
     locateResetKey: mapId,
@@ -689,11 +703,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           bucket.add(row.objectiveId);
           extra.set(row.taskId, bucket);
         }
-        const merged = mergeSkipMapsIfChanged(
-          readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy),
-          extra,
+        const stored = readRaidPrepObjectiveDoneWithLegacy(
+          objDoneScope,
+          objDoneLegacy,
         );
-        if (merged) replaceObjDone(merged);
+        const merged = mergeSkipMapsIfChanged(stored, extra);
+        const next = adoptObjectiveSkip(stored, merged);
+        if (next) replaceObjDone(next);
         await run(() =>
           markTarkovRaidRoomObjectivesDone(
             publicId,
@@ -707,7 +723,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         /* 单次失败不堵后续日志回填 */
       });
     },
-    [objDoneLegacy, objDoneScope, publicId, replaceObjDone, run],
+    [adoptObjectiveSkip, objDoneLegacy, objDoneScope, publicId, replaceObjDone, run],
   );
 
   useEffect(() => {
@@ -716,11 +732,13 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       if (!detail || detail.mode !== gameMode) return;
       setProgressTick((n) => n + 1);
       flushCompletedTaskMarks(detail.completedIds || []);
-      const merged = mergeObjectivePairs(
-        readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy),
-        detail.objectives,
+      const stored = readRaidPrepObjectiveDoneWithLegacy(
+        objDoneScope,
+        objDoneLegacy,
       );
-      if (merged) replaceObjDone(merged);
+      const merged = mergeObjectivePairs(stored, detail.objectives);
+      const next = adoptObjectiveSkip(stored, merged);
+      if (next) replaceObjDone(next);
       if (!canEdit) return;
       const settled = settleRaidPrepSelection({
         selectedIds: myClaimIds,
@@ -737,6 +755,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
   }, [
     canEdit,
+    adoptObjectiveSkip,
     flushCompletedTaskMarks,
     gameMode,
     myClaimIds,
@@ -1031,6 +1050,68 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const myName =
     (me?.display_name || me?.username || "").trim() ||
     (me ? `用户${me.id}` : "");
+  onUserObjectiveToggleRef.current = (taskId, objectiveId, checked) => {
+    objectiveSaveGenRef.current += 1;
+    if (mapId && me && stateQuery.isSuccess && prepQuery.isSuccess) {
+      const stored = readRaidPrepObjectiveDoneWithLegacy(
+        objDoneScope,
+        objDoneLegacy,
+      );
+      const fromServer = stateQuery.data
+        ? objectiveDonesToSkipMap(
+            (stateQuery.data.objective_dones || []).map((row) => ({
+              task_id: row.task_id,
+              objective_id: row.objective_id,
+              user_id: me.id,
+            })),
+            me.id,
+          )
+        : undefined;
+      const fromRoom = objectiveDonesToSkipMap(room?.objective_dones, me.id);
+      const next =
+        adoptObjectiveSkip(
+          stored,
+          mergeSkipMapsIfChanged(stored, fromServer, fromRoom),
+        ) ?? stored;
+      if (next !== stored) replaceObjDone(next);
+      const body: RaidPrepStateBody = {
+        selected: stateQuery.data?.selected ?? [],
+        objective_dones: clipRaidPrepStateObjectiveDones(
+          skipMapToObjectiveDones(next, { userId: me.id, name: myName }).map(
+            (row) => ({
+              task_id: row.task_id,
+              objective_id: row.objective_id,
+            }),
+          ),
+          catalog.map((row) => row.id),
+        ),
+        key_brings: stateQuery.data?.key_brings ?? [],
+      };
+      if (!sameRaidPrepStateBody(lastSavedRef.current.get(mapId), body)) {
+        queryClient.setQueryData(
+          ["guides-tarkov-raid-prep-state", gameMode, mapId],
+          (prev: { objective_dones?: RaidPrepStateBody["objective_dones"] } | undefined) =>
+            prev ? { ...prev, objective_dones: [...body.objective_dones] } : prev,
+        );
+        void putTarkovRaidPrepState(mapId, {
+          selected: [...body.selected],
+          objective_dones: [...body.objective_dones],
+          key_brings: [...body.key_brings],
+        })
+          .then(() => {
+            lastSavedRef.current.set(mapId, body);
+          })
+          .catch(() => {});
+      }
+    }
+    if (!canEdit) return;
+    const request = checked
+      ? markTarkovRaidRoomObjectivesDone(publicId, [
+          { task_id: taskId, objective_id: objectiveId },
+        ])
+      : unmarkTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId);
+    void request.then((nextRoom) => applyRoom(nextRoom)).catch(() => {});
+  };
   const viewerObjectiveDones = useMemo(() => {
     const others = (room?.objective_dones || []).filter(
       (row) => row.user_id !== me?.id,
@@ -1049,9 +1130,17 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     if (!mapId || !me) return;
     if (stateQuery.isLoading && !stateQuery.data) return;
     if (taskDonesQuery.isLoading && !taskDonesQuery.data) return;
-    const key = `${publicId}:${gameMode}:${mapId}:${me.id}:${taskDonesQuery.dataUpdatedAt}`;
+    // 不把任务账缓存的更新时间算进钥匙：勾选/取消会改那份缓存，
+    // 再并一次旧的本图存档就会把刚取消的步骤勾回去。
+    const roomSig = (room?.objective_dones || [])
+      .filter((row) => row.user_id === me.id)
+      .map((row) => `${row.task_id}:${row.objective_id}`)
+      .sort()
+      .join(",");
+    const key = `${publicId}:${gameMode}:${mapId}:${me.id}:${stateQuery.dataUpdatedAt}:${roomSig}`;
     if (objSeedKeyRef.current === key) return;
     objSeedKeyRef.current = key;
+    const stored = readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy);
     const fromRoom = objectiveDonesToSkipMap(room?.objective_dones, me.id);
     const fromServer = stateQuery.data
       ? objectiveDonesToSkipMap(
@@ -1063,13 +1152,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           me.id,
         )
       : new Map();
-    const merged = mergeSkipMapsIfChanged(
-      readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy),
-      fromRoom,
-      fromServer,
-    );
-    if (merged) replaceObjDone(merged);
+    const merged = mergeSkipMapsIfChanged(stored, fromRoom, fromServer);
+    const next = adoptObjectiveSkip(stored, merged);
+    if (next) replaceObjDone(next);
   }, [
+    adoptObjectiveSkip,
     gameMode,
     mapId,
     me,
@@ -1079,9 +1166,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     replaceObjDone,
     room?.objective_dones,
     stateQuery.data,
+    stateQuery.dataUpdatedAt,
     stateQuery.isLoading,
     taskDonesQuery.data,
-    taskDonesQuery.dataUpdatedAt,
     taskDonesQuery.isLoading,
   ]);
 
@@ -1111,7 +1198,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     };
     // 负载没变就别 PUT（接口整行覆盖）：进出房间 / 换图回来的首次挂载都不该重写。
     if (sameRaidPrepStateBody(lastSavedRef.current.get(mapId), body)) return;
+    const scheduledGen = objectiveSaveGenRef.current;
     const handle = window.setTimeout(() => {
+      if (objectiveSaveGenRef.current !== scheduledGen) return;
       void putTarkovRaidPrepState(mapId, body)
         .then(() => {
           lastSavedRef.current.set(mapId, body);

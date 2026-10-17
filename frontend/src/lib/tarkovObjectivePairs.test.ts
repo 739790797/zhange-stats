@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  adoptMergedObjectiveSkip,
+  applyObjectivePins,
   mergeObjectivePairs,
   mergeSkipMapsIfChanged,
+  objectivePinKey,
   sameRaidPrepStateBody,
 } from "@/lib/tarkovObjectivePairs";
 import { raidPrepSkipMapForViewer } from "@/lib/tarkovRaidPrep";
@@ -81,6 +84,38 @@ describe("mergeSkipMapsIfChanged", () => {
     expect(
       [...(raidPrepSkipMapForViewer(local, account).get("t2") || [])],
     ).toEqual(["o1"]);
+  });
+});
+
+describe("applyObjectivePins", () => {
+  it("keeps an unchecked step off when a stale copy is merged back", () => {
+    const stored = skip({ t1: ["o1"] });
+    const stale = skip({ t1: ["o1", "o2"] });
+    const pins = new Map([[objectivePinKey("t1", "o2"), false]]);
+    const merged = mergeSkipMapsIfChanged(stored, stale);
+    expect(merged).not.toBeNull();
+    expect(adoptMergedObjectiveSkip(stored, merged, pins)).toBeNull();
+    expect([...(applyObjectivePins(merged!, pins)!.get("t1") || [])]).toEqual(["o1"]);
+  });
+
+  it("keeps other steps from the stale copy while dropping the unchecked one", () => {
+    const stored = skip({ t1: ["o1"] });
+    const stale = skip({ t1: ["o1", "o2", "o3"] });
+    const pins = new Map([[objectivePinKey("t1", "o2"), false]]);
+    const next = adoptMergedObjectiveSkip(
+      stored,
+      mergeSkipMapsIfChanged(stored, stale),
+      pins,
+    );
+    expect([...(next!.get("t1") || [])].sort()).toEqual(["o1", "o3"]);
+  });
+
+  it("puts a freshly checked step back if a later merge dropped it", () => {
+    const pins = new Map([[objectivePinKey("t1", "o2"), true]]);
+    const next = applyObjectivePins(skip({ t1: ["o1"] }), pins);
+    expect([...(next!.get("t1") || [])].sort()).toEqual(["o1", "o2"]);
+    expect(applyObjectivePins(next, pins)).toBeNull();
+    expect(objectivePinKey(" ", "o1")).toBe("");
   });
 });
 

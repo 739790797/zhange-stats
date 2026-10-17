@@ -1068,6 +1068,18 @@ export async function markTarkovRaidRoomObjectivesDone(
   return data;
 }
 
+export async function unmarkTarkovRaidRoomObjectiveDone(
+  publicId: string,
+  taskId: string,
+  objectiveId: string,
+) {
+  const { data } = await client.delete<TarkovRaidRoomDetail>(
+    `${RAID_ROOMS}/${encodeURIComponent(publicId)}/objective-dones/${encodeURIComponent(taskId)}/${encodeURIComponent(objectiveId)}`,
+    { timeout: 30_000 },
+  );
+  return data;
+}
+
 export async function addTarkovRaidRoomMark(
   publicId: string,
   body: {
