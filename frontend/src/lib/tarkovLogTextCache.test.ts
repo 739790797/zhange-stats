@@ -40,6 +40,27 @@ function trackedFile(bytes: Uint8Array<ArrayBuffer>, lastModified: number) {
   return { file: view, reads, text: () => file.text() };
 }
 
+function trackedOutput(bytes: Uint8Array<ArrayBuffer>, lastModified: number) {
+  const file = new File([bytes], "output.log", { lastModified });
+  const reads: Array<[number, number]> = [];
+  const view = {
+    name: file.name,
+    size: file.size,
+    lastModified,
+    arrayBuffer: () => {
+      reads.push([0, file.size]);
+      return file.arrayBuffer();
+    },
+    slice: (start?: number, end?: number) => {
+      const from = start ?? 0;
+      const to = end ?? file.size;
+      reads.push([from, to]);
+      return file.slice(from, to);
+    },
+  } as unknown as File;
+  return { file: view, reads };
+}
+
 async function step(
   bytes: Uint8Array<ArrayBuffer>,
   lastModified: number,
@@ -120,6 +141,42 @@ describe("readTarkovLogText", () => {
     const sameSize = await step(bytesOf(long.replace("row 1\n", "row X\n")), 4, first.entry);
     expect(sameSize.entry.read.text).toBe(sameSize.expected);
     expect(sameSize.reads).toEqual([0]);
+  });
+
+  it("keeps only GameStopping lines from output.log and never slurps the whole file", async () => {
+    const stop = (at: string) =>
+      `${at}|1|Info|application|EFT.NetworkGame\`1:GameStopping()`;
+    const noise = "n".repeat(300 * 1024);
+    const firstText = `${noise}\n${stop("2026-10-13 08:09:59.000 +01:00")}\n${noise}\n`;
+    const firstBytes = encoder.encode(firstText);
+    const firstFile = trackedOutput(firstBytes, 1);
+    const first = await readTarkovLogText("output.log", firstFile.file);
+    expect(first.read.text).toBe(`${stop("2026-10-13 08:09:59.000 +01:00")}\n`);
+    expect(first.read.size).toBe(firstBytes.length);
+    expect(first.read.text.length).toBeLessThan(200);
+    expect(firstFile.reads.some(([from]) => from === 0)).toBe(true);
+    for (const [from, to] of firstFile.reads) {
+      expect(to - from).toBeLessThanOrEqual(256 * 1024);
+    }
+
+    const more = `${firstText}${noise}\n${stop("2026-10-13 08:40:00.000 +01:00")}\n`;
+    const moreBytes = encoder.encode(more);
+    const moreFile = trackedOutput(moreBytes, 2);
+    const second = await readTarkovLogText("output.log", moreFile.file, first);
+    expect(second.read.text).toBe(
+      `${stop("2026-10-13 08:09:59.000 +01:00")}\n${stop("2026-10-13 08:40:00.000 +01:00")}\n`,
+    );
+    expect(logTextGrownFrom(second.read)).toBe(first.read);
+    expect(moreFile.reads.every(([from]) => from > 0)).toBe(true);
+    for (const [from, to] of moreFile.reads) {
+      expect(to - from).toBeLessThanOrEqual(256 * 1024);
+    }
+
+    const rewritten = trackedOutput(encoder.encode(`${stop("2026-10-13 09:00:00.000 +01:00")}\n`), 3);
+    const third = await readTarkovLogText("output_1.log", rewritten.file, second);
+    expect(third.read.text).toBe(`${stop("2026-10-13 09:00:00.000 +01:00")}\n`);
+    expect(logTextGrownFrom(third.read)).toBeUndefined();
+    expect(rewritten.reads.some(([from]) => from === 0)).toBe(true);
   });
 
   it("stays identical to file.text() across random appends", async () => {

@@ -188,6 +188,7 @@ import {
   SVG_BASE_PANE,
 } from "./mapViewer/runtime";
 import {
+  applyBasemapZoomCap,
   attachInteractiveSvg,
   attachInteractiveTiles,
   attachPanPerfGuards,
@@ -1059,6 +1060,7 @@ export function TarkovMapViewer({
         maxZoom,
       });
       runtime.map = map;
+      runtime.tileMaxZoom = maxZoom;
       if (zoomControl) attachZoomControl(map);
       const scaled = getScaledBounds(layer.bounds || [], 1.5);
       if (scaled) map.setMaxBounds(scaled);
@@ -1302,6 +1304,8 @@ export function TarkovMapViewer({
       cancelled = true;
       detachDraw();
       detachImgFallback();
+      runtime.svgRoot?.replaceChildren();
+      runtime.svgRoot = undefined;
       runtimeRef.current = null;
       runtime.map?.remove();
     };
@@ -1329,6 +1333,12 @@ export function TarkovMapViewer({
           setSvgBakedTextHidden(runtime.svgRoot, hideBakedTextRef.current);
         }
         if (runtime.svgOverlay) {
+          applyBasemapZoomCap(
+            map,
+            runtime.svgOverlay.getBounds(),
+            runtime.tileMaxZoom ?? maxZoom,
+            true,
+          );
           runtime.svgOverlay.addTo(map);
           runtime.tileLayer?.remove();
           for (const tile of runtime.floorTiles.values()) tile.remove();
@@ -1344,6 +1354,7 @@ export function TarkovMapViewer({
       if (!runtime.tileLayer && interactive.tilePath) {
         attachInteractiveTiles(runtime, interactive, bounds, maxZoom);
       }
+      applyBasemapZoomCap(map, bounds, runtime.tileMaxZoom ?? maxZoom, false);
       runtime.svgOverlay?.remove();
       runtime.tileLayer?.addTo(map);
       runtime.tileLayer?.setOpacity(

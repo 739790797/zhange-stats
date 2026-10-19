@@ -7,6 +7,7 @@ import { getBounds } from "@/lib/tarkovMapCrs";
 import { mapBaseOffLevel, svgFloorGroupClasses } from "@/lib/tarkovMapFloors";
 import { svgFallbackUrl, type TarkovDevMapLayer } from "@/lib/tarkovMapImages";
 import { sanitizeTarkovMapSvg } from "@/lib/tarkovMapSvg";
+import { svgBasemapZoomLimit, svgOverlayScale } from "@/lib/tarkovMapSvgOverlay";
 import styles from "../../TarkovMapViewer.module.css";
 import { type MapRuntime, SVG_BASE_PANE } from "../runtime";
 
@@ -66,6 +67,96 @@ export function attachInteractiveTiles(
   }
 }
 
+const SVG_CAP_ATTR = "data-svg-cap";
+
+type CappedSvgOverlay = L.SVGOverlay & {
+  _map?: L.Map;
+  _reset: (this: CappedSvgOverlay) => void;
+  _animateZoom: (this: CappedSvgOverlay, event: L.ZoomAnimEvent) => void;
+};
+
+type ZoomBoundsMap = L.Map & {
+  _latLngBoundsToNewLayerBounds: (
+    bounds: L.LatLngBounds,
+    zoom: number,
+    center: L.LatLng,
+  ) => L.Bounds;
+};
+
+/** 抽象图挂上之后把最大缩放收到安全范围内；切回瓦片时还原。 */
+export function applyBasemapZoomCap(
+  map: L.Map,
+  bounds: L.LatLngBounds,
+  tileMaxZoom: number,
+  svg: boolean,
+) {
+  const minZoom = map.getMinZoom();
+  let limit = tileMaxZoom;
+  if (svg) {
+    const nw = map.project(bounds.getNorthWest(), 0);
+    const se = map.project(bounds.getSouthEast(), 0);
+    limit = svgBasemapZoomLimit(
+      Math.abs(se.x - nw.x),
+      Math.abs(se.y - nw.y),
+      tileMaxZoom,
+      minZoom,
+    );
+  }
+  if (Math.abs(map.getMaxZoom() - limit) > 1e-6) map.setMaxZoom(limit);
+  if (map.getZoom() > limit + 1e-6) map.setZoom(limit, { animate: false });
+}
+
+function capSvgOverlayElement(overlay: CappedSvgOverlay) {
+  const map = overlay._map;
+  const el = overlay.getElement();
+  if (!map || !el) return;
+  const box = overlay.getBounds();
+  const px = L.bounds(
+    map.latLngToLayerPoint(box.getNorthWest()),
+    map.latLngToLayerPoint(box.getSouthEast()),
+  );
+  const size = px.getSize();
+  const min = px.min;
+  if (!min) return;
+  const factor = svgOverlayScale(size.x, size.y);
+  el.style.transformOrigin = "0 0";
+  if (factor <= 1) {
+    el.removeAttribute(SVG_CAP_ATTR);
+    return;
+  }
+  el.setAttribute(SVG_CAP_ATTR, String(factor));
+  el.style.width = `${size.x / factor}px`;
+  el.style.height = `${size.y / factor}px`;
+  el.style.transform = `translate3d(${min.x}px,${min.y}px,0) scale(${factor})`;
+}
+
+/** Leaflet 会把 SVG 元素设成整张图的像素尺寸；超过上限就缩小再 scale，避免铺出几十万像素的层。 */
+function installSvgOverlayCap(overlay: L.SVGOverlay) {
+  const layer = overlay as CappedSvgOverlay;
+  const originalReset = layer._reset;
+  layer._reset = function cappedReset() {
+    originalReset.call(this);
+    capSvgOverlayElement(this);
+  };
+  const originalAnim = layer._animateZoom;
+  layer._animateZoom = function cappedAnim(event) {
+    originalAnim.call(this, event);
+    const el = this.getElement();
+    const factor = Number(el?.getAttribute(SVG_CAP_ATTR) || "1");
+    const map = this._map as ZoomBoundsMap | undefined;
+    if (!el || !map || !(factor > 1)) return;
+    const zoomScale = map.getZoomScale(event.zoom);
+    const offset = map._latLngBoundsToNewLayerBounds(
+      this.getBounds(),
+      event.zoom,
+      event.center,
+    ).min;
+    if (!offset) return;
+    el.style.transformOrigin = "0 0";
+    el.style.transform = `translate3d(${offset.x}px,${offset.y}px,0) scale(${zoomScale * factor})`;
+  };
+}
+
 export async function attachInteractiveSvg(
   runtime: MapRuntime,
   layer: TarkovDevMapLayer,
@@ -80,6 +171,7 @@ export async function attachInteractiveSvg(
     pane: SVG_BASE_PANE,
     interactive: false,
   });
+  installSvgOverlayCap(runtime.svgOverlay);
 }
 
 async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {

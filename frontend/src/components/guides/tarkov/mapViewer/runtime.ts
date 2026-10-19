@@ -5,6 +5,8 @@ import type { TarkovMapCanvasMarkerLayer } from "@/lib/tarkovMapCanvasMarkerLaye
 
 export type MapRuntime = {
   map: L.Map;
+  /** 瓦片能用的最大缩放。抽象图会临时把 map.maxZoom 压低，切回去时用这个还原。 */
+  tileMaxZoom?: number;
   fitBox?: L.LatLngBounds;
   svgOverlay?: L.SVGOverlay;
   tileLayer?: L.TileLayer;
