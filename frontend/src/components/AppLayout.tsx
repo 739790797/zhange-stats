@@ -10,6 +10,7 @@ import {
   MenuUnfoldOutlined,
   ScheduleOutlined,
   SettingOutlined,
+  SwapOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -59,6 +60,7 @@ import {
   PLATFORM_NAV,
   firstEnabledPlatformPath,
   isFeatureOn,
+  platformFeatureMenuKey,
 } from "@/lib/platformFeatures";
 import {
   loadAppSiderCollapsed,
@@ -236,7 +238,7 @@ export function AppLayout() {
 
   useEffect(() => {
     setDrawerOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const selected = useMemo(() => {
     if (location.pathname === "/app") return "/app";
@@ -262,11 +264,18 @@ export function AppLayout() {
       ).sort((a, b) => b.length - a.length)[0];
       if (hit) return hit;
     }
-    if (location.pathname.startsWith("/kujiequ")) return "/kujiequ";
-    if (location.pathname.startsWith("/mihoyo")) return "/mihoyo";
-    if (location.pathname.startsWith("/exilium")) return "/exilium";
-    if (location.pathname.startsWith("/taygedo")) return "/taygedo";
-    if (location.pathname.startsWith("/skland")) return "/skland";
+    const platform = PLATFORM_NAV.find(
+      (item) =>
+        location.pathname === item.path ||
+        location.pathname.startsWith(item.path + "/"),
+    );
+    if (platform) {
+      const requestedTab = new URLSearchParams(location.search).get("tab");
+      const child = platform.children?.find((item) => item.key === requestedTab);
+      return child
+        ? platformFeatureMenuKey(platform.path, child.key)
+        : platform.path;
+    }
     return (
       leafKeys.find((key) =>
         key === "/steam"
@@ -277,7 +286,22 @@ export function AppLayout() {
           : location.pathname.startsWith(key),
       ) || "/steam"
     );
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
+
+  const selectedPlatformParent = PLATFORM_NAV.find((item) =>
+    item.children?.some(
+      (child) => platformFeatureMenuKey(item.path, child.key) === selected,
+    ),
+  )?.path;
+
+  useEffect(() => {
+    if (!selectedPlatformParent) return;
+    setOpenKeys((current) =>
+      current.includes(selectedPlatformParent)
+        ? current
+        : [...current, selectedPlatformParent],
+    );
+  }, [selectedPlatformParent]);
 
   const isAdmin = loggedIn && isAdminUser(user);
   const features = featuresQuery.data;
@@ -295,11 +319,31 @@ export function AppLayout() {
 
   const platformItems = PLATFORM_NAV.filter((item) =>
     isFeatureOn(features, item.featureId),
-  ).map((item) => ({
-    key: item.path,
-    icon: <PlatformIcon name={item.icon} />,
-    label: <Link to={item.path}>{item.label}</Link>,
-  }));
+  ).map((item) => {
+    const children = (item.children || [])
+      .filter((child) => isFeatureOn(features, child.featureId))
+      .map((child) => ({
+        key: platformFeatureMenuKey(item.path, child.key),
+        icon:
+          child.icon === "exchange" ? (
+            <SwapOutlined />
+          ) : child.icon ? (
+            <PlatformIcon name={child.icon} />
+          ) : undefined,
+        label: (
+          <Link to={platformFeatureMenuKey(item.path, child.key)}>
+            {child.label}
+          </Link>
+        ),
+      }));
+
+    return {
+      key: item.path,
+      icon: <PlatformIcon name={item.icon} />,
+      label: <Link to={item.path}>{item.label}</Link>,
+      ...(children.length ? { children } : {}),
+    };
+  });
 
   const guideItems = useMemo(() => {
     const mapNode = (node: GuideNavNode): NonNullable<MenuProps["items"]>[number] | null => {

@@ -13,7 +13,6 @@ from app.core.security import strip_markup_chars
 from app.core.timeutil import now_naive, today
 from app.models.arknights import ArknightsBoxSnapshot
 from app.models.checkin_role_pref import CheckinRolePref
-from app.models.job_run import JobRun
 from app.models.member import Member
 from app.models.skland import SklandAttendanceRaw, SklandBind, SklandCheckinLog
 from app.models.user import User
@@ -584,18 +583,35 @@ def run_arknights_box_sync_job(db: Session) -> dict[str, Any]:
 
 def box_sync_job_wrapper() -> None:
     from app.core.database import SessionLocal
-
     from app.services.job_runs_prune import fail_job_run
+    from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
 
     db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running", started_at=now_naive())
-    db.add(job)
+    job = create_or_reuse_job_run(
+        db, JOB_KEY, message="正在同步干员练度", stats={"phase": "start"}
+    )
     db.commit()
     run_id = job.id
     try:
         stats = run_arknights_box_sync_job(db)
-        job.status = "ok"
+        failed = int(stats.get("failed") or 0)
+        ok_count = int(stats.get("ok") or 0)
+        status = "ok" if failed == 0 else "warning" if ok_count else "error"
+        job.status = status
         job.message = json.dumps(stats, ensure_ascii=False)
+        job.stats = versioned_job_stats(
+            JOB_KEY,
+            status=status,
+            stats={
+                "phase": "done" if status == "ok" else "error",
+                **stats,
+                "result": {
+                    "summary": f"干员练度同步完成：成功 {ok_count}，失败 {failed}，跳过 {int(stats.get('skipped') or 0)}",
+                    "counts": stats,
+                },
+            },
+            message=f"干员练度同步完成：成功 {ok_count}，失败 {failed}",
+        )
         job.finished_at = now_naive()
         db.commit()
     except Exception as exc:  # noqa: BLE001

@@ -1,106 +1,43 @@
-# 战鸽数据 · Agent 指南
+# 战鸽数据 · Agent 入口
 
-战鸽数据（Zhange Stats）：Steam 游玩统计 + 圈子成员 + 多平台签到/盒子。  
-栈：FastAPI + MySQL 或 SQLite + APScheduler · React + Ant Design + TanStack Query。
+战鸽数据（Zhange Stats）提供 Steam 游玩统计、圈子成员、多平台签到与游戏数据功能。技术栈：FastAPI、SQLAlchemy、MySQL/SQLite、APScheduler、React、Ant Design、TanStack Query。
 
-人读文档总目录：[`docs/README.md`](docs/README.md)（不搬家，只做索引）。
+## 开始任何任务
 
-## 改代码前必读
+1. 阅读 [`docs/agent-guide.md`](docs/agent-guide.md)，按任务分析、验收与验证流程执行。
+2. 阅读 [`docs/engineering-guidelines.md`](docs/engineering-guidelines.md) 及相关领域文档；`docs/` 是项目规范的权威来源。
+3. 先检查 `git status` 和目标文件现状，保留与当前任务无关的已有改动，不回滚、不覆盖。
+4. 需要时使用 [`docs/agent-skills.md`](docs/agent-skills.md) 索引中的项目专用技能。
 
-| 文档 | 用途 |
-|------|------|
-| [`docs/README.md`](docs/README.md) | 全仓库文档索引 |
-| [`.cursor/mcp.json`](.cursor/mcp.json) | Cursor 项目 MCP（Ant Design 5 / Context7 / Playwright） |
-| [`.cursor/rules/zhange-architecture.mdc`](.cursor/rules/zhange-architecture.mdc) | 架构索引（Agent always-on） |
-| [`.cursor/rules/platform-raw-cache.mdc`](.cursor/rules/platform-raw-cache.mdc) | 盒子 / 旁路 raw / 签到今日 logs |
-| [`.cursor/rules/skland-upstream.mdc`](.cursor/rules/skland-upstream.mdc) | 森空岛官服/B服、补奖、cred、渠道测 |
-| [`.cursor/rules/tarkov-upstream.mdc`](.cursor/rules/tarkov-upstream.mdc) | 塔科夫图鉴只走 json.tarkov.dev，不打 GraphQL |
-| [`.cursor/rules/zhange-assistant.mdc`](.cursor/rules/zhange-assistant.mdc) | 战鸽助手：同源 WebView、侧栏、本机截图/日志 |
-| [`.cursor/rules/db-schema-readme.mdc`](.cursor/rules/db-schema-readme.mdc) | Alembic + `docs/database.md` 表结构 |
-| [`.cursor/rules/frontend-conventions.mdc`](.cursor/rules/frontend-conventions.mdc) | 前端约定（含 status `force` 显式传参） |
-| [`.cursor/rules/frontend-ui.mdc`](.cursor/rules/frontend-ui.mdc) | Ant Design 主题、按钮角色/尺寸 |
-| [`.cursor/rules/backend-conventions.mdc`](.cursor/rules/backend-conventions.mdc) | 后端约定（含 Adapter checklist / 可选钩子） |
-| [`.cursor/rules/logging.mdc`](.cursor/rules/logging.mdc) | 运行时日志（级别 / 禁刷）；全文 [`docs/logging.md`](docs/logging.md) |
-| [`.cursor/rules/testing.mdc`](.cursor/rules/testing.mdc) | 自测分层、补测门槛、禁止同层重复 |
-| [`.cursor/rules/frontend-api-errors.mdc`](.cursor/rules/frontend-api-errors.mdc) | `apiError` / `*Api` 边界 |
-| [`.cursor/rules/directory-layout.mdc`](.cursor/rules/directory-layout.mdc) | 新平台进 `services/<域>` / `components/<域>` |
-| [`docs/directory-layout.md`](docs/directory-layout.md) | 目录结构全文（`data/`、分包映射） |
-| [`docs/agent-governance-plan.md`](docs/agent-governance-plan.md) | 治理方案（已落地） |
-| 根 [`README.md`](README.md) | 站点性质、功能概要、致谢 |
-| [`docs/develop.md`](docs/develop.md) | 本地开发 |
-| [`docs/deploy.md`](docs/deploy.md) | 生产部署 |
-| [`docs/database.md`](docs/database.md) | 表结构总览 |
-| [`docs/security.md`](docs/security.md) | 安全与运行注意 |
-| [`docs/logging.md`](docs/logging.md) | 运行时日志规范（平台日志；非签到库表） |
+## 权威文档
+
+- [`docs/README.md`](docs/README.md)：完整文档索引。
+- [`docs/develop.md`](docs/develop.md)、[`docs/deploy.md`](docs/deploy.md)：开发、CI 与部署/发版。
+- [`docs/database.md`](docs/database.md)、[`backend/alembic/README.md`](backend/alembic/README.md)：数据库与迁移。
+- [`docs/security.md`](docs/security.md)、[`docs/logging.md`](docs/logging.md)：安全、文件管理与运行日志。
+- [`docs/directory-layout.md`](docs/directory-layout.md)、[`data/README.md`](data/README.md)：代码分包、运行时目录与上游资源仓。
+- [`frontend/src/api/generated/README.md`](frontend/src/api/generated/README.md)：OpenAPI 客户端生成流程。
+
+## 全局约束
+
+- FastAPI 契约变更要同步生成并提交前端 OpenAPI 类型；数据库结构变更要有 Alembic migration，并更新 `docs/database.md`。
+- 盒子/旁路 raw 默认读库；签到展示状态打开页必须回源。业务规则见 [`docs/engineering-guidelines.md`](docs/engineering-guidelines.md)。
+- 上游仓只由统一同步流程维护；测试使用本地 fixture，不访问真实网络或执行 Git。
+- 遵守安全、部署、日志和目录布局文档；不要自行发明与其冲突的约定。
 
 ## 高频命令
 
 ```bash
-# 前端（frontend/）
+# frontend/
 npm ci
-npm run dev
 npm run lint && npm run test && npm run build
-npm run export:openapi && npm run gen:api   # 改后端 API 后必做
+npm run export:openapi && npm run gen:api  # 后端 API 契约变化后
 
-# 本机生命周期（每边六件套；不区分生产/开发）
-# Windows: scripts/win/install.ps1 · run.ps1 · restart.ps1 · update.ps1 · backup.ps1 · restore.ps1
-# Linux:   sudo bash scripts/linux/install.sh · run.sh · restart.sh · update.sh · backup.sh · restore.sh
-
-# 后端（backend/，激活 .venv）
+# backend/，先激活项目 .venv
 python -m pytest -q
-alembic revision --autogenerate -m "..."
+ruff check .
+alembic revision --autogenerate -m "描述"
 alembic upgrade head
 ```
 
-## 禁止清单
-
-- 无 Alembic 改表；启动时在 Alembic 之外 `create_all` / `ALTER`（无 `alembic_version` 的服务端旧库直接拒绝，见 `backend/alembic/README.md`「Alembic 之前的旧库」）
-- 签到 status 写 `bind.last_checkin_*`；签到展示打开页不 force 回源；用户侧展示执行记录
-- 新签到平台复制整份 `*_checkin` 编排（应实现 Adapter + 注册表）
-- 新平台签到/兑换页不套 `CheckinPageTemplate` / `ExchangePageTemplate` / `PlatformFeatureTabsPage`
-- 新管理子页不进 `AdminHubLayout`、往侧栏再堆叶子（站点设置 / 运行维护 / 任务管理 / 用户管理共用 wide 栏）
-- 新签到日历复制整份 Modal；新盒子复制 loading/刷新条；扫码绑定复制 start/poll 定时器（应走 `AttendanceCalendarButton` / `BoxPanelChrome` / `useQrBindSession`）
-- Button 内联 `#1a2332` 锁死主色；主应用引入第二套 UI 库或抄塔科夫暗色主题
-- 森空岛：B服 GET 空 records 当未签；attendance `gameId` 回退官服 `1`；B服 already 后再 GET 补奖
-- 塔科夫图鉴回源 `api.tarkov.dev` GraphQL（应走 json.tarkov.dev dump）
-- 雨中冒险2图鉴回源 riskofrain2.wiki.gg 以外的接口；先把原文拆成字符串再翻译；译文不按原文件格式整份落在 `zh-Hans/`，或把游戏语言文件当页面上的第二层覆盖
-- 塔科夫联机：非成员（含未登录）`GET` 房间回完整棋盘（应只给预览：标题/模式/人数/是否要密码等，无棋盘、无人员）；房间码当秘密；访客占座；创建后再改公开或私密。公开大厅列表可以带在座昵称和每人地图/相位
-- 战鸽助手用 iframe 嵌站，或生产用 `tauri.localhost` 跨源当登录；为读游戏目录新开收日志原文/定位原图的接口；在助手里重写截图文件名与日志解析
-- `fetch*Status` 用 `...(force ? { force: true } : {})` 省略 force（与后端默认 true 错位）
-- 页面直连 axios / 手拆 `e.response.data.detail`（用 `apiError`）
-- 只改手写 `types.ts` 冒充 API 契约（应走 OpenAPI → `schema.d.ts`）
-- 去掉 CSRF / 登出清 Cookie / 生产 CORS 收紧，却只把 JWT 改成可读 Cookie 或继续 persist JWT
-- 生产开启 `ALLOW_EMAIL_CODE_LOG`（启动硬拒绝）；生产使用默认弱 `ADMIN_PASSWORD`
-- 文件管理把查询参数当任意绝对路径读盘、把站外缓存当第二根；把 `.secret_key` / `.env` / `config/{database,integrations,email}.json` / 在用的 SQLite 库及 `-wal`/`-shm`/`-journal` / 备份 `zhange-*.tar.gz` 当普通文件下发、修改或删除；跟随符号链接绕过敏感判定
-- 新业务用户上传直写 `UPLOAD_DIR`（应走 `services/user_files` + namespace；头像覆盖写也要登记）
-- 应用进程内 apt / winget 装 MariaDB（走 `scripts/common/provision_mariadb.py`；Windows 便携包在 `data/mariadb/`）
-- 把 Hugging Face / pip 缓存写到家目录（启动与脚本应 pin 到 `data/cache`，tempfile 到 `data/tmp`）
-- `install` / `run` 自动装 MariaDB（向导选 SQLite 或外部库；本机库手工跑 provision）
-- 站点设置写回 `system_configs` 或把根 `.env` 当权威源（应写 `config/*.json`）；改 `scripts/config.example` 字段却不把该文件 `_version` 加 1；用模板覆盖用户已有值或新建 `database.json`
-- 管理端保存再要邮箱步进码（用户侧注册/绑邮/找回/注销发码保留）
-- 脚本用参数区分生产/开发，或做生产库同步到开发库 / curl 应急覆盖源码（公开入口只有 install / run / restart / update / backup / restore；环境看该安装树 `config/app.json`）
-- 成功快 GET / 健康与日志轮询 / `POST /api/client-rum` 打 INFO；循环内逐条 INFO；密钥、验证码、Cookie 进日志
-- 质量门红时当已发版、手工打 tag，或改 `VERSION` 却不打算让生产看见新版本
-
-## PR 自检
-
-- [ ] 改 API：已 `export:openapi && gen:api`，generated 有 diff
-- [ ] 改模型：有 Alembic + `docs/database.md`
-- [ ] 改签到/盒子：盒子符合 raw 读库优先；签到展示始终 force 回源、不展示执行记录
-- [ ] 改森空岛渠道/补奖/cred：已对照 `skland-upstream.mdc`，相关 `test_skland_*` 通过
-- [ ] 改塔科夫图鉴/同步/地图标点：已对照 `tarkov-upstream.mdc`（只走 json.tarkov.dev）
-- [ ] 改雨中冒险2图鉴：只走 riskofrain2.wiki.gg；译文是和原文同格式的整文件，只解析已审且指纹一致的 `zh-Hans/` 文件，相关 `test_ror2_*` 通过
-- [ ] 改塔科夫联机：未登录可看大厅与房间预览；非成员 GET 仅为预览；访客不能占座；限流与 `docs/security.md`「塔科夫图鉴与工具」「塔科夫联机」一致
-- [ ] 改战鸽助手嵌入 / 本机目录：对照 `zhange-assistant.mdc`（同源 WebView、侧栏、文件桥不收原文）
-- [ ] 改文件管理：只扫安装根；密钥 / 含口令的 `config/*.json` / 在用 SQLite 库 / MariaDB 数据 / 备份不可下/改/删，符号链接一律拒绝；相关 `test_file_manager` 通过
-- [ ] 改用户附件：走 `user_files`；OpenAPI `serial`；相关 `test_user_files` 通过
-- [ ] 改纯函数/渠道/`force`/弱口令：已按 `testing.mdc` 补测（规则在哪层实现就在哪层测）
-- [ ] 改前端请求/报错：走 `*Api` + `apiError`；status 显式传 `force`
-- [ ] 改 `scripts/config.example`：该文件 `_version` 已加 1；`test_config_sync` 通过
-- [ ] 改生产相关：核对 `APP_ENV` / 弱口令 / `REDIS_URL`（多实例须共享）/ 邮件日志；发版以绿的 GitHub Release 为准（见 `docs/deploy.md`「发版」）
-- [ ] 改 logger：对照 `docs/logging.md`（不刷轮询、不打密钥、任务只打汇总）
-
-## CI
-
-PR/push：`frontend-quality`（lint + vitest + build）· `backend-tests`（ruff + pytest）· `backend-migrate-mariadb`（MariaDB 上 alembic）· `openapi-drift`；`dependency-audit` 为 warning、不卡 PR。`main` 仅在质量门绿后发 GitHub Release（static）；门红不改 Release，与没发一样。详见 [`docs/deploy.md`](docs/deploy.md)「发版」。  
-提交信息偏好 conventional commits（`feat` / `fix` / `chore` / `docs` / …）。
+完整开发环境和质量门见 [`docs/develop.md`](docs/develop.md)；按任务选择测试范围，不要把部分通过报告为全绿。

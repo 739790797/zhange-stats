@@ -362,6 +362,14 @@ export async function fetchTarkovMaps() {
   return data;
 }
 
+export async function fetchTarkovMapSvg(name: string): Promise<string> {
+  const { data } = await client.get<string>(
+    `/guides/tarkov/map-svg/${encodeURIComponent(name)}`,
+    { responseType: "text" },
+  );
+  return data;
+}
+
 export async function fetchTarkovMapDetail(
   slug: string,
   opts?: { lootLoose?: boolean; lootContainers?: boolean },

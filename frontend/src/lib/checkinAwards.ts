@@ -12,8 +12,7 @@ export type CheckinAward = {
 };
 
 /** 与 `components/arknights/constants.ts` GAME_RES 同源 */
-export const ARKNIGHTS_ITEM_ICON_BASE =
-  "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/item";
+export const ARKNIGHTS_ITEM_ICON_BASE = "/api/skland/arknights/assets/item";
 
 const STATUS_AWARDS_TEXT =
   /^(今日已签到|签到成功|签到奖励已发放|讨论区今日已签到|B服不支持查询)(。)?$/;

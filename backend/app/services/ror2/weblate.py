@@ -18,7 +18,6 @@ from app.core.biz_logging import log_until_change
 from app.core.database import SessionLocal
 from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive
-from app.models.job_run import JobRun
 from app.services.guide_raw.lock import SyncBusy, SyncGate
 from app.services.guide_raw.pipeline import load_row, upsert_raw
 from app.services.job_runs_prune import fail_job_run
@@ -267,8 +266,11 @@ def _drop_translation(db: Session, resource: str) -> None:
 
 def sync_job() -> None:
     db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running", started_at=now_naive())
-    db.add(job)
+    from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
+
+    job = create_or_reuse_job_run(
+        db, JOB_KEY, message="正在同步图鉴译文", stats={"phase": "start"}
+    )
     db.commit()
     run_id = job.id
     try:
@@ -278,11 +280,23 @@ def sync_job() -> None:
         except SyncBusy:
             job.status = "ok"
             job.message = "已有同步在跑"
+            job.stats = versioned_job_stats(
+                JOB_KEY,
+                status="ok",
+                stats={"phase": "skip", "result": {"summary": job.message}},
+                message=job.message,
+            )
             job.finished_at = now_naive()
             db.commit()
             return
         job.status = "ok"
         job.message = report
+        job.stats = versioned_job_stats(
+            JOB_KEY,
+            status="ok",
+            stats={"phase": "done", "result": {"summary": report[:300]}},
+            message=report,
+        )
         job.finished_at = now_naive()
         db.commit()
     except Exception as exc:  # noqa: BLE001

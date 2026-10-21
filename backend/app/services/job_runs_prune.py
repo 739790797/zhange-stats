@@ -16,6 +16,7 @@ from app.services.minecraft.perf_rollup import maintain_perf_archive
 from app.services.oauth_ticket import prune_expired_oauth_tickets
 from app.services.rum import prune_rum_samples
 from app.services.scheduler_config import load_scheduler_config
+from app.services.job_run_progress import versioned_job_stats
 
 logger = logging.getLogger("zhange.job_runs_prune")
 
@@ -45,28 +46,31 @@ def fail_job_run(
         return
     run.status = "error"
     run.message = message
-    if stats is not None:
-        run.stats = stats
+    run.stats = versioned_job_stats(
+        run.job_key,
+        status="error",
+        stats=stats if stats is not None else run.stats,
+        message=message,
+    )
     run.finished_at = now_naive()
     db.commit()
 
 
 def mark_interrupted_job_runs(db: Session) -> int:
-    """启动时把上个进程遗留的 running 记录收尾为 error（单副本部署：此刻不可能有任务在跑）。"""
-    n = (
-        db.query(JobRun)
-        .filter(JobRun.status == "running")
-        .update(
-            {
-                JobRun.status: "error",
-                JobRun.finished_at: now_naive(),
-                JobRun.message: INTERRUPTED_MESSAGE,
-            },
-            synchronize_session=False,
+    """启动时把上个进程遗留的 queued / running 记录收尾为 error。"""
+    rows = db.query(JobRun).filter(JobRun.status.in_(("queued", "running"))).all()
+    for row in rows:
+        row.status = "error"
+        row.finished_at = now_naive()
+        row.message = INTERRUPTED_MESSAGE
+        row.stats = versioned_job_stats(
+            row.job_key,
+            status="error",
+            stats=row.stats,
+            message=INTERRUPTED_MESSAGE,
         )
-    )
     db.commit()
-    return int(n or 0)
+    return len(rows)
 
 
 def _retention_days(db: Session) -> int:

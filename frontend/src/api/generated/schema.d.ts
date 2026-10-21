@@ -1358,6 +1358,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/jobs/{job_id}/runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job Run Events */
+        get: operations["get_job_run_events_api_settings_jobs__job_id__runs__run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/steam/overview": {
         parameters: {
             query?: never;
@@ -1672,6 +1689,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skland/arknights/assets/{kind}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Arknights Asset
+         * @description 方舟头像 / 物品图标 / 立绘，从本地资源仓克隆读取。
+         */
+        get: operations["skland_arknights_asset_api_skland_arknights_assets__kind___name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skland/arknights/attendance-calendar": {
         parameters: {
             query?: never;
@@ -1794,6 +1831,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skland/endfield/inn/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Endfield Inn Topics
+         * @description 客栈主题和扩建选项（读本地 EndfieldData）。
+         */
+        get: operations["skland_endfield_inn_topics_api_skland_endfield_inn_topics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/endfield/inn/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Endfield Inn Plan
+         * @description 为主题和客栈等级生成菜单、厨师与五星目标估算。
+         */
+        get: operations["skland_endfield_inn_plan_api_skland_endfield_inn_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/endfield/inn/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Skland Endfield Inn Query
+         * @description 查询客栈图鉴、解锁状态与可选主题推荐（不保存用户配置）。
+         */
+        post: operations["skland_endfield_inn_query_api_skland_endfield_inn_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skland/endfield/box": {
         parameters: {
             query?: never;
@@ -1806,6 +1903,46 @@ export interface paths {
          * @description 终末地养成盒：默认读库二次加工；force 或首次回源落库。
          */
         get: operations["skland_endfield_box_api_skland_endfield_box_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/endfield/box/compare-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Endfield Compare Candidates
+         * @description 终末地养成对比成员：仅显示仍绑定且有角色记录的站内用户。
+         */
+        get: operations["skland_endfield_compare_candidates_api_skland_endfield_box_compare_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/endfield/box/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skland Endfield Box Compare
+         * @description 终末地多用户干员练度对比；仅当前用户可回源，其他用户只读已缓存快照。
+         */
+        get: operations["skland_endfield_box_compare_api_skland_endfield_box_compare_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2722,6 +2859,26 @@ export interface paths {
          * @description 游戏福利签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。
          */
         get: operations["mihoyo_attendance_calendar_api_mihoyo_attendance_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guides/tarkov/map-svg/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tarkov Map Svg
+         * @description 互动地图 SVG，从本地 tarkov-dev-svg-maps 克隆读取。
+         */
+        get: operations["tarkov_map_svg_api_guides_tarkov_map_svg__name__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6598,6 +6755,18 @@ export interface components {
              */
             stale: boolean;
         };
+        /** EndfieldBoxCompareOut */
+        EndfieldBoxCompareOut: {
+            /** Catalog */
+            catalog?: components["schemas"]["EndfieldOperatorOut"][];
+            /**
+             * Catalog Count
+             * @default 0
+             */
+            catalog_count: number;
+            /** Rows */
+            rows?: components["schemas"]["EndfieldCompareRowOut"][];
+        };
         /** EndfieldBoxOut */
         EndfieldBoxOut: {
             /** Uid */
@@ -6693,6 +6862,73 @@ export interface components {
             /** Equips */
             equips?: components["schemas"]["EndfieldEquipOut"][];
         };
+        /** EndfieldCompareCandidateOut */
+        EndfieldCompareCandidateOut: {
+            /** Member Id */
+            member_id: number;
+            /** Nickname */
+            nickname: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Game Role Name */
+            game_role_name?: string | null;
+            /**
+             * Is Self
+             * @default false
+             */
+            is_self: boolean;
+            /**
+             * Skland Bound
+             * @default false
+             */
+            skland_bound: boolean;
+        };
+        /** EndfieldCompareRoleOut */
+        EndfieldCompareRoleOut: {
+            /** Uid */
+            uid: string;
+            /** Role Name */
+            role_name: string;
+            /**
+             * Channel Name
+             * @default
+             */
+            channel_name: string;
+        };
+        /** EndfieldCompareRowOut */
+        EndfieldCompareRowOut: {
+            /** Member Id */
+            member_id: number;
+            /** Nickname */
+            nickname: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Status */
+            status: string;
+            /** Message */
+            message?: string | null;
+            /** Uid */
+            uid?: string | null;
+            /** Role Name */
+            role_name?: string | null;
+            /** Channel Name */
+            channel_name?: string | null;
+            /** Player Level */
+            player_level?: number | null;
+            /** Synced At */
+            synced_at?: string | null;
+            /**
+             * Char Count
+             * @default 0
+             */
+            char_count: number;
+            /** Owned */
+            owned?: {
+                [key: string]: components["schemas"]["EndfieldCharOut"];
+            };
+            /** Roles */
+            roles?: components["schemas"]["EndfieldCompareRoleOut"][];
+        };
         /** EndfieldEquipOut */
         EndfieldEquipOut: {
             /** Slot */
@@ -6718,6 +6954,21 @@ export interface components {
             level?: number | null;
             /** Refine Level */
             refine_level?: number | null;
+        };
+        /** EndfieldOperatorOut */
+        EndfieldOperatorOut: {
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name: string;
+            /** Rarity */
+            rarity: number;
+            /** Profession */
+            profession: string;
+            /** Profession Label */
+            profession_label: string;
+            /** Sort Order */
+            sort_order: number;
         };
         /** EndfieldSkillOut */
         EndfieldSkillOut: {
@@ -7410,6 +7661,303 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InnBonusTier */
+        InnBonusTier: {
+            /** Tier */
+            tier: number;
+            /** Rare Rate Bonus */
+            rare_rate_bonus: number;
+        };
+        /** InnChefCatalogRec */
+        InnChefCatalogRec: {
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name: string;
+            /** Tags */
+            tags?: components["schemas"]["InnChefTag"][];
+            /** Notes */
+            notes?: string[];
+        };
+        /** InnChefRec */
+        InnChefRec: {
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name: string;
+            /** Kitchen Index */
+            kitchen_index?: number | null;
+            /**
+             * Slot Label
+             * @default
+             */
+            slot_label: string;
+            /** Notes */
+            notes?: string[];
+        };
+        /** InnChefTag */
+        InnChefTag: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** InnDishRec */
+        InnDishRec: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Category */
+            category: string;
+            /** Category Name */
+            category_name: string;
+            /** Affix Ids */
+            affix_ids?: string[];
+            /** Affixes */
+            affixes?: string[];
+            /**
+             * Price
+             * @default 0
+             */
+            price: number;
+            /**
+             * Cook Seconds
+             * @default 0
+             */
+            cook_seconds: number;
+            /** Ingredients */
+            ingredients?: string[];
+            /**
+             * Unlock Level
+             * @default 1
+             */
+            unlock_level: number;
+            /**
+             * Unlock Topic Id
+             * @default
+             */
+            unlock_topic_id: string;
+            /**
+             * Unlock Topic Star Num
+             * @default 0
+             */
+            unlock_topic_star_num: number;
+            /**
+             * Unlocked
+             * @default true
+             */
+            unlocked: boolean;
+            /** Unlock Conditions */
+            unlock_conditions?: string[];
+        };
+        /** InnExpansionBrief */
+        InnExpansionBrief: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Unlock Level
+             * @default 1
+             */
+            unlock_level: number;
+            /**
+             * Cost
+             * @default 0
+             */
+            cost: number;
+            /**
+             * Add Kitchen Num
+             * @default 0
+             */
+            add_kitchen_num: number;
+            /**
+             * Add Kitchen Char Num
+             * @default 0
+             */
+            add_kitchen_char_num: number;
+            /**
+             * Prerequisite Id
+             * @default
+             */
+            prerequisite_id: string;
+        };
+        /** InnMenuGroup */
+        InnMenuGroup: {
+            /** Requirement Id */
+            requirement_id: string;
+            /** Text */
+            text: string;
+            /**
+             * Food Type
+             * @default 1
+             */
+            food_type: number;
+            /**
+             * Need
+             * @default 0
+             */
+            need: number;
+            /** Dishes */
+            dishes?: components["schemas"]["InnDishRec"][];
+            /**
+             * Missing
+             * @default 0
+             */
+            missing: number;
+        };
+        /** InnObjectivePart */
+        InnObjectivePart: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "icon";
+            /** Value */
+            value: string;
+        };
+        /** InnPlanOut */
+        InnPlanOut: {
+            /** Topic Id */
+            topic_id: string;
+            /** Topic Name */
+            topic_name: string;
+            /** Level */
+            level: number;
+            /** Menu */
+            menu?: components["schemas"]["InnMenuGroup"][];
+            /** Chefs */
+            chefs?: components["schemas"]["InnChefRec"][];
+            star: components["schemas"]["InnStarOut"];
+        };
+        /** InnQueryIn */
+        InnQueryIn: {
+            /** Level */
+            level: number;
+            /** Expansions */
+            expansions?: string[];
+            /** Topic Id */
+            topic_id?: string | null;
+            /** Topic Stars */
+            topic_stars?: {
+                [key: string]: number;
+            };
+            /**
+             * Jsspsi Bonus Tier
+             * @default 1
+             */
+            jsspsi_bonus_tier: number;
+        };
+        /** InnQueryOut */
+        InnQueryOut: {
+            /** Level */
+            level: number;
+            /** Topic Id */
+            topic_id?: string | null;
+            /**
+             * Kitchen Count
+             * @default 1
+             */
+            kitchen_count: number;
+            /**
+             * Chef Slot Count
+             * @default 1
+             */
+            chef_slot_count: number;
+            /**
+             * Jsspsi Bonus Tier
+             * @default 1
+             */
+            jsspsi_bonus_tier: number;
+            /**
+             * Jsspsi Rare Rate Bonus
+             * @default 0
+             */
+            jsspsi_rare_rate_bonus: number;
+            /** Dishes */
+            dishes?: components["schemas"]["InnDishRec"][];
+            /** Drinks */
+            drinks?: components["schemas"]["InnDishRec"][];
+            /** Chef Catalog */
+            chef_catalog?: components["schemas"]["InnChefCatalogRec"][];
+            recommendations?: components["schemas"]["InnRecommendationsOut"] | null;
+        };
+        /** InnRecommendationsOut */
+        InnRecommendationsOut: {
+            /** Topic Id */
+            topic_id: string;
+            /** Topic Name */
+            topic_name: string;
+            /** Menu */
+            menu?: components["schemas"]["InnMenuGroup"][];
+            /** Chefs */
+            chefs?: components["schemas"]["InnChefRec"][];
+            star: components["schemas"]["InnStarOut"];
+        };
+        /** InnStarOut */
+        InnStarOut: {
+            /**
+             * Private Chef
+             * @default false
+             */
+            private_chef: boolean;
+            /** Star Scores */
+            star_scores?: number[];
+            /**
+             * Kpi Cap
+             * @default 0
+             */
+            kpi_cap: number;
+            /**
+             * Profit Cap
+             * @default 0
+             */
+            profit_cap: number;
+            /**
+             * Needs Objective
+             * @default false
+             */
+            needs_objective: boolean;
+            /**
+             * Objective
+             * @default
+             */
+            objective: string;
+            /** Objective Parts */
+            objective_parts?: components["schemas"]["InnObjectivePart"][];
+            /**
+             * Estimate
+             * @default
+             */
+            estimate: string;
+        };
+        /** InnTopicBrief */
+        InnTopicBrief: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Unlock Level
+             * @default 1
+             */
+            unlock_level: number;
+            /**
+             * Private Chef
+             * @default false
+             */
+            private_chef: boolean;
+        };
+        /** InnTopicsOut */
+        InnTopicsOut: {
+            /** Topics */
+            topics?: components["schemas"]["InnTopicBrief"][];
+            /** Expansions */
+            expansions?: components["schemas"]["InnExpansionBrief"][];
+            /** Jsspsi Bonus Tiers */
+            jsspsi_bonus_tiers?: components["schemas"]["InnBonusTier"][];
+        };
         /**
          * IntegrationsOut
          * @description 密钥字段只写：响应恒为空串，看 `*_set`；长 token 另给末 4 位 `*_hint`（不足 16 位为空）。
@@ -7701,6 +8249,40 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** JobRunEventsOut */
+        JobRunEventsOut: {
+            run: components["schemas"]["JobRunOut"];
+            /** Logs */
+            logs?: components["schemas"]["JobRunLogOut"][];
+            /**
+             * Next After Id
+             * @default 0
+             */
+            next_after_id: number;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+        };
+        /** JobRunLogOut */
+        JobRunLogOut: {
+            /** Id */
+            id: number;
+            /** Created At */
+            created_at: string;
+            /** Level */
+            level: string;
+            /** Logger */
+            logger: string;
+            /** Message */
+            message: string;
+            /**
+             * Is Truncation
+             * @default false
+             */
+            is_truncation: boolean;
+        };
         /** JobRunOut */
         JobRunOut: {
             /** Id */
@@ -7767,6 +8349,10 @@ export interface components {
             accepted: boolean;
             /** Job Id */
             job_id: string;
+            /** Run Id */
+            run_id?: number | null;
+            /** Category */
+            category?: string | null;
             /**
              * Message
              * @default 已提交执行
@@ -11700,6 +12286,10 @@ export interface components {
             kind: string;
             /** Platform */
             platform?: string | null;
+            /** Sync Category */
+            sync_category?: string | null;
+            /** Cli Command */
+            cli_command?: string | null;
             /**
              * Executor Id
              * @default app
@@ -20597,6 +21187,7 @@ export interface operations {
     list_job_runs_api_settings_jobs__job_id__runs_get: {
         parameters: {
             query?: {
+                run_id?: number | null;
                 page?: number;
                 page_size?: number;
             };
@@ -20615,6 +21206,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRunsPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_run_events_api_settings_jobs__job_id__runs__run_id__events_get: {
+        parameters: {
+            query?: {
+                after_id?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunEventsOut"];
                 };
             };
             /** @description Validation Error */
@@ -21207,6 +21833,38 @@ export interface operations {
             };
         };
     };
+    skland_arknights_asset_api_skland_arknights_assets__kind___name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     skland_arknights_attendance_calendar_api_skland_arknights_attendance_calendar_get: {
         parameters: {
             query?: {
@@ -21367,6 +22025,92 @@ export interface operations {
             };
         };
     };
+    skland_endfield_inn_topics_api_skland_endfield_inn_topics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InnTopicsOut"];
+                };
+            };
+        };
+    };
+    skland_endfield_inn_plan_api_skland_endfield_inn_plan_get: {
+        parameters: {
+            query: {
+                topic_id: string;
+                level: number;
+                expansions?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InnPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skland_endfield_inn_query_api_skland_endfield_inn_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InnQueryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InnQueryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     skland_endfield_box_api_skland_endfield_box_get: {
         parameters: {
             query?: {
@@ -21386,6 +22130,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EndfieldBoxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skland_endfield_compare_candidates_api_skland_endfield_box_compare_candidates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndfieldCompareCandidateOut"][];
+                };
+            };
+        };
+    };
+    skland_endfield_box_compare_api_skland_endfield_box_compare_get: {
+        parameters: {
+            query: {
+                /** @description 逗号分隔的成员 id，最多 5 人 */
+                member_ids: string;
+                /** @description 可选，格式 memberId:uid,memberId:uid，指定各成员终末地角色 */
+                role_uids?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndfieldBoxCompareOut"];
                 };
             };
             /** @description Validation Error */
@@ -23215,6 +24013,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MihoyoAttendanceCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tarkov_map_svg_api_guides_tarkov_map_svg__name__get: {
+        parameters: {
+            query?: {
+                /** @description PVP（regular）或 PVE */
+                game_mode?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

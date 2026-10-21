@@ -21,9 +21,9 @@ node scripts/find-unused-css-modules.mjs   # 只读：列出 *.module.css 里没
 - `src/components`：根上跨平台外壳；平台面板在 `skland/` `mihoyo/` 等子目录；攻略在 `guides/`
 - `src/data`：源码资源（塔科夫地图 JSON 等）；运行时/缓存在仓库根 `data/`
 - `src/api`：axios + 按域 `*Api`；业务类型几乎均从 `generated/schema.d.ts` 派生；`formatDuration` 等工具仍在 `types.ts`
-- `src/lib/apiError`：用户可见错误文案（内部走 `formatRequestError`）；`npm run test`（vitest）覆盖 `lib/` 与组件旁纯函数（见 `testing.mdc`）
+- `src/lib/apiError`：用户可见错误文案（内部走 `formatRequestError`）；`npm run test`（vitest）覆盖 `lib/` 与组件旁纯函数（见 [`docs/agent-guide.md`](../docs/agent-guide.md)）
 - `src/stores/authStore.ts`：只持久化 `user`（登录态以 HttpOnly Cookie 为准）
-- 约定：仓库根 `AGENTS.md`；Cursor 规则 `frontend-conventions` / `frontend-api-errors` / `testing`
+- 约定：仓库根 [`AGENTS.md`](../AGENTS.md)、[`docs/engineering-guidelines.md`](../docs/engineering-guidelines.md) 与 [`docs/agent-guide.md`](../docs/agent-guide.md)
 
 ## 权限
 

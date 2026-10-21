@@ -1,28 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Empty, Space, Typography } from "antd";
+import { Alert, Card, Empty, Space, Tag, Typography } from "antd";
 import {
   fetchArknightsBoxCompare,
   fetchArknightsCompareCandidates,
 } from "@/api/client";
+import type {
+  ArknightsCompareRow,
+  ArknightsOwnedChar,
+  ArknightsOperator,
+} from "@/api/types";
 import { apiError } from "@/lib/apiError";
-import { AddCompareCard } from "./AddCompareCard";
-import { CompareFilterToolbar } from "./CompareFilterToolbar";
-import { COMPARE_MAX, type SortMode } from "./constants";
+import { COMPARE_MAX } from "./constants";
 import {
   loadRoleUidByMember,
   saveRoleUidByMember,
 } from "./roleUidStorage";
-import { SyncCompareBoard } from "./SyncCompareBoard";
+import { OperatorInfoCompareTemplate } from "@/components/operatorInfo/OperatorInfoCompareTemplate";
+import { OwnedCard } from "./OwnedCard";
+import { MissingCard } from "./MissingCard";
+import { OwnedDetailTooltip } from "./OwnedDetailTooltip";
+import { RowLabel } from "./RowLabel";
+import { computeRarityProgress } from "./progress";
+import { AddCompareMemberCard } from "@/components/operatorInfo/AddCompareMemberCard";
 
-/** 明日方舟页：善意多用户盒子对比（共用同一横向滚动） */
+/** 明日方舟页：共用干员信息模板的多成员练度对比。 */
 export function ArknightsBoxCompare() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialized, setInitialized] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("catalog");
-  const [keyword, setKeyword] = useState("");
-  const [rarityFilter, setRarityFilter] = useState<number | "all">("all");
-  const [professionFilter, setProfessionFilter] = useState<string>("all");
   const [roleUidByMember, setRoleUidByMember] = useState<
     Record<number, string>
   >(loadRoleUidByMember);
@@ -42,7 +47,7 @@ export function ArknightsBoxCompare() {
   });
 
   const selfId = useMemo(
-    () => candidatesQuery.data?.find((c) => c.is_self)?.member_id,
+    () => candidatesQuery.data?.find((candidate) => candidate.is_self)?.member_id,
     [candidatesQuery.data],
   );
 
@@ -61,7 +66,7 @@ export function ArknightsBoxCompare() {
   const addableCandidates = useMemo(
     () =>
       (candidatesQuery.data || []).filter(
-        (c) => !compareIds.includes(c.member_id),
+        (candidate) => !compareIds.includes(candidate.member_id),
       ),
     [candidatesQuery.data, compareIds],
   );
@@ -94,12 +99,12 @@ export function ArknightsBoxCompare() {
   const displayRows = useMemo(() => {
     const rows = compareQuery.data?.rows || [];
     if (selfId == null) return rows;
-    const selfRow = rows.find((r) => r.member_id === selfId);
+    const selfRow = rows.find((row) => row.member_id === selfId);
     if (!selfRow) return rows;
-    return [selfRow, ...rows.filter((r) => r.member_id !== selfId)];
+    return [selfRow, ...rows.filter((row) => row.member_id !== selfId)];
   }, [compareQuery.data?.rows, selfId]);
 
-  // 清理已失效的渠道服记忆（角色列表里已不存在）
+  // 清理已失效的渠道服记忆（角色列表里已不存在）。
   useEffect(() => {
     if (!displayRows.length) return;
     setRoleUidByMember((prev) => {
@@ -109,7 +114,7 @@ export function ArknightsBoxCompare() {
         const saved = next[row.member_id];
         if (!saved) continue;
         const roles = row.roles || [];
-        if (roles.length > 0 && !roles.some((r) => r.uid === saved)) {
+        if (roles.length > 0 && !roles.some((role) => role.uid === saved)) {
           delete next[row.member_id];
           changed = true;
         }
@@ -119,64 +124,6 @@ export function ArknightsBoxCompare() {
       return next;
     });
   }, [displayRows]);
-
-  const professions = useMemo(() => {
-    const set = new Set<string>();
-    for (const op of compareQuery.data?.catalog || []) {
-      if (op.profession_label) set.add(op.profession_label);
-    }
-    return Array.from(set).sort();
-  }, [compareQuery.data?.catalog]);
-
-  const orderedOps = useMemo(() => {
-    let catalog = compareQuery.data?.catalog || [];
-    const q = keyword.trim().toLowerCase();
-    catalog = catalog.filter((op) => {
-      if (rarityFilter !== "all" && op.rarity !== rarityFilter) return false;
-      if (
-        professionFilter !== "all" &&
-        op.profession_label !== professionFilter
-      ) {
-        return false;
-      }
-      if (
-        q &&
-        !op.name.toLowerCase().includes(q) &&
-        !op.char_id.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    if (sortMode !== "level" || !compareQuery.data?.rows?.length) {
-      return catalog;
-    }
-    const rows = compareQuery.data.rows;
-    const keyRow =
-      rows.find((r) => r.member_id === selfId) || rows[0];
-    const ownedMap = keyRow.owned ?? {};
-    return [...catalog].sort((a, b) => {
-      const oa = ownedMap[a.char_id];
-      const ob = ownedMap[b.char_id];
-      if (!oa && !ob) return 0;
-      if (!oa) return 1;
-      if (!ob) return -1;
-      if (ob.evolve_phase !== oa.evolve_phase) {
-        return ob.evolve_phase - oa.evolve_phase;
-      }
-      if (ob.level !== oa.level) return ob.level - oa.level;
-      if (b.rarity !== a.rarity) return b.rarity - a.rarity;
-      return a.char_id.localeCompare(b.char_id);
-    });
-  }, [
-    compareQuery.data,
-    sortMode,
-    selfId,
-    keyword,
-    rarityFilter,
-    professionFilter,
-  ]);
 
   const addMember = (memberId: number) => {
     setSelectedIds((prev) => {
@@ -194,20 +141,20 @@ export function ArknightsBoxCompare() {
     setSelectedIds((prev) => prev.filter((id) => id !== memberId));
   };
 
+  const memberActions = (
+    <AddCompareMemberCard
+      gameName="明日方舟"
+      disabled={
+        compareIds.length >= COMPARE_MAX || addableCandidates.length === 0
+      }
+      loading={candidatesQuery.isLoading}
+      candidates={addableCandidates}
+      onAdd={addMember}
+    />
+  );
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <CompareFilterToolbar
-        keyword={keyword}
-        onKeywordChange={setKeyword}
-        rarityFilter={rarityFilter}
-        onRarityFilterChange={setRarityFilter}
-        professionFilter={professionFilter}
-        onProfessionFilterChange={setProfessionFilter}
-        professions={professions}
-        sortMode={sortMode}
-        onSortModeChange={setSortMode}
-      />
-
       {candidatesQuery.isError ? (
         <Alert
           type="error"
@@ -216,7 +163,6 @@ export function ArknightsBoxCompare() {
           description={apiError(candidatesQuery.error, "请稍后重试")}
         />
       ) : null}
-
       {compareIds.length === 0 ? (
         <Empty description="加载中…" />
       ) : compareQuery.isError ? (
@@ -229,41 +175,75 @@ export function ArknightsBoxCompare() {
       ) : compareQuery.isLoading ? (
         <Card loading />
       ) : compareQuery.data ? (
-        <div>
-          <Typography.Text
-            type="secondary"
-            style={{ display: "block", marginBottom: 8 }}
-          >
-            展示 {orderedOps.length} / {(compareQuery.data.catalog ?? []).length} 名干员
-            {compareQuery.data.catalog_version
-              ? ` · 资源 ${compareQuery.data.catalog_version}`
-              : ""}
-          </Typography.Text>
-          {orderedOps.length ? (
-            <SyncCompareBoard
-              rows={displayRows}
-              orderedOps={orderedOps}
-              catalog={compareQuery.data.catalog ?? []}
-              selfId={selfId}
-              roleUidByMember={roleUidByMember}
-              onRoleUidChange={updateRoleUid}
-              onRemoveMember={removeMember}
-            />
-          ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="没有符合筛选的干员"
+        <OperatorInfoCompareTemplate<
+          ArknightsOperator,
+          ArknightsOwnedChar,
+          ArknightsCompareRow
+        >
+          gameName="明日方舟"
+          operators={compareQuery.data.catalog ?? []}
+          rows={displayRows}
+          selfId={selfId}
+          catalogVersion={compareQuery.data.catalog_version}
+          memberActions={memberActions}
+          renderMemberLabel={(row) => (
+            <RowLabel
+              row={row}
+              progress={
+                row.status === "ok"
+                  ? computeRarityProgress(row, compareQuery.data!.catalog ?? [])
+                  : null
+              }
+              selectedUid={roleUidByMember[row.member_id]}
+              canRemove={row.member_id !== selfId}
+              onUidChange={(uid) => updateRoleUid(row.member_id, uid)}
+              onRemove={() => removeMember(row.member_id)}
             />
           )}
-          <AddCompareCard
-            disabled={
-              compareIds.length >= COMPARE_MAX || addableCandidates.length === 0
-            }
-            loading={candidatesQuery.isLoading}
-            candidates={addableCandidates}
-            onAdd={addMember}
-          />
-        </div>
+          renderCard={(operator, owned, row) =>
+            owned ? (
+              <OwnedCard
+                op={operator}
+                owned={owned}
+                ownerName={row.nickname}
+                channelName={row.channel_name}
+                roleName={row.role_name}
+              />
+            ) : (
+              <MissingCard op={operator} />
+            )
+          }
+          renderDetails={(operator, owned, row) =>
+            owned ? (
+              <OwnedDetailTooltip
+                ownerName={row.nickname}
+                channelName={row.channel_name}
+                roleName={row.role_name}
+                op={operator}
+                owned={owned}
+              />
+            ) : (
+              <Space align="start" size={16}>
+                {operator.avatar_url ? (
+                  <img
+                    src={operator.avatar_url}
+                    alt={operator.name}
+                    style={{ width: 96, height: 96, objectFit: "cover" }}
+                  />
+                ) : null}
+                <div>
+                  <Space wrap>
+                    <Tag>{operator.rarity}★</Tag>
+                    <Tag>{operator.profession_label || operator.profession}</Tag>
+                  </Space>
+                  <Typography.Paragraph style={{ marginTop: 12 }}>
+                    {row.nickname} 尚未拥有这名干员。
+                  </Typography.Paragraph>
+                </div>
+              </Space>
+            )
+          }
+        />
       ) : null}
     </Space>
   );

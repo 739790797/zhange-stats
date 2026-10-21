@@ -28,11 +28,21 @@ from app.services.checkin.orchestrator import checkin_job_wrapper
 from app.services.checkin.registry import get_checkin_adapters
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
+from app.services.job_run_progress import category_for_job
+from app.services.job_runner import scheduled_sync_job
 # from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
 from app.services.steam.poller import poll_job_wrapper
 from app.services.articles.texteller import model_sync_job as texteller_model_sync_job
+from app.services.upstream_repos import (
+    REPO_ARKNIGHTS,
+    REPO_ENDFIELD,
+    REPO_SYNC_JOB_IDS,
+    REPO_TARKOV_OVERLAY,
+    REPO_TARKOV_SVG,
+    upstream_repo_sync_job,
+)
 from app.services.tarkov.sync import full_sync_job_wrapper as tarkov_full_sync_job_wrapper
 from app.services.ror2.wiki import sync_job as ror2_wiki_sync_job
 from app.services.ror2.weblate import sync_job as ror2_weblate_sync_job
@@ -70,8 +80,16 @@ CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., bool]] = {
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     "arknights_box_sync": arknights_box_sync_job_wrapper,
     "arknights_catalog_sync": arknights_catalog_sync_job_wrapper,
+    REPO_SYNC_JOB_IDS[REPO_ARKNIGHTS]: partial(upstream_repo_sync_job, REPO_ARKNIGHTS),
+    REPO_SYNC_JOB_IDS[REPO_ENDFIELD]: partial(upstream_repo_sync_job, REPO_ENDFIELD),
     "game_schedule_arknights_sync": game_schedule_arknights_sync_job_wrapper,
     "game_schedule_endfield_sync": game_schedule_endfield_sync_job_wrapper,
+    REPO_SYNC_JOB_IDS[REPO_TARKOV_OVERLAY]: partial(
+        upstream_repo_sync_job, REPO_TARKOV_OVERLAY
+    ),
+    REPO_SYNC_JOB_IDS[REPO_TARKOV_SVG]: partial(
+        upstream_repo_sync_job, REPO_TARKOV_SVG
+    ),
     "tarkov_full_sync": tarkov_full_sync_job_wrapper,
     "ror2_wiki_sync": ror2_wiki_sync_job,
     "ror2_weblate_sync": ror2_weblate_sync_job,
@@ -115,6 +133,24 @@ def resolve_job_callable(
     handler = SYSTEM_CRON_HANDLERS.get(job_id)
     if handler is None:
         raise KeyError(job_id)
+    return wrap_scheduled_job(job_id, handler)
+
+
+def resolve_sync_job_handler(job_id: str, db: Session) -> Callable[[], object]:
+    """Resolve one of the categorized sync tasks without wrapping its runner."""
+    if category_for_job(job_id) is None:
+        raise KeyError(job_id)
+    if not _job_feature_allowed(db, job_id):
+        raise RuntimeError("该任务所属功能未启用")
+    handler = SYSTEM_CRON_HANDLERS.get(job_id)
+    if handler is None:
+        raise KeyError(job_id)
+    return handler
+
+
+def _scheduled_job_entrypoint(job_id: str, handler: Callable[[], object]):
+    if category_for_job(job_id) is not None:
+        return lambda: scheduled_sync_job(job_id, handler)
     return wrap_scheduled_job(job_id, handler)
 
 
@@ -206,7 +242,7 @@ def register_scheduler_jobs(
             hour = max(0, min(23, int(job_cfg.get("hour", 0))))
             minute = max(0, min(59, int(job_cfg.get("minute", 0))))
             scheduler.add_job(
-                wrap_scheduled_job(job_id, func),
+                _scheduled_job_entrypoint(job_id, func),
                 "cron",
                 hour=hour,
                 minute=minute,

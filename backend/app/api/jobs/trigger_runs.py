@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.api.jobs.catalog import JOB_CATALOG, _KNOWN_JOB_IDS
 from app.api.jobs.helpers import _fmt_dt, _job_has_running_run
 from app.api.jobs.schemas import (
+    JobRunEventsOut,
+    JobRunLogOut,
     JobRunOut,
     JobRunsPageOut,
     JobTriggerExchangeOut,
@@ -26,11 +28,19 @@ from app.services.checkin.adapter import CheckinPlatformAdapter
 from app.services.checkin.orchestrator import run_checkin_for_bind
 from app.services.checkin.registry import get_checkin_adapters
 from app.services.platform_features import PLATFORM_SHORT_NAMES
+from app.services.job_run_progress import (
+    category_for_job,
+    create_queued_job_run,
+    write_job_run,
+)
+from app.services.job_process_supervisor import launch_sync_job_process
+from app.services.job_run_logs import list_job_run_logs
 from app.services.scheduler_config import JOB_IDS
 from app.services.scheduler_runtime import (
     CHECKIN_JOB_IDS,
     release_manual_trigger,
     resolve_job_callable,
+    resolve_sync_job_handler,
     try_acquire_manual_trigger,
 )
 
@@ -147,8 +157,13 @@ def trigger_scheduled_job(
     if not try_acquire_manual_trigger(job_id):
         raise HTTPException(status_code=409, detail="任务正在执行中，请稍后再试")
 
+    category = category_for_job(job_id)
     try:
-        runner = resolve_job_callable(job_id, db, member_id=member_id)
+        if category is not None:
+            resolve_sync_job_handler(job_id, db)
+            runner = None
+        else:
+            runner = resolve_job_callable(job_id, db, member_id=member_id)
     except KeyError:
         release_manual_trigger(job_id)
         raise HTTPException(status_code=404, detail="未知任务") from None
@@ -156,23 +171,90 @@ def trigger_scheduled_job(
         release_manual_trigger(job_id)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    run_id: int | None = None
+    if category is not None:
+        try:
+            run_id = int(create_queued_job_run(db, job_id, category).id)
+        except Exception:
+            release_manual_trigger(job_id)
+            raise
+
+        try:
+            launch_sync_job_process(
+                job_id,
+                run_id,
+                on_finish=lambda: release_manual_trigger(job_id),
+            )
+        except Exception as exc:  # noqa: BLE001
+            release_manual_trigger(job_id)
+            write_job_run(
+                run_id,
+                job_id,
+                status="error",
+                message="无法启动同步命令",
+                stats={"phase": "error"},
+                finished=True,
+            )
+            logger.exception("manual sync process launch failed job_id=%s", job_id)
+            raise HTTPException(status_code=500, detail="无法启动同步任务") from exc
+
+        return JobTriggerOut(
+            accepted=True,
+            job_id=job_id,
+            run_id=run_id,
+            category=category,
+            message="已提交执行" if member_id is None else f"已提交用户 {member_id} 的执行",
+        )
+
     def _run() -> None:
         try:
+            assert runner is not None
             runner()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.exception("manual trigger failed job_id=%s", job_id)
+            if run_id is not None:
+                try:
+                    write_job_run(
+                        run_id,
+                        job_id,
+                        status="error",
+                        message=str(exc)[:500] or "任务执行失败",
+                        stats={"phase": "error"},
+                        finished=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "manual trigger run update failed job_id=%s run_id=%s",
+                        job_id,
+                        run_id,
+                    )
         finally:
             release_manual_trigger(job_id)
 
-    threading.Thread(
-        target=_run,
-        name=f"job-trigger-{job_id}",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=_run,
+            name=f"job-trigger-{job_id}",
+            daemon=True,
+        ).start()
+    except Exception as exc:  # noqa: BLE001
+        release_manual_trigger(job_id)
+        if run_id is not None:
+            write_job_run(
+                run_id,
+                job_id,
+                status="error",
+                message="无法启动后台任务",
+                stats={"phase": "error"},
+                finished=True,
+            )
+        raise HTTPException(status_code=500, detail="无法启动后台任务") from exc
 
     return JobTriggerOut(
         accepted=True,
         job_id=job_id,
+        run_id=run_id,
+        category=category,
         message="已提交执行" if member_id is None else f"已提交用户 {member_id} 的执行",
     )
 
@@ -180,6 +262,7 @@ def trigger_scheduled_job(
 @router.get("/jobs/{job_id}/runs", response_model=JobRunsPageOut)
 def list_job_runs(
     job_id: str,
+    run_id: int | None = Query(default=None, ge=1),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -188,26 +271,64 @@ def list_job_runs(
     if job_id not in _KNOWN_JOB_IDS and job_id not in JOB_IDS:
         raise HTTPException(status_code=404, detail="未知任务")
 
-    total = (
-        db.query(func.count(JobRun.id)).filter(JobRun.job_key == job_id).scalar() or 0
-    )
+    query = db.query(JobRun).filter(JobRun.job_key == job_id)
+    if run_id is not None:
+        query = query.filter(JobRun.id == run_id)
+    total = db.query(func.count(JobRun.id)).filter(JobRun.job_key == job_id)
+    if run_id is not None:
+        total = total.filter(JobRun.id == run_id)
+    total_count = total.scalar() or 0
     rows = (
-        db.query(JobRun)
-        .filter(JobRun.job_key == job_id)
+        query
         .order_by(desc(JobRun.started_at), desc(JobRun.id))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset((page - 1) * page_size if run_id is None else 0)
+        .limit(page_size if run_id is None else 1)
         .all()
     )
     items = [_job_run_out(row) for row in rows]
     return JobRunsPageOut(
-        total=int(total),
+        total=int(total_count),
         page=page,
         page_size=page_size,
         items=items,
     )
 
 
+@router.get(
+    "/jobs/{job_id}/runs/{run_id}/events", response_model=JobRunEventsOut
+)
+def get_job_run_events(
+    job_id: str,
+    run_id: int,
+    after_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> JobRunEventsOut:
+    if job_id not in _KNOWN_JOB_IDS and job_id not in JOB_IDS:
+        raise HTTPException(status_code=404, detail="未知任务")
+    run = db.get(JobRun, run_id)
+    if run is None or run.job_key != job_id:
+        raise HTTPException(status_code=404, detail="执行记录不存在")
+    rows = list_job_run_logs(run_id, after_id=after_id, limit=limit + 1)
+    has_more = len(rows) > limit
+    selected = rows[:limit]
+    return JobRunEventsOut(
+        run=_job_run_out(run),
+        logs=[
+            JobRunLogOut(
+                id=row.id,
+                created_at=_fmt_dt(row.created_at) or "",
+                level=row.level,
+                logger=row.logger,
+                message=row.message,
+                is_truncation=row.is_truncation,
+            )
+            for row in selected
+        ],
+        next_after_id=selected[-1].id if selected else after_id,
+        has_more=has_more,
+    )
 def _job_run_out(row: JobRun) -> JobRunOut:
     return JobRunOut(
         id=row.id,

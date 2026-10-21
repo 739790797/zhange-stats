@@ -15,26 +15,18 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core import timeutil
-from app.core.config import get_settings
 from app.services.tarkov import items as items_svc
 from app.services.tarkov import upstream as upstream_svc
 from app.services.tarkov.game_mode import cache_key, json_api_prefix, parse_game_mode
-from app.services.tarkov.http import TARKOV_DUMP_MAX_BYTES, download_bytes_with_meta
+from app.services.upstream_repos import REPO_TARKOV_OVERLAY, RepoError, ensure_repo, read_repo_bytes
 
 logger = logging.getLogger(__name__)
 
 OVERLAY_RESOURCE = "overlay"
 SOURCE_OVERLAY = "tarkov-data-overlay"
-# 原 tarkovtracker-org/tarkov-data-overlay 已转私有（2026-10 起匿名 raw / jsDelivr 一律 404），
-# 现在跟社区维护的公开 fork。按顺序回退，全挂则保留上一份好数据。
-OVERLAY_URLS: tuple[str, ...] = (
-    "https://cdn.jsdelivr.net/gh/MiwiDots/tarkov-data-overlay@main/dist/overlay.json",
-    "https://raw.githubusercontent.com/MiwiDots/tarkov-data-overlay/main/dist/overlay.json",
-    "https://cdn.jsdelivr.net/gh/tarkovtracker-org/tarkov-data-overlay@main/dist/overlay.json",
-)
+OVERLAY_REL = "dist/overlay.json"
 # 上一份好 overlay 超过这个年龄就在同步结果里标 stale
 OVERLAY_STALE_AFTER_SEC = 45 * 24 * 3600
-DOWNLOAD_TIMEOUT = 60
 # 合入逻辑变更时递增，打穿进程内 parse cache（物品/制作/任务共用）
 OVERLAY_PARSE_REV = "upstream-only-v1"
 
@@ -48,14 +40,6 @@ class TarkovOverlayError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
-
-
-def overlay_urls() -> tuple[str, ...]:
-    """TARKOV_OVERLAY_URL 给了就先试它，失败再按内置顺序回退。"""
-    configured = (get_settings().TARKOV_OVERLAY_URL or "").strip()
-    if configured:
-        return (configured, *OVERLAY_URLS)
-    return OVERLAY_URLS
 
 
 def overlay_mode_key(game_mode: str | None = None) -> str:
@@ -324,33 +308,27 @@ def download_overlay(
     *,
     on_bytes: Callable[[int, int | None], None] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
-    """按 overlay_urls() 顺序回退；全挂抛 TarkovOverlayError，调用方保留上一份好数据。"""
-    errors: list[str] = []
-    for url in overlay_urls():
-        try:
-            raw, upstream_at = download_bytes_with_meta(
-                url,
-                timeout=DOWNLOAD_TIMEOUT,
-                error_cls=TarkovOverlayError,
-                on_bytes=on_bytes,
-                max_bytes=TARKOV_DUMP_MAX_BYTES,
-            )
-            payload = json.loads(raw.decode("utf-8"))
-        except TarkovOverlayError as exc:
-            errors.append(f"{url}: {exc}")
-            logger.warning("tarkov overlay source failed: %s (%s)", url, exc)
-            continue
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            errors.append(f"{url}: 解析失败")
-            logger.warning("tarkov overlay parse failed: %s", url)
-            continue
-        if not isinstance(payload, dict) or not payload:
-            errors.append(f"{url}: 内容为空")
-            continue
-        _record_overlay_success(url, upstream_at)
-        logger.info("tarkov overlay dump ok (%s) from %s", json_api_prefix(), url)
-        return payload, upstream_at
-    raise TarkovOverlayError("overlay 下载失败：" + "；".join(errors or ["无可用源"]))
+    """读本地 tarkov-data-overlay 克隆。失败抛错，调用方保留上一份好数据。"""
+    try:
+        ensure_repo(REPO_TARKOV_OVERLAY)
+        raw = read_repo_bytes(REPO_TARKOV_OVERLAY, OVERLAY_REL)
+    except RepoError as exc:
+        record_overlay_failure(exc.message)
+        raise TarkovOverlayError(exc.message) from exc
+    if on_bytes is not None:
+        on_bytes(len(raw), len(raw))
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        record_overlay_failure("overlay 解析失败")
+        raise TarkovOverlayError("overlay 解析失败") from exc
+    if not isinstance(payload, dict) or not payload:
+        record_overlay_failure("overlay 内容为空")
+        raise TarkovOverlayError("overlay 内容为空")
+    source = f"{REPO_TARKOV_OVERLAY}/{OVERLAY_REL}"
+    _record_overlay_success(source, None)
+    logger.info("tarkov overlay read ok (%s)", json_api_prefix())
+    return payload, None
 
 
 def _record_overlay_success(url: str, upstream_at: str | None) -> None:
@@ -403,7 +381,8 @@ def persist_overlay(
     upstream_at: str | None = None,
     source_url: str | None = None,
 ) -> dict[str, Any]:
-    origin = (source_url or _last_success.get("url") or OVERLAY_URLS[0]).strip()
+    default_source = f"{REPO_TARKOV_OVERLAY}/{OVERLAY_REL}"
+    origin = (source_url or _last_success.get("url") or default_source).strip()
     return upstream_svc.persist_raw(
         db,
         OVERLAY_RESOURCE,

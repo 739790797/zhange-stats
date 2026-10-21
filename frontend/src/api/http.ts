@@ -20,6 +20,10 @@ import {
   takeLogoutOnce,
 } from "@/lib/shouldLogoutOn401";
 import {
+  isUpstreamRepoNotSyncedError,
+  UPSTREAM_REPO_NOT_SYNCED_EVENT,
+} from "@/lib/upstreamRepoSyncPrompt";
+import {
   loadAllMapFileEtags,
   loadMapFile,
   saveMapFile,
@@ -212,6 +216,9 @@ client.interceptors.response.use(
     const url = String(error.config?.url || "");
     const status = error.response?.status;
     const code = error.response?.data?.code;
+    if (isUpstreamRepoNotSyncedError(error) && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(UPSTREAM_REPO_NOT_SYNCED_EVENT));
+    }
     if (status === 503 && code === "SETUP_REQUIRED") {
       if (typeof window !== "undefined" && !window.location.pathname.startsWith("/setup")) {
         window.location.assign("/setup");

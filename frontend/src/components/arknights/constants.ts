@@ -8,8 +8,7 @@ export const RARITY_ACCENT: Record<number, string> = {
   1: "#9aa0a6",
 };
 
-export const GAME_RES =
-  "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main";
+export const GAME_RES = "/api/skland/arknights/assets";
 
 export const PROFESSION_CLASS_FILE: Record<string, string> = {
   PIONEER: "class_vanguard.png",
@@ -22,15 +21,12 @@ export const PROFESSION_CLASS_FILE: Record<string, string> = {
   SPECIAL: "class_specialist.png",
 };
 
-export const COMPARE_MAX = 5;
+export { OPERATOR_COMPARE_MAX as COMPARE_MAX } from "@/components/operatorInfo/constants";
 /** 更接近游戏编队卡比例 */
 export const CARD_W = 120;
 export const CARD_H = 156;
-export const CARD_GAP = 6;
 export const LABEL_W = 176;
 export const ROLE_UID_STORAGE_KEY = "zhange.arknights.roleUidByMember";
-
-export type SortMode = "catalog" | "level";
 
 export const RARITY_CN: Record<number, string> = {
   6: "六星",

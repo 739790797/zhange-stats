@@ -8,11 +8,12 @@ import json
 import logging
 import time
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.http_client import HttpRequestError, http_request
+from app.services.skland.arknights_assets import ASSET_URL_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,7 @@ PLAYER_INFO_URL = "https://zonai.skland.com/api/v1/game/player/info"
 TEENAGER_URL = "https://zonai.skland.com/api/v1/user/teenager"
 ARKNIGHTS_ROGUE_URL = "https://zonai.skland.com/api/v1/game/arknights/rogue"
 ARKNIGHTS_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/attendance"
-CHAR_AVATAR_CDN = (
-    "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar"
-)
+CHAR_AVATAR_CDN = f"{ASSET_URL_PREFIX}/avatar"
 PROFESSION_CN = {
     "PIONEER": "先锋",
     "WARRIOR": "近卫",
@@ -192,6 +191,7 @@ class EndfieldChar:
     weapon: EndfieldWeapon | None
     skills: list[EndfieldSkill]
     equips: list[EndfieldEquip]
+    char_id_aliases: list[str] = field(default_factory=list)
 
 
 @dataclass

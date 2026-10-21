@@ -38,6 +38,12 @@ export type MihoyoCheckinResponse = CheckinResponse;
 export type SteamNowItem = components["schemas"]["SteamNowItem"];
 export type SteamPollResult = components["schemas"]["SteamPollResult"];
 export type EndfieldBox = components["schemas"]["EndfieldBoxOut"];
+export type EndfieldBoxCompare = components["schemas"]["EndfieldBoxCompareOut"];
+export type EndfieldCompareCandidate =
+  components["schemas"]["EndfieldCompareCandidateOut"];
+export type EndfieldCompareRow =
+  components["schemas"]["EndfieldCompareRowOut"];
+export type EndfieldOperator = components["schemas"]["EndfieldOperatorOut"];
 export type ExastrisBox = components["schemas"]["ExastrisBoxOut"];
 export type ExastrisChar = components["schemas"]["ExastrisCharOut"];
 export type ArknightsRogue = components["schemas"]["ArknightsRogueOut"];

@@ -3932,6 +3932,23 @@
             }
           },
           {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": false,
@@ -3962,6 +3979,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobRunsPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/jobs/{job_id}/runs/{run_id}/events": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Job Run Events",
+        "operationId": "get_job_run_events_api_settings_jobs__job_id__runs__run_id__events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunEventsOut"
                 }
               }
             }
@@ -4875,6 +4971,57 @@
         ]
       }
     },
+    "/api/skland/arknights/assets/{kind}/{name}": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Arknights Asset",
+        "description": "方舟头像 / 物品图标 / 立绘，从本地资源仓克隆读取。",
+        "operationId": "skland_arknights_asset_api_skland_arknights_assets__kind___name__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skland/arknights/attendance-calendar": {
       "get": {
         "tags": [
@@ -5187,6 +5334,149 @@
         }
       }
     },
+    "/api/skland/endfield/inn/topics": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Inn Topics",
+        "description": "客栈主题和扩建选项（读本地 EndfieldData）。",
+        "operationId": "skland_endfield_inn_topics_api_skland_endfield_inn_topics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InnTopicsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/endfield/inn/plan": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Inn Plan",
+        "description": "为主题和客栈等级生成菜单、厨师与五星目标估算。",
+        "operationId": "skland_endfield_inn_plan_api_skland_endfield_inn_plan_get",
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Topic Id"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 4,
+              "minimum": 1,
+              "title": "Level"
+            }
+          },
+          {
+            "name": "expansions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 16
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expansions"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InnPlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/endfield/inn/query": {
+      "post": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Inn Query",
+        "description": "查询客栈图鉴、解锁状态与可选主题推荐（不保存用户配置）。",
+        "operationId": "skland_endfield_inn_query_api_skland_endfield_inn_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InnQueryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InnQueryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skland/endfield/box": {
       "get": {
         "tags": [
@@ -5237,6 +5527,109 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EndfieldBoxOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/endfield/box/compare-candidates": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Compare Candidates",
+        "description": "终末地养成对比成员：仅显示仍绑定且有角色记录的站内用户。",
+        "operationId": "skland_endfield_compare_candidates_api_skland_endfield_box_compare_candidates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EndfieldCompareCandidateOut"
+                  },
+                  "type": "array",
+                  "title": "Response Skland Endfield Compare Candidates Api Skland Endfield Box Compare Candidates Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/skland/endfield/box/compare": {
+      "get": {
+        "tags": [
+          "skland",
+          "skland"
+        ],
+        "summary": "Skland Endfield Box Compare",
+        "description": "终末地多用户干员练度对比；仅当前用户可回源，其他用户只读已缓存快照。",
+        "operationId": "skland_endfield_box_compare_api_skland_endfield_box_compare_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "member_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "逗号分隔的成员 id，最多 5 人",
+              "title": "Member Ids"
+            },
+            "description": "逗号分隔的成员 id，最多 5 人"
+          },
+          {
+            "name": "role_uids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "可选，格式 memberId:uid,memberId:uid，指定各成员终末地角色",
+              "title": "Role Uids"
+            },
+            "description": "可选，格式 memberId:uid,memberId:uid，指定各成员终末地角色"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndfieldBoxCompareOut"
                 }
               }
             }
@@ -8081,6 +8474,60 @@
                 "schema": {
                   "$ref": "#/components/schemas/MihoyoAttendanceCalendarOut"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guides/tarkov/map-svg/{name}": {
+      "get": {
+        "tags": [
+          "guides"
+        ],
+        "summary": "Tarkov Map Svg",
+        "description": "互动地图 SVG，从本地 tarkov-dev-svg-maps 克隆读取。",
+        "operationId": "tarkov_map_svg_api_guides_tarkov_map_svg__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "game_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 16,
+              "description": "PVP（regular）或 PVE",
+              "default": "pvp",
+              "title": "Game Mode"
+            },
+            "description": "PVP（regular）或 PVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -20572,6 +21019,31 @@
         "title": "EndfieldAttendanceCalendarOut",
         "description": "终末地签到周期日历（字段同方舟）。"
       },
+      "EndfieldBoxCompareOut": {
+        "properties": {
+          "catalog": {
+            "items": {
+              "$ref": "#/components/schemas/EndfieldOperatorOut"
+            },
+            "type": "array",
+            "title": "Catalog"
+          },
+          "catalog_count": {
+            "type": "integer",
+            "title": "Catalog Count",
+            "default": 0
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EndfieldCompareRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "title": "EndfieldBoxCompareOut"
+      },
       "EndfieldBoxOut": {
         "properties": {
           "uid": {
@@ -20793,6 +21265,198 @@
         ],
         "title": "EndfieldCharOut"
       },
+      "EndfieldCompareCandidateOut": {
+        "properties": {
+          "member_id": {
+            "type": "integer",
+            "title": "Member Id"
+          },
+          "nickname": {
+            "type": "string",
+            "title": "Nickname"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "game_role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game Role Name"
+          },
+          "is_self": {
+            "type": "boolean",
+            "title": "Is Self",
+            "default": false
+          },
+          "skland_bound": {
+            "type": "boolean",
+            "title": "Skland Bound",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "nickname"
+        ],
+        "title": "EndfieldCompareCandidateOut"
+      },
+      "EndfieldCompareRoleOut": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "type": "string",
+            "title": "Channel Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "role_name"
+        ],
+        "title": "EndfieldCompareRoleOut"
+      },
+      "EndfieldCompareRowOut": {
+        "properties": {
+          "member_id": {
+            "type": "integer",
+            "title": "Member Id"
+          },
+          "nickname": {
+            "type": "string",
+            "title": "Nickname"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
+          },
+          "channel_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Name"
+          },
+          "player_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Level"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "char_count": {
+            "type": "integer",
+            "title": "Char Count",
+            "default": 0
+          },
+          "owned": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EndfieldCharOut"
+            },
+            "type": "object",
+            "title": "Owned"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/EndfieldCompareRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "nickname",
+          "status"
+        ],
+        "title": "EndfieldCompareRowOut"
+      },
       "EndfieldEquipOut": {
         "properties": {
           "slot": {
@@ -20853,6 +21517,44 @@
           "slot"
         ],
         "title": "EndfieldEquipOut"
+      },
+      "EndfieldOperatorOut": {
+        "properties": {
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rarity": {
+            "type": "integer",
+            "title": "Rarity"
+          },
+          "profession": {
+            "type": "string",
+            "title": "Profession"
+          },
+          "profession_label": {
+            "type": "string",
+            "title": "Profession Label"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_id",
+          "name",
+          "rarity",
+          "profession",
+          "profession_label",
+          "sort_order"
+        ],
+        "title": "EndfieldOperatorOut"
       },
       "EndfieldSkillOut": {
         "properties": {
@@ -22298,6 +23000,612 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InnBonusTier": {
+        "properties": {
+          "tier": {
+            "type": "integer",
+            "title": "Tier"
+          },
+          "rare_rate_bonus": {
+            "type": "number",
+            "title": "Rare Rate Bonus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier",
+          "rare_rate_bonus"
+        ],
+        "title": "InnBonusTier"
+      },
+      "InnChefCatalogRec": {
+        "properties": {
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/InnChefTag"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_id",
+          "name"
+        ],
+        "title": "InnChefCatalogRec"
+      },
+      "InnChefRec": {
+        "properties": {
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kitchen_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kitchen Index"
+          },
+          "slot_label": {
+            "type": "string",
+            "title": "Slot Label",
+            "default": ""
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_id",
+          "name"
+        ],
+        "title": "InnChefRec"
+      },
+      "InnChefTag": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "InnChefTag"
+      },
+      "InnDishRec": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "category_name": {
+            "type": "string",
+            "title": "Category Name"
+          },
+          "affix_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affix Ids"
+          },
+          "affixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affixes"
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price",
+            "default": 0
+          },
+          "cook_seconds": {
+            "type": "integer",
+            "title": "Cook Seconds",
+            "default": 0
+          },
+          "ingredients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ingredients"
+          },
+          "unlock_level": {
+            "type": "integer",
+            "title": "Unlock Level",
+            "default": 1
+          },
+          "unlock_topic_id": {
+            "type": "string",
+            "title": "Unlock Topic Id",
+            "default": ""
+          },
+          "unlock_topic_star_num": {
+            "type": "integer",
+            "title": "Unlock Topic Star Num",
+            "default": 0
+          },
+          "unlocked": {
+            "type": "boolean",
+            "title": "Unlocked",
+            "default": true
+          },
+          "unlock_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unlock Conditions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "category_name"
+        ],
+        "title": "InnDishRec"
+      },
+      "InnExpansionBrief": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unlock_level": {
+            "type": "integer",
+            "title": "Unlock Level",
+            "default": 1
+          },
+          "cost": {
+            "type": "integer",
+            "title": "Cost",
+            "default": 0
+          },
+          "add_kitchen_num": {
+            "type": "integer",
+            "title": "Add Kitchen Num",
+            "default": 0
+          },
+          "add_kitchen_char_num": {
+            "type": "integer",
+            "title": "Add Kitchen Char Num",
+            "default": 0
+          },
+          "prerequisite_id": {
+            "type": "string",
+            "title": "Prerequisite Id",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "InnExpansionBrief"
+      },
+      "InnMenuGroup": {
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "title": "Requirement Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "food_type": {
+            "type": "integer",
+            "title": "Food Type",
+            "default": 1
+          },
+          "need": {
+            "type": "integer",
+            "title": "Need",
+            "default": 0
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/InnDishRec"
+            },
+            "type": "array",
+            "title": "Dishes"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "text"
+        ],
+        "title": "InnMenuGroup"
+      },
+      "InnObjectivePart": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "icon"
+            ],
+            "title": "Kind"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "InnObjectivePart"
+      },
+      "InnPlanOut": {
+        "properties": {
+          "topic_id": {
+            "type": "string",
+            "title": "Topic Id"
+          },
+          "topic_name": {
+            "type": "string",
+            "title": "Topic Name"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/InnMenuGroup"
+            },
+            "type": "array",
+            "title": "Menu"
+          },
+          "chefs": {
+            "items": {
+              "$ref": "#/components/schemas/InnChefRec"
+            },
+            "type": "array",
+            "title": "Chefs"
+          },
+          "star": {
+            "$ref": "#/components/schemas/InnStarOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic_id",
+          "topic_name",
+          "level",
+          "star"
+        ],
+        "title": "InnPlanOut"
+      },
+      "InnQueryIn": {
+        "properties": {
+          "level": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Level"
+          },
+          "expansions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Expansions"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Id"
+          },
+          "topic_stars": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Topic Stars"
+          },
+          "jsspsi_bonus_tier": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Jsspsi Bonus Tier",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "level"
+        ],
+        "title": "InnQueryIn"
+      },
+      "InnQueryOut": {
+        "properties": {
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Id"
+          },
+          "kitchen_count": {
+            "type": "integer",
+            "title": "Kitchen Count",
+            "default": 1
+          },
+          "chef_slot_count": {
+            "type": "integer",
+            "title": "Chef Slot Count",
+            "default": 1
+          },
+          "jsspsi_bonus_tier": {
+            "type": "integer",
+            "title": "Jsspsi Bonus Tier",
+            "default": 1
+          },
+          "jsspsi_rare_rate_bonus": {
+            "type": "number",
+            "title": "Jsspsi Rare Rate Bonus",
+            "default": 0
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/InnDishRec"
+            },
+            "type": "array",
+            "title": "Dishes"
+          },
+          "drinks": {
+            "items": {
+              "$ref": "#/components/schemas/InnDishRec"
+            },
+            "type": "array",
+            "title": "Drinks"
+          },
+          "chef_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/InnChefCatalogRec"
+            },
+            "type": "array",
+            "title": "Chef Catalog"
+          },
+          "recommendations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InnRecommendationsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "level"
+        ],
+        "title": "InnQueryOut"
+      },
+      "InnRecommendationsOut": {
+        "properties": {
+          "topic_id": {
+            "type": "string",
+            "title": "Topic Id"
+          },
+          "topic_name": {
+            "type": "string",
+            "title": "Topic Name"
+          },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/InnMenuGroup"
+            },
+            "type": "array",
+            "title": "Menu"
+          },
+          "chefs": {
+            "items": {
+              "$ref": "#/components/schemas/InnChefRec"
+            },
+            "type": "array",
+            "title": "Chefs"
+          },
+          "star": {
+            "$ref": "#/components/schemas/InnStarOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic_id",
+          "topic_name",
+          "star"
+        ],
+        "title": "InnRecommendationsOut"
+      },
+      "InnStarOut": {
+        "properties": {
+          "private_chef": {
+            "type": "boolean",
+            "title": "Private Chef",
+            "default": false
+          },
+          "star_scores": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Star Scores"
+          },
+          "kpi_cap": {
+            "type": "number",
+            "title": "Kpi Cap",
+            "default": 0
+          },
+          "profit_cap": {
+            "type": "number",
+            "title": "Profit Cap",
+            "default": 0
+          },
+          "needs_objective": {
+            "type": "boolean",
+            "title": "Needs Objective",
+            "default": false
+          },
+          "objective": {
+            "type": "string",
+            "title": "Objective",
+            "default": ""
+          },
+          "objective_parts": {
+            "items": {
+              "$ref": "#/components/schemas/InnObjectivePart"
+            },
+            "type": "array",
+            "title": "Objective Parts"
+          },
+          "estimate": {
+            "type": "string",
+            "title": "Estimate",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "InnStarOut"
+      },
+      "InnTopicBrief": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unlock_level": {
+            "type": "integer",
+            "title": "Unlock Level",
+            "default": 1
+          },
+          "private_chef": {
+            "type": "boolean",
+            "title": "Private Chef",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "InnTopicBrief"
+      },
+      "InnTopicsOut": {
+        "properties": {
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/InnTopicBrief"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "expansions": {
+            "items": {
+              "$ref": "#/components/schemas/InnExpansionBrief"
+            },
+            "type": "array",
+            "title": "Expansions"
+          },
+          "jsspsi_bonus_tiers": {
+            "items": {
+              "$ref": "#/components/schemas/InnBonusTier"
+            },
+            "type": "array",
+            "title": "Jsspsi Bonus Tiers"
+          }
+        },
+        "type": "object",
+        "title": "InnTopicsOut"
+      },
       "IntegrationsOut": {
         "properties": {
           "steam_api_key": {
@@ -22839,6 +24147,73 @@
         ],
         "title": "JobMemberOptionOut"
       },
+      "JobRunEventsOut": {
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/JobRunOut"
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/JobRunLogOut"
+            },
+            "type": "array",
+            "title": "Logs"
+          },
+          "next_after_id": {
+            "type": "integer",
+            "title": "Next After Id",
+            "default": 0
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "run"
+        ],
+        "title": "JobRunEventsOut"
+      },
+      "JobRunLogOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "logger": {
+            "type": "string",
+            "title": "Logger"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "is_truncation": {
+            "type": "boolean",
+            "title": "Is Truncation",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "level",
+          "logger",
+          "message"
+        ],
+        "title": "JobRunLogOut"
+      },
       "JobRunOut": {
         "properties": {
           "id": {
@@ -23002,6 +24377,28 @@
           "job_id": {
             "type": "string",
             "title": "Job Id"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           },
           "message": {
             "type": "string",
@@ -30815,6 +32212,28 @@
               }
             ],
             "title": "Platform"
+          },
+          "sync_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Category"
+          },
+          "cli_command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cli Command"
           },
           "executor_id": {
             "type": "string",

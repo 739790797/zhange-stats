@@ -1,4 +1,4 @@
-import { Suspense, useMemo, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { App as AntdApp, ConfigProvider } from "antd";
 import {
   BrowserRouter,
@@ -6,8 +6,11 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigate,
   useParams,
 } from "react-router-dom";
+import { client } from "@/api/http";
+import { isAdminUser } from "@/lib/isAdminUser";
 import { AdminRoute, PrivateRoute } from "@/components/PrivateRoute";
 import { HomeRedirect } from "@/components/HomeRedirect";
 import { NotFoundPage } from "@/components/NotFoundPage";
@@ -21,6 +24,12 @@ import { usePrefersReducedMotion } from "@/lib/prefersReducedMotion";
 import { TarkovGameModeProvider } from "@/lib/tarkovGameModeProvider";
 import { TAVERN_ADMIN_PATH, TAVERN_WRITE_PATH, tavernEditPath } from "@/lib/tavernNav";
 import { antdThemeWithMotion } from "@/theme/antdApp";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  isUpstreamRepoNotSyncedError,
+  upstreamRepoForResourcePath,
+  UPSTREAM_REPO_NOT_SYNCED_EVENT,
+} from "@/lib/upstreamRepoSyncPrompt";
 
 const AppLayout = lazyWithReload(() =>
   import("@/components/AppLayout").then((m) => ({ default: m.AppLayout })),
@@ -156,6 +165,72 @@ function SetupGateWithBoundary({ children }: { children: ReactNode }) {
   );
 }
 
+function UpstreamRepoSyncPrompt() {
+  const { modal } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const user = useAuthStore((state) => state.user);
+  const canSync = isAdminUser(user);
+  const promptedPath = useRef<string | null>(null);
+  const resourceProbeCooldown = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    promptedPath.current = null;
+    resourceProbeCooldown.current.clear();
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const showPrompt = () => {
+      if (promptedPath.current === location.pathname) return;
+      promptedPath.current = location.pathname;
+      modal.confirm({
+        title: "外部仓库尚未同步",
+        content: canSync
+          ? "当前内容所需的外部数据仓还未同步。前往「任务配置」页，手动运行「外部仓库更新」后再试。"
+          : "当前内容所需的外部数据仓还未同步，请联系管理员前往「任务配置」页运行「外部仓库更新」。",
+        okText: canSync ? "前往同步页面" : "知道了",
+        cancelText: canSync ? "稍后" : undefined,
+        cancelButtonProps: canSync ? undefined : { style: { display: "none" } },
+        onOk: canSync ? () => navigate("/settings/task-config") : undefined,
+      });
+    };
+
+    const probeFailedRepoImage = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+
+      let resourceUrl: URL;
+      try {
+        resourceUrl = new URL(target.currentSrc || target.src, window.location.href);
+      } catch {
+        return;
+      }
+      if (resourceUrl.origin !== window.location.origin) return;
+      const repoId = upstreamRepoForResourcePath(resourceUrl.pathname);
+      if (!repoId) return;
+
+      const now = Date.now();
+      if ((resourceProbeCooldown.current.get(repoId) || 0) > now) return;
+      resourceProbeCooldown.current.set(repoId, now + 5000);
+      const apiPath = `${resourceUrl.pathname.replace(/^\/api/, "")}${resourceUrl.search}`;
+      void client.head(apiPath).catch((error: unknown) => {
+        if (!isUpstreamRepoNotSyncedError(error)) {
+          resourceProbeCooldown.current.delete(repoId);
+        }
+      });
+    };
+
+    window.addEventListener(UPSTREAM_REPO_NOT_SYNCED_EVENT, showPrompt);
+    window.addEventListener("error", probeFailedRepoImage, true);
+    return () => {
+      window.removeEventListener(UPSTREAM_REPO_NOT_SYNCED_EVENT, showPrompt);
+      window.removeEventListener("error", probeFailedRepoImage, true);
+    };
+  }, [canSync, location.pathname, modal, navigate]);
+
+  return null;
+}
+
 function AntdProvider({ children }: { children: ReactNode }) {
   const reducedMotion = usePrefersReducedMotion();
   const theme = useMemo(
@@ -173,6 +248,7 @@ export default function App() {
   return (
     <AntdProvider>
       <BrowserRouter>
+        <UpstreamRepoSyncPrompt />
         <SetupGateWithBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>

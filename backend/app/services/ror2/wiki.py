@@ -12,7 +12,6 @@ from app.core.biz_logging import clear_log_until_change, log_until_change
 from app.core.database import SessionLocal
 from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive
-from app.models.job_run import JobRun
 from app.services.guide_raw.codec import unpack_raw_text
 from app.services.guide_raw.lock import SyncBusy
 from app.services.guide_raw.pipeline import GuideRawPipeline, RawSpec, load_row, upsert_raw
@@ -477,8 +476,11 @@ def _remember_cold_start_failure() -> None:
 
 def sync_job() -> None:
     db = SessionLocal()
-    job = JobRun(job_key=JOB_KEY, status="running", started_at=now_naive())
-    db.add(job)
+    from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
+
+    job = create_or_reuse_job_run(
+        db, JOB_KEY, message="正在同步图鉴数据", stats={"phase": "start"}
+    )
     db.commit()
     run_id = job.id
     try:
@@ -495,12 +497,33 @@ def sync_job() -> None:
         except SyncBusy:
             job.status = "ok"
             job.message = "已有同步在跑"
+            job.stats = versioned_job_stats(
+                JOB_KEY,
+                status="ok",
+                stats={"phase": "skip", "result": {"summary": job.message}},
+                message=job.message,
+            )
             job.finished_at = now_naive()
             db.commit()
             return
         job.status = "ok"
         job.message = "、".join(
             f"{row['resource']}{' 已更新' if row['changed'] else ' 未变'}" for row in results
+        )
+        job.stats = versioned_job_stats(
+            JOB_KEY,
+            status="ok",
+            stats={
+                "phase": "done",
+                "result": {
+                    "summary": f"图鉴同步完成，共处理 {len(results)} 项",
+                    "counts": {
+                        "updated": sum(1 for row in results if row.get("changed")),
+                        "unchanged": sum(1 for row in results if not row.get("changed")),
+                    },
+                },
+            },
+            message=f"图鉴同步完成，共处理 {len(results)} 项",
         )
         job.finished_at = now_naive()
         db.commit()

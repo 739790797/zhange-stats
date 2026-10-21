@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -404,45 +406,44 @@ def test_disabled_overlay_task_hidden_from_progress_not_deleted() -> None:
     assert dones.list_task_ids(db, user.id) == ["gone", "keep"]
 
 
-def test_download_overlay_falls_back_to_next_source(monkeypatch) -> None:
-    """tarkovtracker-org 仓转私有后匿名 404：要按列表回退，不能直接放弃。"""
-    seen: list[str] = []
+def test_download_overlay_reads_local_clone(monkeypatch) -> None:
+    seen: list[tuple[str, str]] = []
+    progress: list[tuple[int, int | None]] = []
 
-    def fake_download(url, **_kwargs):  # noqa: ANN001
-        seen.append(url)
-        if url == overlay_svc.OVERLAY_URLS[0]:
-            raise overlay_svc.TarkovOverlayError("下载失败 HTTP 404")
-        return b'{"tasks": {"t1": {"disabled": true}}}', None
+    monkeypatch.setattr(
+        overlay_svc,
+        "ensure_repo",
+        lambda repo_id: seen.append(("ensure", repo_id)),
+    )
 
-    monkeypatch.setattr(overlay_svc, "overlay_urls", lambda: overlay_svc.OVERLAY_URLS)
-    monkeypatch.setattr(overlay_svc, "download_bytes_with_meta", fake_download)
-    payload, _upstream_at = overlay_svc.download_overlay()
+    def fake_read(repo_id: str, relative: str) -> bytes:
+        seen.append((repo_id, relative))
+        return b'{"tasks": {"t1": {"disabled": true}}}'
+
+    monkeypatch.setattr(overlay_svc, "read_repo_bytes", fake_read)
+    payload, upstream_at = overlay_svc.download_overlay(
+        on_bytes=lambda n, total: progress.append((n, total))
+    )
     assert payload["tasks"]["t1"]["disabled"] is True
-    assert seen == list(overlay_svc.OVERLAY_URLS[:2])
+    assert upstream_at is None
+    assert seen == [
+        ("ensure", overlay_svc.REPO_TARKOV_OVERLAY),
+        (overlay_svc.REPO_TARKOV_OVERLAY, overlay_svc.OVERLAY_REL),
+    ]
+    assert progress == [(len(b'{"tasks": {"t1": {"disabled": true}}}'),) * 2]
 
 
-def test_download_overlay_raises_with_all_sources_listed(monkeypatch) -> None:
-    def fake_download(url, **_kwargs):  # noqa: ANN001
-        raise overlay_svc.TarkovOverlayError(f"下载失败 HTTP 404: {url}")
+def test_download_overlay_records_local_clone_failure(monkeypatch) -> None:
+    from app.services.upstream_repos import RepoError
 
-    monkeypatch.setattr(overlay_svc, "overlay_urls", lambda: ("https://a.test/o.json", "https://b.test/o.json"))
-    monkeypatch.setattr(overlay_svc, "download_bytes_with_meta", fake_download)
-    try:
+    monkeypatch.setattr(
+        overlay_svc,
+        "ensure_repo",
+        lambda _repo: (_ for _ in ()).throw(RepoError("clone failed")),
+    )
+    with pytest.raises(overlay_svc.TarkovOverlayError, match="clone failed"):
         overlay_svc.download_overlay()
-    except overlay_svc.TarkovOverlayError as exc:
-        assert "a.test" in str(exc) and "b.test" in str(exc)
-    else:
-        raise AssertionError("expected TarkovOverlayError")
-
-
-def test_overlay_urls_puts_the_configured_source_first(monkeypatch) -> None:
-    class _Settings:
-        TARKOV_OVERLAY_URL = "https://mine.test/overlay.json"
-
-    monkeypatch.setattr(overlay_svc, "get_settings", lambda: _Settings())
-    urls = overlay_svc.overlay_urls()
-    assert urls[0] == "https://mine.test/overlay.json"
-    assert overlay_svc.OVERLAY_URLS[0] in urls
+    assert overlay_svc._last_success["error"] == "clone failed"
 
 
 def test_overlay_status_reports_age_and_staleness(monkeypatch) -> None:

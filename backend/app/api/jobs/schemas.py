@@ -26,6 +26,8 @@ class ScheduledJobOut(BaseModel):
     description: str = ""
     kind: str = "cron"
     platform: str | None = None
+    sync_category: str | None = None
+    cli_command: str | None = None
     executor_id: str = APP_EXECUTOR_ID
     registered: bool = False
     scheduler_running: bool = False
@@ -66,6 +68,8 @@ class JobTriggerExchangeOut(BaseModel):
 class JobTriggerOut(BaseModel):
     accepted: bool = True
     job_id: str
+    run_id: int | None = None
+    category: str | None = None
     message: str = "已提交执行"
     # 角色级同步执行时返回
     ok: bool | None = None
@@ -82,6 +86,22 @@ class JobRunOut(BaseModel):
     message: str | None = None
     stats: dict[str, Any] | None = None
     live_log: str | None = None
+
+
+class JobRunLogOut(BaseModel):
+    id: int
+    created_at: str
+    level: str
+    logger: str
+    message: str
+    is_truncation: bool = False
+
+
+class JobRunEventsOut(BaseModel):
+    run: JobRunOut
+    logs: list[JobRunLogOut] = Field(default_factory=list)
+    next_after_id: int = 0
+    has_more: bool = False
 
 
 class JobRunsPageOut(BaseModel):

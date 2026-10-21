@@ -16,6 +16,8 @@ export type JobRunWatch = {
   jobId: string;
   jobName: string;
   sinceRunId: number;
+  runId?: number | null;
+  category?: string | null;
   acceptedAt: number;
   acceptedMessage?: string;
 };
@@ -126,12 +128,14 @@ export type ParsedJobRunMessage =
   | { kind: "json"; value: unknown };
 
 export function isJobRunFinished(status: string | null | undefined): boolean {
-  return status === "ok" || status === "error";
+  return status === "ok" || status === "warning" || status === "error";
 }
 
 export function jobRunStatusLabel(status: string | null | undefined): string {
   if (status === "ok") return "成功";
+  if (status === "warning") return "部分成功";
   if (status === "error") return "失败";
+  if (status === "queued") return "排队中";
   if (status === "running") return "执行中";
   return status || "未知";
 }
@@ -140,8 +144,9 @@ export function jobRunAlertType(
   status: string | null | undefined,
 ): "success" | "error" | "info" | "warning" {
   if (status === "ok") return "success";
+  if (status === "warning") return "warning";
   if (status === "error") return "error";
-  if (status === "running") return "info";
+  if (status === "running" || status === "queued") return "info";
   return "warning";
 }
 
@@ -156,6 +161,10 @@ export function jobRunPhaseLabel(phase?: string | null): string {
   switch ((phase || "").trim()) {
     case "start":
       return "准备中";
+    case "sync":
+      return "同步仓库";
+    case "check":
+      return "检查资源";
     case "download":
       return "下载 dump";
     case "persist":
@@ -168,6 +177,8 @@ export function jobRunPhaseLabel(phase?: string | null): string {
       return "完成";
     case "error":
       return "失败";
+    case "skip":
+      return "跳过更新";
     default:
       return "";
   }
@@ -320,8 +331,10 @@ export function pickWatchedJobRun(
   items: JobRunLike[] | null | undefined,
   sinceRunId: number,
   acceptedAt?: number,
+  runId?: number | null,
 ): JobRunLike | null {
   if (!items?.length) return null;
+  if (runId != null) return items.find((row) => row.id === runId) ?? null;
   return (
     items.find((row) => {
       if (row.id <= sinceRunId) return false;
@@ -336,15 +349,8 @@ export function pickWatchedJobRun(
 
 export function jobRunWatchPollMs(args: {
   run: JobRunLike | null;
-  startedAt: number;
-  now?: number;
-  timeoutMs?: number;
 }): number | false {
   if (args.run && isJobRunFinished(args.run.status)) return false;
-  if (args.run?.status === "running") return JOB_RUN_WATCH_POLL_MS;
-  const now = args.now ?? Date.now();
-  const timeout = args.timeoutMs ?? JOB_RUN_WATCH_TIMEOUT_MS;
-  if (now - args.startedAt >= timeout) return false;
   return JOB_RUN_WATCH_POLL_MS;
 }
 
@@ -360,7 +366,19 @@ export function formatJobRunBytes(value: unknown): string {
 export function jobRunProgressPercent(
   stats: Record<string, unknown> | null | undefined,
 ): number | null {
-  if (!stats || stats.percent == null || stats.percent === "") return null;
+  if (!stats) return null;
+  if (stats.schema_version != null) {
+    const progress = asRecord(stats.progress);
+    if (!progress || progress.percent == null) return null;
+    const total = Number(progress.total);
+    if (!(Number.isFinite(total) && total > 0) && progress.reliable !== true) {
+      return null;
+    }
+    const knownPercent = Number(progress.percent);
+    if (!Number.isFinite(knownPercent)) return null;
+    return Math.max(0, Math.min(100, Math.round(knownPercent)));
+  }
+  if (stats.percent == null || stats.percent === "") return null;
   const n = Number(stats.percent);
   if (!Number.isFinite(n)) return null;
   return Math.max(0, Math.min(100, Math.round(n)));
@@ -423,6 +441,66 @@ export function jobRunProgressRows(
   }
   const parsed = parseJobRunMessage(run?.message);
   return parsed?.kind === "domains" ? parsed.domains : [];
+}
+
+export type JobRunStep = {
+  id: string;
+  label: string;
+  status: "waiting" | "running" | "success" | "warning" | "error" | "skipped";
+};
+
+export function jobRunSteps(
+  stats: Record<string, unknown> | null | undefined,
+): JobRunStep[] {
+  const rows = stats?.steps;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((value, index) => {
+    const row = asRecord(value);
+    if (!row) return [];
+    const label = String(row.label || row.id || `步骤 ${index + 1}`);
+    const rawStatus = String(row.status || "waiting");
+    const status = ["waiting", "running", "success", "warning", "error", "skipped"].includes(rawStatus)
+      ? (rawStatus as JobRunStep["status"])
+      : "waiting";
+    return [{ id: String(row.id || index), label, status }];
+  });
+}
+
+export function jobRunCategory(
+  stats: Record<string, unknown> | null | undefined,
+  fallback?: string | null,
+): string | null {
+  return String(stats?.category || fallback || "").trim() || null;
+}
+
+export function jobRunResult(
+  stats: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return asRecord(stats?.result) || {};
+}
+
+export function jobRunResultCounts(
+  stats: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const result = jobRunResult(stats);
+  return asRecord(result.counts) || {};
+}
+
+export function jobRunDurationText(
+  run: Pick<JobRunLike, "started_at" | "finished_at"> | null | undefined,
+  nowMs = Date.now(),
+): string {
+  if (!run?.started_at) return "—";
+  const start = parseBeijing(run.started_at).valueOf();
+  const end = run.finished_at ? parseBeijing(run.finished_at).valueOf() : nowMs;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "—";
+  const seconds = Math.max(0, Math.floor((end - start) / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remain = seconds % 60;
+  if (minutes < 60) return remain ? `${minutes} 分 ${remain} 秒` : `${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} 小时 ${minutes % 60} 分`;
 }
 
 export function jobRunDownloadProgress(
@@ -503,6 +581,7 @@ export function jobRunSummaryText(
   acceptedMessage?: string,
 ): string {
   if (!run) return acceptedMessage || "已提交执行，正在运行…";
+  if (run.status === "queued") return run.message || "任务排队中…";
   if (run.status === "running") {
     return run.message || acceptedMessage || "已提交执行，正在运行…";
   }
@@ -512,7 +591,10 @@ export function jobRunSummaryText(
     if (parsed.failedCount === 0) return `完成：成功 ${parsed.okCount} 项`;
     return `完成：成功 ${parsed.okCount} / 失败 ${parsed.failedCount}`;
   }
-  if (run.message) return run.message;
+  const result = jobRunResult(run.stats);
+  if (typeof result.summary === "string" && result.summary) return result.summary;
+  if (run.message && parsed?.kind !== "json") return run.message;
+  if (run.status === "warning") return "任务部分完成，请查看失败项摘要";
   return run.status === "ok" ? "执行完成" : "执行失败";
 }
 
@@ -524,6 +606,7 @@ export function jobRunStatEntries(
   return Object.entries(stats)
     .filter(([key, value]) => {
       if (HIDDEN_STAT_KEYS.has(key)) return false;
+      if (["schema_version", "category", "steps", "progress", "result", "domains"].includes(key)) return false;
       if (opts?.omitDownload && DOWNLOAD_STAT_KEYS.has(key)) return false;
       return value != null && typeof value !== "object";
     })

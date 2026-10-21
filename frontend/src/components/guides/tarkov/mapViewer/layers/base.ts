@@ -2,6 +2,7 @@
 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { fetchTarkovMapSvg } from "@/api/guidesApi";
 import "@/components/guides/tarkov/tarkovFonts.css";
 import { getBounds } from "@/lib/tarkovMapCrs";
 import { mapBaseOffLevel, svgFloorGroupClasses } from "@/lib/tarkovMapFloors";
@@ -179,9 +180,15 @@ async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {
   let lastError: unknown;
   for (const url of urls) {
     try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const text = await res.text();
+      let text: string;
+      if (url.startsWith("/api/guides/tarkov/map-svg/")) {
+        const name = url.slice(url.lastIndexOf("/") + 1);
+        text = await fetchTarkovMapSvg(decodeURIComponent(name));
+      } else {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        text = await res.text();
+      }
       const holder = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       holder.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       holder.innerHTML = sanitizeTarkovMapSvg(text);

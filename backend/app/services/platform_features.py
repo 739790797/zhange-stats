@@ -69,6 +69,13 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "kind": "game",
                 "children": [
                     {
+                        "id": "skland.arknights.repo_sync",
+                        "name": "外部仓库更新",
+                        "kind": "job",
+                        "job_id": "arknights_repo_sync",
+                        "schedule": "cron",
+                    },
+                    {
                         "id": "skland.arknights.box_sync",
                         "name": "干员练度更新",
                         "kind": "job",
@@ -96,6 +103,13 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "name": "明日方舟：终末地",
                 "kind": "game",
                 "children": [
+                    {
+                        "id": "skland.endfield.repo_sync",
+                        "name": "外部仓库更新",
+                        "kind": "job",
+                        "job_id": "endfield_repo_sync",
+                        "schedule": "cron",
+                    },
                     {
                         "id": "skland.endfield.schedule_sync",
                         "name": "活动日历更新",
@@ -238,6 +252,20 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "kind": "game",
                 "children": [
                     {
+                        "id": "guides.tarkov.overlay_repo_sync",
+                        "name": "外部仓库更新",
+                        "kind": "job",
+                        "job_id": "tarkov_overlay_repo_sync",
+                        "schedule": "cron",
+                    },
+                    {
+                        "id": "guides.tarkov.svg_repo_sync",
+                        "name": "外部仓库更新",
+                        "kind": "job",
+                        "job_id": "tarkov_svg_repo_sync",
+                        "schedule": "cron",
+                    },
+                    {
                         "id": "guides.tarkov.full_sync",
                         "name": "攻略数据全量更新",
                         "kind": "job",
@@ -291,13 +319,17 @@ JOB_FEATURE_IDS: dict[str, str] = {
     # "minecraft_presence": "guides.minecraft.presence",
     "skland_checkin": "skland.checkin",
     "arknights_box_sync": "skland.arknights.box_sync",
+    "arknights_repo_sync": "skland.arknights.repo_sync",
     "arknights_catalog_sync": "skland.arknights.catalog_sync",
     "game_schedule_arknights_sync": "skland.arknights.schedule_sync",
+    "endfield_repo_sync": "skland.endfield.repo_sync",
     "game_schedule_endfield_sync": "skland.endfield.schedule_sync",
     "taygedo_checkin": "taygedo.checkin",
     "exilium_checkin": "exilium.checkin",
     "kujiequ_checkin": "kujiequ.checkin",
     "mihoyo_checkin": "mihoyo.checkin",
+    "tarkov_overlay_repo_sync": "guides.tarkov.overlay_repo_sync",
+    "tarkov_svg_repo_sync": "guides.tarkov.svg_repo_sync",
     "tarkov_full_sync": "guides.tarkov.full_sync",
     "ror2_wiki_sync": "guides.ror2.wiki_sync",
     "ror2_weblate_sync": "guides.ror2.weblate_sync",
@@ -325,6 +357,10 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "zhange": "战鸽数据",
     "tavern": "战鸽酒馆",
     "guides": "游戏",
+    "endfield_repo": "终末地外部仓库",
+    "arknights_repo": "明日方舟外部仓库",
+    "tarkov_overlay_repo": "塔科夫 overlay 仓库",
+    "tarkov_svg_repo": "塔科夫 SVG 仓库",
     # "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
     "ror2_wiki": "雨中冒险2图鉴",
@@ -374,6 +410,18 @@ def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) ->
             base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])
     if "guides.ror2.weblate_sync" not in flags and "guides.ror2.lang_sync" in flags:
         base["guides.ror2.weblate_sync"] = bool(flags["guides.ror2.lang_sync"])
+    if "zhange" in flags or "zhange.upstream_repos" in flags:
+        legacy_on = bool(flags.get("zhange", True)) and bool(
+            flags.get("zhange.upstream_repos", True)
+        )
+        for feature_id in (
+            "skland.arknights.repo_sync",
+            "skland.endfield.repo_sync",
+            "guides.tarkov.overlay_repo_sync",
+            "guides.tarkov.svg_repo_sync",
+        ):
+            if feature_id not in flags:
+                base[feature_id] = legacy_on
 
 
 def invalidate_feature_cache() -> None:

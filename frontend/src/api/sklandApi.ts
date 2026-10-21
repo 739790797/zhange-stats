@@ -6,7 +6,9 @@ import type {
   ArknightsCompareCandidate,
   ArknightsRogue,
   EndfieldBox,
+  EndfieldBoxCompare,
   EndfieldAttendanceCalendar,
+  EndfieldCompareCandidate,
   GameScheduleCalendar,
   SklandCheckinResponse,
   SklandQrPoll,
@@ -34,6 +36,36 @@ export async function fetchEndfieldBox(uid?: string, force = false) {
     },
     timeout: 60000,
   });
+  return data;
+}
+
+export async function fetchEndfieldCompareCandidates() {
+  const { data } = await client.get<EndfieldCompareCandidate[]>(
+    "/skland/endfield/box/compare-candidates",
+  );
+  return data;
+}
+
+export async function fetchEndfieldBoxCompare(
+  memberIds: number[],
+  roleUids?: Record<number, string>,
+) {
+  const roleUidParam =
+    roleUids &&
+    Object.entries(roleUids)
+      .filter(([, uid]) => Boolean(uid))
+      .map(([memberId, uid]) => `${memberId}:${uid}`)
+      .join(",");
+  const { data } = await client.get<EndfieldBoxCompare>(
+    "/skland/endfield/box/compare",
+    {
+      params: {
+        member_ids: memberIds.join(","),
+        ...(roleUidParam ? { role_uids: roleUidParam } : {}),
+      },
+      timeout: 120000,
+    },
+  );
   return data;
 }
 

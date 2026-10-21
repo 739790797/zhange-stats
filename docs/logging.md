@@ -2,7 +2,7 @@
 
 给排障用的 Python 日志（管理端「平台日志」）。**不是** `job_runs`、各平台 `*_checkin_logs`、塔科夫战局摘要：那些是业务落库，签到结果更不要当成「执行记录」展示给用户。
 
-改代码时 Agent 看 [`.cursor/rules/logging.mdc`](../.cursor/rules/logging.mdc)；本文是人读全文。管道实现：`app.core.biz_logging`、`runtime_log_buffer`、`log_persistence`、`request_log_middleware`。
+运行日志规范以本文为准，Agent 也应直接遵守。管道实现：`app.core.biz_logging`、`runtime_log_buffer`、`log_persistence`、`request_log_middleware`。
 
 ## 记到哪里
 

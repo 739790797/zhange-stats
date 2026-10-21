@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Spin, Tabs } from "antd";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Alert, Card, Spin } from "antd";
+import { Suspense, useEffect, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { MotionIn } from "@/components/PageMotion";
 import { PanelFallback } from "@/components/RouteFallback";
@@ -10,6 +11,10 @@ import {
   isBindTokenBroken,
 } from "@/lib/checkinStatus";
 import { isInitialQueryPending } from "@/lib/queryCache";
+import {
+  resolvePlatformFeaturePageTitle,
+  resolvePlatformFeatureTabKey,
+} from "@/lib/platformFeatures";
 import { SKLAND_APP_LOGOUT_HINT } from "@/lib/sklandCredentialCopy";
 
 export type PlatformFeatureTabItem = {
@@ -32,14 +37,13 @@ export type PlatformFeatureTabsPageProps = {
   tabItems: PlatformFeatureTabItem[];
   emptyFeaturesMessage: string;
   emptyFeaturesDescription: string;
-  /** 默认选中的 tab key；缺省取 tabItems[0] */
+  /** 平台根路径默认只显示签到；非签到功能由侧栏子菜单选择。 */
   defaultTab?: string;
 };
 
 /**
- * 平台页外壳：PageHeader + 绑定门禁 + feature 开关驱动的 Tabs。
- * 签到 / 兑换等子内容由 tabItems 注入（签到用 CheckinPageTemplate contentOnly）。
- * 未激活 Tab 会卸载，避免默认签到页同时打盒子/日历/兑换上游。
+ * 平台页外壳：根路径显示签到；其它功能由平台侧栏子菜单通过 ?tab= 选择。
+ * 当前未选中的功能卸载，避免签到页同时请求盒子 / 兑换上游。
  */
 export function PlatformFeatureTabsPage({
   title,
@@ -55,7 +59,19 @@ export function PlatformFeatureTabsPage({
   emptyFeaturesDescription,
   defaultTab,
 }: PlatformFeatureTabsPageProps) {
-  const [tab, setTab] = useState(defaultTab || tabItems[0]?.key || "");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = resolvePlatformFeatureTabKey(
+    tabItems,
+    requestedTab,
+    defaultTab ?? "checkin",
+  );
+  const activeItem = tabItems.find((item) => item.key === activeTab);
+  const pageTitle = resolvePlatformFeaturePageTitle(
+    title,
+    activeItem,
+    defaultTab ?? "checkin",
+  );
 
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
@@ -65,27 +81,26 @@ export function PlatformFeatureTabsPage({
   });
 
   useEffect(() => {
-    if (!tabItems.length) return;
-    if (!tabItems.some((item) => item.key === tab)) {
-      setTab(tabItems[0].key);
+    if (
+      !featuresReady ||
+      !requestedTab ||
+      tabItems.some((item) => item.key === requestedTab)
+    ) {
+      return;
     }
-  }, [tab, tabItems]);
+    const next = new URLSearchParams(searchParams);
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [featuresReady, requestedTab, searchParams, setSearchParams, tabItems]);
 
   const bound = Boolean(statusQuery.data?.bound);
   const tokenBroken = isBindTokenBroken(statusQuery.data);
   const needsBind =
     (!bound || tokenBroken) && !isInitialQueryPending(statusQuery);
 
-  const tabNodes = tabItems.map((item) => ({
-    ...item,
-    children: (
-      <Suspense fallback={<PanelFallback />}>{item.children}</Suspense>
-    ),
-  }));
-
   return (
     <div>
-      <PageHeader title={title} />
+      <PageHeader title={pageTitle} />
 
       {needsBind ? (
         <MotionIn>
@@ -126,13 +141,19 @@ export function PlatformFeatureTabsPage({
         <div style={{ textAlign: "center", padding: 48 }}>
           <Spin />
         </div>
+      ) : activeItem ? (
+        <Suspense key={activeItem.key} fallback={<PanelFallback />}>
+          {activeItem.children}
+        </Suspense>
       ) : tabItems.length ? (
-        <Tabs
-          activeKey={tab}
-          onChange={setTab}
-          items={tabNodes}
-          destroyInactiveTabPane
-        />
+        <MotionIn>
+          <Alert
+            type="info"
+            showIcon
+            message="当前平台的签到功能未启用"
+            description="请联系管理员在「任务配置」中开启签到；其他已启用功能可从左侧平台子菜单进入。"
+          />
+        </MotionIn>
       ) : (
         <MotionIn>
           <Alert

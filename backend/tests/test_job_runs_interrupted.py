@@ -15,23 +15,25 @@ def _session():
     return sessionmaker(bind=engine)()
 
 
-def test_marks_only_running_rows() -> None:
+def test_marks_queued_and_running_rows() -> None:
     db = _session()
     db.add_all(
         [
             JobRun(job_key="steam_presence", status="running"),
             JobRun(job_key="tarkov_sync", status="running"),
+            JobRun(job_key="arknights_repo_sync", status="queued"),
             JobRun(job_key="steam_presence", status="ok", message="done"),
         ]
     )
     db.commit()
 
-    assert mark_interrupted_job_runs(db) == 2
+    assert mark_interrupted_job_runs(db) == 3
 
     rows = {r.job_key + ":" + r.status: r for r in db.query(JobRun).all()}
     assert "steam_presence:running" not in rows
+    assert "arknights_repo_sync:queued" not in rows
     interrupted = [r for r in db.query(JobRun).filter(JobRun.message == INTERRUPTED_MESSAGE)]
-    assert len(interrupted) == 2
+    assert len(interrupted) == 3
     assert all(r.status == "error" and r.finished_at is not None for r in interrupted)
     assert db.query(JobRun).filter(JobRun.status == "ok").count() == 1
 

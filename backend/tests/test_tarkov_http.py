@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 
@@ -112,16 +113,9 @@ def test_download_dump_passes_the_64mib_cap_to_http_download(monkeypatch) -> Non
     assert seen["max_bytes"] == TARKOV_DUMP_MAX_BYTES
 
 
-def test_tarkov_dump_and_overlay_wrappers_all_send_the_64mib_cap(monkeypatch) -> None:
-    """生产 8MiB 默认上限曾把 items ~17MB / maps ~8.6MB 全卡死。
-
-    各栏目下载包装（download_json_resource / overlay）最终都要经过 download_response，
-    这里断言它们送出的上限就是塔科夫 64MiB，而不是 http_client 的 8MiB 默认。
-    """
-    from types import SimpleNamespace
-
+def test_tarkov_dump_wrapper_sends_the_64mib_cap(monkeypatch) -> None:
+    """json.tarkov.dev dump 仍使用 64 MiB 上限；overlay 已改为本地克隆读取。"""
     from app.services.tarkov import http as tarkov_http
-    from app.services.tarkov import overlay as overlay_svc
     from app.services.tarkov import upstream as upstream_svc
 
     caps: list[int | None] = []
@@ -133,11 +127,7 @@ def test_tarkov_dump_and_overlay_wrappers_all_send_the_64mib_cap(monkeypatch) ->
         return SimpleNamespace(status_code=200, content=b'{"data": {}}', headers={})
 
     monkeypatch.setattr(tarkov_http, "download_response", fake_response)
-    monkeypatch.setattr(
-        overlay_svc, "overlay_urls", lambda: ("https://example.test/overlay.json",)
-    )
     assert tarkov_http.TARKOV_DUMP_MAX_BYTES == 64 * 1024 * 1024
 
     upstream_svc.download_json_resource("items")
-    overlay_svc.download_overlay()
-    assert caps == [tarkov_http.TARKOV_DUMP_MAX_BYTES] * 2
+    assert caps == [tarkov_http.TARKOV_DUMP_MAX_BYTES]

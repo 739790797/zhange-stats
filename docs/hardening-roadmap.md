@@ -34,7 +34,7 @@
 
 ## 0 期（已落地）
 
-页面切换淡入、`prefers-reduced-motion`、文档标题、`AppLayout`/塔科夫换页回顶、antd `App`、`RouteErrorBoundary`。约定见 [`.cursor/rules/frontend-ui.mdc`](../.cursor/rules/frontend-ui.mdc)。
+页面切换淡入、`prefers-reduced-motion`、文档标题、`AppLayout`/塔科夫换页回顶、antd `App`、`RouteErrorBoundary`。约定见 [工程约定](engineering-guidelines.md)。
 
 本路线不再重复这些工作。
 
@@ -116,7 +116,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 现状：[`frontend/src/api/http.ts`](../frontend/src/api/http.ts) 非 `/auth/login` 的 401 立刻 `logout()`。
 
-规则（实现时写成纯函数并单测，见 [`testing.mdc`](../.cursor/rules/testing.mdc)）：
+规则（实现时按层写纯函数并单测，见 [Agent 工作流程](agent-guide.md)）：
 
 1. **无 token 的请求** 401：不登出（访客打了需登录接口）。
 2. **明确未登录探针**（如 `GET /api/auth/me`）401：登出。
@@ -289,8 +289,8 @@ form-action 'self';
 | 期 | 必须同步 |
 |----|----------|
 | 1 | `deploy.md` 反代示例、公开运营检查、备份/恢复 |
-| 2 | 可选：`frontend-api-errors.mdc` 一句「401 登出规则」 |
-| 3 | `frontend-ui.mdc` 跳转正文 / `main` |
+| 2 | 可选：前端 API 错误约定中的「401 登出规则」 |
+| 3 | 前端 UI 约定跳转正文 / `main` |
 | 4 | `legalDocs.ts`、`database.md`、`security.md` 一句删号 |
 | 5 | `security.md` 管理员步进 |
 | 6 | `deploy.md` 或 `security.md` 请求 ID |

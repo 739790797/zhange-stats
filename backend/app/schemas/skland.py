@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -125,6 +126,52 @@ class EndfieldBoxOut(BaseModel):
     stale: bool = False
 
 
+class EndfieldOperatorOut(BaseModel):
+    char_id: str
+    name: str
+    rarity: int
+    profession: str
+    profession_label: str
+    sort_order: int
+
+
+class EndfieldCompareCandidateOut(BaseModel):
+    member_id: int
+    nickname: str
+    avatar_url: str | None = None
+    game_role_name: str | None = None
+    is_self: bool = False
+    skland_bound: bool = False
+
+
+class EndfieldCompareRoleOut(BaseModel):
+    uid: str
+    role_name: str
+    channel_name: str = ""
+
+
+class EndfieldCompareRowOut(BaseModel):
+    member_id: int
+    nickname: str
+    avatar_url: str | None = None
+    status: str
+    message: str | None = None
+    uid: str | None = None
+    role_name: str | None = None
+    channel_name: str | None = None
+    player_level: int | None = None
+    synced_at: str | None = None
+    char_count: int = 0
+    owned: dict[str, EndfieldCharOut] = Field(default_factory=dict)
+    roles: list[EndfieldCompareRoleOut] = Field(default_factory=list)
+
+
+class EndfieldBoxCompareOut(BaseModel):
+    catalog: list[EndfieldOperatorOut] = Field(default_factory=list)
+    catalog_count: int = 0
+    rows: list[EndfieldCompareRowOut] = Field(default_factory=list)
+
+
 class ArknightsOperatorOut(BaseModel):
     char_id: str
     name: str
@@ -248,6 +295,134 @@ class ArknightsAttendanceCalendarOut(BaseModel):
 
 class EndfieldAttendanceCalendarOut(ArknightsAttendanceCalendarOut):
     """终末地签到周期日历（字段同方舟）。"""
+
+
+class InnDishRec(BaseModel):
+    id: str
+    name: str
+    category: str
+    category_name: str
+    affix_ids: list[str] = Field(default_factory=list)
+    affixes: list[str] = Field(default_factory=list)
+    price: int = 0
+    cook_seconds: int = 0
+    ingredients: list[str] = Field(default_factory=list)
+    unlock_level: int = 1
+    unlock_topic_id: str = ""
+    unlock_topic_star_num: int = 0
+    unlocked: bool = True
+    unlock_conditions: list[str] = Field(default_factory=list)
+
+
+class InnMenuGroup(BaseModel):
+    requirement_id: str
+    text: str
+    food_type: int = 1
+    need: int = 0
+    dishes: list[InnDishRec] = Field(default_factory=list)
+    missing: int = 0
+
+
+class InnChefRec(BaseModel):
+    char_id: str
+    name: str
+    kitchen_index: int | None = None
+    slot_label: str = ""
+    notes: list[str] = Field(default_factory=list)
+
+
+class InnChefTag(BaseModel):
+    id: str
+    label: str
+
+
+class InnChefCatalogRec(BaseModel):
+    char_id: str
+    name: str
+    tags: list[InnChefTag] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class InnObjectivePart(BaseModel):
+    kind: Literal["text", "icon"]
+    value: str
+
+
+class InnStarOut(BaseModel):
+    private_chef: bool = False
+    star_scores: list[int] = Field(default_factory=list)
+    kpi_cap: float = 0
+    profit_cap: float = 0
+    needs_objective: bool = False
+    objective: str = ""
+    objective_parts: list[InnObjectivePart] = Field(default_factory=list)
+    estimate: str = ""
+
+
+class InnTopicBrief(BaseModel):
+    id: str
+    name: str
+    unlock_level: int = 1
+    private_chef: bool = False
+
+
+class InnExpansionBrief(BaseModel):
+    id: str
+    name: str
+    unlock_level: int = 1
+    cost: int = 0
+    add_kitchen_num: int = 0
+    add_kitchen_char_num: int = 0
+    prerequisite_id: str = ""
+
+
+class InnBonusTier(BaseModel):
+    tier: int
+    rare_rate_bonus: float
+
+
+class InnTopicsOut(BaseModel):
+    topics: list[InnTopicBrief] = Field(default_factory=list)
+    expansions: list[InnExpansionBrief] = Field(default_factory=list)
+    jsspsi_bonus_tiers: list[InnBonusTier] = Field(default_factory=list)
+
+
+class InnQueryIn(BaseModel):
+    level: int = Field(ge=1, le=4)
+    expansions: list[str] = Field(default_factory=list, max_length=16)
+    topic_id: str | None = Field(default=None, max_length=64)
+    topic_stars: dict[str, int] = Field(default_factory=dict)
+    jsspsi_bonus_tier: int = Field(default=1, ge=1, le=3)
+
+
+class InnRecommendationsOut(BaseModel):
+    topic_id: str
+    topic_name: str
+    menu: list[InnMenuGroup] = Field(default_factory=list)
+    chefs: list[InnChefRec] = Field(default_factory=list)
+    star: InnStarOut
+
+
+class InnQueryOut(BaseModel):
+    level: int
+    topic_id: str | None = None
+    kitchen_count: int = 1
+    chef_slot_count: int = 1
+    jsspsi_bonus_tier: int = 1
+    jsspsi_rare_rate_bonus: float = 0
+    dishes: list[InnDishRec] = Field(default_factory=list)
+    drinks: list[InnDishRec] = Field(default_factory=list)
+    chef_catalog: list[InnChefCatalogRec] = Field(default_factory=list)
+    recommendations: InnRecommendationsOut | None = None
+
+
+class InnPlanOut(BaseModel):
+    topic_id: str
+    topic_name: str
+    level: int
+    menu: list[InnMenuGroup] = Field(default_factory=list)
+    chefs: list[InnChefRec] = Field(default_factory=list)
+    star: InnStarOut
 
 
 class GameScheduleEventOut(BaseModel):

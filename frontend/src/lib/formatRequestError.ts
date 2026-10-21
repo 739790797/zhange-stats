@@ -33,6 +33,13 @@ function detailText(detail: unknown): string | null {
       .filter(Boolean);
     return parts.length ? parts.join("；") : null;
   }
+  if (typeof detail === "object") {
+    const nested = (detail as { msg?: unknown; message?: unknown }).msg ??
+      (detail as { message?: unknown }).message;
+    return typeof nested === "string" && nested.trim()
+      ? nested.trim()
+      : null;
+  }
   return String(detail);
 }
 

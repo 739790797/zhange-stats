@@ -2,6 +2,14 @@
 
 产品介绍见根 [`README.md`](../README.md)。安全与 Redis 见 [`security.md`](security.md)。改表见 [`database.md`](database.md) 与 [`backend/alembic/README.md`](../backend/alembic/README.md)。
 
+## 上游数据仓
+
+四个浅克隆仓库统一放在安装根 `data/repos/`：EndfieldData、ArknightsGameResource、tarkov-data-overlay 与 tarkov-dev-svg-maps。任务管理在终末地、明日方舟与塔科夫下分别提供「外部仓库更新」，每日 03:50 更新各自仓库的默认分支，早于方舟投影 04:00 与塔科夫全量同步 04:25。克隆与更新都由对应仓库任务执行；任务旁的 GitHub 图标打开对应仓库。图标、SVG 和 EndfieldData 表只读取本地副本，缺仓时 API 返回统一提示并引导到「任务管理 → 任务配置」手动同步。
+
+同步逐仓记录提交号或错误；任一仓更新失败时任务标记失败，并保留原工作树供现有功能继续读取。新安装在首次访问前没有数据副本是正常状态；网络或 Git 不可用时同步任务失败，之后可由每日任务或管理端手动同步重试。
+
+`data/repos/` 由 Git 忽略且不进备份，恢复安装后等待同步任务重新克隆。管理端文件管理仍可常规浏览和管理该目录。overlay 固定从本地 `tarkov-data-overlay/dist/overlay.json` 读取。
+
 ## Linux LXC（推荐）
 
 单副本源码部署。`install` / `run` **不**自动装 MariaDB。首次启动进入安装向导：可选 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。存量 LXC 若根上还有 `.env` 的 `DATABASE_URL`，启动会迁入 `config/database.json`，不会重跑选库；迁完可以删掉 `.env`。可选本机 Redis（限流 / 扫码 KV；不配则进程内降级）。塔科夫物品 dump 约 20MB，落库前会压到数 MB，外部库用默认 `max_allowed_packet`（16M）即可；本机 MariaDB 仍按 64M 配。

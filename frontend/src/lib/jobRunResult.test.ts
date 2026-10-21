@@ -13,6 +13,9 @@ import {
   jobRunPhaseLabel,
   jobRunProgressPercent,
   jobRunProgressRows,
+  jobRunSteps,
+  jobRunCategory,
+  jobRunDurationText,
   jobRunStatEntries,
   jobRunStatusLabel,
   jobRunSummaryText,
@@ -35,6 +38,14 @@ describe("jobRunResult", () => {
         3,
       ),
     ).toBeNull();
+    expect(
+      pickWatchedJobRun(
+        [{ id: 8, status: "running" }, { id: 7, status: "ok" }],
+        0,
+        undefined,
+        7,
+      )?.id,
+    ).toBe(7);
     expect(
       pickWatchedJobRun(
         [
@@ -129,37 +140,26 @@ describe("jobRunResult", () => {
     expect(jobRunSummaryText({ id: 1, status: "error" })).toBe("执行失败");
   });
 
-  it("stops polling when finished or timed out", () => {
+  it("continues polling long runs and stops only after completion", () => {
     expect(isJobRunFinished("ok")).toBe(true);
+    expect(isJobRunFinished("warning")).toBe(true);
     expect(isJobRunFinished("running")).toBe(false);
     expect(
       jobRunWatchPollMs({
         run: { id: 1, status: "running" },
-        startedAt: 0,
-        now: 500,
       }),
     ).toBe(JOB_RUN_WATCH_POLL_MS);
     expect(
       jobRunWatchPollMs({
         run: { id: 1, status: "ok" },
-        startedAt: 0,
-        now: 500,
       }),
     ).toBe(false);
     expect(
       jobRunWatchPollMs({
         run: { id: 1, status: "running" },
-        startedAt: 0,
-        now: 11 * 60 * 1000,
       }),
     ).toBe(JOB_RUN_WATCH_POLL_MS);
-    expect(
-      jobRunWatchPollMs({
-        run: null,
-        startedAt: 0,
-        now: 11 * 60 * 1000,
-      }),
-    ).toBe(false);
+    expect(jobRunWatchPollMs({ run: null })).toBe(JOB_RUN_WATCH_POLL_MS);
   });
 
   it("formats upstream freshness", () => {
@@ -213,6 +213,7 @@ describe("jobRunResult", () => {
 
   it("maps status and scalar stats", () => {
     expect(jobRunStatusLabel("ok")).toBe("成功");
+    expect(jobRunStatusLabel("warning")).toBe("部分成功");
     expect(jobRunAlertType("error")).toBe("error");
     expect(
       jobRunStatEntries({
@@ -241,6 +242,19 @@ describe("jobRunResult", () => {
     expect(formatJobRunBytes(512)).toBe("512 B");
     expect(jobRunProgressPercent({ percent: 40.2 })).toBe(40);
     expect(jobRunProgressPercent({ percent: "x" })).toBeNull();
+    expect(
+      jobRunProgressPercent({
+        schema_version: 1,
+        percent: 40,
+        progress: { percent: 40 },
+      }),
+    ).toBeNull();
+    expect(
+      jobRunProgressPercent({
+        schema_version: 1,
+        progress: { current: 2, total: 5, percent: 40 },
+      }),
+    ).toBe(40);
     expect(
       jobRunStatEntries(
         {
@@ -296,5 +310,20 @@ describe("jobRunResult", () => {
       bytesText: "5.0 MB / 10.0 MB",
       filePercent: 50,
     });
+  });
+
+  it("reads categorized steps and business result metadata", () => {
+    const stats = {
+      schema_version: 1,
+      category: "repository",
+      steps: [{ id: "sync", label: "同步仓库", status: "running" }],
+      progress: {},
+      result: { repository: "endfield-data", commit: "abc123" },
+    };
+    expect(jobRunCategory(stats)).toBe("repository");
+    expect(jobRunSteps(stats)).toEqual([
+      { id: "sync", label: "同步仓库", status: "running" },
+    ]);
+    expect(jobRunDurationText({ started_at: "2026-08-30 14:00:00", finished_at: "2026-08-30 14:01:05" })).toBe("1 分 5 秒");
   });
 });

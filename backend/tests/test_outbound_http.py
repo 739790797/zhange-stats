@@ -10,7 +10,6 @@ from app.core.http_client import HttpRequestError
 from app.services.minecraft import modrinth as modrinth
 from app.services.minecraft import mod_catalog as mod_catalog
 from app.services.minecraft.modrinth import ModrinthError
-from app.services.skland import arknights_catalog as catalog
 from app.services.steam import game_names as game_names
 from app.services.steam import openid as steam_openid
 from app.services.steam import resolve as steam_resolve
@@ -131,25 +130,6 @@ def test_mod_catalog_http_json_bad_status(monkeypatch) -> None:
     )
     with pytest.raises(ValueError, match="HTTP 503"):
         mod_catalog._http_json("https://example.test/s")
-
-
-def test_arknights_catalog_http_error(monkeypatch) -> None:
-    monkeypatch.setattr(
-        catalog,
-        "http_request",
-        lambda *_a, **_k: _Resp(status_code=404, content=b""),
-    )
-    with pytest.raises(catalog.ArknightsCatalogError, match="HTTP 404"):
-        catalog._http_get_bytes("https://example.test/table.json")
-
-
-def test_arknights_catalog_network_error(monkeypatch) -> None:
-    def boom(*_a, **_k):
-        raise HttpRequestError("dns")
-
-    monkeypatch.setattr(catalog, "http_request", boom)
-    with pytest.raises(catalog.ArknightsCatalogError, match="无法连接"):
-        catalog._http_get_bytes("https://example.test/table.json")
 
 
 def test_game_schedule_download_maps_unreachable(monkeypatch) -> None:

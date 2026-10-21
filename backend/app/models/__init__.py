@@ -1,4 +1,5 @@
 from app.models.job_run import JobRun
+from app.models.job_run_log import JobRunLog
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
 from app.models.arknights_rogue import ArknightsRogueRaw
@@ -81,6 +82,7 @@ __all__ = [
     "PlaySession",
     "PresenceSegment",
     "JobRun",
+    "JobRunLog",
     "SystemConfig",
     "RegisterChallenge",
     "OAuthExchangeTicket",

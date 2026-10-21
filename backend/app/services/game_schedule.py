@@ -558,19 +558,26 @@ def get_game_events(
 
 def _game_schedule_sync_job(game: GameCode) -> None:
     from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
     from app.services.job_runs_prune import fail_job_run
+    from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
 
     job_key = SCHEDULE_JOB_KEYS[game]
     db = SessionLocal()
-    job = JobRun(job_key=job_key, status="running", started_at=now_naive())
-    db.add(job)
+    job = create_or_reuse_job_run(
+        db, job_key, message="正在同步活动日历", stats={"phase": "start"}
+    )
     db.commit()
     run_id = job.id
     try:
         result = sync_game_schedule(db, game)
         job.status = "ok"
         job.message = json.dumps(result, ensure_ascii=False)
+        job.stats = versioned_job_stats(
+            job_key,
+            status="ok",
+            stats={"phase": "done", "result": {"summary": "活动日历已同步"}},
+            message="活动日历已同步",
+        )
         job.finished_at = now_naive()
         db.commit()
     except Exception as exc:  # noqa: BLE001

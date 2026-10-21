@@ -1,4 +1,10 @@
-import { PlayCircleOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  CopyOutlined,
+  GithubOutlined,
+  HistoryOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/lib/apiError";
 import {
@@ -9,6 +15,7 @@ import {
   Spin,
   Switch,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -20,8 +27,10 @@ import {
   triggerScheduledJob,
   updatePlatformFeatures,
   type PlatformFeatureNode,
+  type JobRun,
 } from "@/api/client";
 import { JobRunResultModal } from "@/components/JobRunResultModal";
+import { JobRunHistoryModal } from "@/components/JobRunHistoryModal";
 import { PageHeader } from "@/components/PageHeader";
 import { BrandLogo } from "@/components/BrandLogo";
 import { PlatformIcon } from "@/components/PlatformIcon";
@@ -34,6 +43,16 @@ type DraftJobs = Record<
   string,
   { interval_minutes?: number; hour?: number; minute?: number }
 >;
+
+const EXTERNAL_REPO_URLS: Record<string, string> = {
+  "skland.arknights.repo_sync":
+    "https://github.com/yuanyan3060/ArknightsGameResource",
+  "skland.endfield.repo_sync": "https://github.com/rmxlinux/EndfieldData",
+  "guides.tarkov.overlay_repo_sync":
+    "https://github.com/MiwiDots/tarkov-data-overlay",
+  "guides.tarkov.svg_repo_sync":
+    "https://github.com/the-hideout/tarkov-dev-svg-maps",
+};
 
 function collectFlags(nodes: PlatformFeatureNode[], out: DraftFlags = {}) {
   for (const node of nodes) {
@@ -82,21 +101,27 @@ function FeatureRow({
   depth,
   flags,
   jobs,
+  syncJobIds,
   triggeringJobId,
   runningJobIds,
   onToggle,
   onJobPatch,
   onManualRun,
+  onHistory,
+  onCopyCommand,
 }: {
   node: PlatformFeatureNode;
   depth: number;
   flags: DraftFlags;
   jobs: DraftJobs;
+  syncJobIds: ReadonlySet<string>;
   triggeringJobId: string | null;
   runningJobIds: ReadonlySet<string>;
   onToggle: (id: string, enabled: boolean) => void;
   onJobPatch: (jobId: string, patch: DraftJobs[string]) => void;
   onManualRun: (jobId: string, jobName: string) => void;
+  onHistory: (jobId: string, jobName: string) => void;
+  onCopyCommand: (jobId: string) => void;
 }) {
   const enabled = flags[node.id] === true;
   const parentOk = node.parent_effective;
@@ -108,6 +133,7 @@ function FeatureRow({
       (runningJobIds.has(node.job_id) || triggeringJobId === node.job_id),
   );
   const icon = featureTreeIcon(node.id, node.kind);
+  const externalRepoUrl = EXTERNAL_REPO_URLS[node.id];
   const canManualRun =
     Boolean(node.job_id) &&
     (node.schedule === "cron" || node.schedule === "interval") &&
@@ -154,6 +180,19 @@ function FeatureRow({
               <PlatformIcon name={icon} size={18} />
             ) : null}
             <Typography.Text strong={depth === 0}>{node.name}</Typography.Text>
+            {externalRepoUrl ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<GithubOutlined />}
+                href={externalRepoUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="在 GitHub 打开对应仓库"
+                aria-label={`在 GitHub 打开${node.name}对应仓库`}
+                style={{ paddingInline: 2, height: 22 }}
+              />
+            ) : null}
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {node.kind === "platform"
                 ? "平台"
@@ -245,6 +284,28 @@ function FeatureRow({
               {executing ? "执行中" : "手动同步"}
             </Button>
           ) : null}
+          {node.job_id && syncJobIds.has(node.job_id) ? (
+            <>
+              <Tooltip title="复制跨平台 CLI 命令（在 backend/ 激活虚拟环境后运行）">
+                <Button
+                  size="small"
+                  icon={<CopyOutlined />}
+                  aria-label={`复制${node.name}命令`}
+                  onClick={() => onCopyCommand(node.job_id!)}
+                >
+                  CLI
+                </Button>
+              </Tooltip>
+              <Button
+                size="small"
+                icon={<HistoryOutlined />}
+                aria-label={`查看${node.name}执行记录`}
+                onClick={() => onHistory(node.job_id!, node.name)}
+              >
+                记录
+              </Button>
+            </>
+          ) : null}
           <Switch
             checked={reserved ? parentOk : enabled}
             disabled={!canEdit}
@@ -262,11 +323,14 @@ function FeatureRow({
           depth={depth + 1}
           flags={flags}
           jobs={jobs}
+          syncJobIds={syncJobIds}
           triggeringJobId={triggeringJobId}
           runningJobIds={runningJobIds}
           onToggle={onToggle}
           onJobPatch={onJobPatch}
           onManualRun={onManualRun}
+          onHistory={onHistory}
+          onCopyCommand={onCopyCommand}
         />
       ))}
     </div>
@@ -285,6 +349,7 @@ export default function TaskConfigPage() {
     at: number;
   } | null>(null);
   const [runWatch, setRunWatch] = useState<JobRunWatch | null>(null);
+  const [historyJob, setHistoryJob] = useState<{ id: string; name: string } | null>(null);
 
   const query = useQuery({
     queryKey: ["platform-features-admin"],
@@ -296,7 +361,7 @@ export default function TaskConfigPage() {
     queryFn: fetchScheduledJobs,
     refetchInterval: (q) => {
       const running = (q.state.data?.jobs || []).some(
-        (job) => job.last_run?.status === "running",
+        (job) => job.last_run?.status === "running" || job.last_run?.status === "queued",
       );
       return running || pendingRun ? 2000 : false;
     },
@@ -319,22 +384,31 @@ export default function TaskConfigPage() {
   const runningJobIds = useMemo(() => {
     const ids = new Set<string>();
     for (const job of scheduledJobs.data?.jobs || []) {
-      if (job.last_run?.status === "running") ids.add(job.id);
+      if (job.last_run?.status === "running" || job.last_run?.status === "queued") ids.add(job.id);
     }
     if (pendingRun) ids.add(pendingRun.jobId);
     return ids;
   }, [pendingRun, scheduledJobs.data]);
+  const syncJobIds = useMemo(
+    () =>
+      new Set(
+        (scheduledJobs.data?.jobs || [])
+          .filter((job) => Boolean(job.sync_category))
+          .map((job) => job.id),
+      ),
+    [scheduledJobs.data],
+  );
 
   useEffect(() => {
     if (!pendingRun) return;
     const job = scheduledJobs.data?.jobs?.find((item) => item.id === pendingRun.jobId);
-    if (job?.last_run?.status === "running") {
+    if (job?.last_run?.status === "running" || job?.last_run?.status === "queued") {
       setPendingRun(null);
       return;
     }
     const started = parseJobTime(job?.last_run?.started_at);
     if (Number.isNaN(started) || started < pendingRun.at - 5000) return;
-    if (job?.last_run?.status === "ok" || job?.last_run?.status === "error") {
+    if (["ok", "warning", "error"].includes(job?.last_run?.status || "")) {
       setPendingRun(null);
     }
   }, [pendingRun, scheduledJobs.data]);
@@ -383,6 +457,8 @@ export default function TaskConfigPage() {
         jobId,
         jobName,
         sinceRunId,
+        runId: data.run_id,
+        category: data.category,
         acceptedAt: Date.now(),
         acceptedMessage: data.message || "已提交执行",
       });
@@ -397,6 +473,39 @@ export default function TaskConfigPage() {
     },
     onSettled: () => setTriggeringJobId(null),
   });
+
+  const copyCliCommand = async (jobId: string) => {
+    const command = scheduledJobs.data?.jobs?.find((job) => job.id === jobId)?.cli_command;
+    if (!command) {
+      message.error("未找到该任务的 CLI 命令");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(command);
+      message.success("CLI 命令已复制");
+    } catch {
+      message.error("复制失败，请检查浏览器剪贴板权限");
+    }
+  };
+
+  const openRunHistory = (jobId: string, jobName: string) => {
+    setHistoryJob({ id: jobId, name: jobName });
+  };
+
+  const openHistoricalRun = (run: JobRun) => {
+    const jobId = historyJob?.id;
+    if (!jobId) return;
+    setRunWatch({
+      jobId,
+      jobName: historyJob.name,
+      sinceRunId: 0,
+      runId: run.id,
+      category: typeof run.stats?.category === "string" ? run.stats.category : null,
+      acceptedAt: Date.now(),
+      acceptedMessage: run.message || "执行记录",
+    });
+    setHistoryJob(null);
+  };
 
   return (
     <div>
@@ -463,6 +572,7 @@ export default function TaskConfigPage() {
               depth={0}
               flags={flags}
               jobs={jobs}
+              syncJobIds={syncJobIds}
               triggeringJobId={triggeringJobId}
               runningJobIds={runningJobIds}
               onToggle={(id, enabled) =>
@@ -483,12 +593,19 @@ export default function TaskConfigPage() {
               onManualRun={(jobId, jobName) =>
                 manualRun.mutate({ jobId, jobName })
               }
+              onHistory={openRunHistory}
+              onCopyCommand={(jobId) => void copyCliCommand(jobId)}
             />
           ))}
         </div>
       )}
 
       <JobRunResultModal watch={runWatch} onClose={() => setRunWatch(null)} />
+      <JobRunHistoryModal
+        job={historyJob}
+        onClose={() => setHistoryJob(null)}
+        onSelect={openHistoricalRun}
+      />
     </div>
   );
 }

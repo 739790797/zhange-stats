@@ -19,7 +19,7 @@ zhange-stats/
     runtime/                # DATA_DIR：密钥、日志、SQLite、更新锁
     uploads/                # UPLOAD_DIR：avatars、articles
     models/                 # TexTeller（公式识别）
-    run/ cache/ backups/ mariadb/ tmp/
+    repos/ run/ cache/ backups/ mariadb/ tmp/
   scripts/config.example/   # 站点配置模板（_version；启动/脚本补键）
   frontend/src/
     pages/                  # 路由页（攻略已在 pages/guides/）
@@ -29,16 +29,16 @@ zhange-stats/
     api/                    # *Api.ts + generated/
     data/                   # 源码资源，不是运行时
   backend/app/
-    api/                    # 已成包的保持；单文件平台 API 胀大再升包
+    api/ cli/                # API；cli/ 提供 python -m app.cli run-job
     services/
-      checkin/ skland/ mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ ror2/ guide_raw/ articles/ user_files/
+      checkin/ skland/ (endfield_inn/) mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ ror2/ guide_raw/ articles/ user_files/
       （横切仍留根上，见下表）
     models/ schemas/ core/
 ```
 
 `components/` 根上只留：布局/路由、`CheckinPageTemplate`、`BoxPanelChrome`、`AttendanceCalendarButton`、`ExchangePageTemplate`、`PlatformFeatureTabsPage`、`AdminHubLayout`、`AuthGuestShell`、`LegalDocView` / `LegalLinks` / `IcpBeianLink` 等跨平台外壳。
 
-`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`config_import`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`rum`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_runs_prune`、`game_schedule`、`box_role_cache`。用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `user_file_*.py`。
+`services/` 根上只留横切：`account_anonymize`、`app_updator`、`avatar_store`、`auth_config`、`config_import`、`email*`、`file_manager`、`integrations_config`、`member_sync`、`oauth_ticket`、`password_policy`、`platform_features`、`qq_oauth`、`raw_payload_monitor`、`runtime_health`、`rum`、`scheduler_*`、`security_bootstrap`、`seed`、`setup`、`site_config`、`job_run_*`、`job_runner`、`job_execution_lock`、`job_process_supervisor`、`job_runs_prune`、`game_schedule`、`box_role_cache`。同步任务的手动 CLI 入口在 `backend/app/cli/`，运行器与锁仍由 `services/` 共用。用户附件登记进包 `user_files/`（不要叫 `files`，以免和管理端 `file_manager` 撞名）。不要在根上加 `user_file_*.py`。
 
 `pages/`、平台 `api/` 单文件、`models/` 保持现状，不要求再搬家。既有 `services/adapters/`、`services/mihoyo_bbs/` 保持。
 
@@ -55,8 +55,9 @@ zhange-stats/
 | 目录 | 内容 |
 |------|------|
 | `skland/` | 绑定、游戏活动 |
-| `arknights/` | 签到日历、盒子对比、肉鸽 |
-| `endfield/` | 签到日历、养成盒 |
+| `arknights/` | 签到日历、干员信息与盒子对比、肉鸽 |
+| `endfield/` | 签到日历、干员信息 |
+| `operatorInfo/` | 明日方舟与终末地共用的干员筛选、排序、对比与详情弹窗模板 |
 | `mihoyo/` | 绑定、签到日历、兑换 |
 | `kujiequ/` | 绑定、签到日历、兑换、鸣潮盒子 |
 | `taygedo/` | 绑定、签到日历、兑换、异星盒子 |
@@ -74,6 +75,10 @@ zhange-stats/
 前端生产跑的是 **CI 绿之后** GitHub Release 的 `static/` tar，打包后的 JS 已带组件路径。本机 Vite 另靠 `frontend/` 同步。发版约定见 [`deploy.md`](deploy.md)「发版」。
 
 表结构变更走 Alembic。运行时目录（`config/` / `data/`）在保护前缀里，更新不会覆盖。首次启动会把旧 `var/` 迁进 `data/{runtime,uploads,models,…}`，并清根 `config.example/`、空壳旧目录、未使用的公式 ONNX；根 `.env` 与可能不同的 `backend/data/.secret_key` 不自动删。
+
+## 上游数据仓
+
+`backend/app/services/upstream_repos.py` 将 EndfieldData、ArknightsGameResource、Tarkov overlay 与 Tarkov SVG 浅克隆到安装根 `data/repos/`。任务管理在对应游戏下分别展示「外部仓库更新」，每天 03:50 更新默认分支，早于方舟投影 04:00 和塔科夫全量同步 04:25；任务旁的 GitHub 图标打开对应仓库。缺仓时读请求返回统一提示，前端引导到任务配置手动触发同步。更新失败保留旧工作树。`data/repos/` 由 Git 忽略且备份排除，但仍属于文件管理器可浏览和管理的普通目录。服务端只读注册的仓库 ID 和仓库内相对路径。
 
 ## 附录：历史搬家对照（已完成）
 
