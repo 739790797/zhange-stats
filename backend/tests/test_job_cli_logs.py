@@ -276,11 +276,17 @@ def test_configured_redis_lock_is_acquired_and_released(monkeypatch) -> None:
     assert calls == ["acquired", "released"]
 
 
-def test_process_group_arguments_are_cross_platform() -> None:
+def test_process_group_arguments_are_cross_platform(monkeypatch) -> None:
+    import subprocess
+
     from app.services.job_process_supervisor import _platform_process_options
 
+    windows_process_group = 0x00000200
+    monkeypatch.setattr(
+        subprocess, "CREATE_NEW_PROCESS_GROUP", windows_process_group, raising=False
+    )
     assert _platform_process_options("nt") == {
-        "creationflags": __import__("subprocess").CREATE_NEW_PROCESS_GROUP
+        "creationflags": windows_process_group,
     }
     assert _platform_process_options("posix") == {"start_new_session": True}
 
