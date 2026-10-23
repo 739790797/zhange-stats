@@ -22,7 +22,7 @@
 | 表结构总览、迁移要求 | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md) |
 | 安全、鉴权、Cookie/CSRF、文件管理、上传、限流与权限 | [`security.md`](security.md) |
 | 运行日志级别、禁刷规则、日志管道 | [`logging.md`](logging.md) |
-| 目录结构与代码分包 | [`directory-layout.md`](directory-layout.md) |
+| 目录结构与代码分包 | [`directory-layout.md`](directory-layout.md)、[`frontend-architecture.md`](frontend-architecture.md) |
 | 硬化路线历史与落地记录 | [`hardening-roadmap.md`](hardening-roadmap.md) |
 | 运行时数据目录、上游资源仓同步、备份范围 | [`data/README.md`](../data/README.md) |
 
@@ -30,19 +30,21 @@
 
 | 任务 | 阅读 |
 |---|---|
-| 改 API 或跨栈契约 | [`zhange-api-change`](../.agents/skills/zhange-api-change/SKILL.md)、[`engineering-guidelines.md`](engineering-guidelines.md)、[`frontend/src/api/generated/README.md`](../frontend/src/api/generated/README.md) |
+| 改 API 或跨栈契约 | [`zhange-api-change`](../.agents/skills/zhange-api-change/SKILL.md)、[`engineering-guidelines.md`](engineering-guidelines.md)、[`frontend/src/shared/api/generated/README.md`](../frontend/src/shared/api/generated/README.md) |
 | 改上游资源、缓存或同步任务 | [`zhange-upstream-data-change`](../.agents/skills/zhange-upstream-data-change/SKILL.md)、[`data/README.md`](../data/README.md)、[`engineering-guidelines.md`](engineering-guidelines.md) |
 | 测试、质量门或发版前验证 | [`zhange-release-validation`](../.agents/skills/zhange-release-validation/SKILL.md)、[`agent-guide.md`](agent-guide.md)、[`develop.md`](develop.md)、[`deploy.md`](deploy.md) |
 | 改表或迁移 | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md) |
 | 安全、文件管理、签到/游戏权限 | [`security.md`](security.md)、[`engineering-guidelines.md`](engineering-guidelines.md) |
 | 日志或代码分包 | [`logging.md`](logging.md)、[`directory-layout.md`](directory-layout.md) |
+| 雨中冒险 2 列表与新增目录页 | [ROR2 列表规则](ror2-list-rules.md) |
 
 ## 根目录与就地 README
 
 - 根 [`README.md`](../README.md)：项目介绍、功能摘要与致谢。
 - 根 [`AGENTS.md`](../AGENTS.md)：Agent 自动加载入口。
-- [`frontend/README.md`](../frontend/README.md)：前端命令、目录与路由权限。
-- [`frontend/src/api/generated/README.md`](../frontend/src/api/generated/README.md)：OpenAPI 生成物说明。
+- [`frontend/README.md`](../frontend/README.md)：前端命令与路由权限。
+- [`frontend-architecture.md`](frontend-architecture.md)：前端 feature-first 目录所有权与依赖规则。
+- [`frontend/src/shared/api/generated/README.md`](../frontend/src/shared/api/generated/README.md)：OpenAPI 生成物说明。
 - [`backend/alembic/README.md`](../backend/alembic/README.md)：迁移流程与旧库处理。
 - [`backend/local_dev/README.md`](../backend/local_dev/README.md)：本地假 Steam 数据 CLI。
 - [`data/README.md`](../data/README.md)：运行时数据目录。

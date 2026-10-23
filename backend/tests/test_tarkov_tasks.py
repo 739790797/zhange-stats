@@ -116,6 +116,18 @@ def test_parse_locale_and_trader_map():
     assert by_id["t1"]["restartable"] is False
 
 
+def test_task_search_includes_localized_objectives_and_item_names():
+    payload = _envelope()
+    payload["locale"]["item1 Name"] = "MP-133"
+    rows = tasks.parse_task_rows(payload)
+
+    by_objective = tasks.filter_task_rows(rows, q="前往中心区")
+    by_item = tasks.filter_task_rows(rows, q="MP-133")
+
+    assert [row["id"] for row in by_objective] == ["t1"]
+    assert [row["id"] for row in by_item] == ["t1"]
+
+
 def test_garbled_zh_locale_falls_back_to_english_name():
     payload = {
         "tasks": {

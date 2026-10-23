@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import stat
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
@@ -32,8 +34,16 @@ REPO_SYNC_JOB_IDS = {
     REPO_TARKOV_SVG: "tarkov_svg_repo_sync",
 }
 
-_CLONE_TIMEOUT_SEC = 30 * 60
+DEFAULT_REPO_SYNC_TIMEOUT_MINUTES = 30
+MAX_REPO_SYNC_TIMEOUT_MINUTES = 1440
+DEFAULT_REPO_SYNC_TIMEOUT_SECONDS = DEFAULT_REPO_SYNC_TIMEOUT_MINUTES * 60
+
+_REMOVE_RETRY_DELAYS_SEC = (0.1, 0.25, 0.5, 1.0)
 _ERROR_LIMIT = 300
+_PROGRESS_LINE_RE = re.compile(
+    r"^(?P<phase>Enumerating|Counting|Compressing|Receiving|Resolving|Updating|Filtering) "
+    r"(?:objects|deltas|files|content):\s*(?P<percent>\d{1,3})%"
+)
 
 
 @dataclass(frozen=True)
@@ -51,13 +61,18 @@ REPOS: tuple[UpstreamRepo, ...] = (
 )
 
 _BY_ID = {item.repo_id: item for item in REPOS}
-_LOCK = threading.RLock()
+# A long sync must not block reads (or syncs) for another repository.
+_REPO_LOCKS = {item.repo_id: threading.RLock() for item in REPOS}
 
 
 class RepoError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+class RepoTimeoutError(RepoError):
+    """单仓同步超过配置的总时限。"""
 
 
 class RepoNotSyncedError(RepoError):
@@ -115,9 +130,8 @@ def repo_dir(repo_id: str) -> Path:
     return dest
 
 
-def resolve_repo_file(repo_id: str, relative: str) -> Path:
+def _resolve_repo_file_unlocked(spec: UpstreamRepo, relative: str) -> Path:
     """相对路径必须落在该克隆内。拒绝绝对路径、`..` 和指向克隆外的链接。"""
-    spec = get_repo(repo_id)
     rel = (relative or "").replace("\\", "/").strip()
     if not rel or rel.startswith("/") or rel.startswith("~"):
         raise RepoPathError("路径越界")
@@ -143,12 +157,22 @@ def resolve_repo_file(repo_id: str, relative: str) -> Path:
     return path
 
 
+def resolve_repo_file(repo_id: str, relative: str) -> Path:
+    spec = get_repo(repo_id)
+    with _REPO_LOCKS[spec.repo_id]:
+        return _resolve_repo_file_unlocked(spec, relative)
+
+
 def read_repo_bytes(repo_id: str, relative: str) -> bytes:
-    return resolve_repo_file(repo_id, relative).read_bytes()
+    spec = get_repo(repo_id)
+    with _REPO_LOCKS[spec.repo_id]:
+        return _resolve_repo_file_unlocked(spec, relative).read_bytes()
 
 
 def read_repo_text(repo_id: str, relative: str) -> str:
-    return resolve_repo_file(repo_id, relative).read_text(encoding="utf-8")
+    spec = get_repo(repo_id)
+    with _REPO_LOCKS[spec.repo_id]:
+        return _resolve_repo_file_unlocked(spec, relative).read_text(encoding="utf-8")
 
 
 def _git_env() -> dict[str, str]:
@@ -158,7 +182,47 @@ def _git_env() -> dict[str, str]:
     return env
 
 
-def _default_run(args: list[str]) -> GitResult:
+def _log_git_line(line: str, progress: dict[str, int]) -> None:
+    message = line.strip()
+    if not message:
+        return
+
+    match = _PROGRESS_LINE_RE.match(message)
+    if match:
+        phase = match.group("phase")
+        percent = int(match.group("percent"))
+        milestone = min(100, (percent // 10) * 10)
+        if milestone == 100 or milestone >= progress.get(phase, -10) + 10:
+            progress[phase] = milestone
+            logger.info("git: %s", message[:1000])
+        return
+
+    lowered = message.lower()
+    if lowered.startswith("warning:"):
+        logger.warning("git: %s", message[:1000])
+    elif lowered.startswith(("error:", "fatal:")):
+        logger.error("git: %s", message[:1000])
+
+
+def _kill_git_on_timeout(
+    proc: subprocess.Popen[bytes], timed_out: threading.Event
+) -> None:
+    if proc.poll() is None:
+        timed_out.set()
+        try:
+            proc.kill()
+        except OSError:
+            pass
+
+
+def _default_run(
+    args: list[str],
+    *,
+    timeout_seconds: float = DEFAULT_REPO_SYNC_TIMEOUT_SECONDS,
+    timeout_message: str = "Git 命令执行超时",
+) -> GitResult:
+    if timeout_seconds <= 0:
+        raise RepoTimeoutError(timeout_message)
     try:
         proc = subprocess.Popen(
             args,
@@ -170,21 +234,15 @@ def _default_run(args: list[str]) -> GitResult:
     except FileNotFoundError as exc:
         raise RepoError("未找到 git") from exc
 
-    timed_out = threading.Event()
-
-    def _kill_if_timed_out() -> None:
-        if proc.poll() is None:
-            timed_out.set()
-            try:
-                proc.kill()
-            except OSError:
-                pass
-
-    timer = threading.Timer(_CLONE_TIMEOUT_SEC, _kill_if_timed_out)
-    timer.daemon = True
-    timer.start()
     output = bytearray()
     progress_line = bytearray()
+    progress: dict[str, int] = {}
+    timed_out = threading.Event()
+    timer = threading.Timer(
+        timeout_seconds, _kill_git_on_timeout, args=(proc, timed_out)
+    )
+    timer.daemon = True
+    timer.start()
     try:
         if proc.stdout is not None:
             while True:
@@ -198,23 +256,29 @@ def _default_run(args: list[str]) -> GitResult:
                     if byte in (10, 13):
                         if progress_line:
                             message = progress_line.decode("utf-8", errors="replace")
-                            logger.info("git: %s", message[:1000])
+                            _log_git_line(message, progress)
                             progress_line.clear()
                     elif len(progress_line) < 4096:
                         progress_line.append(byte)
         if progress_line:
-            logger.info(
-                "git: %s",
-                progress_line.decode("utf-8", errors="replace")[:1000],
+            _log_git_line(
+                progress_line.decode("utf-8", errors="replace"),
+                progress,
             )
         returncode = proc.wait()
     finally:
         timer.cancel()
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.wait()
         if proc.stdout is not None:
             proc.stdout.close()
 
     if timed_out.is_set():
-        raise RepoError("git 超时")
+        raise RepoTimeoutError(timeout_message)
     combined_output = output.decode("utf-8", errors="replace")
     return GitResult(returncode, combined_output, "")
 
@@ -241,24 +305,36 @@ def _head(dest: Path, run) -> str | None:
 
 
 def _retry_remove_readonly(func, path: str, exc_info: tuple) -> None:
-    """Windows marks Git pack files read-only; clear that bit before unlinking."""
+    """Retry transient Windows locks and clear the read-only bit before removal."""
     error = exc_info[1]
-    if not isinstance(error, PermissionError) or os.path.islink(path):
+    target = Path(path)
+    if not isinstance(error, PermissionError) or _is_link(target):
         raise error
 
-    mode = os.stat(path, follow_symlinks=False).st_mode
-    os.chmod(path, mode | stat.S_IWRITE)
-    func(path)
+    for attempt in range(len(_REMOVE_RETRY_DELAYS_SEC) + 1):
+        if not os.path.lexists(path):
+            return
+        try:
+            mode = os.stat(path, follow_symlinks=False).st_mode
+            os.chmod(path, mode | stat.S_IWRITE)
+            func(path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt >= len(_REMOVE_RETRY_DELAYS_SEC):
+                raise
+            time.sleep(_REMOVE_RETRY_DELAYS_SEC[attempt])
 
 
 def _remove_staging(staging: Path) -> None:
     try:
         shutil.rmtree(staging, onerror=_retry_remove_readonly)
-    except Exception:
+    except Exception as exc:
         logger.warning(
-            "failed to remove upstream repo staging directory path=%s",
+            "failed to remove upstream repo staging directory path=%s error=%s",
             staging,
-            exc_info=True,
+            exc,
         )
         raise
 
@@ -359,24 +435,71 @@ def _sync_one(spec: UpstreamRepo, run) -> dict[str, object]:
         }
 
 
-def sync_repo(repo_id: str, *, run=None) -> dict[str, object]:
+def _configured_repo_sync_timeout_minutes(repo_id: str) -> int:
+    """从任务配置读取单仓时限；旧配置和缺省配置都回退到 30 分钟。"""
+    get_repo(repo_id)
+    from app.services.scheduler_config import load_scheduler_config
+
+    job_id = REPO_SYNC_JOB_IDS[repo_id]
+    job = load_scheduler_config().get(job_id) or {}
+    try:
+        value = int(job.get("timeout_minutes", DEFAULT_REPO_SYNC_TIMEOUT_MINUTES))
+    except (TypeError, ValueError):
+        value = DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
+    return max(1, min(MAX_REPO_SYNC_TIMEOUT_MINUTES, value))
+
+
+def _deadline_runner(run, deadline: float, timeout_message: str):
+    def _run(args: list[str]) -> GitResult:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RepoTimeoutError(timeout_message)
+        if run is None:
+            return _default_run(
+                args, timeout_seconds=remaining, timeout_message=timeout_message
+            )
+        return run(args)
+
+    return _run
+
+
+def _timeout_message(timeout_seconds: float) -> str:
+    minutes = max(1, int((timeout_seconds + 59) // 60))
+    return f"仓库同步超过 {minutes} 分钟，已终止"
+
+
+def sync_repo(
+    repo_id: str,
+    *,
+    run=None,
+    timeout_seconds: float = DEFAULT_REPO_SYNC_TIMEOUT_SECONDS,
+) -> dict[str, object]:
     spec = get_repo(repo_id)
-    runner = run or _default_run
-    with _LOCK:
+    timeout_seconds = max(1.0, float(timeout_seconds))
+    timeout_message = _timeout_message(timeout_seconds)
+    with _REPO_LOCKS[spec.repo_id]:
+        # 排队时间不计入仓库时限；每条 git 命令共享同一绝对 deadline。
+        deadline = time.monotonic() + timeout_seconds
+        runner = _deadline_runner(run, deadline, timeout_message)
         return _sync_one(spec, runner)
 
 
 def sync_all(*, run=None) -> list[dict[str, object]]:
-    runner = run or _default_run
-    with _LOCK:
-        return [_sync_one(spec, runner) for spec in REPOS]
+    return [
+        sync_repo(
+            spec.repo_id,
+            run=run,
+            timeout_seconds=_configured_repo_sync_timeout_minutes(spec.repo_id) * 60,
+        )
+        for spec in REPOS
+    ]
 
 
 def ensure_repo(repo_id: str, *, run=None) -> Path:
     """仅读取已同步仓库；缺仓时由统一同步任务处理。"""
     _ = run  # 保留旧调用签名；请求路径不执行 Git。
     spec = get_repo(repo_id)
-    with _LOCK:
+    with _REPO_LOCKS[spec.repo_id]:
         dest = repo_dir(spec.repo_id)
         if (dest / ".git").is_dir():
             return dest
@@ -407,6 +530,7 @@ def upstream_repo_sync_job(repo_id: str, *, git_runner=None) -> None:
     from app.services.job_run_progress import create_or_reuse_job_run, write_job_run
 
     job_key = REPO_SYNC_JOB_IDS[repo_id]
+    timeout_minutes = _configured_repo_sync_timeout_minutes(repo_id)
     db = SessionLocal()
     try:
         run = create_or_reuse_job_run(
@@ -423,10 +547,18 @@ def upstream_repo_sync_job(repo_id: str, *, git_runner=None) -> None:
     write_job_run(
         run_id,
         job_key,
-        message="正在拉取仓库更新",
-        stats={"phase": "sync", "repo_id": repo_id},
+        message=f"正在拉取仓库更新（超时上限 {timeout_minutes} 分钟）",
+        stats={
+            "phase": "sync",
+            "repo_id": repo_id,
+            "timeout_minutes": timeout_minutes,
+        },
     )
-    row = sync_repo(repo_id, run=git_runner)
+    row = sync_repo(
+        repo_id,
+        run=git_runner,
+        timeout_seconds=timeout_minutes * 60,
+    )
     if row["ok"]:
         commit = str(row["commit"] or "")
         summary = f"仓库已同步到 {commit[:12]}" if commit else "仓库已同步"
@@ -439,6 +571,7 @@ def upstream_repo_sync_job(repo_id: str, *, git_runner=None) -> None:
                 "phase": "done",
                 "repo_id": repo_id,
                 "commit": commit,
+                "timeout_minutes": timeout_minutes,
                 "result": {"summary": summary, "repository": repo_id, "commit": commit},
             },
             finished=True,
@@ -456,6 +589,7 @@ def upstream_repo_sync_job(repo_id: str, *, git_runner=None) -> None:
             "phase": "error",
             "repo_id": repo_id,
             "commit": str(row["commit"] or ""),
+            "timeout_minutes": timeout_minutes,
             "result": {
                 "repository": repo_id,
                 "commit": str(row["commit"] or ""),

@@ -17,7 +17,11 @@ from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import STALE_RUNNING_AFTER
 from app.services.job_run_progress import category_for_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
-from app.services.scheduler_config import load_scheduler_config
+from app.services.scheduler_config import (
+    DEFAULT_REPO_SYNC_TIMEOUT_MINUTES,
+    UPSTREAM_REPO_JOB_IDS,
+    load_scheduler_config,
+)
 from app.services.scheduler_runtime import APP_EXECUTOR_ID, APP_EXECUTOR_NAME
 
 
@@ -159,6 +163,12 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         hour_out = None
         minute_out = None
         interval_out = None
+        timeout_out = None
+        if job_id in UPSTREAM_REPO_JOB_IDS:
+            timeout_out = int(
+                job_cfg.get("timeout_minutes")
+                or DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
+            )
         if kind == "interval":
             default = 3 if job_id == "steam_presence" else 1
             interval_out = int(job_cfg.get("interval_minutes") or default)
@@ -187,6 +197,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
                 next_run_at=next_run_at,
                 config_enabled=enabled,
                 interval_minutes=interval_out,
+                timeout_minutes=timeout_out,
                 hour=hour_out,
                 minute=minute_out,
                 last_run=last_out,

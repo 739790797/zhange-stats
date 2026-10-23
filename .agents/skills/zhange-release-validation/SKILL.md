@@ -28,5 +28,5 @@ description: 为代码变更、交付或发版选择并执行测试与质量门�
 - [Agent 工作流程与结果报告](../../../docs/agent-guide.md)
 - [CI 与质量门](../../../docs/develop.md)
 - [发版流程](../../../docs/deploy.md)
-- [OpenAPI 生成物](../../../frontend/src/api/generated/README.md)
+- [OpenAPI 生成物](../../../frontend/src/shared/api/generated/README.md)
 - [数据库迁移](../../../backend/alembic/README.md)

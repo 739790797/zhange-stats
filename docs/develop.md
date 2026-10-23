@@ -78,7 +78,7 @@ CLI 和定时任务共用任务实现、运行记录与执行锁；日志会同�
 
 ## 工程
 
-GitHub Actions 在 PR/push 上跑前端 lint+vitest+build、后端 pytest、MariaDB 上连跑两次 `alembic upgrade head` 再 `alembic check`（模型与迁移不能漂移）与 `tests/test_mariadb_migrations.py`、OpenAPI drift；后端 job 按 `backend/constraints.txt` 装依赖，`pip-audit` 审计这份锁（只告警）。`main` 推送仅在这些门绿后才按 `VERSION` 发 GitHub Release（预构建 static、源码包、`SHA256SUMS`）；同名 tag 已存在就跳过、不覆盖已发资产，门红则不改 Release。发版约定见 [`deploy.md`](deploy.md)「发版」。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 [`frontend/src/api/generated/README.md`](../frontend/src/api/generated/README.md)）。自测分层见 [Agent 工作流程](agent-guide.md) 与 [工程约定](engineering-guidelines.md)。
+GitHub Actions 在 PR/push 上跑前端 lint+vitest+build、后端 pytest、MariaDB 上连跑两次 `alembic upgrade head` 再 `alembic check`（模型与迁移不能漂移）与 `tests/test_mariadb_migrations.py`、OpenAPI drift；后端 job 按 `backend/constraints.txt` 装依赖，`pip-audit` 审计这份锁（只告警）。`main` 推送仅在这些门绿后才按 `VERSION` 发 GitHub Release（预构建 static、源码包、`SHA256SUMS`）；同名 tag 已存在就跳过、不覆盖已发资产，门红则不改 Release。发版约定见 [`deploy.md`](deploy.md)「发版」。API 变更后请执行 `npm run export:openapi && npm run gen:api`（见 [`frontend/src/shared/api/generated/README.md`](../frontend/src/shared/api/generated/README.md)）。自测分层见 [Agent 工作流程](agent-guide.md) 与 [工程约定](engineering-guidelines.md)。
 
 改代码约定从仓库根 [`AGENTS.md`](../AGENTS.md) 进入。Ant Design、Context7、Playwright MCP 均为可选本机工具，手动配置示例与版本提示见 [`agent-guide.md`](agent-guide.md#可选-mcp-工具)；仓库不会自动启用它们。
 
@@ -104,7 +104,7 @@ zhange-stats/
   scripts/linux/ · scripts/win/ · scripts/common/ · scripts/config.example/
   scripts/linux/zhange-stats.service  # 生产 systemd 单元模板（install.sh 写入 /etc）
   data/                   # 运行时（gitignore；仅 README 入库）
-  frontend/               # React（src/data 为源码资源，不是运行时）
+  frontend/               # React（src/app、src/features、src/shared；feature 数据是源码资源，不是运行时）
   backend/app/            # api · core · models · services/<域>
   backend/alembic/        # 迁移（表结构以 versions/ 为准）
 ```

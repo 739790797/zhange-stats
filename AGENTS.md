@@ -15,8 +15,8 @@
 - [`docs/develop.md`](docs/develop.md)、[`docs/deploy.md`](docs/deploy.md)：开发、CI 与部署/发版。
 - [`docs/database.md`](docs/database.md)、[`backend/alembic/README.md`](backend/alembic/README.md)：数据库与迁移。
 - [`docs/security.md`](docs/security.md)、[`docs/logging.md`](docs/logging.md)：安全、文件管理与运行日志。
-- [`docs/directory-layout.md`](docs/directory-layout.md)、[`data/README.md`](data/README.md)：代码分包、运行时目录与上游资源仓。
-- [`frontend/src/api/generated/README.md`](frontend/src/api/generated/README.md)：OpenAPI 客户端生成流程。
+- [`docs/directory-layout.md`](docs/directory-layout.md)、[`docs/frontend-architecture.md`](docs/frontend-architecture.md)、[`data/README.md`](data/README.md)：代码分包、前端归属规则、运行时目录与上游资源仓。
+- [`frontend/src/shared/api/generated/README.md`](frontend/src/shared/api/generated/README.md)：OpenAPI 客户端生成流程。
 
 ## 全局约束
 

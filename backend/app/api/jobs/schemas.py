@@ -36,6 +36,7 @@ class ScheduledJobOut(BaseModel):
     next_run_at: str | None = None
     config_enabled: bool | None = None
     interval_minutes: int | None = None
+    timeout_minutes: int | None = None
     hour: int | None = None
     minute: int | None = None
     last_run: ScheduledJobLastRunOut | None = None
@@ -181,6 +182,7 @@ class UserCheckinTasksPageOut(BaseModel):
 class JobConfigUpdateItem(BaseModel):
     enabled: bool | None = None
     interval_minutes: int | None = Field(default=None, ge=1, le=1440)
+    timeout_minutes: int | None = Field(default=None, ge=1, le=1440)
     hour: int | None = Field(default=None, ge=0, le=23)
     minute: int | None = Field(default=None, ge=0, le=59)
 

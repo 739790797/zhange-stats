@@ -29,14 +29,30 @@ from app.services.ror2.catalog import (
     survivors_from_module,
     wiki_page_url,
 )
-from app.services.ror2.schemas import Ror2CatalogOut, Ror2SurvivorDetailOut
+from app.services.ror2.schemas import (
+    Ror2CatalogOut,
+    Ror2CatalogResponse,
+    Ror2SurvivorDetailOut,
+    Ror2SurvivorDetailResponse,
+)
 from app.services.ror2.survivor_page import (
     Ror2MissingSurvivor,
     accept_survivor_page,
     build_survivor_detail,
     lore_table,
+    lore_text,
     skills_table,
     survivor_page_resource,
+)
+from app.services.ror2.wiki_structure import (
+    ArticleSource,
+    WIKI_ARTICLE_TITLES,
+    WIKI_EXPANSION_TITLES,
+    article_resource,
+    expansion_resource,
+    parse_article,
+    parse_expansion_article,
+    WikiStructureError,
 )
 
 log = logging.getLogger("zhange.ror2")
@@ -49,6 +65,9 @@ _LOG_KEY = "ror2-wiki"
 _MEMO: dict[str, Ror2CatalogOut] = {}
 _retry_not_before = 0.0
 _COLD_START_RETRY_SEC = 60.0
+_WIKI_RETRYABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
+_WIKI_HTTP_ATTEMPTS = 2
+_WIKI_HTTP_RETRY_DELAY_SEC = 1.0
 
 
 def _latest_synced(token: str) -> str:
@@ -280,80 +299,71 @@ def sync_wiki(
     return results
 
 
-def _table_or_empty(body: str | None, parser: Callable) -> dict:
-    if not body:
-        return {}
-    try:
-        table = parser(body)
-    except (Ror2WikiError, ValueError):
-        return {}
-    return table if isinstance(table, dict) else {}
+def _catalog_with_units(db: Session):
+    from app.services.ror2.strings import apply_catalog
+    from app.services.ror2.weblate import load_snapshot
+
+    # get_catalog 只解析 Wiki 原文并缓存；深拷贝后再叠加令牌译文，避免译文污染缓存。
+    catalog = get_catalog(db).model_copy(deep=True)
+    snapshot = load_snapshot(db)
+    apply_catalog(catalog, snapshot.units, snapshot.sources)
+    return catalog, snapshot
 
 
-def _parsed_or_empty(resource: str, body: str | None, parser: Callable, default: list):
-    if not body:
-        return default
-    try:
-        return parser(body)
-    except (Ror2WikiError, ValueError):
-        log_until_change(log, _LOG_KEY, "雨中冒险2译文解析失败：%s", resource)
-        return default
+def stored_wiki_articles(db: Session) -> list[ArticleSource]:
+    """读已同步的 Wiki 文章结构，以及 DLC 页的标题单元；不投影 DLC 正文结构。"""
+    articles: list[ArticleSource] = []
+    for title in WIKI_ARTICLE_TITLES:
+        resource = article_resource(title)
+        row = load_row(db, "ror2", resource, with_body=True)
+        if row is None:
+            continue
+        try:
+            articles.append(parse_article(resource, title, unpack_raw_text(row.raw_body)))
+        except (Ror2WikiError, ValueError) as exc:
+            log_until_change(log, _LOG_KEY, "雨中冒险2 Wiki 结构解析失败：%s：%s", title, str(exc))
+    for code, title in WIKI_EXPANSION_TITLES.items():
+        resource = expansion_resource(code)
+        row = load_row(db, "ror2", resource, with_body=True)
+        if row is None:
+            continue
+        try:
+            articles.append(parse_expansion_article(resource, unpack_raw_text(row.raw_body)))
+        except (Ror2WikiError, ValueError) as exc:
+            log_until_change(log, _LOG_KEY, "雨中冒险2资料片 Wiki 标题解析失败：%s：%s", title, str(exc))
+    return articles
 
 
-def translated_catalog(db: Session) -> Ror2CatalogOut:
-    """列表数据只来自已审译文。某一份没有译文，这一栏就是空的。"""
-    from app.services.ror2.weblate import matching_translation
+def translated_catalog(db: Session) -> Ror2CatalogResponse:
+    """Wiki 原文为底稿；只有真实源 context 存在时才附令牌，译文还须已审且指纹匹配。"""
+    from app.services.ror2.projection import catalog_response
 
-    if PIPELINE.missing(db):
-        get_catalog(db)
-    texts = {spec.resource: matching_translation(db, spec.resource) for spec in PIPELINE.specs}
-    enemies = texts.get("enemies")
-    return Ror2CatalogOut(
-        source=f"{WIKI_ORIGIN}/",
-        fetched_at="",
-        items=_parsed_or_empty("items", texts.get("items"), items_from_module, []),
-        equipment=_parsed_or_empty(
-            "equipment",
-            texts.get("equipment"),
-            lambda body: items_from_module(body, default_rarity="Equipment"),
-            [],
-        ),
-        survivors=_parsed_or_empty("survivors", texts.get("survivors"), survivors_from_module, []),
-        monsters=_parsed_or_empty("enemies", enemies, monsters_from_module, []),
-        drones=_parsed_or_empty("enemies", enemies, drones_from_module, []),
-        environments=_parsed_or_empty("environments", texts.get("environments"), environments_from_module, []),
-        challenges=_parsed_or_empty("challenges", texts.get("challenges"), challenges_from_module, []),
-        interactables=_parsed_or_empty("interactables", texts.get("interactables"), interactables_from_module, []),
-        artifacts=_parsed_or_empty("artifacts", texts.get("artifacts"), artifacts_from_module, []),
-    )
+    catalog, snapshot = _catalog_with_units(db)
+    return catalog_response(catalog, snapshot.sources, snapshot.units, stored_wiki_articles(db))
 
 
-def translated_detail(db: Session, name: str) -> Ror2SurvivorDetailOut:
-    """详情只解析译文文件。词条或模块没有译文时，对应段落留空。"""
-    from app.services.ror2.weblate import matching_translation
+def translated_detail(db: Session, name: str) -> Ror2SurvivorDetailResponse:
+    """幸存者详情按相同令牌边界投影；未匹配 source 的 Wiki 内容不带交互令牌。"""
+    from app.services.ror2.projection import detail_response
+    from app.services.ror2.weblate import load_snapshot
 
-    survivors = _parsed_or_empty("survivors", matching_translation(db, "survivors"), survivors_from_module, [])
-    survivor = next((row for row in survivors if row.name == name), None)
-    if survivor is None:
-        raise Ror2MissingSurvivor(name)
-    page = matching_translation(db, survivor_page_resource(name)) or ""
-    skills = _table_or_empty(matching_translation(db, "skills"), skills_table)
-    lore = _table_or_empty(matching_translation(db, "lore"), lore_table)
-    try:
-        return build_survivor_detail(survivor, page, skills, lore)
-    except (Ror2WikiError, ValueError):
-        log_until_change(log, _LOG_KEY, "雨中冒险2幸存者译文解析失败：%s", name)
-        return build_survivor_detail(survivor, "", {}, {})
-
+    detail = get_survivor_detail(db, name)
+    snapshot = load_snapshot(db)
+    return detail_response(detail, snapshot.sources, snapshot.units)
 
 def catalog_from_db(db: Session) -> Ror2CatalogOut:
-    """读已落库的模块，不套译文。"""
+    """读已落库模块并关联日志原文，不套译文。"""
     texts = PIPELINE.load_texts(db)
+    items = items_from_module(texts["items"])
+    equipment = items_from_module(texts["equipment"], default_rarity="Equipment")
+    lore = lore_table(texts["lore"])
+    for row in (*items, *equipment):
+        row.lore = lore_text(lore, row.name)
     return Ror2CatalogOut(
         source=f"{WIKI_ORIGIN}/",
         fetched_at=_latest_synced(PIPELINE.revision(db)),
-        items=items_from_module(texts["items"]),
-        equipment=items_from_module(texts["equipment"], default_rarity="Equipment"),
+        items=items,
+        equipment=equipment,
         survivors=survivors_from_module(texts["survivors"]),
         monsters=monsters_from_module(texts["enemies"]),
         drones=drones_from_module(texts["enemies"]),
@@ -414,19 +424,68 @@ def get_survivor_detail(
     *,
     fetch_page: Callable[[str], str] | None = None,
 ) -> Ror2SurvivorDetailOut:
-    """词条不在库里时只补这一页，不把整份图鉴重新回源。"""
-    catalog = get_catalog(db)
+    """词条不在库里时只补这一页；字段译文按当前令牌快照匹配，缺译文保留原文。"""
+    catalog, snapshot = _catalog_with_units(db)
     survivor = next((row for row in catalog.survivors if row.name == name), None)
     if survivor is None:
         raise Ror2MissingSurvivor(name)
     texts = PIPELINE.load_texts(db)
     from app.services.ror2.strings import apply_detail
-    from app.services.ror2.weblate import load_units
 
     page = _survivor_page_text(db, name, fetch_page=fetch_page)
     detail = build_survivor_detail(survivor, page, skills_table(texts["skills"]), lore_table(texts["lore"]))
-    apply_detail(detail, load_units(db))
+    apply_detail(detail, snapshot.units, snapshot.sources)
     return detail
+
+def _accept_wiki_article(title: str, body: str) -> None:
+    if not body.strip():
+        raise Ror2WikiError("Wiki 文章正文为空")
+    try:
+        parse_article(article_resource(title), title, body)
+    except WikiStructureError as exc:
+        raise Ror2WikiError(f"Wiki 文章结构无效：{exc}") from exc
+
+
+def sync_wiki_articles(
+    db: Session,
+    *,
+    fetch_page: Callable[[str], str] | None = None,
+) -> list[dict[str, object]]:
+    """同步页面实际引用的普通 Wiki 文章；每页失败都保留旧 raw。"""
+    getter = fetch_page or fetch_wiki_text
+    results: list[dict[str, object]] = []
+    for title in WIKI_ARTICLE_TITLES:
+        resource = article_resource(title)
+        try:
+            body = getter(title)
+            _accept_wiki_article(title, body)
+            saved = upsert_raw(db, "ror2", resource, wiki_page_url(title), body)
+            results.append({**saved, "ok": True, "error": None})
+        except Exception as exc:  # noqa: BLE001 — 普通文章逐页保存，失败保留旧 raw
+            db.rollback()
+            results.append({"resource": resource, "ok": False, "changed": False, "error": str(exc)})
+    return results
+
+
+def sync_wiki_expansion_pages(
+    db: Session,
+    *,
+    fetch_page: Callable[[str], str] | None = None,
+) -> list[dict[str, object]]:
+    """缓存 DLC Wiki raw；只把每页标题解析为令牌源，失败保留旧 raw。"""
+    getter = fetch_page or fetch_wiki_text
+    results: list[dict[str, object]] = []
+    for code, title in WIKI_EXPANSION_TITLES.items():
+        resource = expansion_resource(code)
+        try:
+            body = getter(title)
+            parse_expansion_article(resource, body)
+            saved = upsert_raw(db, "ror2", resource, wiki_page_url(title), body)
+            results.append({**saved, "ok": True, "error": None})
+        except Exception as exc:  # noqa: BLE001 — 每页失败都保留旧 raw
+            db.rollback()
+            results.append({"resource": resource, "ok": False, "changed": False, "error": str(exc)})
+    return results
 
 
 def sync_survivor_pages(
@@ -494,6 +553,20 @@ def sync_job() -> None:
                     detail = "；".join(f"{row['resource']}：{row['error']}" for row in failed_pages)
                     log_until_change(log, _LOG_KEY, "雨中冒险2幸存者词条同步未完成：%s", detail)
                     raise Ror2WikiError(detail)
+                article_pages = sync_wiki_articles(db)
+                results.extend(article_pages)
+                failed_articles = [row for row in article_pages if not row["ok"]]
+                if failed_articles:
+                    detail = "；".join(f"{row['resource']}：{row['error']}" for row in failed_articles)
+                    log_until_change(log, _LOG_KEY, "雨中冒险2普通 Wiki 文章同步未完成：%s", detail)
+                    raise Ror2WikiError(detail)
+                expansion_pages = sync_wiki_expansion_pages(db)
+                results.extend(expansion_pages)
+                failed_expansions = [row for row in expansion_pages if not row["ok"]]
+                if failed_expansions:
+                    detail = "；".join(f"{row['resource']}：{row['error']}" for row in failed_expansions)
+                    log_until_change(log, _LOG_KEY, "雨中冒险2资料片 Wiki 标题同步未完成：%s", detail)
+                    raise Ror2WikiError(detail)
         except SyncBusy:
             job.status = "ok"
             job.message = "已有同步在跑"
@@ -545,24 +618,31 @@ def fetch_wiki_text(title: str) -> str:
     """词条和模块都只走 api.php 的修订正文。"""
     if _rejected_title(title):
         raise Ror2WikiError(f"拒绝的页面名 {title}")
-    try:
-        response = http_request(
-            "GET",
-            WIKI_API,
-            params={
-                "action": "query",
-                "prop": "revisions",
-                "titles": title,
-                "rvslots": "main",
-                "rvprop": "content",
-                "format": "json",
-                "formatversion": "2",
-            },
-            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-            timeout=30,
-        )
-    except HttpRequestError as exc:
-        raise Ror2WikiError(f"{title} 请求失败：{exc}") from exc
+    for attempt in range(_WIKI_HTTP_ATTEMPTS):
+        try:
+            response = http_request(
+                "GET",
+                WIKI_API,
+                params={
+                    "action": "query",
+                    "prop": "revisions",
+                    "titles": title,
+                    "rvslots": "main",
+                    "rvprop": "content",
+                    "format": "json",
+                    "formatversion": "2",
+                },
+                headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+                timeout=30,
+            )
+        except HttpRequestError as exc:
+            raise Ror2WikiError(f"{title} 请求失败：{exc}") from exc
+        if (
+            response.status_code not in _WIKI_RETRYABLE_STATUS_CODES
+            or attempt + 1 == _WIKI_HTTP_ATTEMPTS
+        ):
+            break
+        time.sleep(_WIKI_HTTP_RETRY_DELAY_SEC)
     if response.status_code != 200:
         raise Ror2WikiError(f"{title} HTTP {response.status_code}")
     try:

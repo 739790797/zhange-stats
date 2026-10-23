@@ -1,0 +1,111 @@
+.container {
+  display: inline;
+}
+
+.tokenized {
+  border-radius: 1px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.tokenized:hover,
+:global(a:focus-visible) .tokenized,
+.container:focus-within .tokenized {
+  background-color: rgba(226, 199, 121, 0.11);
+  color: #f0dfaa;
+}
+
+.infoButton {
+  display: inline-grid;
+  width: 1.28em;
+  height: 1.28em;
+  margin-inline-start: 0.2em;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(226, 199, 121, 0.4);
+  border-radius: 50%;
+  background: rgba(226, 199, 121, 0.07);
+  color: var(--ror2-gold, #e2c779);
+  font: 600 0.68em/1 var(--ror2-mono, monospace);
+  vertical-align: 0.1em;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.container:hover > .infoButton,
+.container:focus-within > .infoButton,
+.infoButton:hover,
+.infoButton:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.infoButton:hover,
+.infoButton:focus-visible {
+  border-color: var(--ror2-gold, #e2c779);
+  background: rgba(226, 199, 121, 0.18);
+  outline: 2px solid var(--ror2-gold, #e2c779);
+  outline-offset: 2px;
+}
+
+.popover {
+  width: min(32rem, 70vw);
+  max-width: min(32rem, 70vw);
+  padding: 10px 12px;
+  border: 1px solid var(--ror2-line-strong, rgba(151, 176, 162, 0.44));
+  background: linear-gradient(145deg, #1b2926, #0d1517);
+  color: var(--ror2-text, #edf0e7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.popoverRoot :global(.ant-popover-inner) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.popoverRoot :global(.ant-popover-inner-content) {
+  padding: 0;
+}
+
+.popoverRoot :global(.ant-popover-arrow::before) {
+  background: #1b2926;
+}
+
+.caption {
+  margin-block: 0.15rem 0.35rem;
+  color: var(--ror2-gold, #e2c779);
+  font-family: var(--ror2-mono, monospace);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.original {
+  max-height: 16rem;
+  margin: 0 0 0.75rem;
+  padding: 8px;
+  overflow: auto;
+  border-left: 1px solid var(--ror2-line-strong, rgba(151, 176, 162, 0.44));
+  background: rgba(5, 10, 11, 0.54);
+  color: #e0e5dc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.token {
+  color: #c8d5c5;
+  font-family: var(--ror2-mono, monospace);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tokenized,
+  .infoButton {
+    transition: none;
+  }
+}

@@ -1,0 +1,371 @@
+import { Alert, Spin, Table } from "antd";
+import type { ColumnsType, TableProps } from "antd/es/table";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  fetchTarkovTasks,
+  type TarkovTaskListItem,
+} from "@/features/guides/tarkov/api/guidesApi";
+import { apiError } from "@/shared/api/apiError";
+import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import { useTarkovPmcFaction } from "@/features/guides/tarkov/model/tarkovPmcFaction";
+import {
+  TARKOV_MAPS,
+  tarkovMapHref,
+  tarkovMapIdFromSlug,
+  tarkovMapSlug,
+  tarkovTaskHref,
+  traderDisplayName,
+} from "@/features/guides/tarkov/model/tarkovHomeNav";
+import { TarkovDataFreshness } from "@/features/guides/tarkov/components/TarkovDataFreshness";
+import { displayTaskProgressName } from "@/features/guides/tarkov/model/tarkovTaskName";
+import { readAllowedInt, readPositiveInt } from "@/features/guides/tarkov/model/tarkovQueryState";
+import {
+  orderObjectiveTypes,
+  tarkovObjectiveTypeLabel,
+  tarkovObjectiveTypeTone,
+} from "@/features/guides/tarkov/model/tarkovTaskObjective";
+import { TarkovTraderThumb } from "@/features/guides/tarkov/components/TarkovTraderThumb";
+import tableStyles from "./TarkovDarkTable.module.css";
+import catalog from "./TarkovItemCatalogPanel.module.css";
+import styles from "./TarkovTasksPanel.module.css";
+
+const PAGE_SIZE_DEFAULT = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
+export function TarkovTasksPanel() {
+  const gameMode = useTarkovGameMode();
+  const { faction } = useTarkovPmcFaction();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const trader = (searchParams.get("trader") || "").trim();
+  const requestedMap = (searchParams.get("map") || "").trim();
+  const requestedMapId = requestedMap ? tarkovMapIdFromSlug(requestedMap) : "";
+  const map = requestedMap ? tarkovMapSlug(requestedMapId) : "";
+  const q = (searchParams.get("q") || "").trim();
+  const pageNo = readPositiveInt(searchParams.get("page"), 1);
+  const pageSize = readAllowedInt(
+    searchParams.get("pageSize"),
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_OPTIONS,
+  );
+  const [keyword, setKeyword] = useState(q);
+  const qRef = useRef(q);
+
+  useEffect(() => {
+    setKeyword(q);
+    qRef.current = q;
+  }, [q]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = keyword.trim();
+      if (qRef.current === next) return;
+      qRef.current = next;
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      params.delete("page");
+      setSearchParams(params, { replace: true });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [keyword, searchParams, setSearchParams]);
+
+  const catalogQuery = useQuery({
+    queryKey: [
+      "guides-tarkov-tasks",
+      gameMode,
+      faction,
+      trader,
+      map,
+      q,
+      pageNo,
+      pageSize,
+    ],
+    queryFn: () =>
+      fetchTarkovTasks({
+        q,
+        trader: trader || undefined,
+        map: map || undefined,
+        faction: faction || undefined,
+        page: pageNo,
+        pageSize,
+      }),
+    staleTime: 5 * 60_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  });
+
+  const allOn = !trader;
+
+  const setTraderFilter = (nextTrader: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (!nextTrader) next.delete("trader");
+    else next.set("trader", nextTrader);
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setMapFilter = (nextMap: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextMap) next.set("map", nextMap);
+    else next.delete("map");
+    next.delete("page");
+    setSearchParams(next, { replace: true });
+  };
+
+  const onTableChange: TableProps<TarkovTaskListItem>["onChange"] = (
+    pagination,
+  ) => {
+    const nextPage = pagination.current ?? 1;
+    const nextSize = pagination.pageSize ?? PAGE_SIZE_DEFAULT;
+    const params = new URLSearchParams(searchParams);
+    if (nextPage <= 1) params.delete("page");
+    else params.set("page", String(nextPage));
+    if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+    else params.set("pageSize", String(nextSize));
+    setSearchParams(params, { replace: true });
+  };
+
+  const columns: ColumnsType<TarkovTaskListItem> = [
+    {
+      title: "任务",
+      dataIndex: "name",
+      key: "name",
+      ellipsis: true,
+      render: (_: unknown, row) => {
+        const label = displayTaskProgressName({
+          id: row.id,
+          name: row.name || row.normalized_name || row.id,
+          faction_name: row.faction_name,
+          line_hint: row.line_hint,
+        });
+        const traderName = traderDisplayName(row.trader_slug, row.trader_name || row.trader_slug);
+        return (
+          <span className={styles.taskCell}>
+            {row.trader_slug ? (
+              <TarkovTraderThumb slug={row.trader_slug} size={40} title={traderName} />
+            ) : (
+              <span className={styles.traderThumbFallback} />
+            )}
+            <Link className={styles.taskName} to={tarkovTaskHref(row.id)}>
+              {label}
+            </Link>
+          </span>
+        );
+      },
+    },
+    {
+      title: "地图",
+      dataIndex: "map_name",
+      key: "map",
+      width: 116,
+      ellipsis: true,
+      render: (_: unknown, row) =>
+        row.map_slug ? (
+          <Link to={tarkovMapHref(tarkovMapIdFromSlug(row.map_slug))}>
+            {row.map_name || row.map_slug}
+          </Link>
+        ) : (
+          ""
+        ),
+    },
+    {
+      title: "目标",
+      key: "objective_types",
+      width: 248,
+      render: (_: unknown, row) => {
+        const types = orderObjectiveTypes(row.objective_types);
+        if (!types.length) return "";
+        return (
+          <span className={styles.typeList}>
+            {types.map((type) => (
+              <span
+                key={type}
+                className={styles.typeChip}
+                data-tone={tarkovObjectiveTypeTone(type)}
+                title={type}
+              >
+                {tarkovObjectiveTypeLabel(type)}
+              </span>
+            ))}
+          </span>
+        );
+      },
+    },
+    {
+      title: "最低等级",
+      dataIndex: "min_player_level",
+      key: "min_player_level",
+      width: 96,
+      align: "center",
+      render: (v: number) => (v ? v : ""),
+    },
+    {
+      title: "经验",
+      dataIndex: "experience",
+      key: "experience",
+      width: 96,
+      align: "right",
+      render: (v: number) => (v ? v.toLocaleString("zh-CN") : ""),
+    },
+    {
+      title: "终局",
+      key: "endgame",
+      width: 120,
+      render: (_: unknown, row) => {
+        const marks = [
+          row.kappa_required ? "Kappa" : "",
+          row.lightkeeper_required ? "灯塔商人" : "",
+          row.prestige_cycle ? "转生" : "",
+        ].filter(Boolean);
+        if (!marks.length) return "";
+        return <span className={styles.endgame}>{marks.join(" · ")}</span>;
+      },
+    },
+  ];
+
+  if (catalogQuery.isLoading && !catalogQuery.data) {
+    return (
+      <div className={catalog.status}>
+        <Spin tip="加载任务…" />
+      </div>
+    );
+  }
+
+  if (catalogQuery.isError && !catalogQuery.data) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="任务列表加载失败"
+        description={apiError(catalogQuery.error, "任务列表加载失败")}
+      />
+    );
+  }
+
+  const meta = catalogQuery.data;
+  const rows = meta?.items ?? [];
+  const total = typeof meta?.task_count === "number" ? meta.task_count : 0;
+  const traders = meta?.traders ?? [];
+
+  return (
+    <div className={catalog.stack}>
+      {catalogQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="任务列表加载失败"
+          description={apiError(catalogQuery.error, "任务列表加载失败")}
+        />
+      ) : null}
+
+      <div className={styles.toolbar}>
+        <div className={styles.toolbarTop}>
+          <div className={styles.toolbarSide}>
+            {typeof meta?.task_count === "number" ? (
+              <span className={styles.count}>共 {meta.task_count} 条</span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className={styles.queryRow}>
+          <input
+            className={styles.search}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="按任务名称、目标或物品筛选"
+            aria-label="搜索任务"
+          />
+        </div>
+
+        <div className={styles.filterRow}>
+          <label className={styles.filterLabel} htmlFor="tarkov-task-map-filter">
+            地图
+          </label>
+          <select
+            id="tarkov-task-map-filter"
+            className={styles.mapSelect}
+            value={map}
+            onChange={(event) => setMapFilter(event.target.value)}
+          >
+            <option value="">全部地图</option>
+            {TARKOV_MAPS.filter((item) => !item.comingSoon).map((item) => (
+              <option key={item.id} value={tarkovMapSlug(item.id)}>
+                {item.label} · {item.english}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.filterRow}>
+          <span className={styles.filterLabel}>商人</span>
+          <div className={styles.traderBar} role="radiogroup" aria-label="按商人筛选">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={allOn}
+              className={`${styles.traderBtn} ${styles.traderBtnAll} ${allOn ? styles.traderBtnOn : ""}`}
+              onClick={() => setTraderFilter(null)}
+            >
+              全部
+            </button>
+            {traders.map((item) => {
+              const english = traderDisplayName(item.slug, item.name);
+              const selected = trader === item.slug;
+              return (
+                <button
+                  key={item.slug || item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={english}
+                  title={english}
+                  className={`${styles.traderBtn} ${selected ? styles.traderBtnOn : ""}`}
+                  onClick={() => setTraderFilter(item.slug)}
+                >
+                  <TarkovTraderThumb slug={item.slug} size={40} />
+                  <span className={styles.traderCaption}>
+                    {english}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {meta ? (
+        <TarkovDataFreshness
+          source={meta.source}
+          syncedAt={meta.synced_at}
+          note={meta.note}
+        />
+      ) : null}
+
+      <div className={catalog.panel}>
+        <Table<TarkovTaskListItem>
+          className={tableStyles.table}
+          size="small"
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          loading={catalogQuery.isFetching}
+          onChange={onTableChange}
+          pagination={{
+            current: pageNo,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
+          }}
+          scroll={{ x: 1036 }}
+          locale={{
+            emptyText: "当前筛选下无任务",
+          }}
+        />
+      </div>
+    </div>
+  );
+}

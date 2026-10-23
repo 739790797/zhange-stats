@@ -1,16 +1,24 @@
 """把每份 Wiki 原文拆成可增量翻译的字符串。
 
 Lua 数据表按路径走。条目若有 LocalizationInternalName，字段挂在这个令牌下，显示名单独一条。
-解析不了的正文（说明页、幸存者词条）按空行分成段落。
-数字、令牌、网址和图片名不进译文。
+普通文章页的章节和表头走语义上下文，不依赖空行段落序号。
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from app.services.ror2.lua_data import LuaModuleError, parse_lua_module
 from app.services.ror2.strings import Ror2StringError, normalize_source
+from app.services.ror2.wiki_structure import (
+    WIKI_ARTICLE_PREFIX,
+    WIKI_EXPANSION_PREFIX,
+    article_title_from_resource,
+    parse_article,
+    parse_expansion_article,
+    WikiStructureError,
+)
 
 _SKIP_KEYS = frozenset(
     {
@@ -28,16 +36,48 @@ _IMAGE = re.compile(r"\.(?:png|gif|jpe?g|webp)$", re.IGNORECASE)
 
 
 def extract_units(resource: str, body: str) -> dict[str, str]:
-    """resource 是 guide_raws 的资源名。返回 编号 -> 原文。"""
+    """resource 是 guide_raws 的资源名。返回 Weblate context -> 原文。"""
+    if resource.startswith(WIKI_ARTICLE_PREFIX):
+        return article_units(resource, body, article_title_from_resource(resource))
+    if resource.startswith(WIKI_EXPANSION_PREFIX):
+        try:
+            article = parse_expansion_article(resource, body)
+        except WikiStructureError as exc:
+            raise Ror2StringError(str(exc)) from exc
+        return {article.title.context: article.title.text}
     try:
         data = parse_lua_module(body)
     except LuaModuleError:
+        if resource.startswith("survivor/"):
+            return article_units(resource, body, resource.partition("/")[2], include_title=False) | _paragraphs(
+                resource, body, stable=True
+            )
         return _paragraphs(resource, body)
     root = data.get("return")
     if not isinstance(root, dict):
         root = {key: value for key, value in data.items() if key != "return"}
     units: dict[str, str] = {}
     _walk(root, resource, units)
+    return units
+
+
+def article_units(resource: str, body: str, title: str, *, include_title: bool = True) -> dict[str, str]:
+    try:
+        parsed = parse_article(resource, title, body)
+    except WikiStructureError as exc:
+        raise Ror2StringError(str(exc)) from exc
+    units: dict[str, str] = {}
+    if include_title and parsed.title.text:
+        units[parsed.title.context] = parsed.title.text
+    for section in parsed.sections:
+        if section.title.text:
+            units[section.title.context] = section.title.text
+        for table in section.tables:
+            if table.caption is not None and table.caption.text:
+                units[table.caption.context] = table.caption.text
+            for column in table.columns:
+                if column.label.text:
+                    units[column.label.context] = column.label.text
     return units
 
 
@@ -127,7 +167,7 @@ def _segment(key: object) -> str:
     return ""
 
 
-def _paragraphs(resource: str, body: str) -> dict[str, str]:
+def _paragraphs(resource: str, body: str, *, stable: bool = False) -> dict[str, str]:
     units: dict[str, str] = {}
     blocks: list[str] = []
     buf: list[str] = []
@@ -140,6 +180,16 @@ def _paragraphs(resource: str, body: str) -> dict[str, str]:
         buf.append(line)
     if buf:
         blocks.append("\n".join(buf))
+    occurrences: dict[str, int] = {}
     for index, block in enumerate(blocks, start=1):
-        _put(units, f"{resource}.{index}", block)
+        if stable:
+            normalized = normalize_source(block)
+            digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+            count = occurrences.get(digest, 0) + 1
+            occurrences[digest] = count
+            suffix = digest if count == 1 else f"{digest}~{count}"
+            key = f"{resource}.paragraph.{suffix}"
+        else:
+            key = f"{resource}.{index}"
+        _put(units, key, block)
     return units

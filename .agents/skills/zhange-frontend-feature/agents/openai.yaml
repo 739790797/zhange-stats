@@ -1,0 +1,3 @@
+interface:
+  display_name: "Zhange Frontend Feature"
+  short_description: "Preserve project UI behavior and verify frontend changes"

@@ -1,0 +1,102 @@
+import { useEffect, useMemo, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTarkovMapDetail } from "@/features/guides/tarkov/api/guidesApi";
+import { TarkovItemsPageShell } from "@/features/guides/tarkov/components/TarkovItemsPageShell";
+import { TarkovRaidRoomChannelRoster } from "@/features/guides/tarkov/components/TarkovRaidRoomChannelRoster";
+import { TarkovRaidSessionMap } from "@/features/guides/tarkov/components/TarkovRaidSessionMap";
+import { TarkovRaidWorkspace } from "@/features/guides/tarkov/components/TarkovRaidWorkspace";
+import { TARKOV_HOME_PATH } from "@/features/guides/tarkov/model/tarkovHomeNav";
+import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import { isAdminUser } from "@/features/auth/model/isAdminUser";
+import {
+  PULSE_DEMO_MAP_ID,
+  PULSE_DEMO_MAP_SWITCH_MS,
+  PULSE_DEMO_ROOM_PUBLIC_ID,
+  pulseDemoChannel,
+  pulseDemoMembers,
+  pulseDemoQuestPreview,
+  pulseDemoSelfUserId,
+} from "@/features/guides/tarkov/model/tarkovRaidRooms";
+import { useAuthStore } from "@/features/auth/model/authStore";
+
+export default function TarkovRaidPulseDemoPage() {
+  const me = useAuthStore((state) => state.user);
+  const gameMode = useTarkovGameMode();
+  // 与地图页/备战同一把 key，按模式分缓存，避免 PVP/PVE 串数据
+  const mapQuery = useQuery({
+    queryKey: ["guides-tarkov-map", gameMode, PULSE_DEMO_MAP_ID],
+    queryFn: () => fetchTarkovMapDetail(PULSE_DEMO_MAP_ID),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const selfName = (me?.display_name || me?.username || "").trim();
+  const self = useMemo(
+    () =>
+      me?.id
+        ? { user_id: me.id, display_name: selfName || `用户${me.id}` }
+        : null,
+    [me?.id, selfName],
+  );
+  const [mapHop, setMapHop] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setMapHop((hop) => hop + 1);
+    }, PULSE_DEMO_MAP_SWITCH_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+  const members = useMemo(() => pulseDemoMembers(self), [self]);
+  const channel = useMemo(() => pulseDemoChannel(self, mapHop), [mapHop, self]);
+  const questPreview = useMemo(
+    () =>
+      pulseDemoQuestPreview({
+        userId: me?.id,
+        name: selfName,
+      }),
+    [me?.id, selfName],
+  );
+
+  if (!isAdminUser(me) && !import.meta.env.DEV) {
+    return <Navigate to={TARKOV_HOME_PATH} replace />;
+  }
+
+  return (
+    <TarkovItemsPageShell title="找人线演示" crumbs={[]} hideHead fill fillBleed>
+      <TarkovRaidWorkspace
+        dockOpen={false}
+        showDock={false}
+        map={
+          <TarkovRaidSessionMap
+            publicId={PULSE_DEMO_ROOM_PUBLIC_ID}
+            mapId={PULSE_DEMO_MAP_ID}
+            detail={mapQuery.data}
+            loading={mapQuery.isLoading}
+            error={mapQuery.isError ? mapQuery.error : undefined}
+            questOverlays={questPreview.overlays}
+            questObjectiveDones={questPreview.objectiveDones}
+            questSkippedByTask={questPreview.skippedByTask}
+            questParticipantsByTask={questPreview.participantsByTask}
+            questPeopleStartOn="all"
+            focusRequest={null}
+            highlightTaskId=""
+            suppressLocalFix={false}
+            authorUserId={pulseDemoSelfUserId(me?.id)}
+            authorDisplayName={selfName}
+            members={members}
+            memberPhases={channel.phases}
+            pulseDemoHop={mapHop}
+            topLeft={
+              <TarkovRaidRoomChannelRoster
+                members={members}
+                viewMaps={channel.viewMaps}
+                phaseByUser={channel.phases}
+              />
+            }
+            canEdit={false}
+            onQuestLabelClick={() => {}}
+          />
+        }
+      />
+    </TarkovItemsPageShell>
+  );
+}

@@ -1,9 +1,9 @@
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import rawMaps from "../src/data/tarkov-dev-maps.json";
-import { findInteractiveMap, type TarkovDevMapGroup } from "../src/lib/tarkovMapImages";
-import { snapshotUpstreamPlaces } from "../src/lib/tarkovMapPlaceLabels";
+import rawMaps from "../src/features/guides/tarkov/data/tarkov-dev-maps.json";
+import { findInteractiveMap, type TarkovDevMapGroup } from "../src/features/guides/tarkov/model/tarkovMapImages";
+import { snapshotUpstreamPlaces } from "../src/features/guides/tarkov/model/tarkovMapPlaceLabels";
 
 const SKIP = new Set([
   "shoreline",

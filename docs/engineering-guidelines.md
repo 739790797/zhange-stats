@@ -9,7 +9,7 @@
 | 数据库模型、迁移与表结构 | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md) |
 | 安全、鉴权、文件管理、上传、跨源与房间权限 | [`security.md`](security.md) |
 | Python 运行日志 | [`logging.md`](logging.md) |
-| 代码分包与运行时目录 | [`directory-layout.md`](directory-layout.md)、[`data/README.md`](../data/README.md) |
+| 代码分包与运行时目录 | [`directory-layout.md`](directory-layout.md)、[`frontend-architecture.md`](frontend-architecture.md)、[`data/README.md`](../data/README.md) |
 | 前端路由权限 | [`frontend/README.md`](../frontend/README.md) |
 | 开发环境与 CI 质量门 | [`develop.md`](develop.md) |
 | 安装、运行、配置和发版 | [`deploy.md`](deploy.md) |
@@ -26,13 +26,13 @@
 - 安装根配置的权威来源是 `config/*.json`；运行时数据、上传、缓存和临时目录遵守 [`develop.md`](develop.md) 与 [`data/README.md`](../data/README.md)。改 `scripts/config.example/` 字段时递增该文件 `_version`，并验证配置同步。
 - 扫码/短时 KV/限流等使用项目共享存储能力；多实例必须共享 Redis；目前产品按单 `app` 副本设计。用户附件使用 `services/user_files/`，管理端文件管理遵循 [`security.md`](security.md)。
 - 数据库结构变更必须加 Alembic migration 并同步 `docs/database.md`；新 migration 需兼容 SQLite 与 MySQL/MariaDB。不要在启动时绕过迁移改表。DDL 方言、`sa.JSON()`、`LongText` 等细节以 [`backend/alembic/README.md`](../backend/alembic/README.md) 为准。
-- 后端契约变化后，在 `frontend/` 执行 `npm run export:openapi && npm run gen:api`，检查并提交 `frontend/src/api/generated/` 文件。不能只改手写前端类型冒充契约。
+- 后端契约变化后，在 `frontend/` 执行 `npm run export:openapi && npm run gen:api`，检查并提交 `frontend/src/shared/api/generated/` 文件。不能只改手写前端类型冒充契约。
 
 ## 前端结构、请求与路由
 
-- `pages/` 放路由页，`components/` 放可复用 UI；平台组件放 `components/<platform>/`，攻略放 `components/guides/`。源码静态资源放 `src/data/`，运行时数据在仓库根 `data/`，不要往 `frontend/data/` 写。
-- 后端请求集中在 `frontend/src/api/*Api.ts`，统一使用 `@/api/http` 的共享 client；必要时由 `client.ts` 再导出。页面/组件不直连 axios 或裸 `fetch` 调本后端；上传、公开 `/health` 探测等特例必须有紧邻代码的说明。
-- 用户可见失败文案用 `apiError`；不要在页面复制大型 response interface 或自行拆 `response.data.detail`。优先从 `@/api/generated/schema` 的 `components` 派生类型；仅当 OpenAPI 尚无 schema 时才新增手写 interface。
+- 前端目录按 `app/`、`features/`、`shared/` 划分，所有权与依赖方向以 [`frontend-architecture.md`](frontend-architecture.md) 为准；不要在旧的根级 `pages/`、`components/`、`lib/`、业务 `api/` 层新增代码。源码资源随 owner feature；运行时数据在仓库根 `data/`，不要往 `frontend/data/` 写。
+- 后端业务请求 client 与领域类型归 owner feature 的 `features/<domain>/api/`；统一使用 `@/shared/api/http` transport。跨 feature 复用 owner 的公开 API 导出，不复制实现。页面/组件不直连 axios 或裸 `fetch` 调本后端；上传、公开 `/health` 探测等特例必须有紧邻代码的说明。
+- 用户可见失败文案用共享 `apiError`；不要在页面复制大型 response interface 或自行拆 `response.data.detail`。优先从 `@/shared/api/generated/schema` 的 `components` 派生类型；仅当 OpenAPI 尚无 schema 时才新增手写 interface。
 - 服务器状态放 TanStack Query，不把服务端列表移进 Zustand。路由页使用 `React.lazy`，由 `Suspense` 与 `RouteErrorBoundary` 包裹；不要将所有页面静态引入 `App.tsx`。平台 Tabs 保持既有非活动页卸载语义，盒子/兑换/养成重面板按需 lazy。
 - 权限与公开路由以 [`frontend/README.md`](../frontend/README.md) 为准；新增公开功能仍由 API 权限/平台功能开关控制，不得为了访客 UI 暴露一份更宽的认证态接口。
 
@@ -70,7 +70,7 @@
 - 安装根 `data/repos/` 中登记的资源仓由 `backend/app/services/upstream_repos.py` 统一管理，并由任务浅克隆/更新；普通读请求只解析本地登记仓，不按请求运行 Git，也不直接逐文件请求 raw URL。缺仓时用统一提示，引导管理员前往任务配置页手动同步。资源仓、时间、备份与文件管理以 [`data/README.md`](../data/README.md) 和 [`deploy.md`](deploy.md) 为准。
 - 涉及仓生命周期、同步错误、资源解析的 pytest 必须使用本地 fixture、临时目录和注入的 Git runner；不得访问 GitHub/真实服务或执行 Git。更新失败要保留最后一份可用 checkout/raw。
 - 通用图鉴复用 `GuideRawPipeline`：每份上游文件一行 raw 记录；先保存被接受的原始来源，再纯函数解析；压缩、冷启动和失败不覆盖规则沿用已有实现。不要另造重复 raw 表/压缩管道，也不要把解析结果当上游权威。
-- 雨中冒险 2 的图鉴源为 `riskofrain2.wiki.gg` 同步原文；整份原文以同格式送译并写入 Weblate。展示只解析 `zh-Hans/` 中审核通过且指纹匹配的完整译文；无可信译文就不展示译文。不得现场回源其他图鉴 API、拆碎字符串翻译或用 SteamCMD 更新游戏。测试使用 dump/fixture。
+- 雨中冒险 2 的图鉴源为 `riskofrain2.wiki.gg` 同步原文并写入 `guide_raws`；Weblate 是独立服务，只通过 REST API 管理按路径/LocalizationInternalName 编号的令牌源单元与译文。本地数据库缓存源文本、审核状态和译文，页面请求不得直接访问 Weblate。增量同步只用 `add` 新建单元；更新已有源文本时调用单元 API 的源字段更新，不用整文件 `replace`；若部署版本或令牌权限不支持，任务应失败并保留现有快照。展示先解析原文，再逐字段叠加已审核且源指纹匹配、格式标签/占位符/换行结构兼容的译文；不兼容、未翻译、未审核或原文已变的字段回退原文。普通 Wiki 文章只接受结构完整的表格 raw；无效更新保留最后一份可用 raw。不得现场回源其他图鉴 API、用 SteamCMD 更新游戏或把未审核建议当译文。测试使用 dump/fixture。
 - 塔科夫图鉴回源只读 `json.tarkov.dev` 的 `/regular/` 与 `/pve/` dump；每张 `tarkov_*_raws` 表对应一份来源文件，缺少的 dump 字段就视为不存在，不以 GraphQL 补齐。新标点从 `maps` raw 投影。历史 GraphQL split 信封仅为旧 raw 行兼容，不能扩展成新回源路径。
 - 塔科夫 overlay 从已登记的本地 `data/repos/tarkov-data-overlay/dist/overlay.json` 在内存合并；不要把浏览器/raw URL 或额外 GraphQL 当作来源，也不要再落一份合并后的权威表。地图 SVG/瓦片、格仓轮廓属于展示资源，不是图鉴 API。
 - 塔科夫工作台预览以 dump 枪图为底板，按槽位选择配件；缺少整枪坐标不意味着可把出图服务改成数据权威。image-gen 代理默认关闭，只有显式配置 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才可启用。社区配装只 GET EFTForge 公开列表并投影为 dump 可装部件；不代投票/评论、不热链社区图片、不把其作为图鉴源，除短时 KV 外不持久化。枪匠约束来自 tasks dump 的 `buildWeapon`/`buildAttributes`，不 vendor 社区 JSON；工作台测试不得访问真实上游。

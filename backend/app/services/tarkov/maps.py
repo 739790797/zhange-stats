@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -70,10 +71,11 @@ _FACTORY_MED_GATE_SNAP_MAX_M = 40.0
 # 对齐 tarkov.dev map/index.jsx Spawns：PMC / Scav / 狙击 Scav（Boss 用 bosses.locations）。
 SPAWN_KINDS = ("pmc", "scav", "sniper")
 
-# maps raw 单份 ~8.6MB：每次请求都解码 + 重解析太贵。按表头（synced_at）缓存解析结果，
-# 缓存里不带已解码的 payload，只留投影过的行（hub ~1MB / 全量 ~13MB / 标点 ~8MB）。
+# maps raw 单份 ~8.6MB：按表头（synced_at）缓存解析结果，避免重复解码与重解析。
+# MapsBundle 会保留已解码 payload、目录投影行、标点，并按地图惰性缓存 loot 行。
 _MAPS_CACHE_VER = "maps-bundle-v1"
 _bundle_cache: ModeCache["MapsBundle"] = ModeCache()
+_bundle_build_lock = threading.Lock()
 
 
 @dataclass
@@ -125,7 +127,8 @@ class MapsBundle:
 
 def clear_maps_caches() -> None:
     """maps 重新同步后清空；也供测试重置。"""
-    _bundle_cache.clear()
+    with _bundle_build_lock:
+        _bundle_cache.clear()
 
 
 def _load_bundle(db: Session) -> MapsBundle:
@@ -155,7 +158,11 @@ def maps_bundle(db: Session) -> MapsBundle:
     hit = _bundle_cache.get(token)
     if hit is not None:
         return hit
-    return _load_bundle(db)
+    with _bundle_build_lock:
+        hit = _bundle_cache.get(token)
+        if hit is not None:
+            return hit
+        return _load_bundle(db)
 
 # tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
 MAP_THUMB_ASSETS: dict[str, str] = {

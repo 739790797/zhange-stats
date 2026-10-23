@@ -620,6 +620,8 @@ TarkovRaidPrepOut.model_rebuild()
 
 class TarkovTaskDetailOut(TarkovTaskListItemOut):
     source: str | None = None
+    synced_at: str | None = None
+    note: str | None = None
     objectives: list[TarkovTaskObjectiveOut] = Field(default_factory=list)
     trader_requirements: list[TarkovTaskTraderReqOut] = Field(default_factory=list)
     task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)

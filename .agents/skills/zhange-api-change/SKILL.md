@@ -12,7 +12,7 @@ description: 变更 FastAPI 路由或 schema、OpenAPI 契约、前端 API clien
 ## 必要步骤
 
 1. 阅读 [Agent 工作流程](../../../docs/agent-guide.md) 与 [工程约定](../../../docs/engineering-guidelines.md)，检查工作区现有改动和相关调用链。
-2. 明确验收行为与影响层；按需要检查 service → schema → route → `frontend/src/api/*Api.ts` → client/types → page/component。
+2. 明确验收行为与影响层；按需要检查 service → schema → route → `frontend/src/features/*/api/*Api.ts` → client/types → page/component。
 3. 后端契约发生变化时，在 `frontend/` 运行 `npm run export:openapi && npm run gen:api`，检查并保留生成的 `generated/` diff；不要只手改类型。
 4. 在实现规则的层补定向测试。涉及表结构时，改走 Alembic migration 并更新 `docs/database.md`。
 5. 复核鉴权、错误处理、`force` 默认值和兼容性；只修改任务范围内文件。
@@ -27,5 +27,5 @@ description: 变更 FastAPI 路由或 schema、OpenAPI 契约、前端 API clien
 
 - [工程约定](../../../docs/engineering-guidelines.md)
 - [数据库表结构与迁移](../../../docs/database.md)
-- [生成 API 说明](../../../frontend/src/api/generated/README.md)
+- [生成 API 说明](../../../frontend/src/shared/api/generated/README.md)
 - [安全规范](../../../docs/security.md)

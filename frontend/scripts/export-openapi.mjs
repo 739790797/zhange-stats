@@ -1,4 +1,4 @@
-// 用 backend 的 Python 跑 backend/scripts/export_openapi.py，写出 src/api/generated/openapi.json。
+// 用 backend 的 Python 跑 backend/scripts/export_openapi.py，写出 src/shared/api/generated/openapi.json。
 // 解释器顺序：backend/.venv（Linux/macOS、Windows 两种布局）→ PATH 上的 python3 / python。
 // 用法：node scripts/export-openapi.mjs [--dry-run]（--dry-run 只打印将执行的命令）
 import { spawnSync } from "node:child_process";

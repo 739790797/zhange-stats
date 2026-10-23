@@ -363,13 +363,21 @@ def _price(cost: Any, kind: Any) -> str:
 
 def _stats(value: Any) -> list[Ror2StatOut]:
     if isinstance(value, list):
-        rows = value
+        rows = [(str(index), row) for index, row in enumerate(value, start=1)]
     elif isinstance(value, dict):
-        rows = list(value.values())
+        rows = []
+        for key, row in value.items():
+            if isinstance(key, str):
+                source_key = key.strip()
+            elif isinstance(key, int) and not isinstance(key, bool):
+                source_key = str(key)
+            else:
+                source_key = ""
+            rows.append((source_key, row))
     else:
         return []
     out: list[Ror2StatOut] = []
-    for row in rows:
+    for source_key, row in rows:
         if not isinstance(row, dict):
             continue
         label = _text(row.get("Stat") or row.get("Name"))
@@ -381,6 +389,7 @@ def _stats(value: Any) -> list[Ror2StatOut]:
                 value=_text(row.get("Value")),
                 stack=_text(row.get("Stack")),
                 add=_text(row.get("Add")),
+                source_key=source_key,
             )
         )
     return out

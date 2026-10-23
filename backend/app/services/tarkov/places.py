@@ -24,7 +24,7 @@ BOX_MIN_SPAN = 0.5
 IMPORT_MAX = 200
 MAP_KEY_MAX = 64
 
-# 与 frontend/src/lib/tarkovMapPlaceLabels.ts 海岸线社区表对齐，迁移种入。
+# 与 frontend/src/features/guides/tarkov/model/tarkovMapPlaceLabels.ts 海岸线社区表对齐，迁移种入。
 SHORELINE_SEED: list[dict[str, Any]] = [
     {"name": "疗养院", "x": -258.2, "z": -71.2, "size": 100},
     {"name": "行政楼", "x": -252, "z": -146},

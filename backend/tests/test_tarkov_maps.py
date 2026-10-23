@@ -1191,3 +1191,41 @@ def test_map_detail_mutations_do_not_leak_into_the_cache(monkeypatch) -> None:
         maps_svc.clear_maps_caches()
     assert len(calls) == 1
     assert all("__poison__" not in row for row in second["locks"])
+
+
+def test_maps_bundle_cold_cache_miss_is_single_flight(monkeypatch) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, Event
+
+    from app.services.tarkov import maps as maps_svc
+
+    calls = _bundle_db(monkeypatch)
+    entered = Event()
+    release = Event()
+    gate = Barrier(6)
+
+    def slow_load(_db):  # noqa: ANN001
+        calls.append(1)
+        entered.set()
+        assert release.wait(timeout=5)
+        return "json.tarkov.dev", _payload(), "2026-01-01T12:00:00", "note"
+
+    monkeypatch.setattr(maps_svc, "load_maps_payload", slow_load)
+    maps_svc.clear_maps_caches()
+
+    def load_bundle():
+        gate.wait(timeout=3)
+        return maps_svc.maps_bundle(object())
+
+    try:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futures = [pool.submit(load_bundle) for _ in range(6)]
+            assert entered.wait(timeout=2)
+            release.set()
+            bundles = [future.result(timeout=3) for future in futures]
+    finally:
+        release.set()
+        maps_svc.clear_maps_caches()
+
+    assert len(calls) == 1
+    assert all(bundle.source == "json.tarkov.dev" for bundle in bundles)

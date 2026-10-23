@@ -1,0 +1,19 @@
+.rich {
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sprite {
+  display: inline-block;
+  margin: 0 0.15em;
+  padding: 0 0.32em;
+  border: 1px solid rgba(151, 176, 162, 0.2);
+  border-radius: 1px;
+  background: rgba(151, 176, 162, 0.09);
+  color: #d2ddcf;
+  font-family: var(--ror2-mono, monospace);
+  font-size: 0.82em;
+  line-height: 1.45;
+  vertical-align: 0.04em;
+}

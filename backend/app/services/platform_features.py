@@ -525,7 +525,10 @@ def effective_features(db: Session) -> dict[str, bool]:
 
 def build_feature_tree(db: Session) -> list[dict[str, Any]]:
     """管理端树：含 enabled / effective / 调度配置。"""
-    from app.services.scheduler_config import load_scheduler_config
+    from app.services.scheduler_config import (
+        UPSTREAM_REPO_JOB_IDS,
+        load_scheduler_config,
+    )
 
     flags = load_feature_flags(db)
     sched = load_scheduler_config(db)
@@ -556,6 +559,8 @@ def build_feature_tree(db: Session) -> list[dict[str, Any]]:
                 item["interval_minutes"] = job_cfg.get("interval_minutes")
                 item["hour"] = job_cfg.get("hour")
                 item["minute"] = job_cfg.get("minute")
+                if str(job_id) in UPSTREAM_REPO_JOB_IDS:
+                    item["timeout_minutes"] = job_cfg.get("timeout_minutes")
             children = node.get("children") or []
             if children:
                 item["children"] = _walk(children, ancestors + (fid,))

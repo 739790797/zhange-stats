@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.guide_raw import GuideRaw
 from app.services.guide_raw.codec import pack_raw_text, unpack_raw_text
-from app.services.guide_raw.pipeline import GuideRawPipeline, RawSpec, upsert_raw
+from app.services.guide_raw.pipeline import GuideRawPipeline, RawSpec, raw_fingerprint, upsert_raw
 
 
 def _db() -> Session:
@@ -30,12 +30,15 @@ def test_unchanged_body_keeps_synced_at_and_reject_keeps_old_row() -> None:
     db = _db()
     first = upsert_raw(db, "demo", "items", "https://example/items", "alpha")
     row = db.query(GuideRaw).filter_by(game="demo", resource="items").one()
+    assert row.content_fingerprint == raw_fingerprint("alpha")
     row.synced_at = datetime(2020, 1, 1, 0, 0, 0)
+    row.content_fingerprint = None  # legacy row: first unchanged sync backfills the hash
     db.commit()
     second = upsert_raw(db, "demo", "items", "https://example/items", "alpha")
     db.expire_all()
     kept = db.query(GuideRaw).filter_by(game="demo", resource="items").one()
     assert second["changed"] is False
+    assert kept.content_fingerprint == raw_fingerprint("alpha")
     assert kept.synced_at == datetime(2020, 1, 1, 0, 0, 0)
     assert first["resource"] == "items"
 

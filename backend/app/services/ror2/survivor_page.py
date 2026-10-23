@@ -92,7 +92,7 @@ def build_survivor_detail(
         armor=survivor.armor,
         image_url=survivor.image_url,
         wiki_url=survivor.wiki_url,
-        lore=_lore_text(lore, survivor.name),
+        lore=lore_text(lore, survivor.name),
         skills=_skill_groups(sections.get("skills", ""), skills),
         behaviors=_prose(sections.get("behaviors", "")),
         tips=_prose(sections.get("tips", "")),
@@ -137,7 +137,7 @@ def _sections(page: str) -> tuple[str, dict[str, str]]:
     return summary, {key: "\n".join(lines) for key, lines in sections.items()}
 
 
-def _lore_text(lore: dict[str, Any], name: str) -> str:
+def lore_text(lore: dict[str, Any], name: str) -> str:
     entry = lore.get(name)
     if not isinstance(entry, dict):
         return ""

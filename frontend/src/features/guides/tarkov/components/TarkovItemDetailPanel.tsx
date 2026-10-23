@@ -1,0 +1,575 @@
+import { Image, Spin, Table } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { Suspense, lazy } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTarkovItemDetail } from "@/features/guides/tarkov/api/guidesApi";
+import { apiError } from "@/shared/api/apiError";
+import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import { useTarkovDocumentTitle } from "@/features/guides/tarkov/model/tarkovDocumentTitle";
+import { inspectImageUrl } from "@/features/guides/tarkov/model/tarkovItemImages";
+import {
+  extractContentLines,
+  extractRefItemId,
+  formatPropertyList,
+  isBareTarkovId,
+  namedTraderOffers,
+  numProp,
+  parseItemBuyOffers,
+  parseItemSellOffers,
+  splitVendorOffers,
+  type FormattedPropLink,
+  type VendorOffer,
+} from "@/features/guides/tarkov/model/tarkovItemFormat";
+import { formatArmorSlotLabel, formatArmorZoneList } from "@/features/guides/tarkov/model/tarkovArmorLabels";
+import {
+  gridOccupancyCaption,
+  resolveItemGridLayout,
+  type GridPocket,
+} from "@/features/guides/tarkov/model/tarkovItemGrids";
+import {
+  collapsedPresetHref,
+  extractPlateTableRows,
+  platePresetMarks,
+} from "@/features/guides/tarkov/model/tarkovItemPlates";
+import { itemHrefFromTypes } from "@/features/guides/tarkov/model/tarkovItemTypes";
+import { itemKeyLockMaps } from "@/features/guides/tarkov/model/tarkovItemLocks";
+import { buildItemFleaQuote } from "@/features/guides/tarkov/model/tarkovItemSources";
+import { TarkovItemRefGrid } from "@/features/guides/tarkov/components/TarkovGuideItemCell";
+import { TarkovItemPlateTable } from "@/features/guides/tarkov/components/TarkovItemPlateTable";
+import { TarkovItemRelations } from "@/features/guides/tarkov/components/TarkovItemRelations";
+import tableStyles from "./TarkovDarkTable.module.css";
+import styles from "./TarkovItemDetailPanel.module.css";
+
+/* 只有钥匙 / 门卡才有门锁地图；懒加载，否则每张物品详情页都要下整份地图 JSON。 */
+const TarkovItemKeyLocks = lazy(() =>
+  import("@/features/guides/tarkov/components/TarkovItemKeyLocks").then((m) => ({
+    default: m.TarkovItemKeyLocks,
+  })),
+);
+
+const TarkovAllowedAmmoScatter = lazy(() =>
+  import("@/features/guides/tarkov/components/TarkovAllowedAmmoScatter").then((m) => ({
+    default: m.TarkovAllowedAmmoScatter,
+  })),
+);
+
+function itemRefLinks(links: FormattedPropLink[]) {
+  return links
+    .filter((link) => Boolean(link.id))
+    .map((link) => ({
+      id: String(link.id),
+      name: link.label,
+      icon_link: link.icon,
+      types: link.types,
+      count: link.count,
+      badge: link.badge,
+    }));
+}
+
+const GRID_CELL = 22;
+/** 口袋内格子接缝；外框用 outline，接缝用淡色 gap。 */
+const GRID_GAP = 1;
+const POCKET_STEP = GRID_CELL + 6;
+
+function pocketPixels(pocket: GridPocket) {
+  return {
+    left: pocket.col * POCKET_STEP,
+    top: pocket.row * POCKET_STEP,
+    width: pocket.width * GRID_CELL + Math.max(0, pocket.width - 1) * GRID_GAP,
+    height: pocket.height * GRID_CELL + Math.max(0, pocket.height - 1) * GRID_GAP,
+  };
+}
+
+function GridPocketCells({ pocket }: { pocket: GridPocket }) {
+  const count = pocket.width * pocket.height;
+  const label = `${pocket.width}×${pocket.height}`;
+  return (
+    <div
+      className={styles.gridPocket}
+      style={{
+        gridTemplateColumns: `repeat(${pocket.width}, ${GRID_CELL}px)`,
+        gridTemplateRows: `repeat(${pocket.height}, ${GRID_CELL}px)`,
+        gap: GRID_GAP,
+      }}
+      aria-label={label}
+      title={label}
+    >
+      {Array.from({ length: count }, (_, cell) => (
+        <span key={cell} className={styles.gridCellOn} />
+      ))}
+    </div>
+  );
+}
+
+function GridPocketsView({
+  pockets,
+  caption,
+}: {
+  pockets: GridPocket[];
+  caption: string;
+}) {
+  if (!pockets.length) return null;
+  let stageW = 0;
+  let stageH = 0;
+  const placed = pockets.map((pocket, index) => {
+    const box = pocketPixels(pocket);
+    stageW = Math.max(stageW, box.left + box.width);
+    stageH = Math.max(stageH, box.top + box.height);
+    return { pocket, box, index };
+  });
+  return (
+    <div className={styles.gridBlock}>
+      <div
+        className={styles.gridStage}
+        style={{ width: stageW, height: stageH }}
+        role="img"
+        aria-label={caption}
+      >
+        {placed.map(({ pocket, box, index }) => (
+          <div
+            key={`${pocket.col}-${pocket.row}-${index}`}
+            className={styles.gridPlaced}
+            style={{
+              left: box.left,
+              top: box.top,
+              width: box.width,
+              height: box.height,
+            }}
+          >
+            <GridPocketCells pocket={pocket} />
+          </div>
+        ))}
+      </div>
+      {caption ? <span className={styles.gridCaption}>{caption}</span> : null}
+    </div>
+  );
+}
+
+type Props = {
+  itemId: string;
+  /** embed：作为机匣 wiki 嵌在预设页下方，不再套一层 */
+  variant?: "full" | "embed";
+};
+
+type ArmorSlotRow = {
+  key: string;
+  zones: string;
+  class: string;
+  durability: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function containedRows(item: Record<string, unknown>): Array<{
+  id: string;
+  name: string;
+  count: number;
+  icon: string;
+  types: string[];
+}> {
+  const raw = item.containsItems;
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{
+    id: string;
+    name: string;
+    count: number;
+    icon: string;
+    types: string[];
+  }> = [];
+  for (const entry of raw) {
+    const row = asRecord(entry);
+    if (!row) continue;
+    const nested =
+      asRecord(row.item) ||
+      (typeof row.item === "string" ? { id: row.item } : row);
+    const id = String(nested.id || "").trim();
+    if (!id) continue;
+    const name = String(nested.name || nested.shortName || "").trim();
+    if (!name || isBareTarkovId(name)) continue;
+    const types = Array.isArray(nested.types)
+      ? nested.types.map(String)
+      : [];
+    out.push({
+      id,
+      name,
+      count: Number(row.count) || 1,
+      icon: String(nested.iconLink || nested.baseImageLink || ""),
+      types,
+    });
+  }
+  return out;
+}
+
+function softArmorRows(props: Record<string, unknown>): ArmorSlotRow[] {
+  const slots = props.armorSlots;
+  if (!Array.isArray(slots)) return [];
+  return slots
+    .map((slot, index) => {
+      const row = asRecord(slot);
+      if (!row) return null;
+      const durability = Number(row.durability);
+      if (!Number.isFinite(durability) || durability <= 0) return null;
+      const zones = Array.isArray(row.zones)
+        ? formatArmorZoneList(row.zones)
+        : formatArmorSlotLabel(String(row.name || "")) || "—";
+      return {
+        key: `${index}-${zones}`,
+        class: row.class != null ? String(row.class) : "—",
+        durability: String(durability),
+        zones,
+      };
+    })
+    .filter((row): row is ArmorSlotRow => Boolean(row));
+}
+
+function bestTraderOffer(offers: VendorOffer[]): VendorOffer | null {
+  return offers.reduce<VendorOffer | null>((best, offer) => {
+    const price = offer.priceRub ?? offer.price ?? 0;
+    const current = best?.priceRub ?? best?.price ?? 0;
+    if (!best || price > current) return offer;
+    return best;
+  }, null);
+}
+
+/** 常规排版：基础信息 → 属性 → 交易 → 任务 → 制作 → 藏身处 → 掉落；机匣放最后。 */
+export function TarkovItemDetailPanel({
+  itemId,
+  variant = "full",
+}: Props) {
+  const gameMode = useTarkovGameMode();
+  const detailQuery = useQuery({
+    queryKey: ["guides-tarkov-item-detail", gameMode, itemId],
+    queryFn: () => fetchTarkovItemDetail(itemId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  useTarkovDocumentTitle(
+    variant === "embed" ? "" : detailQuery.data?.name || "",
+  );
+
+  if (detailQuery.isLoading) {
+    return (
+      <div className={styles.status}>
+        <Spin tip="加载详情…" />
+      </div>
+    );
+  }
+
+  if (detailQuery.isError) {
+    return (
+      <div className={styles.error}>
+        {apiError(detailQuery.error, "物品详情加载失败")}
+      </div>
+    );
+  }
+
+  const detail = detailQuery.data;
+  if (!detail) return null;
+
+  const collapseTo = collapsedPresetHref(detail);
+  if (variant !== "embed" && collapseTo) {
+    return <Navigate to={collapseTo} replace />;
+  }
+
+  const item = (detail.item || {}) as Record<string, unknown>;
+  const properties = (detail.properties || {}) as Record<string, unknown>;
+  const { baseItem: baseItemProp, ...restProperties } = properties;
+  const handbookCats = item.handbookCategories;
+  const categoryList =
+    Array.isArray(handbookCats) && handbookCats.length
+      ? handbookCats
+      : item.categories;
+  const image = inspectImageUrl(item, detail.id);
+  const wiki = String(item.wikiLink || "").trim();
+  const description =
+    (detail.description || "").trim() ||
+    String(item.description || "").trim();
+  const buyOffers = parseItemBuyOffers(item);
+  const sellOffers = parseItemSellOffers(item);
+  const buySplit = splitVendorOffers(buyOffers);
+  const sellSplit = splitVendorOffers(sellOffers);
+  const traderBuys = namedTraderOffers(buyOffers);
+  const traderSells = namedTraderOffers(sellOffers);
+  const bestSell = bestTraderOffer(traderSells);
+  const flea = buildItemFleaQuote(item, {
+    withChange: true,
+    fallbackOffers: [...buySplit.flea, ...sellSplit.flea],
+  });
+  const lockMaps = itemKeyLockMaps(detail);
+  const itemTypes = Array.isArray(item.types)
+    ? item.types.map(String)
+    : [];
+  const receiverId =
+    extractRefItemId(baseItemProp) || extractRefItemId(item.baseItem);
+  const embed = variant === "embed";
+  const baseTypes = Array.isArray((baseItemProp as { types?: unknown })?.types)
+    ? ((baseItemProp as { types?: unknown[] }).types || []).map(String)
+    : [];
+  const showReceiverWiki =
+    !embed &&
+    itemTypes.includes("preset") &&
+    (itemTypes.includes("gun") || baseTypes.includes("gun")) &&
+    Boolean(receiverId) &&
+    receiverId !== itemId;
+  const hidePresetProps =
+    !itemTypes.includes("gun") && !itemTypes.includes("preset");
+  if (hidePresetProps) {
+    delete restProperties.defaultPreset;
+    delete restProperties.presets;
+  }
+  const mergedProps: Record<string, unknown> = {
+    weight: item.weight,
+    size:
+      item.width != null && item.height != null
+        ? `${item.width}×${item.height}`
+        : undefined,
+    categories: categoryList,
+    conflictingItems: item.conflictingItems,
+    conflictingCategories: item.conflictingCategories,
+    ...restProperties,
+    ...(showReceiverWiki ? {} : { baseItem: baseItemProp ?? item.baseItem }),
+    usedOnMaps: lockMaps.length
+      ? undefined
+      : restProperties.usedOnMaps ?? item.usedOnMaps,
+  };
+  const propRows = formatPropertyList(mergedProps);
+  const contained = containedRows(item);
+  const armorRows = softArmorRows(properties);
+  const plateRows = extractPlateTableRows(properties);
+  const plateMarks = platePresetMarks(properties);
+  const gridLayout = resolveItemGridLayout(properties, detail.id);
+  const pockets = gridLayout.pockets;
+  const hasGrid = pockets.length > 0;
+  const gridCaption = hasGrid
+    ? gridOccupancyCaption(pockets, numProp(properties, "capacity"))
+    : "";
+  const contentLines = extractContentLines(properties);
+  const armorColumns: ColumnsType<ArmorSlotRow> = [
+    { title: "部位", dataIndex: "zones", key: "zones" },
+    { title: "等级", dataIndex: "class", key: "class", width: 72 },
+    { title: "耐久", dataIndex: "durability", key: "durability", width: 80 },
+  ];
+  const hasAttrCards = propRows.length > 0 || hasGrid;
+  const hasAttrExtras = Boolean(
+    lockMaps.length ||
+      armorRows.length ||
+      plateRows.length ||
+      contained.length ||
+      contentLines.length,
+  );
+  const showAttrs = hasAttrCards || hasAttrExtras;
+  const gridVisual = hasGrid ? (
+    <div className={`${styles.prop} ${styles.propLarge}`}>
+      <span className={styles.propKey}>格仓</span>
+      <GridPocketsView
+        pockets={pockets}
+        caption={gridCaption}
+      />
+    </div>
+  ) : null;
+  const otherPropRows = hasGrid
+    ? propRows.filter((row) => row.key !== "grids")
+    : propRows;
+
+  const attrCards = hasAttrCards ? (
+    <div className={styles.props}>
+      {gridVisual}
+      {otherPropRows.map((row) => {
+        const chips = row.links ? itemRefLinks(row.links) : [];
+        const isAllowedAmmo = row.key === "allowedAmmo";
+        const ammoIds = isAllowedAmmo
+          ? chips.map((chip) => chip.id).filter(Boolean)
+          : [];
+        const defaultAmmoId = isAllowedAmmo
+          ? chips.find((chip) => chip.badge === "默认")?.id
+          : undefined;
+        return (
+          <div
+            key={row.key}
+            className={`${styles.prop} ${row.large ? styles.propLarge : ""}`}
+          >
+            <span className={styles.propKey}>{row.label}</span>
+            {isAllowedAmmo && ammoIds.length ? (
+              <Suspense
+                fallback={
+                  <div className={styles.ammoScatterFallback}>
+                    <Spin size="small" />
+                  </div>
+                }
+              >
+                <TarkovAllowedAmmoScatter
+                  ammoIds={ammoIds}
+                  defaultAmmoId={defaultAmmoId}
+                  fallbackItems={chips}
+                  note={row.note}
+                />
+              </Suspense>
+            ) : (
+              <span className={styles.propValue}>
+                {chips.length ? (
+                  <TarkovItemRefGrid items={chips} />
+                ) : row.links?.length ? (
+                  row.links.map((link, index) => (
+                    <span key={`${link.href}-${index}`}>
+                      {index ? " · " : null}
+                      <Link className={styles.propLink} to={link.href}>
+                        {link.label}
+                      </Link>
+                    </span>
+                  ))
+                ) : (
+                  row.value
+                )}
+                {row.note ? (
+                  <span className={styles.propNote}>{row.note}</span>
+                ) : null}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : embed && !hasAttrExtras ? (
+    <div className={styles.fleaMeta}>暂无属性</div>
+  ) : null;
+
+  return (
+    <div className={embed ? styles.embedStack : styles.stack}>
+      {embed ? (
+        <div className={styles.embedHead}>
+          <h2 className={styles.embedName}>
+            <Link to={itemHrefFromTypes(itemId, itemTypes)}>
+              {detail.name}
+            </Link>
+          </h2>
+          {detail.short_name ? (
+            <cite className={styles.shortName}>{detail.short_name}</cite>
+          ) : null}
+        </div>
+      ) : (
+        <div className={styles.hero}>
+          <div className={styles.copy}>
+            <h1 className={styles.name}>{detail.name}</h1>
+            {detail.short_name ? (
+              <cite className={styles.shortName}>{detail.short_name}</cite>
+            ) : null}
+            {wiki ? (
+              <a
+                className={styles.wiki}
+                href={wiki}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Wiki
+              </a>
+            ) : null}
+            {description ? (
+              <p className={styles.heroDesc}>{description}</p>
+            ) : null}
+          </div>
+          {image ? (
+            <div className={styles.visuals}>
+              <div className={styles.imageWrap}>
+                <Image
+                  src={image}
+                  alt={detail.name}
+                  className={styles.image}
+                  preview={{ mask: false }}
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {showAttrs ? (
+        <section className={styles.attrs}>
+          {embed ? null : <h2 className={styles.sectionTitle}>属性</h2>}
+          {attrCards}
+
+          {lockMaps.length ? (
+            <Suspense
+              fallback={
+                <div className={styles.ammoScatterFallback}>
+                  <Spin size="small" />
+                </div>
+              }
+            >
+              <TarkovItemKeyLocks detail={detail} />
+            </Suspense>
+          ) : null}
+
+          {armorRows.length ? (
+            <>
+              <h3 className={styles.attrSub}>软甲槽</h3>
+              <Table<ArmorSlotRow>
+                className={tableStyles.table}
+                size="small"
+                rowKey="key"
+                columns={armorColumns}
+                dataSource={armorRows}
+                pagination={false}
+              />
+            </>
+          ) : null}
+
+          {plateRows.length ? (
+            <TarkovItemPlateTable rows={plateRows} marks={plateMarks} />
+          ) : null}
+
+          {contained.length ? (
+            <>
+              <h3 className={styles.attrSub}>内含物品</h3>
+              <TarkovItemRefGrid
+                showCount
+                items={contained.map((row) => ({
+                  id: row.id,
+                  name: row.name,
+                  icon_link: row.icon,
+                  types: row.types,
+                  count: row.count,
+                }))}
+              />
+            </>
+          ) : null}
+
+          {contentLines.length ? (
+            <>
+              <h3 className={styles.attrSub}>内容</h3>
+              <div className={styles.contentBox}>
+                {contentLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!embed ? (
+        <TarkovItemRelations
+          detail={detail}
+          flea={flea}
+          traderBuys={traderBuys}
+          traderSells={traderSells}
+          bestSell={bestSell}
+        />
+      ) : null}
+
+      {showReceiverWiki ? (
+        <section className={styles.embedWiki}>
+          <h2 className={styles.sectionTitle}>机匣</h2>
+          <p className={styles.embedWikiNote}>
+            口径、可用弹药和射击数据属于机匣，本配置及其他预设共用。
+          </p>
+          <TarkovItemDetailPanel itemId={receiverId} variant="embed" />
+        </section>
+      ) : null}
+    </div>
+  );
+}
