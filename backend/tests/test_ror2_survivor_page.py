@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.biz_logging import clear_log_until_change
 from app.models.guide_raw import GuideRaw
-from app.services.guide_raw.pipeline import RawSpec
+from app.models.guide_token_translation import GuideTokenTranslation, GuideTokenTranslationSync
+from app.services.guide_raw.pipeline import RawSpec, upsert_raw
 from app.services.ror2.catalog import Ror2WikiError
 from app.services.ror2.lang import apply_survivor_detail_language
 from app.services.ror2.schemas import Ror2SkillGroupOut, Ror2SkillOut, Ror2SurvivorOut
@@ -16,13 +17,16 @@ from app.services.ror2.survivor_page import (
     Ror2MissingSurvivor,
     accept_survivor_page,
     build_survivor_detail,
+    survivor_page_resource,
 )
+from app.services.ror2.weblate import RESOURCE as WEBLATE_RESOURCE, dump_snapshot
 from app.services.ror2.wiki import (
     fetch_wiki_text,
     get_survivor_detail,
     reset_catalog_memo,
     sync_survivor_pages,
     sync_wiki,
+    translated_detail,
 )
 from tests.test_ror2_catalog import _FIXTURES
 
@@ -107,6 +111,8 @@ _LORE = {"Commando": {"Desc": "The soldier ducked.\n\nHe counted."}}
 def db() -> Session:
     engine = create_engine("sqlite://")
     GuideRaw.__table__.create(engine)
+    GuideTokenTranslation.__table__.create(engine)
+    GuideTokenTranslationSync.__table__.create(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -350,6 +356,65 @@ def test_detail_fetches_a_missing_page_once(db: Session) -> None:
     assert detail.skills[0].skills[0].name == "Double Tap"
     with pytest.raises(Ror2MissingSurvivor):
         get_survivor_detail(db, "Nobody", fetch_page=fetch_page)
+
+
+
+def test_translated_detail_falls_back_to_source_and_applies_approved_tokens(db: Session) -> None:
+    sync_wiki(db, fetch=lambda spec: _FIXTURES[spec.resource])
+    upsert_raw(
+        db,
+        "ror2",
+        survivor_page_resource("Commando"),
+        "https://riskofrain2.wiki.gg/wiki/Commando",
+        _PAGE,
+    )
+    upsert_raw(
+        db,
+        "ror2",
+        WEBLATE_RESOURCE,
+        "https://weblate.invalid/ror2",
+        dump_snapshot(
+            {
+                "survivors.Survivors.Commando.Name": {
+                    "source": "Commando",
+                    "target": "指挥官",
+                    "state": "approved",
+                },
+                "lore.lore.Commando.Desc": {
+                    "source": "The soldier ducked.",
+                    "target": "士兵躲开了。",
+                    "state": "approved",
+                },
+                "skills.skills.Double Tap.Name": {
+                    "source": "Double Tap",
+                    "target": "双击",
+                    "state": "approved",
+                },
+            },
+            {
+                "survivors.Survivors.Commando.Name": "Commando",
+                "lore.lore.Commando.Desc": "The soldier ducked.",
+                "skills.skills.Double Tap.Name": "Double Tap",
+            },
+        ),
+    )
+
+    detail = translated_detail(db, "Commando")
+    assert detail.name.text == "指挥官"
+    assert detail.name.original == "Commando"
+    assert detail.name.token == "survivors.Survivors.Commando.Name"
+    assert "playable" in detail.summary.original
+    assert detail.summary.text == detail.summary.original
+    assert detail.summary.token is None
+    assert detail.lore.text == "士兵躲开了。"
+    assert detail.lore.original == "The soldier ducked."
+    assert detail.lore.token == "lore.lore.Commando.Desc"
+    primary = detail.skills[0].skills[0]
+    assert primary.name.text == "双击"
+    assert primary.name.original == "Double Tap"
+    assert primary.name.token == "skills.skills.Double Tap.Name"
+    assert primary.description.text
+    assert primary.description.text == primary.description.original
 
 
 def test_page_sync_keeps_going_when_one_page_fails(db: Session) -> None:

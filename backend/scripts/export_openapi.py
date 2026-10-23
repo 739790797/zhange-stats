@@ -20,7 +20,7 @@ from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 
 OUTPUT = (
-    BACKEND_ROOT.parent / "frontend" / "src" / "api" / "generated" / "openapi.json"
+    BACKEND_ROOT.parent / "frontend" / "src" / "shared" / "api" / "generated" / "openapi.json"
 )
 
 

@@ -509,9 +509,18 @@ def _parse_endfield_skills(
 
 def _parse_endfield_char(item: dict[str, Any]) -> EndfieldChar | None:
     char_data = item.get("charData") if isinstance(item.get("charData"), dict) else {}
-    char_id = str(
-        item.get("id") or char_data.get("id") or item.get("charId") or ""
-    ).strip()
+    # Preserve every possible upstream id. Player box payloads have used
+    # both CharacterTable ids and account-local instance ids in these fields.
+    char_id_aliases: list[str] = []
+    for source in (char_data, item):
+        for key in ("charId", "id", "characterId"):
+            value = source.get(key)
+            if value is None or isinstance(value, (dict, list)):
+                continue
+            alias = str(value).strip()
+            if alias and alias not in char_id_aliases:
+                char_id_aliases.append(alias)
+    char_id = char_id_aliases[0] if char_id_aliases else ""
     name = str(char_data.get("name") or item.get("name") or char_id).strip()
     if not char_id and not name:
         return None
@@ -546,16 +555,13 @@ def _parse_endfield_char(item: dict[str, Any]) -> EndfieldChar | None:
         label_type=label_type,
         own_ts=own_ts,
         gender=gender,
-        avatar_url=(
-            str(char_data.get("avatarSqUrl") or "").strip()
-            or str(char_data.get("avatarRtUrl") or "").strip()
-            or None
-        ),
+        avatar_url=_endfield_icon(char_data),
         illustration_url=str(char_data.get("illustrationUrl") or "").strip() or None,
         property_icon_url=prop_icon,
         weapon=_parse_endfield_weapon(item.get("weapon")),
         skills=_parse_endfield_skills(char_data, item.get("userSkills")),
         equips=equips,
+        char_id_aliases=char_id_aliases,
     )
 
 

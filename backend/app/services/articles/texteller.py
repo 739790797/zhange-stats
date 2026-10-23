@@ -396,7 +396,14 @@ def _write_job_run(
         if message is not None:
             row.message = message[:500]
         if stats is not None:
-            row.stats = stats
+            from app.services.job_run_progress import versioned_job_stats
+
+            row.stats = versioned_job_stats(
+                "texteller_model_sync",
+                status=status or row.status,
+                stats=stats,
+                message=message if message is not None else row.message,
+            )
         if status is not None:
             row.status = status
         if finished:
@@ -411,18 +418,15 @@ def _write_job_run(
 
 def model_sync_job() -> None:
     from app.core.database import SessionLocal
-    from app.core.timeutil import now_naive
-    from app.models.job_run import JobRun
+    from app.services.job_run_progress import create_or_reuse_job_run
 
     db = SessionLocal()
-    run = JobRun(
-        job_key="texteller_model_sync",
-        status="running",
+    run = create_or_reuse_job_run(
+        db,
+        "texteller_model_sync",
         message=format_sync_message("check"),
-        started_at=now_naive(),
-        stats={"phase": "check", "percent": 0},
+        stats={"phase": "check"},
     )
-    db.add(run)
     db.commit()
     run_id = int(run.id)
     db.close()
@@ -450,9 +454,12 @@ def model_sync_job() -> None:
                 message=format_sync_message("done"),
                 stats={
                     "phase": "done",
-                    "percent": 100,
                     "updated": True,
                     "revision": out.get("revision"),
+                    "result": {
+                        "summary": "公式识别模型已更新",
+                        "revision": out.get("revision"),
+                    },
                 },
                 finished=True,
             )
@@ -463,9 +470,12 @@ def model_sync_job() -> None:
                 message=format_sync_message("skip"),
                 stats={
                     "phase": "skip",
-                    "percent": 100,
                     "updated": False,
                     "revision": out.get("revision"),
+                    "result": {
+                        "summary": "公式识别模型已是最新",
+                        "revision": out.get("revision"),
+                    },
                 },
                 finished=True,
             )

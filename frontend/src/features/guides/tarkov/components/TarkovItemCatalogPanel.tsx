@@ -1,0 +1,719 @@
+import { Alert, Image, Spin, Table } from "antd";
+import type { ColumnsType, TableProps } from "antd/es/table";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  fetchTarkovItemCatalog,
+  fetchTarkovItemCatalogAll,
+  type TarkovCatalogItem,
+} from "@/features/guides/tarkov/api/guidesApi";
+import { apiError } from "@/shared/api/apiError";
+import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import {
+  CATALOG_CLIENT_SORT_SLUGS,
+  boolProp,
+  catalogColumnLabel,
+  catalogColumnsForSlug,
+  catalogSortableColumnIds,
+  cheapestPrice,
+  compareCatalogRows,
+  formatMoney,
+  formatPercent,
+  formatPropValue,
+  formatSigned,
+  formatWeight,
+  innerSlots,
+  itemGridSize,
+  matchRigKindFilter,
+  numProp,
+  propsOf,
+  strProp,
+  type CatalogColumnId,
+  type CatalogPriceRow,
+  type RigKindFilter,
+} from "@/features/guides/tarkov/model/tarkovItemFormat";
+import {
+  handbookCategoryIconUrl,
+  hdPreviewUrl,
+  transparentThumbUrl,
+} from "@/features/guides/tarkov/model/tarkovItemImages";
+import {
+  catalogPresetSlug,
+  findHandbookChild,
+  handbookNodeCategoryIds,
+  itemHrefFromTypes,
+  type TarkovHandbookChild,
+  type TarkovItemPage,
+} from "@/features/guides/tarkov/model/tarkovItemTypes";
+import {
+  catalogSortQuery,
+  readAllowedInt,
+  readCatalogSort,
+  readPositiveInt,
+  readRigKindFilter,
+} from "@/features/guides/tarkov/model/tarkovQueryState";
+import tableStyles from "./TarkovDarkTable.module.css";
+import styles from "./TarkovItemCatalogPanel.module.css";
+
+type Props = {
+  page: TarkovItemPage;
+};
+
+type CatalogRow = TarkovCatalogItem & CatalogPriceRow;
+
+const EMPTY_ROWS: CatalogRow[] = [];
+const PAGE_SIZE_DEFAULT = 50;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
+function dash(value: string | number | null | undefined): string {
+  if (value == null || value === "") return "—";
+  return String(value);
+}
+
+function cellFor(column: CatalogColumnId, row: CatalogRow): string {
+  const props = propsOf(row);
+  switch (column) {
+    case "grid":
+      return itemGridSize(row);
+    case "slots":
+      return dash(innerSlots(props));
+    case "weight":
+      return formatWeight(row.weight);
+    case "slotRatio": {
+      const slots = innerSlots(props);
+      const area =
+        row.width != null && row.height != null ? row.width * row.height : 0;
+      if (!slots || !area) return "—";
+      return String(Math.round((slots / area) * 100) / 100);
+    }
+    case "pricePerSlot": {
+      const slots = innerSlots(props);
+      const price = cheapestPrice(row);
+      if (!slots || price == null) return "—";
+      return formatMoney(Math.round(price / slots));
+    }
+    case "class":
+      return dash(numProp(props, "class"));
+    case "zones":
+      return dash(formatPropValue("zones", props.zones));
+    case "durability": {
+      const cur = numProp(props, "durability");
+      const max = numProp(props, "maxDurability");
+      if (cur == null && max == null) return "—";
+      if (cur != null && max != null && cur !== max) return `${cur} / ${max}`;
+      return dash(cur ?? max);
+    }
+    case "ricochet":
+      return dash(strProp(props, "ricochetY") || numProp(props, "ricochetChance"));
+    case "turnPenalty":
+      return formatPercent(numProp(props, "turnPenalty"));
+    case "blocksHeadset": {
+      const blocked = boolProp(props, "blocksHeadset", "blockHeadset");
+      if (blocked == null) return "—";
+      return blocked ? "是" : "否";
+    }
+    case "blindness":
+      return formatPercent(numProp(props, "blindnessProtection"));
+    case "distance":
+      return formatSigned(numProp(props, "distanceModifier"));
+    case "fuse":
+      return dash(numProp(props, "fuse"));
+    case "fragments":
+      return dash(numProp(props, "fragments"));
+    case "radius": {
+      const min = numProp(props, "minExplosionDistance");
+      const max = numProp(props, "maxExplosionDistance");
+      if (min == null && max == null) return "—";
+      if (min != null && max != null) return `${min}–${max}`;
+      return dash(max ?? min);
+    }
+    case "grenadeType":
+      return dash(strProp(props, "type"));
+    case "energy":
+      return dash(numProp(props, "energy", "energyImpact"));
+    case "hydration":
+      return dash(numProp(props, "hydration", "hydrationImpact"));
+    case "useTime":
+      return dash(numProp(props, "useTime"));
+    case "uses":
+      return dash(numProp(props, "uses"));
+    case "ergo":
+      return formatSigned(numProp(props, "ergonomics", "ergoPenalty"));
+    case "ergoPenalty":
+      return formatPercent(numProp(props, "ergoPenalty"));
+    case "speedPenalty":
+      return formatPercent(numProp(props, "speedPenalty"));
+    case "recoil":
+      return formatSigned(numProp(props, "recoilModifier", "recoil"));
+    case "loudness":
+      return dash(numProp(props, "loudness"));
+    case "hp":
+      return dash(numProp(props, "hitpoints", "hp"));
+    case "slashDamage":
+      return dash(numProp(props, "slashDamage"));
+    case "stabDamage":
+      return dash(numProp(props, "stabDamage"));
+    case "price":
+      return formatMoney(cheapestPrice(row));
+    default:
+      return "—";
+  }
+}
+
+export function TarkovItemCatalogPanel({ page }: Props) {
+  const gameMode = useTarkovGameMode();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const childParam = (searchParams.get("child") || "").trim();
+  const q = (searchParams.get("q") || "").trim();
+  const pageNo = readPositiveInt(searchParams.get("page"), 1);
+  const pageSize = readAllowedInt(
+    searchParams.get("pageSize"),
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_OPTIONS,
+  );
+  const [keyword, setKeyword] = useState(q);
+  const qRef = useRef(q);
+
+  const activeChild = findHandbookChild(page.children, childParam) || null;
+
+  const categoryIds = activeChild
+    ? handbookNodeCategoryIds(activeChild)
+    : page.categoryIds;
+  const types = activeChild ? [] : page.types || [];
+  const canFetch = categoryIds.some(Boolean) || types.some(Boolean);
+  const presetSlug = catalogPresetSlug(page, activeChild);
+  const columnIds = catalogColumnsForSlug(presetSlug);
+  const clientSort = CATALOG_CLIENT_SORT_SLUGS.has(presetSlug);
+  const sortableIds = catalogSortableColumnIds(presetSlug, columnIds);
+  const sortState = clientSort
+    ? readCatalogSort(searchParams.get("sort"), searchParams.get("dir"), sortableIds)
+    : null;
+  const showRigKind = presetSlug === "rigs";
+  const rigKind = showRigKind
+    ? readRigKindFilter(searchParams.get("rig"))
+    : "all";
+
+  useEffect(() => {
+    setKeyword(q);
+    qRef.current = q;
+  }, [q]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = keyword.trim();
+      if (qRef.current === next) return;
+      qRef.current = next;
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      params.delete("page");
+      setSearchParams(params, { replace: true });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [keyword, searchParams, setSearchParams]);
+
+  const catalogQuery = useQuery({
+    queryKey: [
+      "guides-tarkov-catalog",
+      gameMode,
+      page.slug,
+      presetSlug,
+      categoryIds,
+      types,
+      q,
+      clientSort ? "all" : pageNo,
+      clientSort ? "all" : pageSize,
+    ],
+    queryFn: () =>
+      clientSort
+        ? fetchTarkovItemCatalogAll({
+            categoryIds,
+            types,
+            q,
+          })
+        : fetchTarkovItemCatalog({
+            categoryIds,
+            types,
+            q,
+            page: pageNo,
+            pageSize,
+          }),
+    enabled: canFetch,
+    staleTime: 5 * 60_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  });
+
+  const setChild = (id: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set("child", id);
+    else next.delete("child");
+    next.delete("page");
+    next.delete("rig");
+    next.delete("sort");
+    next.delete("dir");
+    setSearchParams(next, { replace: true });
+  };
+
+  const columns = useMemo<ColumnsType<CatalogRow>>(() => {
+    return columnIds.map((id) => {
+      const sortable = sortableIds.includes(id);
+      const sortOrder = sortState?.key === id ? sortState.order : undefined;
+      if (id === "name") {
+        return {
+          title: catalogColumnLabel(presetSlug, "name"),
+          dataIndex: "name",
+          key: "name",
+          ellipsis: true,
+          render: (_: unknown, row: CatalogRow) => {
+            const label = row.name || row.short_name || row.id;
+            const thumb = transparentThumbUrl(row.icon_link);
+            const hd = hdPreviewUrl(row.icon_link) || thumb;
+            return (
+              <span className={styles.nameCell}>
+                {thumb ? (
+                  <Image
+                    src={thumb}
+                    alt=""
+                    width={36}
+                    height={36}
+                    preview={{ src: hd, mask: false }}
+                    style={{ objectFit: "contain", flex: "0 0 36px" }}
+                  />
+                ) : (
+                  <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
+                )}
+                <Link
+                  className={styles.nameLink}
+                  to={itemHrefFromTypes(row.id, row.types)}
+                >
+                  {label}
+                </Link>
+              </span>
+            );
+          },
+        };
+      }
+      const numeric = new Set<CatalogColumnId>([
+        "slots",
+        "weight",
+        "slotRatio",
+        "pricePerSlot",
+        "class",
+        "durability",
+        "price",
+        "fuse",
+        "fragments",
+        "energy",
+        "hydration",
+        "useTime",
+        "uses",
+        "ergo",
+        "ergoPenalty",
+        "speedPenalty",
+        "turnPenalty",
+        "recoil",
+        "loudness",
+        "hp",
+        "slashDamage",
+        "stabDamage",
+      ]);
+      return {
+        title: catalogColumnLabel(presetSlug, id),
+        key: id,
+        width:
+          id === "zones"
+            ? 180
+            : id === "price"
+              ? 110
+              : id === "ergoPenalty" || id === "speedPenalty" || id === "turnPenalty"
+                ? 108
+                : 88,
+        align: numeric.has(id) ? "right" : "left",
+        sorter: sortable,
+        sortOrder: sortable ? sortOrder : undefined,
+        render: (_: unknown, row: CatalogRow) => cellFor(id, row),
+      };
+    });
+  }, [columnIds, presetSlug, sortState, sortableIds]);
+
+  const meta = catalogQuery.data;
+  const loadedRows = (meta?.items as CatalogRow[] | undefined) ?? EMPTY_ROWS;
+  const filteredRows = useMemo(() => {
+    if (!showRigKind || rigKind === "all") return loadedRows;
+    return loadedRows.filter((row) => matchRigKindFilter(row, rigKind));
+  }, [loadedRows, rigKind, showRigKind]);
+  const sortedRows = useMemo(() => {
+    if (!clientSort || !sortState) return filteredRows;
+    return [...filteredRows].sort((left, right) =>
+      compareCatalogRows(left, right, sortState.key as CatalogColumnId, sortState.order),
+    );
+  }, [clientSort, filteredRows, sortState]);
+  const total =
+    clientSort || showRigKind
+      ? sortedRows.length
+      : typeof meta?.item_count === "number"
+        ? meta.item_count
+        : 0;
+  const pagedRows = useMemo(() => {
+    if (!clientSort) return sortedRows;
+    const start = (pageNo - 1) * pageSize;
+    return sortedRows.slice(start, start + pageSize);
+  }, [clientSort, pageNo, pageSize, sortedRows]);
+  const onTableChange: TableProps<CatalogRow>["onChange"] = (
+    pagination,
+    _filters,
+    sorter,
+  ) => {
+    const params = new URLSearchParams(searchParams);
+    const nextPage = pagination.current ?? 1;
+    const nextSize = pagination.pageSize ?? pageSize;
+    if (nextPage <= 1) params.delete("page");
+    else params.set("page", String(nextPage));
+    if (nextSize === PAGE_SIZE_DEFAULT) params.delete("pageSize");
+    else params.set("pageSize", String(nextSize));
+    if (clientSort) {
+      const s = Array.isArray(sorter) ? sorter[0] : sorter;
+      const key = String(s?.columnKey || "");
+      const order = s?.order;
+      const next =
+        order && sortableIds.includes(key as CatalogColumnId)
+          ? catalogSortQuery(key, order)
+          : null;
+      const prevKey = sortState?.key || "";
+      const prevDir = sortState ? catalogSortQuery(sortState.key, sortState.order).dir : "";
+      if ((next?.sort || "") !== prevKey || (next?.dir || "") !== prevDir) {
+        params.delete("page");
+      }
+      if (next) {
+        params.set("sort", next.sort);
+        params.set("dir", next.dir);
+      } else {
+        params.delete("sort");
+        params.delete("dir");
+      }
+    }
+    setSearchParams(params, { replace: true });
+  };
+  const hasFilter = page.children.length > 0;
+  const listBody =
+    catalogQuery.isLoading && !catalogQuery.data ? (
+      <div className={styles.status}>
+        <Spin tip="加载物品…" />
+      </div>
+    ) : catalogQuery.isError && !catalogQuery.data ? (
+      <Alert
+        type="error"
+        showIcon
+        message="物品目录加载失败"
+        description={apiError(catalogQuery.error, "物品目录加载失败")}
+      />
+    ) : (
+      <div className={styles.panel}>
+        <Table<CatalogRow>
+          className={tableStyles.table}
+          size="small"
+          rowKey="id"
+          columns={columns}
+          dataSource={pagedRows}
+          loading={catalogQuery.isFetching}
+          onChange={onTableChange}
+          pagination={{
+            current: pageNo,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            showTotal: (count, range) => `${range[0]}–${range[1]} / ${count}`,
+          }}
+          scroll={{ x: clientSort ? 960 : 720 }}
+          locale={{ emptyText: "当前筛选下无物品" }}
+        />
+      </div>
+    );
+
+  const main = (
+    <div className={styles.main}>
+      {catalogQuery.isError && catalogQuery.data ? (
+        <Alert
+          type="error"
+          showIcon
+          message="物品目录加载失败"
+          description={apiError(catalogQuery.error, "物品目录加载失败")}
+        />
+      ) : null}
+      <div className={styles.toolbar}>
+        <div className={styles.toolbarSide}>
+          {showRigKind ? (
+            <RigKindChips
+              value={rigKind}
+              onSelect={(next) => {
+                const params = new URLSearchParams(searchParams);
+                if (next === "all") params.delete("rig");
+                else params.set("rig", next);
+                params.delete("page");
+                setSearchParams(params, { replace: true });
+              }}
+            />
+          ) : null}
+          <div className={styles.meta}>
+            {meta ? `共 ${total} 件` : null}
+            {activeChild ? ` · ${activeChild.label}` : null}
+          </div>
+        </div>
+        <input
+          className={styles.search}
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="搜索名称 / 短名"
+          aria-label="搜索物品"
+        />
+      </div>
+      {listBody}
+    </div>
+  );
+
+  if (!hasFilter) {
+    return <div className={styles.stack}>{main}</div>;
+  }
+
+  return (
+    <TarkovItemBrowseLayout
+      nodes={page.children}
+      activeId={activeChild?.id ?? null}
+      onSelect={setChild}
+      main={main}
+    />
+  );
+}
+
+export function TarkovItemBrowseLayout({
+  nodes,
+  activeId,
+  onSelect,
+  main,
+}: {
+  nodes: TarkovHandbookChild[];
+  activeId: string | null;
+  onSelect: (id: string | null) => void;
+  main: ReactNode;
+}) {
+  if (!nodes.length) return <>{main}</>;
+  return (
+    <div className={styles.layout}>
+      <aside className={styles.sidebar}>
+        <CatalogFilterChips
+          nodes={nodes}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+      </aside>
+      <div className={styles.main}>{main}</div>
+    </div>
+  );
+}
+
+function nodeContainsId(node: TarkovHandbookChild, id: string | null): boolean {
+  if (!id) return false;
+  return Boolean(findHandbookChild([node], id));
+}
+
+function AllCatIcon() {
+  return (
+    <svg
+      className={styles.catIconSvg}
+      viewBox="0 0 16 16"
+      width={22}
+      height={22}
+      aria-hidden
+    >
+      <rect x="1.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="9.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="1.25" y="9.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+      <rect x="9.25" y="9.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CatIcon({ id }: { id: string | null }) {
+  const src = id ? handbookCategoryIconUrl(id) : "";
+  const [broken, setBroken] = useState(false);
+  if (!id) return <AllCatIcon />;
+  if (!src || broken) return <span className={styles.catIconSlot} aria-hidden />;
+  return (
+    <img
+      className={styles.catIcon}
+      src={src}
+      alt=""
+      width={22}
+      height={22}
+      draggable={false}
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
+function CatButton({
+  id,
+  label,
+  active,
+  onSelect,
+  head,
+}: {
+  id: string | null;
+  label: string;
+  active: boolean;
+  onSelect: (id: string | null) => void;
+  head?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.catBtn}${head ? ` ${styles.catHead}` : ""}${
+        active ? ` ${styles.catOn}` : ""
+      }`}
+      onClick={() => onSelect(id)}
+    >
+      <CatIcon id={id} />
+      <span className={styles.catLabel}>{label}</span>
+    </button>
+  );
+}
+
+function CatNode({
+  node,
+  activeId,
+  onSelect,
+  depth,
+}: {
+  node: TarkovHandbookChild;
+  activeId: string | null;
+  onSelect: (id: string | null) => void;
+  depth: number;
+}) {
+  const kids = node.children ?? [];
+  const containsActive = nodeContainsId(node, activeId);
+  const [open, setOpen] = useState(() => depth === 0 || containsActive);
+
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
+
+  return (
+    <div className={styles.treeNode}>
+      <div className={styles.catRow}>
+        {kids.length ? (
+          <button
+            type="button"
+            className={`${styles.catCaret}${open ? ` ${styles.catCaretOpen}` : ""}`}
+            aria-expanded={open}
+            aria-label={open ? `收起${node.label}` : `展开${node.label}`}
+            onClick={() => setOpen((value) => !value)}
+          />
+        ) : depth > 0 ? (
+          <span className={styles.catCaretSlot} />
+        ) : null}
+        <CatButton
+          id={node.id}
+          label={node.label}
+          active={activeId === node.id}
+          onSelect={onSelect}
+          head={depth === 0 && kids.length > 0}
+        />
+      </div>
+      {open && kids.length ? (
+        <CatTree
+          nodes={kids}
+          activeId={activeId}
+          onSelect={onSelect}
+          depth={depth + 1}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CatTree({
+  nodes,
+  activeId,
+  onSelect,
+  depth,
+}: {
+  nodes: TarkovHandbookChild[];
+  activeId: string | null;
+  onSelect: (id: string | null) => void;
+  depth: number;
+}) {
+  if (!nodes.length) return null;
+  const ordered = [...nodes].sort((a, b) => a.order - b.order);
+  return (
+    <div className={depth === 0 ? styles.treeRoots : styles.treeKids}>
+      {ordered.map((node) => (
+        <CatNode
+          key={node.id}
+          node={node}
+          activeId={activeId}
+          onSelect={onSelect}
+          depth={depth}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RigKindChips({
+  value,
+  onSelect,
+}: {
+  value: RigKindFilter;
+  onSelect: (next: RigKindFilter) => void;
+}) {
+  const options: { id: RigKindFilter; label: string }[] = [
+    { id: "all", label: "全部" },
+    { id: "plain", label: "胸挂" },
+    { id: "armored", label: "防弹胸挂" },
+  ];
+  return (
+    <div className={styles.kindBar} role="group" aria-label="胸挂类型">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className={`${styles.kindBtn}${value === option.id ? ` ${styles.kindOn}` : ""}`}
+          aria-pressed={value === option.id}
+          onClick={() => onSelect(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CatalogFilterChips({
+  nodes,
+  activeId,
+  onSelect,
+}: {
+  nodes: TarkovHandbookChild[];
+  activeId: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  return (
+    <nav className={styles.tree} aria-label="手册分类">
+      <CatButton
+        id={null}
+        label="全部"
+        active={!activeId}
+        onSelect={onSelect}
+      />
+      <CatTree
+        nodes={nodes}
+        activeId={activeId}
+        onSelect={onSelect}
+        depth={0}
+      />
+    </nav>
+  );
+}

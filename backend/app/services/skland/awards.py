@@ -7,10 +7,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from app.services.skland.arknights_assets import asset_url
+
 # 与前端 arknights/constants.ts GAME_RES 同源
-ARKNIGHTS_ITEM_ICON_BASE = (
-    "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/item"
-)
+ARKNIGHTS_ITEM_ICON_BASE = f"{asset_url('item', '').rstrip('/')}"
 
 
 @lru_cache(maxsize=1)

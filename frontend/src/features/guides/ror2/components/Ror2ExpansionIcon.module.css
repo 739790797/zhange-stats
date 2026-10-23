@@ -1,0 +1,9 @@
+.icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 5px;
+  object-fit: contain;
+  vertical-align: -4px;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.48));
+}

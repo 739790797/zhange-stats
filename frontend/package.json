@@ -10,7 +10,7 @@
     "test": "vitest run",
     "preview": "vite preview",
     "export:openapi": "node scripts/export-openapi.mjs",
-    "gen:api": "openapi-typescript ./src/api/generated/openapi.json -o ./src/api/generated/schema.d.ts"
+    "gen:api": "openapi-typescript ./src/shared/api/generated/openapi.json -o ./src/shared/api/generated/schema.d.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

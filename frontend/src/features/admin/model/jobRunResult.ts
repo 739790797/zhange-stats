@@ -1,0 +1,626 @@
+import { formatBeijing, parseBeijing } from "../../../shared/lib/time";
+
+/** 任务配置手动执行：轮询 job_runs 并展示结果。 */
+
+export type JobRunLike = {
+  id: number;
+  status: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  message?: string | null;
+  stats?: Record<string, unknown> | null;
+  live_log?: string | null;
+};
+
+export type JobRunWatch = {
+  jobId: string;
+  jobName: string;
+  sinceRunId: number;
+  runId?: number | null;
+  category?: string | null;
+  acceptedAt: number;
+  acceptedMessage?: string;
+};
+
+export const JOB_RUN_WATCH_TIMEOUT_MS = 10 * 60 * 1000;
+export const JOB_RUN_WATCH_POLL_MS = 1000;
+
+const DOMAIN_LABELS: Record<string, string> = {
+  dump: "整站 dump",
+  items: "物品",
+  tasks: "任务",
+  maps: "地图 / BOSS",
+  guides: "藏身处",
+  hideout: "藏身处",
+  traders: "商人",
+  locks: "门锁",
+  barters: "交换",
+  crafts: "制作",
+  overlay: "overlay",
+};
+
+const STAT_LABELS: Record<string, string> = {
+  ok: "成功",
+  failed: "失败",
+  skipped: "跳过",
+  total: "合计",
+  members: "成员",
+  playing: "游戏中",
+  online: "在线",
+  offline: "离线",
+  opened: "开局",
+  continued: "续局",
+  closed: "收局",
+  file: "当前文件",
+  bytes: "已下载",
+  total_bytes: "总大小",
+  files_done: "已完成文件",
+  files_total: "文件数",
+  revision: "版本",
+  updated: "已更新",
+};
+
+const HIDDEN_STAT_KEYS = new Set(["percent", "phase"]);
+const DOWNLOAD_STAT_KEYS = new Set([
+  "file",
+  "bytes",
+  "total_bytes",
+  "files_done",
+  "files_total",
+]);
+
+const DOMAIN_STATUSES = new Set([
+  "pending",
+  "downloading",
+  "downloaded",
+  "persisting",
+  "applying",
+  "ok",
+  "error",
+  "skipped",
+]);
+
+export type JobRunDomainStatus =
+  | "pending"
+  | "downloading"
+  | "downloaded"
+  | "persisting"
+  | "applying"
+  | "ok"
+  | "error"
+  | "skipped";
+
+export type JobRunDomainRow = {
+  id: string;
+  label: string;
+  ok: boolean;
+  status: JobRunDomainStatus;
+  error?: string;
+  source?: string;
+  mode?: string;
+  syncedAt?: string;
+  upstreamAt?: string;
+  bytes?: number;
+  totalBytes?: number;
+};
+
+export type JobRunDownloadProgress = {
+  file: string;
+  phase: string;
+  phaseLabel: string;
+  filesDone: number | null;
+  filesTotal: number | null;
+  bytes: number | null;
+  totalBytes: number | null;
+  filePercent: number | null;
+  bytesText: string;
+  filesText: string;
+};
+
+export type ParsedJobRunMessage =
+  | { kind: "text"; text: string }
+  | {
+      kind: "domains";
+      okCount: number;
+      failedCount: number;
+      domains: JobRunDomainRow[];
+    }
+  | { kind: "json"; value: unknown };
+
+export function isJobRunFinished(status: string | null | undefined): boolean {
+  return status === "ok" || status === "warning" || status === "error";
+}
+
+export function jobRunStatusLabel(status: string | null | undefined): string {
+  if (status === "ok") return "成功";
+  if (status === "warning") return "部分成功";
+  if (status === "error") return "失败";
+  if (status === "queued") return "排队中";
+  if (status === "running") return "执行中";
+  return status || "未知";
+}
+
+export function jobRunAlertType(
+  status: string | null | undefined,
+): "success" | "error" | "info" | "warning" {
+  if (status === "ok") return "success";
+  if (status === "warning") return "warning";
+  if (status === "error") return "error";
+  if (status === "running" || status === "queued") return "info";
+  return "warning";
+}
+
+export function jobRunDomainModeLabel(mode?: string | null): string {
+  const modeKey = (mode || "").trim().toLowerCase();
+  if (modeKey === "pve") return "PVE";
+  if (modeKey === "pvp" || modeKey === "regular") return "PVP";
+  return "";
+}
+
+export function jobRunPhaseLabel(phase?: string | null): string {
+  switch ((phase || "").trim()) {
+    case "start":
+      return "准备中";
+    case "sync":
+      return "同步仓库";
+    case "check":
+      return "检查资源";
+    case "download":
+      return "下载 dump";
+    case "persist":
+      return "写入数据库";
+    case "overlay":
+      return "下载 overlay";
+    case "apply":
+      return "投影栏目";
+    case "done":
+      return "完成";
+    case "error":
+      return "失败";
+    case "skip":
+      return "跳过更新";
+    default:
+      return "";
+  }
+}
+
+export function jobRunDomainStatusLabel(status?: string | null): string {
+  switch (status) {
+    case "pending":
+      return "等待";
+    case "downloading":
+      return "下载中";
+    case "downloaded":
+      return "已下载";
+    case "persisting":
+      return "写入中";
+    case "applying":
+      return "投影中";
+    case "ok":
+      return "成功";
+    case "error":
+      return "失败";
+    case "skipped":
+      return "跳过";
+    default:
+      return status || "未知";
+  }
+}
+
+export function jobRunDomainStatusColor(
+  status?: string | null,
+): "default" | "processing" | "success" | "error" | "blue" {
+  if (status === "ok") return "success";
+  if (status === "error") return "error";
+  if (
+    status === "downloading" ||
+    status === "persisting" ||
+    status === "applying"
+  ) {
+    return "processing";
+  }
+  if (status === "downloaded") return "blue";
+  return "default";
+}
+
+export function jobRunDomainLabel(id: string, mode?: string | null): string {
+  const raw = (id || "").trim();
+  if (!raw) return "未命名";
+  let label: string;
+  if (raw.startsWith("dump:")) {
+    label = `dump · ${jobRunDomainLabel(raw.slice(5))}`;
+  } else {
+    const zh = raw.endsWith("_zh");
+    const base = zh ? raw.slice(0, -3) : raw;
+    label = DOMAIN_LABELS[base] || base;
+    if (zh) label = `${label}（中文）`;
+  }
+  const modeKey = (mode || "").trim().toLowerCase();
+  if (modeKey === "pve") return `${label} · PVE`;
+  if (modeKey === "pvp" || modeKey === "regular") return `${label} · PVP`;
+  return label;
+}
+
+export function formatJobRunClock(iso?: string | null): string {
+  if (!iso) return "";
+  const text = formatBeijing(iso, "YYYY-MM-DD HH:mm");
+  return text === "—" ? iso : text;
+}
+
+export function jobRunAgeLabel(
+  iso?: string | null,
+  nowMs?: number,
+): string {
+  if (!iso) return "";
+  const d = parseBeijing(iso);
+  if (!d.isValid()) return "";
+  const diffMin = Math.round(((nowMs ?? Date.now()) - d.valueOf()) / 60_000);
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin} 分钟前`;
+  const hours = Math.round(diffMin / 60);
+  if (hours < 48) return `${hours} 小时前`;
+  return `${Math.round(hours / 24)} 天前`;
+}
+
+export function jobRunUpstreamText(
+  row: Pick<JobRunDomainRow, "upstreamAt">,
+  nowMs?: number,
+): string {
+  if (!row.upstreamAt) return "";
+  const age = jobRunAgeLabel(row.upstreamAt, nowMs);
+  return age
+    ? `上游 ${formatJobRunClock(row.upstreamAt)}（${age}）`
+    : `上游 ${formatJobRunClock(row.upstreamAt)}`;
+}
+
+export function jobRunSyncedText(
+  row: Pick<JobRunDomainRow, "syncedAt">,
+): string {
+  if (!row.syncedAt) return "";
+  return formatJobRunClock(row.syncedAt);
+}
+
+export function jobRunFreshnessText(
+  row: Pick<JobRunDomainRow, "syncedAt" | "upstreamAt">,
+  nowMs?: number,
+): string {
+  const parts: string[] = [];
+  const upstream = jobRunUpstreamText(row, nowMs);
+  if (upstream) parts.push(upstream);
+  const synced = jobRunSyncedText(row);
+  if (synced) parts.push(`落库 ${synced}`);
+  return parts.join(" · ");
+}
+
+export function jobRunDomainProgressText(
+  row: Pick<JobRunDomainRow, "status" | "bytes" | "totalBytes" | "upstreamAt">,
+  nowMs?: number,
+): string {
+  if (row.status === "downloading") {
+    const cur = formatJobRunBytes(row.bytes);
+    const total = formatJobRunBytes(row.totalBytes);
+    if (cur && total) return `${cur} / ${total}`;
+    if (cur) return cur;
+    return "";
+  }
+  return jobRunUpstreamText(row, nowMs);
+}
+
+export function jobRunFreshnessSummary(
+  domains: JobRunDomainRow[],
+  nowMs?: number,
+): string | null {
+  const stamps = domains
+    .map((row) => row.upstreamAt)
+    .filter((value): value is string => Boolean(value))
+    .map((value) => ({ value, ms: parseBeijing(value).valueOf() }))
+    .filter((row) => Number.isFinite(row.ms));
+  if (!stamps.length) return null;
+  const oldest = stamps.reduce((a, b) => (a.ms <= b.ms ? a : b));
+  const newest = stamps.reduce((a, b) => (a.ms >= b.ms ? a : b));
+  const age = jobRunAgeLabel(oldest.value, nowMs);
+  if (oldest.ms === newest.ms) {
+    return age
+      ? `上游数据 ${formatJobRunClock(oldest.value)}（${age}）`
+      : `上游数据 ${formatJobRunClock(oldest.value)}`;
+  }
+  return `上游 ${formatJobRunClock(oldest.value)} ～ ${formatJobRunClock(newest.value)}${age ? `（最早 ${age}）` : ""}`;
+}
+
+export function pickWatchedJobRun(
+  items: JobRunLike[] | null | undefined,
+  sinceRunId: number,
+  acceptedAt?: number,
+  runId?: number | null,
+): JobRunLike | null {
+  if (!items?.length) return null;
+  if (runId != null) return items.find((row) => row.id === runId) ?? null;
+  return (
+    items.find((row) => {
+      if (row.id <= sinceRunId) return false;
+      if (sinceRunId <= 0 && acceptedAt && row.started_at) {
+        const started = Date.parse(row.started_at);
+        if (!Number.isNaN(started) && started + 8000 < acceptedAt) return false;
+      }
+      return true;
+    }) ?? null
+  );
+}
+
+export function jobRunWatchPollMs(args: {
+  run: JobRunLike | null;
+}): number | false {
+  if (args.run && isJobRunFinished(args.run.status)) return false;
+  return JOB_RUN_WATCH_POLL_MS;
+}
+
+export function formatJobRunBytes(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return "";
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function jobRunProgressPercent(
+  stats: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!stats) return null;
+  if (stats.schema_version != null) {
+    const progress = asRecord(stats.progress);
+    if (!progress || progress.percent == null) return null;
+    const total = Number(progress.total);
+    if (!(Number.isFinite(total) && total > 0) && progress.reliable !== true) {
+      return null;
+    }
+    const knownPercent = Number(progress.percent);
+    if (!Number.isFinite(knownPercent)) return null;
+    return Math.max(0, Math.min(100, Math.round(knownPercent)));
+  }
+  if (stats.percent == null || stats.percent === "") return null;
+  const n = Number(stats.percent);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function parseDomainStatus(row: Record<string, unknown>): JobRunDomainStatus {
+  const raw = String(row.status || "").trim();
+  if (DOMAIN_STATUSES.has(raw)) return raw as JobRunDomainStatus;
+  if (row.ok === true) return "ok";
+  if (row.error) return "error";
+  return "pending";
+}
+
+function parseOptionalNumber(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+function parseDomainRow(value: unknown): JobRunDomainRow | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const id = String(row.id || "").trim();
+  if (!id) return null;
+  const error = row.error == null ? undefined : String(row.error);
+  const source = row.source == null ? undefined : String(row.source);
+  const mode = row.mode == null ? undefined : String(row.mode);
+  const syncedAt = row.synced_at == null ? undefined : String(row.synced_at);
+  const upstreamAt =
+    row.upstream_at == null ? undefined : String(row.upstream_at);
+  const status = parseDomainStatus(row);
+  return {
+    id,
+    label: jobRunDomainLabel(id, mode),
+    ok: row.ok === true || status === "ok",
+    status,
+    error,
+    source,
+    mode,
+    syncedAt,
+    upstreamAt,
+    bytes: parseOptionalNumber(row.bytes),
+    totalBytes: parseOptionalNumber(row.total_bytes),
+  };
+}
+
+export function jobRunProgressRows(
+  run: JobRunLike | null | undefined,
+): JobRunDomainRow[] {
+  const fromStats = run?.stats?.domains;
+  if (Array.isArray(fromStats)) {
+    return fromStats
+      .map(parseDomainRow)
+      .filter((row): row is JobRunDomainRow => Boolean(row));
+  }
+  const parsed = parseJobRunMessage(run?.message);
+  return parsed?.kind === "domains" ? parsed.domains : [];
+}
+
+export type JobRunStep = {
+  id: string;
+  label: string;
+  status: "waiting" | "running" | "success" | "warning" | "error" | "skipped";
+};
+
+export function jobRunSteps(
+  stats: Record<string, unknown> | null | undefined,
+): JobRunStep[] {
+  const rows = stats?.steps;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((value, index) => {
+    const row = asRecord(value);
+    if (!row) return [];
+    const label = String(row.label || row.id || `步骤 ${index + 1}`);
+    const rawStatus = String(row.status || "waiting");
+    const status = ["waiting", "running", "success", "warning", "error", "skipped"].includes(rawStatus)
+      ? (rawStatus as JobRunStep["status"])
+      : "waiting";
+    return [{ id: String(row.id || index), label, status }];
+  });
+}
+
+export function jobRunCategory(
+  stats: Record<string, unknown> | null | undefined,
+  fallback?: string | null,
+): string | null {
+  return String(stats?.category || fallback || "").trim() || null;
+}
+
+export function jobRunResult(
+  stats: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return asRecord(stats?.result) || {};
+}
+
+export function jobRunResultCounts(
+  stats: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const result = jobRunResult(stats);
+  return asRecord(result.counts) || {};
+}
+
+export function jobRunDurationText(
+  run: Pick<JobRunLike, "started_at" | "finished_at"> | null | undefined,
+  nowMs = Date.now(),
+): string {
+  if (!run?.started_at) return "—";
+  const start = parseBeijing(run.started_at).valueOf();
+  const end = run.finished_at ? parseBeijing(run.finished_at).valueOf() : nowMs;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "—";
+  const seconds = Math.max(0, Math.floor((end - start) / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remain = seconds % 60;
+  if (minutes < 60) return remain ? `${minutes} 分 ${remain} 秒` : `${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} 小时 ${minutes % 60} 分`;
+}
+
+export function jobRunDownloadProgress(
+  stats: Record<string, unknown> | null | undefined,
+): JobRunDownloadProgress | null {
+  if (!stats) return null;
+  const phase = String(stats.phase || "");
+  const file = stats.file == null ? "" : String(stats.file);
+  const bytes = parseOptionalNumber(stats.bytes) ?? null;
+  const totalBytes = parseOptionalNumber(stats.total_bytes) ?? null;
+  const filesDone = parseOptionalNumber(stats.files_done) ?? null;
+  const filesTotal = parseOptionalNumber(stats.files_total) ?? null;
+  const downloadPhase = phase === "download" || phase === "overlay";
+  const has =
+    downloadPhase ||
+    Boolean(file) ||
+    bytes != null ||
+    (filesTotal != null && filesTotal > 0);
+  if (!has) return null;
+  let filePercent: number | null = null;
+  if (totalBytes != null && totalBytes > 0 && bytes != null) {
+    filePercent = Math.max(0, Math.min(100, Math.round((bytes * 100) / totalBytes)));
+  }
+  const bytesPart = formatJobRunBytes(bytes);
+  const totalPart = formatJobRunBytes(totalBytes);
+  let bytesText = "";
+  if (bytesPart && totalPart) bytesText = `${bytesPart} / ${totalPart}`;
+  else if (bytesPart) bytesText = bytesPart;
+  const filesText =
+    filesDone != null && filesTotal != null
+      ? `${filesDone} / ${filesTotal} 个文件`
+      : "";
+  return {
+    file,
+    phase,
+    phaseLabel: jobRunPhaseLabel(phase),
+    filesDone,
+    filesTotal,
+    bytes,
+    totalBytes,
+    filePercent,
+    bytesText,
+    filesText,
+  };
+}
+
+export function parseJobRunMessage(
+  message: string | null | undefined,
+): ParsedJobRunMessage | null {
+  const raw = (message || "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    try {
+      const value: unknown = JSON.parse(raw);
+      const obj = asRecord(value);
+      const domainsRaw = obj?.domains;
+      if (obj && Array.isArray(domainsRaw)) {
+        const domains = domainsRaw
+          .map(parseDomainRow)
+          .filter((row): row is JobRunDomainRow => Boolean(row));
+        return {
+          kind: "domains",
+          okCount: Number(obj.ok_count ?? 0),
+          failedCount: Number(obj.failed_count ?? 0),
+          domains,
+        };
+      }
+      return { kind: "json", value };
+    } catch {
+      return { kind: "text", text: raw };
+    }
+  }
+  return { kind: "text", text: raw };
+}
+
+export function jobRunSummaryText(
+  run: JobRunLike | null,
+  acceptedMessage?: string,
+): string {
+  if (!run) return acceptedMessage || "已提交执行，正在运行…";
+  if (run.status === "queued") return run.message || "任务排队中…";
+  if (run.status === "running") {
+    return run.message || acceptedMessage || "已提交执行，正在运行…";
+  }
+  const parsed = parseJobRunMessage(run.message);
+  if (parsed?.kind === "text") return parsed.text;
+  if (parsed?.kind === "domains") {
+    if (parsed.failedCount === 0) return `完成：成功 ${parsed.okCount} 项`;
+    return `完成：成功 ${parsed.okCount} / 失败 ${parsed.failedCount}`;
+  }
+  const result = jobRunResult(run.stats);
+  if (typeof result.summary === "string" && result.summary) return result.summary;
+  if (run.message && parsed?.kind !== "json") return run.message;
+  if (run.status === "warning") return "任务部分完成，请查看失败项摘要";
+  return run.status === "ok" ? "执行完成" : "执行失败";
+}
+
+export function jobRunStatEntries(
+  stats: Record<string, unknown> | null | undefined,
+  opts?: { omitDownload?: boolean },
+): Array<{ key: string; label: string; value: string }> {
+  if (!stats) return [];
+  return Object.entries(stats)
+    .filter(([key, value]) => {
+      if (HIDDEN_STAT_KEYS.has(key)) return false;
+      if (["schema_version", "category", "steps", "progress", "result", "domains"].includes(key)) return false;
+      if (opts?.omitDownload && DOWNLOAD_STAT_KEYS.has(key)) return false;
+      return value != null && typeof value !== "object";
+    })
+    .map(([key, value]) => {
+      let text = String(value);
+      if (key === "bytes" || key === "total_bytes") {
+        text = formatJobRunBytes(value) || text;
+      } else if (key === "updated") {
+        text = value === true || value === "true" ? "是" : "否";
+      }
+      return {
+        key,
+        label: STAT_LABELS[key] || key,
+        value: text,
+      };
+    });
+}

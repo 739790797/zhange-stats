@@ -10,13 +10,15 @@
 | `runtime/` | `DATA_DIR`：`.secret_key`、应用 JSONL 日志、更新锁 / `update-tmp`（下载校验与解包）、安装令牌 `setup-token`（向导完成即删）、SQLite 时的 `zhange.sqlite` |
 | `uploads/` | `UPLOAD_DIR`：站内头像 `avatars/`、酒馆配图/附件 `articles/` |
 | `models/` | 下载权重：TexTeller（公式识别）。截图识别下线后，旧的 RapidOCR / EasyOCR 权重与 `ocr_REVISION` / `key_ocr_REVISION` 启动时自动删除 |
+| `repos/` | 四个上游数据仓的浅克隆：EndfieldData、完整工作树的 ArknightsGameResource、Tarkov overlay、Tarkov SVG。ArknightsGameResource 不做部分克隆或稀疏检出，仅浅化 Git 历史；首次同步全量检出工作树，后续按 Git fetch 增量更新。Windows 大小写不敏感目录中的同名异大小写路径可能无法同时检出，Git 会记录警告。任务管理中各游戏下的「外部仓库更新」任务每天 03:50 同步对应仓库的默认分支，默认超时 30 分钟且可在任务配置中按仓库单独调整；读请求遇到缺仓会提示前往任务配置手动同步；失败保留旧仓。此目录由 Git 忽略、备份排除，但仍可在管理端文件管理中常规浏览和管理 |
+
 | `run/` | `run` / `restart` 的 pid 与 stdout（Windows 与无 systemd 的 Linux） |
 | `backups/` | `backup` 默认输出目录 |
 | `mariadb/` | Windows 便携 MariaDB（发行包 `dist/`、数据目录 `data/`、`provision.json`） |
 | `cache/` | pytest / Vite / pip / Hugging Face 缓存、`PYTHONPYCACHEPREFIX`、工作台 Playwright profile。启动时会把家目录里**战鸽能认出来的**权重拷进来（TexTeller 仓库）；不搬整个 `~/.cache/huggingface` |
 | `tmp/` | 备份 / 恢复暂存、进程 tempfile（`TMPDIR`） |
 
-备份（`scripts/common/backup_util.py`）打包 `manifest.json`（版本、库引擎、Alembic 版本）、库（MySQL/MariaDB 为 `zhange.sql`；SQLite 用在线备份 API 拷一致副本）、`config/`、根 `.env`（若有）与 `runtime/`、`uploads/`、`models/`。`runtime/` 下跳过 `update-tmp/`、`update.lock`、`setup-token`、`tmp/`、`cache/`、`tarkov_pw_profile/`，`models/` 跳过下载中的 `*.part`，全程跳过 `__pycache__` 与符号链接；不打包 `cache/`、`run/`、`tmp/`、`mariadb/`、`backups/`。
+备份（`scripts/common/backup_util.py`）打包 `manifest.json`（版本、库引擎、Alembic 版本）、库（MySQL/MariaDB 为 `zhange.sql`；SQLite 用在线备份 API 拷一致副本）、`config/`、根 `.env`（若有）与 `runtime/`、`uploads/`、`models/`。`runtime/` 下跳过 `update-tmp/`、`update.lock`、`setup-token`、`tmp/`、`cache/`、`tarkov_pw_profile/`，`models/` 跳过下载中的 `*.part`，全程跳过 `__pycache__` 与符号链接；不打包 `cache/`、`repos/`、`run/`、`tmp/`、`mariadb/`、`backups/`。
 
 管理端「运行维护 → 文件管理」统计这些目录的磁盘占用，并可从安装根点进去增删改查。密钥、MariaDB 数据目录与备份仍不可下载/改/删；`.git`、`config/` 等普通目录可进可删。
-`frontend/src/api/generated/` 是提交进仓库的 OpenAPI 契约，不是缓存。
+`frontend/src/shared/api/generated/` 是提交进仓库的 OpenAPI 契约，不是缓存。

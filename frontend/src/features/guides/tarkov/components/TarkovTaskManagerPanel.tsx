@@ -1,0 +1,1281 @@
+import { Alert, Modal, Spin, message } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  clearTarkovTaskProgress,
+  fetchTarkovTaskDones,
+  fetchTarkovTasks,
+  writeTaskProgressLedger,
+  type TarkovTaskListItem,
+} from "@/features/guides/tarkov/api/guidesApi";
+import { TarkovTraderThumb } from "@/features/guides/tarkov/components/TarkovTraderThumb";
+import { TarkovTaskFlowBoard } from "@/features/guides/tarkov/components/TarkovTaskFlowBoard";
+import { apiError } from "@/shared/api/apiError";
+import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import { useAuthStore } from "@/features/auth/model/authStore";
+import {
+  filterTasksByFaction,
+  useTarkovPmcFaction,
+} from "@/features/guides/tarkov/model/tarkovPmcFaction";
+import { tarkovTaskHref, traderDisplayName } from "@/features/guides/tarkov/model/tarkovHomeNav";
+import {
+  orderObjectiveTypes,
+  tarkovObjectiveTypeLabel,
+  tarkovObjectiveTypeTone,
+} from "@/features/guides/tarkov/model/tarkovTaskObjective";
+import {
+  TARKOV_TASK_PROGRESS_EVENT,
+  notifyTarkovTaskProgress,
+  sameIdLists,
+  type TarkovTaskProgressDetail,
+} from "@/features/guides/tarkov/model/tarkovLiveWatch";
+import { applyTaskLineLedger, taskLineIndexFromTasks } from "@/features/guides/tarkov/model/tarkovTaskLineLedger";
+import { formatLastQuestSyncLine } from "@/features/guides/tarkov/model/tarkovTaskLogSync";
+import {
+  clearedMapFromServer,
+  questBoundaryFromServer,
+} from "@/features/guides/tarkov/model/tarkovQuestBoundary";
+import { TarkovLogSyncRangeModal } from "@/features/guides/tarkov/components/TarkovLogSyncRangeModal";
+import { useTarkovLogSyncDialog } from "@/features/guides/tarkov/hooks/useTarkovLogSyncDialog";
+import {
+  describeTaskMap,
+  displayTaskProgressName,
+  groupTasksByTrader,
+  isWritableTaskStatus,
+  isDerivedTaskStatus,
+  keepCatalogTaskProgress,
+  loadTaskDoneIds,
+  loadTaskFailedIds,
+  loadTaskObjectivePairs,
+  loadTaskStartedIds,
+  loadTaskSyncAt,
+  collectClosedTaskIds,
+  ledgerIdsToClear,
+  resolveAccountTaskProgress,
+  resolveTaskStatus,
+  saveTaskProgress,
+  setTaskStatus,
+  summarizeTaskProgress,
+  adoptServerTaskLedger,
+  clearTaskProgressForResync,
+  cleanTaskProgress,
+  taskIsAvailable,
+  taskMatchesQuery,
+  taskProgressQueryData,
+  overlayTaskProgressCache,
+  TASK_STATUS_KINDS,
+  TASK_STATUS_LABELS,
+  type TaskProgressSummary,
+  type TaskStatusKind,
+  type TraderTaskGroup,
+} from "@/features/guides/tarkov/model/tarkovTaskTree";
+import {
+  buildTraderTaskForest,
+  countForestTasks,
+  filterTaskForest,
+  loadTaskProgressView,
+  saveTaskProgressView,
+  tarkovFlowTaskAnchor,
+  tarkovFlowTraderAnchor,
+  type TaskProgressView,
+} from "@/features/guides/tarkov/model/tarkovTaskForest";
+import trade from "./TarkovGuideTrade.module.css";
+import taskStyles from "./TarkovTasksPanel.module.css";
+import styles from "./TarkovTaskManagerPanel.module.css";
+
+function requestStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  return (error as { response?: { status?: number } }).response?.status;
+}
+
+function rankTask(
+  task: TarkovTaskListItem,
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string>,
+  failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string>,
+): number {
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
+  if (status === "active") return 0;
+  if (status === "todo") {
+    return taskIsAvailable(task, done, started, failed, closed) ? 1 : 2;
+  }
+  if (status === "failed") return 3;
+  if (status === "unreachable") return 4;
+  return 5;
+}
+
+function sortTasksForBoard(
+  items: TarkovTaskListItem[],
+  done: ReadonlySet<string>,
+  started: ReadonlySet<string>,
+  failed: ReadonlySet<string> = new Set(),
+  closed?: ReadonlySet<string>,
+): TarkovTaskListItem[] {
+  return [...items].sort((a, b) => {
+    const diff =
+      rankTask(a, done, started, failed, closed) - rankTask(b, done, started, failed, closed);
+    if (diff !== 0) return diff;
+    return (a.name || a.id).localeCompare(b.name || b.id, "zh-CN");
+  });
+}
+
+function formatBoardMeta(count: TaskProgressSummary, visible: number): string {
+  const bits = [`显示 ${visible}`];
+  if (count.active) bits.push(`进行中 ${count.active}`);
+  if (count.failed) bits.push(`失败 ${count.failed}`);
+  if (count.unreachable) bits.push(`无法完成 ${count.unreachable}`);
+  if (count.completed) bits.push(`已完成 ${count.completed}`);
+  return bits.join(" · ");
+}
+
+const TASK_STATUS_OPTIONS: { value: TaskStatusKind; label: string }[] =
+  TASK_STATUS_KINDS.map((value) => ({
+    value,
+    label: TASK_STATUS_LABELS[value],
+  }));
+
+function collectTypeColumns(items: TarkovTaskListItem[]): string[] {
+  const seen = new Set<string>();
+  for (const item of items) {
+    for (const raw of item.objective_types || []) {
+      const key = String(raw || "").trim();
+      if (key) seen.add(key);
+    }
+  }
+  return orderObjectiveTypes([...seen]);
+}
+
+function statusRowClass(status: TaskStatusKind): string {
+  if (status === "done") return styles.rowDone;
+  if (status === "active") return styles.rowActive;
+  if (status === "failed") return styles.rowFailed;
+  if (status === "unreachable") return styles.rowUnreachable;
+  return "";
+}
+
+function TaskStatusSelect({
+  task,
+  done,
+  started,
+  failed,
+  closed,
+  onSetStatus,
+}: {
+  task: TarkovTaskListItem;
+  done: ReadonlySet<string>;
+  started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
+  onSetStatus: (taskId: string, status: TaskStatusKind) => void;
+}) {
+  const label = displayTaskProgressName(task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
+  const derived = isDerivedTaskStatus(task.id, done, started, task, failed, closed);
+  return (
+    <select
+      className={`${styles.statusSelect}${
+        status === "done"
+          ? ` ${styles.statusSelectDone}`
+          : status === "active"
+            ? ` ${styles.statusSelectActive}`
+            : status === "failed"
+              ? ` ${styles.statusSelectFailed}`
+              : status === "unreachable"
+                ? ` ${styles.statusSelectUnreachable}`
+                : ""
+      }`}
+      aria-label={`${label} 状态`}
+      value={status}
+      disabled={derived}
+      onChange={(event) =>
+        onSetStatus(task.id, event.target.value as TaskStatusKind)
+      }
+    >
+      {TASK_STATUS_OPTIONS.map((option) => (
+        <option
+          key={option.value}
+          value={option.value}
+          disabled={
+            !isWritableTaskStatus(option.value) && option.value !== status
+          }
+        >
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TaskMapMark({ task }: { task: TarkovTaskListItem }) {
+  const mapMark = describeTaskMap(task);
+  if (!mapMark) return null;
+  return (
+    <span
+      className={styles.rowMap}
+      title={
+        mapMark.english
+          ? `${mapMark.label}（${mapMark.english}）`
+          : mapMark.label
+      }
+    >
+      <MapGlyph icon={mapMark.icon} />
+      <span>{mapMark.label}</span>
+    </span>
+  );
+}
+
+function TaskRow({
+  task,
+  done,
+  started,
+  failed,
+  closed,
+  onSetStatus,
+  typeColumns,
+}: {
+  task: TarkovTaskListItem;
+  done: ReadonlySet<string>;
+  started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
+  onSetStatus: (taskId: string, status: TaskStatusKind) => void;
+  typeColumns: string[];
+}) {
+  const label = displayTaskProgressName(task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed);
+  const typeSet = new Set(orderObjectiveTypes(task.objective_types));
+  return (
+    <tr className={`${styles.row} ${statusRowClass(status)}`}>
+      <td className={styles.cellName}>
+        <Link className={styles.name} to={tarkovTaskHref(task.id)}>
+          {label}
+        </Link>
+      </td>
+      <td className={styles.cellStatus}>
+        <TaskStatusSelect
+          task={task}
+          done={done}
+          started={started}
+          failed={failed}
+          closed={closed}
+          onSetStatus={onSetStatus}
+        />
+      </td>
+      <td className={styles.cellMap}>
+        <TaskMapMark task={task} />
+      </td>
+      {typeColumns.map((type) => (
+        <td key={type} className={styles.cellType}>
+          {typeSet.has(type) ? (
+            <span
+              className={`${taskStyles.typeChip} ${styles.typeHit}`}
+              data-tone={tarkovObjectiveTypeTone(type)}
+              title={tarkovObjectiveTypeLabel(type)}
+            />
+          ) : null}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function MapGlyph({ icon }: { icon: string }) {
+  if (!icon) return null;
+  return (
+    <svg className={styles.mapGlyph} viewBox="0 0 24 24" aria-hidden>
+      <path d={icon} fill="currentColor" />
+    </svg>
+  );
+}
+
+
+export function TarkovTaskManagerPanel() {
+  const gameMode = useTarkovGameMode();
+  const loggedIn = Boolean(useAuthStore((s) => s.user));
+  const { faction } = useTarkovPmcFaction();
+  const logSync = useTarkovLogSyncDialog();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const trader = (searchParams.get("trader") || "").trim();
+  const q = (searchParams.get("q") || "").trim();
+  const [keyword, setKeyword] = useState(q);
+  const qRef = useRef(q);
+  const hydratedModeRef = useRef("");
+  const touchedRef = useRef(false);
+  const [doneIds, setDoneIds] = useState<string[]>(() => loadTaskDoneIds(gameMode));
+  const [startedIds, setStartedIds] = useState<string[]>(() =>
+    loadTaskStartedIds(gameMode),
+  );
+  const [failedIds, setFailedIds] = useState<string[]>(() =>
+    loadTaskFailedIds(gameMode),
+  );
+  const doneIdsRef = useRef(doneIds);
+  const startedIdsRef = useRef(startedIds);
+  const failedIdsRef = useRef(failedIds);
+  doneIdsRef.current = doneIds;
+  startedIdsRef.current = startedIds;
+  failedIdsRef.current = failedIds;
+  const [lastSyncAt, setLastSyncAt] = useState(() => loadTaskSyncAt(gameMode));
+  const [flowHighlightTrader, setFlowHighlightTrader] = useState("");
+  const [flowHighlightTask, setFlowHighlightTask] = useState("");
+  const [flowVisibleTrader, setFlowVisibleTrader] = useState("");
+  const [progressView, setProgressView] = useState<TaskProgressView>(
+    loadTaskProgressView,
+  );
+
+  useEffect(() => {
+    setDoneIds(loadTaskDoneIds(gameMode));
+    setStartedIds(loadTaskStartedIds(gameMode));
+    setFailedIds(loadTaskFailedIds(gameMode));
+    setLastSyncAt(loadTaskSyncAt(gameMode));
+    hydratedModeRef.current = "";
+    touchedRef.current = false;
+  }, [gameMode]);
+
+  const applyProgress = useCallback(
+    (
+      nextDone: string[],
+      nextStarted: string[],
+      migrated = true,
+      startedMigrated = false,
+      objectives?: Array<{ task_id: string; objective_id: string }>,
+      nextFailed?: string[],
+    ) => {
+      const cleaned = cleanTaskProgress(
+        nextDone,
+        nextStarted,
+        nextFailed ?? failedIdsRef.current,
+      );
+      doneIdsRef.current = cleaned.done;
+      startedIdsRef.current = cleaned.started;
+      failedIdsRef.current = cleaned.failed;
+      setDoneIds(cleaned.done);
+      setStartedIds(cleaned.started);
+      setFailedIds(cleaned.failed);
+      saveTaskProgress(
+        gameMode,
+        cleaned.done,
+        cleaned.started,
+        migrated,
+        startedMigrated,
+        objectives,
+        cleaned.failed,
+      );
+      queryClient.setQueryData(
+        ["guides-tarkov-task-dones", gameMode],
+        (prev) =>
+          overlayTaskProgressCache(
+            prev,
+            taskProgressQueryData(
+              cleaned.done,
+              cleaned.started,
+              objectives ?? loadTaskObjectivePairs(gameMode),
+              cleaned.failed,
+            ),
+          ),
+      );
+    },
+    [gameMode, queryClient],
+  );
+
+  useEffect(() => {
+    const onProgress = (event: Event) => {
+      const detail = (event as CustomEvent<TarkovTaskProgressDetail>).detail;
+      if (!detail || detail.mode !== gameMode) return;
+      if (detail.syncedAt) setLastSyncAt(detail.syncedAt);
+      if (detail.changed === false) return;
+      touchedRef.current = true;
+      applyProgress(
+        detail.done,
+        detail.started,
+        true,
+        false,
+        detail.objectives,
+        detail.failed,
+      );
+    };
+    window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
+    return () => window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
+  }, [applyProgress, gameMode]);
+
+  const applyServerProgress = useCallback(
+    (data: {
+      task_ids?: string[];
+      started_ids?: string[];
+      failed_ids?: string[];
+      objective_dones?: Array<{ task_id: string; objective_id: string }>;
+    }) => {
+      applyProgress(
+        data.task_ids || [],
+        data.started_ids || [],
+        true,
+        true,
+        data.objective_dones,
+        data.failed_ids,
+      );
+    },
+    [applyProgress],
+  );
+
+  const donesQuery = useQuery({
+    queryKey: ["guides-tarkov-task-dones", gameMode],
+    queryFn: fetchTarkovTaskDones,
+    staleTime: 60_000,
+    retry: 1,
+    enabled: loggedIn,
+  });
+
+  const writeMut = useMutation({
+    mutationFn: (payload: {
+      done: string[];
+      started: string[];
+      failed: string[];
+      prevDone: string[];
+      prevStarted: string[];
+      prevFailed: string[];
+    }) =>
+      writeTaskProgressLedger(
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+          objectives: loadTaskObjectivePairs(gameMode),
+        },
+        {
+          done: payload.prevDone,
+          started: payload.prevStarted,
+          failed: payload.prevFailed,
+        },
+      ),
+    onSuccess: (data, payload) => {
+      applyProgress(
+        payload.done,
+        payload.started,
+        true,
+        true,
+        data.objective_dones,
+        payload.failed,
+      );
+      if (Array.isArray(data.cleared)) {
+        queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
+          overlayTaskProgressCache(
+            prev,
+            taskProgressQueryData(
+              payload.done,
+              payload.started,
+              data.objective_dones ?? loadTaskObjectivePairs(gameMode),
+              payload.failed,
+            ),
+            data,
+          ),
+        );
+      }
+      const extras = ledgerIdsToClear(
+        {
+          done: data.task_ids,
+          started: data.started_ids,
+          failed: data.failed_ids,
+        },
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+        },
+      );
+      if (!extras.length) return;
+      void writeTaskProgressLedger(
+        {
+          done: payload.done,
+          started: payload.started,
+          failed: payload.failed,
+          objectives: data.objective_dones,
+        },
+        {
+          done: data.task_ids,
+          started: data.started_ids,
+          failed: data.failed_ids,
+        },
+      ).catch(() => {});
+    },
+    onError: async (error) => {
+      if (requestStatus(error) === 401) return;
+      const result = await donesQuery.refetch();
+      if (result.data) applyServerProgress(result.data);
+    },
+  });
+
+  useEffect(() => {
+    if (!donesQuery.isSuccess || donesQuery.data == null) return;
+    if (hydratedModeRef.current === gameMode) return;
+    hydratedModeRef.current = gameMode;
+    if (touchedRef.current) return;
+    const next = resolveAccountTaskProgress(donesQuery.data, gameMode);
+    applyProgress(
+      next.done,
+      next.started,
+      false,
+      false,
+      next.objectives,
+      next.failed,
+    );
+  }, [applyProgress, donesQuery.data, donesQuery.isSuccess, gameMode]);
+
+  useEffect(() => {
+    setKeyword(q);
+    qRef.current = q;
+  }, [q]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = keyword.trim();
+      if (qRef.current === next) return;
+      qRef.current = next;
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      setSearchParams(params, { replace: true });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [keyword, searchParams, setSearchParams]);
+
+  const catalogQuery = useQuery({
+    queryKey: ["guides-tarkov-task-list", gameMode],
+    queryFn: () => fetchTarkovTasks({ layout: "all" }),
+    staleTime: 5 * 60_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  });
+
+  const catalogItems = useMemo(
+    () => catalogQuery.data?.items ?? [],
+    [catalogQuery.data],
+  );
+  const lineIndex = useMemo(
+    () => taskLineIndexFromTasks(catalogItems),
+    [catalogItems],
+  );
+
+  useEffect(() => {
+    if (!lineIndex.mutexById.size && !lineIndex.blockedById.size) return;
+    if (loggedIn && !donesQuery.isSuccess) return;
+    const prev = {
+      done: doneIdsRef.current,
+      started: startedIdsRef.current,
+      failed: failedIdsRef.current,
+    };
+    const next = applyTaskLineLedger(
+      prev.done,
+      prev.started,
+      prev.failed,
+      lineIndex,
+    );
+    if (
+      sameIdLists(next.done, prev.done) &&
+      sameIdLists(next.started, prev.started) &&
+      sameIdLists(next.failed, prev.failed)
+    ) {
+      return;
+    }
+    applyProgress(next.done, next.started, true, false, undefined, next.failed);
+    notifyTarkovTaskProgress({
+      mode: gameMode,
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      changed: true,
+      source: "user",
+    });
+    if (!loggedIn) return;
+    writeMut.mutate({
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      prevDone: prev.done,
+      prevStarted: prev.started,
+      prevFailed: prev.failed,
+    });
+  }, [
+    applyProgress,
+    doneIds,
+    donesQuery.isSuccess,
+    failedIds,
+    gameMode,
+    loggedIn,
+    lineIndex,
+    startedIds,
+    writeMut,
+  ]);
+  const items = useMemo(
+    () => filterTasksByFaction(catalogItems, faction),
+    [catalogItems, faction],
+  );
+  const traders = useMemo(
+    () => catalogQuery.data?.traders ?? [],
+    [catalogQuery.data],
+  );
+  const traderChips = useMemo(
+    () => traders.map((item) => ({ slug: item.slug, name: item.name })),
+    [traders],
+  );
+  const knownIds = useMemo(
+    () => new Set(catalogItems.map((item) => item.id)),
+    [catalogItems],
+  );
+  const visibleProgress = useMemo(() => {
+    const cataloged = keepCatalogTaskProgress(
+      doneIds,
+      startedIds,
+      catalogQuery.data ? knownIds : null,
+      failedIds,
+    );
+    if (!lineIndex.mutexById.size && !lineIndex.blockedById.size) return cataloged;
+    return applyTaskLineLedger(
+      cataloged.done,
+      cataloged.started,
+      cataloged.failed,
+      lineIndex,
+    );
+  }, [catalogQuery.data, doneIds, failedIds, knownIds, lineIndex, startedIds]);
+  const done = useMemo(
+    () => new Set(visibleProgress.done),
+    [visibleProgress],
+  );
+  const started = useMemo(
+    () => new Set(visibleProgress.started),
+    [visibleProgress],
+  );
+  const failed = useMemo(
+    () => new Set(visibleProgress.failed),
+    [visibleProgress],
+  );
+  const closed = useMemo(
+    () => collectClosedTaskIds(items, done, started, failed),
+    [items, done, started, failed],
+  );
+
+  const itemsByTrader = useMemo(() => {
+    const map = new Map<string, TarkovTaskListItem[]>();
+    for (const item of items) {
+      const slug = item.trader_slug || "";
+      const list = map.get(slug) || [];
+      list.push(item);
+      map.set(slug, list);
+    }
+    return map;
+  }, [items]);
+
+  const scopedItems = useMemo(
+    () => (trader ? itemsByTrader.get(trader) ?? [] : items),
+    [items, itemsByTrader, trader],
+  );
+
+  const summary = useMemo(
+    () =>
+      summarizeTaskProgress(
+        progressView === "tree" ? items : scopedItems,
+        done,
+        started,
+        failed,
+      ),
+    [done, failed, items, progressView, scopedItems, started],
+  );
+  const itemById = useMemo(() => {
+    const map = new Map<string, TarkovTaskListItem>();
+    for (const item of items) map.set(item.id, item);
+    return map;
+  }, [items]);
+  const groups = useMemo(
+    () =>
+      groupTasksByTrader(items, traderChips, done, {
+        q,
+      }).filter((group) => !trader || group.traderSlug === trader),
+    [done, items, q, trader, traderChips],
+  );
+  const treeBoards = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return groupTasksByTrader(items, traderChips, done, {})
+      .map((group) => {
+        const native = group.items as TarkovTaskListItem[];
+        const built = buildTraderTaskForest(native, itemById);
+        const forest = needle
+          ? filterTaskForest(built, (row) => taskMatchesQuery(row, needle))
+          : built;
+        return {
+          traderSlug: group.traderSlug,
+          traderName: group.traderName,
+          forest,
+          count: summarizeTaskProgress(native, done, started, failed),
+          visible: countForestTasks(forest),
+        };
+      })
+      .filter((row) => row.visible > 0);
+  }, [done, failed, itemById, items, q, started, traderChips]);
+  const typeColumns = useMemo(
+    () => collectTypeColumns(scopedItems),
+    [scopedItems],
+  );
+  const traderNav = useMemo(
+    () =>
+      traders
+        .map((item) => {
+          const rows = itemsByTrader.get(item.slug) ?? [];
+          return {
+            item,
+            labels: { english: traderDisplayName(item.slug, item.name) },
+            count: summarizeTaskProgress(rows, done, started, failed),
+          };
+        })
+        .filter((row) => row.count.total > 0),
+    [done, failed, itemsByTrader, started, traders],
+  );
+
+  const setTraderFilter = (nextTrader: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (!nextTrader) params.delete("trader");
+    else params.set("trader", nextTrader);
+    setSearchParams(params, { replace: true });
+  };
+
+  const locateFlowTrader = (slug: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (!slug) {
+      params.delete("trader");
+      setSearchParams(params, { replace: true });
+      setFlowHighlightTrader("");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    params.set("trader", slug);
+    setSearchParams(params, { replace: true });
+    window.setTimeout(() => {
+      document
+        .getElementById(tarkovFlowTraderAnchor(slug))
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    setFlowHighlightTrader(slug);
+    window.setTimeout(() => setFlowHighlightTrader(""), 1600);
+  };
+
+  const jumpToFlowTask = (taskId: string) => {
+    const el = document.getElementById(tarkovFlowTaskAnchor(taskId));
+    if (el) {
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+      setFlowHighlightTask(taskId);
+      window.setTimeout(() => setFlowHighlightTask(""), 1600);
+      return;
+    }
+    const slug = (itemById.get(taskId)?.trader_slug || "").trim();
+    if (slug) locateFlowTrader(slug);
+  };
+
+  const onVisibleTrader = useCallback((slug: string) => {
+    setFlowVisibleTrader(slug);
+  }, []);
+
+  const changeProgressView = (next: TaskProgressView) => {
+    setProgressView(next);
+    saveTaskProgressView(next);
+  };
+
+  const changeStatus = (taskId: string, status: TaskStatusKind) => {
+    if (!isWritableTaskStatus(status)) return;
+    const task = items.find((row) => row.id === taskId);
+    const prev = {
+      done: doneIdsRef.current,
+      started: startedIdsRef.current,
+      failed: failedIdsRef.current,
+    };
+    const current = resolveTaskStatus(
+      taskId,
+      new Set(prev.done),
+      new Set(prev.started),
+      task,
+      new Set(prev.failed),
+      closed,
+    );
+    if (current === status) return;
+    if (
+      isDerivedTaskStatus(
+        taskId,
+        new Set(prev.done),
+        new Set(prev.started),
+        task,
+        new Set(prev.failed),
+        closed,
+      )
+    ) {
+      return;
+    }
+    const next = setTaskStatus(
+      prev.done,
+      prev.started,
+      taskId,
+      status,
+      prev.failed,
+      task?.mutex_ids,
+      catalogItems,
+    );
+    touchedRef.current = true;
+    applyProgress(next.done, next.started, true, false, undefined, next.failed);
+    notifyTarkovTaskProgress({
+      mode: gameMode,
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      changed: true,
+      source: "user",
+    });
+    writeMut.mutate({
+      done: next.done,
+      started: next.started,
+      failed: next.failed,
+      prevDone: prev.done,
+      prevStarted: prev.started,
+      prevFailed: prev.failed,
+    });
+  };
+
+  if (catalogQuery.isLoading && !catalogQuery.data) {
+    return (
+      <div className={trade.status}>
+        <Spin tip="加载任务…" />
+      </div>
+    );
+  }
+
+  if (catalogQuery.isError && !catalogQuery.data) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="任务列表加载失败"
+        description={apiError(catalogQuery.error, "任务列表加载失败")}
+      />
+    );
+  }
+
+  const flowSelected =
+    progressView === "tree" ? flowVisibleTrader || trader : trader;
+  const allOn = !flowSelected;
+  const statSegments = (
+    [
+      {
+        key: "done",
+        label: "已完成",
+        value: summary.completed,
+        tone: styles.statDone,
+        bar: styles.meterDone,
+      },
+      {
+        key: "active",
+        label: "进行中",
+        value: summary.active,
+        tone: styles.statActive,
+        bar: styles.meterActive,
+      },
+      {
+        key: "todo",
+        label: "未完成",
+        value: summary.incomplete,
+        tone: styles.statTodo,
+        bar: styles.meterTodo,
+      },
+      {
+        key: "failed",
+        label: "失败",
+        value: summary.failed,
+        tone: styles.statFailed,
+        bar: styles.meterFailed,
+      },
+      {
+        key: "unreachable",
+        label: "无法完成",
+        value: summary.unreachable,
+        tone: styles.statUnreachable,
+        bar: styles.meterUnreachable,
+      },
+    ] as const
+  ).filter((row) => row.value > 0);
+  const shownStats = statSegments.length
+    ? statSegments
+    : [
+        {
+          key: "empty",
+          label: "未完成",
+          value: 0,
+          tone: styles.statTodo,
+          bar: styles.meterTodo,
+        },
+      ];
+
+  return (
+    <div className={styles.stack}>
+      {catalogQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="任务列表加载失败"
+          description={apiError(catalogQuery.error, "任务列表加载失败")}
+        />
+      ) : null}
+
+      <section className={styles.overview}>
+        <div className={styles.stats}>
+          {shownStats.map((row) => (
+            <div key={row.key} className={`${styles.stat} ${row.tone}`}>
+              <span className={styles.statLabel}>{row.label}</span>
+              <span className={styles.statValue}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className={styles.meter} aria-hidden>
+          {shownStats.map((row) => (
+            <span
+              key={row.key}
+              className={row.bar}
+              style={{ flexGrow: row.value || 1 }}
+            />
+          ))}
+        </div>
+      </section>
+
+      <div className={styles.workspace}>
+        <aside className={styles.side}>
+          <div className={styles.filters}>
+            <input
+              className={styles.search}
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索任务名"
+              aria-label="搜索任务"
+            />
+            <table className={styles.filterTable}>
+              <tbody>
+                <tr>
+                  <td>
+                    <button
+                      type="button"
+                      className={`${styles.viewBtn}${
+                        progressView === "list" ? ` ${styles.viewOn}` : ""
+                      }`}
+                      aria-pressed={progressView === "list"}
+                      onClick={() => changeProgressView("list")}
+                    >
+                      列表
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={`${styles.viewBtn}${
+                        progressView === "tree" ? ` ${styles.viewOn}` : ""
+                      }`}
+                      aria-pressed={progressView === "tree"}
+                      onClick={() => changeProgressView("tree")}
+                    >
+                      流程图
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2}>
+                    <button
+                      type="button"
+                      className={styles.clearBtn}
+                      disabled={logSync.busy || logSync.listing}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: "清空任务进度",
+                          content:
+                            "会清掉当前模式下的已完成、进行中、失败、小步骤和逐条取消记录。游戏日志里没有转生记录。之后同步会按日志把任务补回来；若要转生，在同步日历里对某一局点「转生归档」，从那一局结束之后重新解析。",
+                          okText: "清空",
+                          okButtonProps: { danger: true },
+                          cancelText: "取消",
+                          onOk: async () => {
+                            if (loggedIn) {
+                              // 先清账号：失败就不动本机，免得只清了本机、下次又从账号并回来
+                              let data;
+                              try {
+                                data = await clearTarkovTaskProgress();
+                              } catch (error) {
+                                message.error(apiError(error, "清空任务进度失败"));
+                                return;
+                              }
+                              clearTaskProgressForResync(gameMode);
+                              adoptServerTaskLedger(gameMode, {
+                                done: data.task_ids || [],
+                                started: data.started_ids || [],
+                                failed: data.failed_ids || [],
+                                objectives: data.objective_dones || [],
+                                cleared: clearedMapFromServer(data.cleared),
+                                boundary: questBoundaryFromServer(data),
+                              });
+                              queryClient.setQueryData(
+                                ["guides-tarkov-task-dones", gameMode],
+                                data,
+                              );
+                            } else {
+                              clearTaskProgressForResync(gameMode);
+                            }
+                            notifyTarkovTaskProgress({
+                              mode: gameMode,
+                              done: [],
+                              started: [],
+                              failed: [],
+                              objectives: [],
+                              changed: true,
+                              source: "user",
+                            });
+                            setTimeout(() => {
+                              Modal.confirm({
+                                title: "同步任务",
+                                content:
+                                  "进度已清空。要现在打开同步日历吗？不对某一局点「转生归档」的话，同步会按日志把任务补回来，不会把刚才的点击时刻当成起点。",
+                                okText: "去选启动",
+                                cancelText: "稍后",
+                                onOk: () => {
+                                  void logSync.openDialog();
+                                },
+                              });
+                            }, 0);
+                          },
+                        });
+                      }}
+                    >
+                      清空进度
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2}>
+                    <button
+                      type="button"
+                      className={styles.syncBtn}
+                      disabled={logSync.listing}
+                      title={logSync.title}
+                      onClick={() => void logSync.openDialog()}
+                    >
+                      {logSync.label}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <span className={styles.syncHint}>
+              {logSync.scan
+                ? `正在解析 ${logSync.scan.done} / ${logSync.scan.total}`
+                : formatLastQuestSyncLine(lastSyncAt)}
+            </span>
+          </div>
+          <div className={styles.rail} role="radiogroup" aria-label="按商人筛选">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={allOn}
+              className={`${styles.traderBtn} ${styles.traderAll}${allOn ? ` ${styles.traderOn}` : ""}`}
+              onClick={() =>
+                progressView === "tree"
+                  ? locateFlowTrader(null)
+                  : setTraderFilter(null)
+              }
+            >
+              全部
+            </button>
+            {traderNav.map(({ item, labels, count }) => {
+              const selected = flowSelected === item.slug;
+              const pct = count.total
+                ? Math.round((count.completed / count.total) * 100)
+                : 0;
+              return (
+                <button
+                  key={item.slug || item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={labels.english}
+                  title={labels.english}
+                  className={`${styles.traderBtn}${selected ? ` ${styles.traderOn}` : ""}`}
+                  onClick={() =>
+                    progressView === "tree"
+                      ? locateFlowTrader(item.slug)
+                      : setTraderFilter(item.slug)
+                  }
+                >
+                  <TarkovTraderThumb slug={item.slug} size={36} />
+                  <span className={styles.traderCaption}>
+                    <span className={styles.traderName}>
+                      {labels.english}
+                    </span>
+                    <span className={styles.traderMeta}>
+                      <span
+                        className={`${styles.traderCount}${
+                          count.total > 0 && count.completed === count.total
+                            ? ` ${styles.traderCountDone}`
+                            : ""
+                        }`}
+                      >
+                        {count.completed}
+                      </span>
+                      <span className={styles.bar} aria-hidden>
+                        <span className={styles.barFill} style={{ width: `${pct}%` }} />
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className={styles.board}>
+          {progressView === "tree" ? (
+            <TarkovTaskFlowBoard
+              lanes={treeBoards}
+              done={done}
+              started={started}
+              failed={failed}
+              closed={closed}
+              itemById={itemById}
+              highlightTrader={flowHighlightTrader}
+              highlightTask={flowHighlightTask}
+              onSetStatus={changeStatus}
+              onJumpTask={jumpToFlowTask}
+              onVisibleTrader={onVisibleTrader}
+            />
+          ) : groups.length ? (
+            groups.map((group) => (
+              <TraderGroup
+                key={group.traderSlug || "none"}
+                group={group}
+                count={summarizeTaskProgress(
+                  itemsByTrader.get(group.traderSlug) ?? group.items,
+                  done,
+                  started,
+                  failed,
+                )}
+                done={done}
+                started={started}
+                failed={failed}
+                closed={closed}
+                typeColumns={typeColumns}
+                onSetStatus={changeStatus}
+              />
+            ))
+          ) : (
+            <div className={styles.empty}>当前筛选下无任务</div>
+          )}
+        </div>
+      </div>
+      <TarkovLogSyncRangeModal
+        open={logSync.open}
+        sessions={logSync.sessions}
+        onCancel={logSync.closeDialog}
+        onConfirm={logSync.confirm}
+      />
+    </div>
+  );
+}
+
+function TraderGroup({
+  group,
+  count,
+  done,
+  started,
+  failed,
+  closed,
+  typeColumns,
+  onSetStatus,
+}: {
+  group: TraderTaskGroup;
+  count: TaskProgressSummary;
+  done: ReadonlySet<string>;
+  started: ReadonlySet<string>;
+  failed?: ReadonlySet<string>;
+  closed?: ReadonlySet<string>;
+  typeColumns: string[];
+  onSetStatus: (taskId: string, status: TaskStatusKind) => void;
+}) {
+  const title =
+    traderDisplayName(group.traderSlug, group.traderName) || "未知商人";
+  const rows = sortTasksForBoard(
+    group.items as TarkovTaskListItem[],
+    done,
+    started,
+    failed,
+    closed,
+  );
+  return (
+    <section className={styles.group}>
+      <h3 className={styles.traderHead}>
+        <span className={styles.traderHeadTitle}>
+          {group.traderSlug ? (
+            <TarkovTraderThumb
+              slug={group.traderSlug}
+              size={28}
+              title={title}
+            />
+          ) : null}
+          <span>{title}</span>
+        </span>
+        <span className={styles.sectionMeta}>
+          {formatBoardMeta(count, rows.length)}
+        </span>
+      </h3>
+      <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <colgroup>
+          <col className={styles.colName} />
+          <col className={styles.colStatus} />
+          <col className={styles.colMap} />
+          {typeColumns.map((type) => (
+            <col key={type} className={styles.colType} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            <th className={styles.cellName} scope="col">
+              任务
+            </th>
+            <th className={styles.cellStatus} scope="col">
+              状态
+            </th>
+            <th className={styles.cellMap} scope="col">
+              地点
+            </th>
+            {typeColumns.map((type) => (
+              <th
+                key={type}
+                className={styles.cellType}
+                scope="col"
+                title={type}
+              >
+                {tarkovObjectiveTypeLabel(type)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item) => (
+            <TaskRow
+              key={item.id}
+              task={item}
+              done={done}
+              started={started}
+              failed={failed}
+              closed={closed}
+              typeColumns={typeColumns}
+              onSetStatus={onSetStatus}
+            />
+          ))}
+        </tbody>
+      </table>
+      </div>
+    </section>
+  );
+}

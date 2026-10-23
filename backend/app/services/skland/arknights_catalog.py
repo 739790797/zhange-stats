@@ -9,48 +9,25 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.core.http_client import HttpRequestError, http_request
 from app.core.timeutil import now_naive
 from app.models.arknights import ArknightsCatalogMeta, ArknightsOperator
-from app.services.skland.client import CHAR_AVATAR_CDN, PROFESSION_CN
+from app.services.skland.arknights_assets import asset_url
+from app.services.skland.client import PROFESSION_CN
+from app.services.upstream_repos import REPO_ARKNIGHTS, RepoError, ensure_repo, read_repo_text
 
 logger = logging.getLogger(__name__)
 
-CHARACTER_TABLE_URL = (
-    "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/"
-    "main/gamedata/excel/character_table.json"
-)
-VERSION_URL = (
-    "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/version"
-)
+CHARACTER_TABLE_REL = "gamedata/excel/character_table.json"
+VERSION_REL = "version"
 
 OPERATOR_PROFESSIONS = set(PROFESSION_CN.keys())
 META_ROW_ID = 1
-DOWNLOAD_TIMEOUT = 120
-# 全量角色表在 8 MiB 上下且随版本增长，不套 http_client 的默认上限
-DOWNLOAD_MAX_BYTES = 64 * 1024 * 1024
 
 
 class ArknightsCatalogError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
-
-
-def _http_get_bytes(url: str, *, timeout: int = DOWNLOAD_TIMEOUT) -> bytes:
-    try:
-        resp = http_request(
-            "GET",
-            url,
-            headers={"User-Agent": "zhange-stats/1.0"},
-            timeout=timeout,
-            max_bytes=DOWNLOAD_MAX_BYTES,
-        )
-    except HttpRequestError as exc:
-        raise ArknightsCatalogError(f"无法连接资源站: {exc}") from exc
-    if resp.status_code >= 400:
-        raise ArknightsCatalogError(f"下载失败 HTTP {resp.status_code}: {url}")
-    return resp.content
 
 
 def _parse_rarity(raw: Any) -> int:
@@ -102,7 +79,7 @@ def parse_character_table(table: dict[str, Any]) -> list[dict[str, Any]]:
                 "profession": profession,
                 "profession_label": PROFESSION_CN.get(profession, profession or "未知"),
                 "sort_id": sort_id,
-                "avatar_url": f"{CHAR_AVATAR_CDN}/{char_id}.png",
+                "avatar_url": asset_url("avatar", f"{char_id}.png"),
             }
         )
     rows.sort(key=lambda r: (-r["rarity"], r["sort_id"], r["char_id"]))
@@ -141,21 +118,25 @@ def ensure_catalog(db: Session) -> list[ArknightsOperator]:
 
 
 def sync_from_upstream(db: Session) -> dict[str, Any]:
-    """拉取 character_table 并全量替换图鉴。"""
-    logger.info("syncing arknights character_table from upstream")
-    raw = _http_get_bytes(CHARACTER_TABLE_URL)
+    """从本地 ArknightsGameResource 克隆读取 character_table 并全量替换图鉴。"""
+    logger.info("syncing arknights character_table from local clone")
     try:
-        table = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        ensure_repo(REPO_ARKNIGHTS)
+        raw = read_repo_text(REPO_ARKNIGHTS, CHARACTER_TABLE_REL)
+    except RepoError as exc:
+        raise ArknightsCatalogError(exc.message) from exc
+    try:
+        table = json.loads(raw)
+    except json.JSONDecodeError as exc:
         raise ArknightsCatalogError("character_table.json 解析失败") from exc
     if not isinstance(table, dict):
         raise ArknightsCatalogError("character_table.json 格式无效")
 
     version = ""
     try:
-        version = _http_get_bytes(VERSION_URL, timeout=30).decode("utf-8").strip()
-    except ArknightsCatalogError:
-        logger.warning("failed to fetch ArknightsGameResource version file")
+        version = read_repo_text(REPO_ARKNIGHTS, VERSION_REL).strip()
+    except RepoError:
+        logger.warning("arknights game resource version file missing")
 
     rows = parse_character_table(table)
     if not rows:
@@ -201,12 +182,16 @@ CATALOG_JOB_KEY = "arknights_catalog_sync"
 def catalog_sync_job_wrapper() -> None:
     """定时从 ArknightsGameResource 同步干员图鉴。"""
     from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
     from app.services.job_runs_prune import fail_job_run
+    from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
 
     db = SessionLocal()
-    job = JobRun(job_key=CATALOG_JOB_KEY, status="running", started_at=now_naive())
-    db.add(job)
+    job = create_or_reuse_job_run(
+        db,
+        CATALOG_JOB_KEY,
+        message="正在同步游戏资源",
+        stats={"phase": "start"},
+    )
     db.commit()
     run_id = job.id
     try:
@@ -218,6 +203,20 @@ def catalog_sync_job_wrapper() -> None:
                 "source_version": result.get("source_version"),
             },
             ensure_ascii=False,
+        )
+        job.stats = versioned_job_stats(
+            CATALOG_JOB_KEY,
+            status="ok",
+            stats={
+                "phase": "done",
+                "operator_count": result.get("operator_count"),
+                "source_version": result.get("source_version"),
+                "result": {
+                    "summary": "游戏资源已更新",
+                    "counts": {"operators": result.get("operator_count")},
+                },
+            },
+            message="游戏资源已更新",
         )
         job.finished_at = now_naive()
         db.commit()

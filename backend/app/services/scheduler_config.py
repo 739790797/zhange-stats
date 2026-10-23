@@ -7,6 +7,11 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.file_config import read_json, write_json
+from app.services.upstream_repos import (
+    DEFAULT_REPO_SYNC_TIMEOUT_MINUTES,
+    MAX_REPO_SYNC_TIMEOUT_MINUTES,
+    REPO_SYNC_JOB_IDS,
+)
 
 SCHEDULER_CONFIG_KEY = "scheduler_jobs"
 
@@ -22,12 +27,15 @@ JOB_IDS = (
     "exilium_checkin",
     "kujiequ_checkin",
     "mihoyo_checkin",
+    *REPO_SYNC_JOB_IDS.values(),
     "tarkov_full_sync",
     "ror2_wiki_sync",
     "ror2_weblate_sync",
     "texteller_model_sync",
     "job_runs_prune",
 )
+
+UPSTREAM_REPO_JOB_IDS = tuple(REPO_SYNC_JOB_IDS.values())
 
 INTERVAL_JOB_IDS = frozenset({"steam_presence"})
 
@@ -53,6 +61,15 @@ def _clamp_interval(value: Any, default: int = 3) -> int:
         return default
 
 
+def _clamp_repo_sync_timeout(
+    value: Any, default: int = DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
+) -> int:
+    try:
+        return max(1, min(MAX_REPO_SYNC_TIMEOUT_MINUTES, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _code_defaults() -> dict[str, dict[str, Any]]:
     return {
         "steam_presence": {"enabled": True, "interval_minutes": 3},
@@ -62,6 +79,15 @@ def _code_defaults() -> dict[str, dict[str, Any]]:
         "arknights_catalog_sync": {"enabled": True, "hour": 4, "minute": 0},
         "game_schedule_arknights_sync": {"enabled": True, "hour": 5, "minute": 0},
         "game_schedule_endfield_sync": {"enabled": True, "hour": 5, "minute": 0},
+        **{
+            job_id: {
+                "enabled": True,
+                "hour": 3,
+                "minute": 50,
+                "timeout_minutes": DEFAULT_REPO_SYNC_TIMEOUT_MINUTES,
+            }
+            for job_id in REPO_SYNC_JOB_IDS.values()
+        },
         "tarkov_full_sync": {"enabled": True, "hour": 4, "minute": 25},
         "ror2_wiki_sync": {"enabled": True, "hour": 4, "minute": 40},
         "ror2_weblate_sync": {"enabled": True, "hour": 4, "minute": 55},
@@ -94,6 +120,13 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
     else:
         out["hour"] = _clamp_hour(raw.get("hour", fallback.get("hour", 0)))
         out["minute"] = _clamp_minute(raw.get("minute", fallback.get("minute", 0)))
+    if job_id in UPSTREAM_REPO_JOB_IDS:
+        out["timeout_minutes"] = _clamp_repo_sync_timeout(
+            raw.get(
+                "timeout_minutes",
+                fallback.get("timeout_minutes", DEFAULT_REPO_SYNC_TIMEOUT_MINUTES),
+            )
+        )
     if job_id == "job_runs_prune":
         out["retention_days"] = _clamp_retention_days(
             raw.get("retention_days", fallback.get("retention_days", 90)),
@@ -113,6 +146,8 @@ def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any
     for jid in JOB_IDS:
         fallback = base[jid]
         item = stored.get(jid)
+        if not isinstance(item, dict) and jid in UPSTREAM_REPO_JOB_IDS:
+            item = stored.get("upstream_repos_sync")
         if not isinstance(item, dict) and jid in (
             "game_schedule_arknights_sync",
             "game_schedule_endfield_sync",

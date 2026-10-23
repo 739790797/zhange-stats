@@ -15,8 +15,13 @@ from app.models.job_run import JobRun
 from app.services.checkin.registry import get_checkin_adapters
 from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import STALE_RUNNING_AFTER
+from app.services.job_run_progress import category_for_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
-from app.services.scheduler_config import load_scheduler_config
+from app.services.scheduler_config import (
+    DEFAULT_REPO_SYNC_TIMEOUT_MINUTES,
+    UPSTREAM_REPO_JOB_IDS,
+    load_scheduler_config,
+)
 from app.services.scheduler_runtime import APP_EXECUTOR_ID, APP_EXECUTOR_NAME
 
 
@@ -80,7 +85,7 @@ def _job_has_running_run(db: Session, job_id: str) -> bool:
         db.query(JobRun.id)
         .filter(
             JobRun.job_key == job_id,
-            JobRun.status == "running",
+            JobRun.status.in_(("queued", "running")),
             JobRun.started_at >= now_naive() - STALE_RUNNING_AFTER,
         )
         .first()
@@ -158,6 +163,12 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         hour_out = None
         minute_out = None
         interval_out = None
+        timeout_out = None
+        if job_id in UPSTREAM_REPO_JOB_IDS:
+            timeout_out = int(
+                job_cfg.get("timeout_minutes")
+                or DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
+            )
         if kind == "interval":
             default = 3 if job_id == "steam_presence" else 1
             interval_out = int(job_cfg.get("interval_minutes") or default)
@@ -172,6 +183,12 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
                 description=str(meta.get("description") or ""),
                 kind=kind,
                 platform=platform,
+                sync_category=meta.get("sync_category") or category_for_job(job_id),
+                cli_command=(
+                    f"python -m app.cli run-job {job_id}"
+                    if category_for_job(job_id) is not None
+                    else None
+                ),
                 executor_id=APP_EXECUTOR_ID,
                 registered=job is not None,
                 scheduler_running=running,
@@ -180,6 +197,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
                 next_run_at=next_run_at,
                 config_enabled=enabled,
                 interval_minutes=interval_out,
+                timeout_minutes=timeout_out,
                 hour=hour_out,
                 minute=minute_out,
                 last_run=last_out,

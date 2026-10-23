@@ -636,6 +636,8 @@ def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
 def project_task_summary(
     raw: dict[str, Any],
     locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     task_id = str(raw.get("id") or "").strip()
     if not task_id:
@@ -679,6 +681,9 @@ def project_task_summary(
         "name_en": str(raw.get("nameEnglish") or raw.get("name_en") or ""),
         "objective_count": len(objectives),
         "objective_types": unique_objective_types(objectives),
+        "objective_search_text": _task_objective_search_text(
+            objectives, locale, quest_items=quest_items
+        ),
         "restartable": _as_bool(raw.get("restartable")),
     }
 
@@ -1221,6 +1226,37 @@ def _objective_item_values(
         else:
             values.append(raw)
     return values
+
+
+def _task_objective_search_text(
+    objectives: list[Any],
+    locale: dict[str, Any],
+    *,
+    quest_items: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    """为任务目录搜索建立私有索引文本，不扩张对外任务摘要字段。"""
+    item_map = quest_items or {}
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            parts.append(text)
+
+    for obj in objectives:
+        if not isinstance(obj, dict):
+            continue
+        add(_resolve_obj_description(obj, locale))
+        for item in _objective_item_values(obj, item_map):
+            if not _id_of(item):
+                continue
+            ref = _named_ref(item, locale, kind="item", quest_items=item_map)
+            add(ref.get("name"))
+            add(ref.get("slug"))
+            add(ref.get("id"))
+    return " ".join(parts)
 
 
 def _project_objective(
@@ -1809,7 +1845,7 @@ def project_task_detail(
     maps_locale: dict[str, Any] | None = None,
     items_locale: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    summary = project_task_summary(raw, locale)
+    summary = project_task_summary(raw, locale, quest_items=quest_items)
     if summary is None:
         return None
     locale = locale or {}
@@ -1886,10 +1922,11 @@ def project_task_detail(
 def parse_task_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     locale = _locale_map(payload)
     tasks_map = _tasks_map(payload)
+    quest_items = _quest_items_map(payload)
     line_index = index_task_lines(tasks_map, locale)
     rows: list[dict[str, Any]] = []
     for raw in tasks_map.values():
-        row = project_task_summary(raw, locale)
+        row = project_task_summary(raw, locale, quest_items=quest_items)
         if row:
             rows.append(stamp_task_line_fields(row, line_index))
     rows.sort(
@@ -1946,6 +1983,7 @@ def task_search_haystack(row: dict[str, Any]) -> str:
         str(row.get("id") or ""),
         str(row.get("trader_name") or ""),
         str(row.get("map_name") or ""),
+        str(row.get("objective_search_text") or ""),
         str(row.get("wiki_link") or ""),
         str(row.get("line_hint") or ""),
     ]
@@ -2838,7 +2876,7 @@ def get_task_detail(
     task_id = (task_id or "").strip()
     if not task_id:
         raise TarkovTasksError("任务 id 无效")
-    source, _synced, _note, tasks, quest_items, locale = task_detail_base(db)
+    source, synced_at, note, tasks, quest_items, locale = task_detail_base(db)
     raw = tasks.get(task_id)
     if not isinstance(raw, dict):
         raise TarkovTasksError(f"未找到任务: {task_id}")
@@ -2854,6 +2892,8 @@ def get_task_detail(
         raise TarkovTasksError(f"未找到任务: {task_id}")
     detail = stamp_task_line_fields(detail, index_task_lines(tasks, locale))
     detail["source"] = source
+    detail["synced_at"] = synced_at
+    detail["note"] = note
     _enrich_items_from_catalog(db, detail, quest_items=quest_items)
     _enrich_stations_from_hideout(db, detail)
     _enrich_crafts_from_guides(db, detail)

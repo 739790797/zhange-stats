@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.job_run_progress import SYNC_JOB_CATEGORIES
+
 JOB_CATALOG: list[dict[str, Any]] = [
     {
         "id": "steam_presence",
@@ -28,6 +30,7 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "arknights_box_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["arknights_box_sync"],
         "name": "干员练度更新",
         "description": "按绑定用户同步森空岛干员练度快照（技能 / 模组等）",
         "kind": "cron",
@@ -35,13 +38,15 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "arknights_catalog_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["arknights_catalog_sync"],
         "name": "游戏资源更新",
-        "description": "从 yuanyan3060/ArknightsGameResource 同步 character_table",
+        "description": "从本地 ArknightsGameResource 克隆投影 character_table",
         "kind": "cron",
         "platform": "arknights_catalog",
     },
     {
         "id": "game_schedule_arknights_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["game_schedule_arknights_sync"],
         "name": "活动日历更新",
         "description": "从 game-schedule 同步明日方舟活动日历并落库",
         "kind": "cron",
@@ -49,6 +54,7 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "game_schedule_endfield_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["game_schedule_endfield_sync"],
         "name": "活动日历更新",
         "description": "从 game-schedule 同步终末地活动日历并落库",
         "kind": "cron",
@@ -56,13 +62,15 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "tarkov_full_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["tarkov_full_sync"],
         "name": "攻略数据全量更新",
-        "description": "回源 json.tarkov.dev 全文件与 tarkov-data-overlay，整站落本地库后再投影现有栏目",
+        "description": "回源 json.tarkov.dev 全文件，并从本地 tarkov-data-overlay 克隆读 overlay，整站落本地库后再投影现有栏目",
         "kind": "cron",
         "platform": "tarkov_full",
     },
     {
         "id": "ror2_wiki_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["ror2_wiki_sync"],
         "name": "图鉴数据更新",
         "description": "回源 riskofrain2.wiki.gg 的 Module 命名空间全部页面，以及每个幸存者词条。图鉴用的十份模块解析不过就不覆盖；其余模块只存原文",
         "kind": "cron",
@@ -70,13 +78,47 @@ JOB_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "ror2_weblate_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["ror2_weblate_sync"],
         "name": "图鉴译文",
         "description": "把每份已落库的 Wiki 原文拆成字符串推到 Weblate。Lua 表按路径编号；有令牌的挂在令牌下。已审且原文未变的译文写回快照",
         "kind": "cron",
         "platform": "ror2_weblate",
     },
     {
+        "id": "endfield_repo_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["endfield_repo_sync"],
+        "name": "外部仓库更新",
+        "description": "同步 rmxlinux/EndfieldData 到 data/repos/endfield-data",
+        "kind": "cron",
+        "platform": "endfield_repo",
+    },
+    {
+        "id": "arknights_repo_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["arknights_repo_sync"],
+        "name": "外部仓库更新",
+        "description": "同步 yuanyan3060/ArknightsGameResource 到 data/repos/arknights-game-resource",
+        "kind": "cron",
+        "platform": "arknights_repo",
+    },
+    {
+        "id": "tarkov_overlay_repo_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["tarkov_overlay_repo_sync"],
+        "name": "外部仓库更新",
+        "description": "同步 MiwiDots/tarkov-data-overlay 到 data/repos/tarkov-data-overlay",
+        "kind": "cron",
+        "platform": "tarkov_overlay_repo",
+    },
+    {
+        "id": "tarkov_svg_repo_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["tarkov_svg_repo_sync"],
+        "name": "外部仓库更新",
+        "description": "同步 the-hideout/tarkov-dev-svg-maps 到 data/repos/tarkov-dev-svg-maps",
+        "kind": "cron",
+        "platform": "tarkov_svg_repo",
+    },
+    {
         "id": "texteller_model_sync",
+        "sync_category": SYNC_JOB_CATEGORIES["texteller_model_sync"],
         "name": "公式识别模型",
         "description": "对照 hf-mirror 上的 OleehyO/TexTeller 更新本地公式识别权重（data/models/texteller）",
         "kind": "cron",

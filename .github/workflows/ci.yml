@@ -198,7 +198,7 @@ jobs:
           npm ci
           npm run export:openapi
           npm run gen:api
-          git diff --exit-code -- src/api/generated/openapi.json src/api/generated/schema.d.ts
+          git diff --exit-code -- src/shared/api/generated/openapi.json src/shared/api/generated/schema.d.ts
 
   # 附件 B：可失败为 warning，不卡 PR / 不挡发版
   dependency-audit:

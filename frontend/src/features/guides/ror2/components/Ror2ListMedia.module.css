@@ -1,0 +1,43 @@
+.media {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.dlcBadge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--ror2-line-strong);
+  border-radius: 50%;
+  background: #101819;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.dlcBadge :global(img) {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  vertical-align: initial;
+}
+
+.inlineMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-inline-end: 5px;
+  vertical-align: middle;
+}
+
+.inlineMark :global(img) {
+  margin: 0;
+  vertical-align: initial;
+}

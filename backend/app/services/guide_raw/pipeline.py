@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -102,11 +103,19 @@ def load_row(db: Session, game: str, resource: str, *, with_body: bool = False) 
     return query.one_or_none()
 
 
-def upsert_raw(db: Session, game: str, resource: str, source: str, body: str, *, note: str = "") -> dict[str, object]:
-    """字节没变就保留 synced_at。调用方应先 ``accept``。"""
+def raw_fingerprint(body: str) -> str:
+    """Return the exact UTF-8 content digest used to detect upstream raw changes."""
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def upsert_raw(
+    db: Session, game: str, resource: str, source: str, body: str, *, note: str = ""
+) -> dict[str, object]:
+    """Hash the raw body; unchanged content keeps its timestamp. Callers validate first."""
     packed = pack_raw_text(body)
+    body_fingerprint = raw_fingerprint(body)
     now = now_naive()
-    row = load_row(db, game, resource, with_body=True)
+    row = load_row(db, game, resource)
     changed = True
     if row is None:
         row = GuideRaw(
@@ -114,20 +123,30 @@ def upsert_raw(db: Session, game: str, resource: str, source: str, body: str, *,
             resource=resource,
             source=source,
             raw_body=packed,
+            content_fingerprint=body_fingerprint,
             synced_at=now,
             note=note or None,
         )
         db.add(row)
-    elif row.raw_body != packed:
-        row.source = source
-        row.raw_body = packed
-        row.synced_at = now
-        row.note = note or None
     else:
-        changed = False
+        if row.content_fingerprint is None:
+            # Legacy rows are compared by their decoded source, then lazily backfilled.
+            row = load_row(db, game, resource, with_body=True)
+            assert row is not None
+            changed = unpack_raw_text(row.raw_body) != body
+        else:
+            changed = row.content_fingerprint != body_fingerprint
+
         row.source = source
-        if note:
-            row.note = note
+        if changed:
+            row.raw_body = packed
+            row.content_fingerprint = body_fingerprint
+            row.synced_at = now
+            row.note = note or None
+        else:
+            row.content_fingerprint = body_fingerprint
+            if note:
+                row.note = note
     db.commit()
     synced = row.synced_at.isoformat() if row.synced_at else now.isoformat()
     return {"resource": resource, "source": source, "synced_at": synced, "changed": changed}

@@ -39,6 +39,7 @@ FULL_SYNC_STARTED_MESSAGE = "已开始全量同步，进度见任务管理"
 
 _full_sync_active = threading.Event()
 _full_sync_started_at = 0.0
+_full_sync_generation = 0
 
 
 class TarkovFullSyncError(Exception):
@@ -581,7 +582,14 @@ def _write_job_run(
         if message is not None:
             row.message = message
         if stats is not None:
-            row.stats = stats
+            from app.services.job_run_progress import versioned_job_stats
+
+            row.stats = versioned_job_stats(
+                FULL_SYNC_JOB_KEY,
+                status=status or row.status,
+                stats=stats,
+                message=message if message is not None else row.message,
+            )
         if status is not None:
             row.status = status
         if finished:
@@ -612,21 +620,16 @@ def _domain_payload(row: dict[str, Any]) -> dict[str, Any]:
 
 def _create_full_sync_run() -> int:
     from app.core.database import SessionLocal
-    from app.models.job_run import JobRun
+    from app.services.job_run_progress import create_or_reuse_job_run
 
     db = SessionLocal()
     try:
-        run = JobRun(
-            job_key=FULL_SYNC_JOB_KEY,
-            status="running",
+        run = create_or_reuse_job_run(
+            db,
+            FULL_SYNC_JOB_KEY,
             message=format_full_sync_message("start"),
-            stats={
-                "phase": "start",
-                "percent": 0,
-                "domains": planned_full_sync_domains(sync_modes(), lang="zh"),
-            },
+            stats={"phase": "start", "domains": planned_full_sync_domains(sync_modes(), lang="zh")},
         )
-        db.add(run)
         db.commit()
         return int(run.id)
     finally:
@@ -634,9 +637,10 @@ def _create_full_sync_run() -> int:
 
 
 def _begin_full_sync() -> None:
-    global _full_sync_started_at
+    global _full_sync_started_at, _full_sync_generation
     _full_sync_active.set()
     _full_sync_started_at = time.monotonic()
+    _full_sync_generation += 1
 
 
 def full_sync_job_wrapper() -> None:
@@ -647,10 +651,10 @@ def full_sync_job_wrapper() -> None:
     if _full_sync_active.is_set():
         logger.info("tarkov full sync skipped: another full sync is running")
         return
-    waited_from = time.monotonic()
+    observed_generation = _full_sync_generation
     try:
         with sync_lock.exclusive(wait=FULL_SYNC_LOCK_WAIT_SEC):
-            if _full_sync_started_at > waited_from:
+            if _full_sync_generation != observed_generation:
                 logger.info("tarkov full sync skipped: another full sync ran meanwhile")
                 return
             _begin_full_sync()
@@ -732,12 +736,16 @@ def _run_full_sync(run_id: int) -> None:
         }
         _write_job_run(
             run_id,
-            status="ok" if failed == 0 else "error",
+            status=("ok" if failed == 0 else "warning" if int(result.get("ok_count") or 0) else "error"),
             message=json.dumps(payload, ensure_ascii=False),
             stats={
                 "phase": "done" if failed == 0 else "error",
                 "percent": 100,
                 "domains": payload["domains"],
+                "result": {
+                    "summary": f"栏目同步完成：成功 {int(result.get('ok_count') or 0)}，失败 {failed}",
+                    "counts": {"ok": int(result.get("ok_count") or 0), "failed": failed},
+                },
             },
             finished=True,
         )

@@ -486,6 +486,7 @@ class PlatformFeatureNodeOut(BaseModel):
     job_id: str | None = None
     schedule: str | None = None
     interval_minutes: int | None = None
+    timeout_minutes: int | None = None
     hour: int | None = None
     minute: int | None = None
     children: list["PlatformFeatureNodeOut"] = Field(default_factory=list)
@@ -504,6 +505,7 @@ class PlatformFeaturesOut(BaseModel):
 
 class PlatformFeatureJobUpdate(BaseModel):
     interval_minutes: int | None = Field(default=None, ge=1, le=1440)
+    timeout_minutes: int | None = Field(default=None, ge=1, le=1440)
     hour: int | None = Field(default=None, ge=0, le=23)
     minute: int | None = Field(default=None, ge=0, le=59)
 

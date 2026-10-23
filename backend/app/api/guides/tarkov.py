@@ -3,12 +3,13 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.api.guides import tarkov_goons, tarkov_raid_rooms
+from app.api.upstream_repo_errors import upstream_repo_not_synced_http_error
 from app.api.guides.schemas import (
     TarkovAmmoCatalogOut,
     TarkovAmmoDetailOut,
@@ -177,6 +178,54 @@ async def tarkov_game_mode(
 
 
 router.dependencies.append(Depends(tarkov_game_mode))
+
+
+@router.get(
+    "/map-svg/{name}",
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+)
+def tarkov_map_svg(name: str) -> FileResponse:
+    """互动地图 SVG，从本地 tarkov-dev-svg-maps 克隆读取。"""
+    path = _resolve_tarkov_map_svg(name)
+    return FileResponse(path, media_type="image/svg+xml")
+
+
+@router.head(
+    "/map-svg/{name}",
+    dependencies=[Depends(require_feature("guides.tarkov"))],
+    include_in_schema=False,
+)
+def tarkov_map_svg_head(name: str) -> Response:
+    """图片加载失败时供浏览器轻量确认资源仓状态。"""
+    _resolve_tarkov_map_svg(name)
+    return Response(headers={"Content-Type": "image/svg+xml"})
+
+
+def _resolve_tarkov_map_svg(name: str):
+    from app.services.upstream_repos import (
+        REPO_TARKOV_SVG,
+        RepoError,
+        RepoFileNotFound,
+        RepoPathError,
+        ensure_repo,
+        resolve_repo_file,
+    )
+
+    if "/" in name or "\\" in name or ".." in name or not name.endswith(".svg"):
+        raise HTTPException(status_code=404, detail="文件不存在")
+    try:
+        ensure_repo(REPO_TARKOV_SVG)
+        path = resolve_repo_file(REPO_TARKOV_SVG, name)
+    except RepoFileNotFound as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+    except RepoPathError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+    except RepoError as exc:
+        not_synced = upstream_repo_not_synced_http_error(exc)
+        if not_synced is not None:
+            raise not_synced from exc
+        raise HTTPException(status_code=503, detail="地图 SVG 仓暂不可用") from exc
+    return path
 # include 会把当时的父级 deps 拍进子路由；须先 append 再 include，
 # 否则 GET /raid-rooms 吃不到 game_mode，大厅会按默认 PVP 列公开房。
 router.include_router(tarkov_raid_rooms.router)

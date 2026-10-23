@@ -34,7 +34,7 @@
 
 ## 0 期（已落地）
 
-页面切换淡入、`prefers-reduced-motion`、文档标题、`AppLayout`/塔科夫换页回顶、antd `App`、`RouteErrorBoundary`。约定见 [`.cursor/rules/frontend-ui.mdc`](../.cursor/rules/frontend-ui.mdc)。
+页面切换淡入、`prefers-reduced-motion`、文档标题、`AppLayout`/塔科夫换页回顶、antd `App`、`RouteErrorBoundary`。约定见 [工程约定](engineering-guidelines.md)。
 
 本路线不再重复这些工作。
 
@@ -93,15 +93,13 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 ### 1.3 字体不再走 Google
 
-现状：[`frontend/index.html`](../frontend/index.html) 全站拉 `fonts.googleapis.com`（IBM Plex / Noto SC / Rajdhani）。主应用主题已是系统黑体（`antdAppTheme`）；塔科夫壳用 Plex + Rajdhani，CJK 已在 `tarkovFonts.css` 用本机字体补汉字。
+现状：[`frontend/index.html`](../frontend/index.html) 已不加载 Google Fonts；主应用使用系统黑体（`antdAppTheme`）。塔科夫壳使用 `frontend/src/features/guides/tarkov/assets/fonts/` 中自托管的 IBM Plex / Rajdhani 字体，CJK 由 `tarkovFonts.css` 回退到本机字体。
 
-落地：
+已落实：
 
-1. 从 `index.html` **删除** Google `preconnect` 与 stylesheet（主应用零损失）。
-2. 塔科夫：二选一（优先 A）  
-   - **A.** `frontend/src/assets/fonts/` 自托管 **拉丁子集** woff2（IBM Plex Sans/Mono、Rajdhani），仅 `TarkovGuideShell` 引入；遵守 SIL OFL，在致谢/README 保留来源。  
-   - **B.** 不再加载 Plex/Rajdhani 文件，CSS 改为 `Arial Narrow` / 系统等宽；观感会变，但零外链。
-3. 构建后 Network 面板在攻略页也不应再请求 `fonts.gstatic.com`。
+1. `index.html` 不加载 Google Fonts 的 `preconnect` 或 stylesheet，主应用无外部字体依赖。
+2. Tarkov 仅由 `TarkovGuideShell` 引入本 feature 的拉丁子集 woff2；许可文件与字体并置，保留 SIL OFL。
+3. 生产构建后攻略页不请求 `fonts.googleapis.com` 或 `fonts.gstatic.com`。
 
 验收：
 
@@ -114,9 +112,9 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 **目标：** 避免一张过期票或某个接口 401 把整次会话踢掉。
 
-现状：[`frontend/src/api/http.ts`](../frontend/src/api/http.ts) 非 `/auth/login` 的 401 立刻 `logout()`。
+现状：[`frontend/src/shared/api/http.ts`](../frontend/src/shared/api/http.ts) 非 `/auth/login` 的 401 立刻 `logout()`。
 
-规则（实现时写成纯函数并单测，见 [`testing.mdc`](../.cursor/rules/testing.mdc)）：
+规则（实现时按层写纯函数并单测，见 [Agent 工作流程](agent-guide.md)）：
 
 1. **无 token 的请求** 401：不登出（访客打了需登录接口）。
 2. **明确未登录探针**（如 `GET /api/auth/me`）401：登出。
@@ -138,7 +136,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 **目标：** 键盘与读屏能进主内容，换页后焦点不丢在侧栏。不做 axe 门禁。
 
-改 [`AppLayout.tsx`](../frontend/src/components/AppLayout.tsx)（塔科夫壳同步）：
+改 [`AppLayout.tsx`](../frontend/src/app/shell/AppLayout.tsx)（塔科夫壳同步）：
 
 1. 视口顶部「跳到正文」链接（默认视觉隐藏，`:focus` 可见），`href="#app-main"`。
 2. 主栏滚动容器加 `id="app-main"`、`tabIndex={-1}`、语义 `main`（antd `Content` 用 `component="main"` 或外包 `<main>`）。侧栏 `nav` + `aria-label="站点"`（若尚未）。
@@ -165,7 +163,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 - **建议 anonymize：** 用户行保留 id（联机房间历史外键不炸），邮箱/QQ/口令清空，显示名改为「已注销用户」，解绑全部平台凭证（Fernet 密文删除），头像文件删。酒馆文章：保留已发布稿、作者显示为已注销；草稿物理删。
 - 管理员代删走用户管理页，同一套 service，写 `job_runs` 或现有审计习惯（不要新造一套日志平台）。
 
-条款：[`legalDocs.ts`](../frontend/src/lib/legalDocs.ts) 隐私段改为「可在个人中心申请注销；处理时限（例如 15 日）」。`updated` 日期改当天。
+条款：[`legalDocs.ts`](../frontend/src/features/legal/model/legalDocs.ts) 隐私段改为「可在个人中心申请注销；处理时限（例如 15 日）」。`updated` 日期改当天。
 
 验收：
 
@@ -289,8 +287,8 @@ form-action 'self';
 | 期 | 必须同步 |
 |----|----------|
 | 1 | `deploy.md` 反代示例、公开运营检查、备份/恢复 |
-| 2 | 可选：`frontend-api-errors.mdc` 一句「401 登出规则」 |
-| 3 | `frontend-ui.mdc` 跳转正文 / `main` |
+| 2 | 可选：前端 API 错误约定中的「401 登出规则」 |
+| 3 | 前端 UI 约定跳转正文 / `main` |
 | 4 | `legalDocs.ts`、`database.md`、`security.md` 一句删号 |
 | 5 | `security.md` 管理员步进 |
 | 6 | `deploy.md` 或 `security.md` 请求 ID |

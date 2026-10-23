@@ -47,6 +47,8 @@ def _wait_until(pred, timeout: float = 5.0) -> bool:  # noqa: ANN001
 def _sync_lock_left_free():
     yield
     full_sync._full_sync_active.clear()
+    full_sync._full_sync_started_at = 0.0
+    full_sync._full_sync_generation = 0
     leaked = not _lock_free()
     if leaked:
         sync_lock._lock.release()

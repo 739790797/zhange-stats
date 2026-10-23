@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.skland.helpers import _member_or_404
+from app.api.upstream_repo_errors import upstream_repo_not_synced_http_error
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.platform_deps import require_feature
@@ -46,9 +48,44 @@ from app.services.skland.checkin import (
     get_arknights_attendance_calendar_for_member,
     get_arknights_rogue_for_member,
 )
+from app.services.skland.arknights_assets import resolve_asset
 from app.services.skland.client import SklandApiError
+from app.services.upstream_repos import (
+    RepoError,
+    RepoFileNotFound,
+    RepoPathError,
+)
 
 router = APIRouter(tags=["skland"])
+
+
+@router.get("/arknights/assets/{kind}/{name}")
+def skland_arknights_asset(kind: str, name: str) -> FileResponse:
+    """方舟头像 / 物品图标 / 立绘，从本地资源仓克隆读取。"""
+    path = _resolve_arknights_asset(kind, name)
+    return FileResponse(path, media_type="image/png")
+
+
+@router.head("/arknights/assets/{kind}/{name}", include_in_schema=False)
+def skland_arknights_asset_head(kind: str, name: str) -> Response:
+    """图片加载失败时供浏览器轻量确认资源仓状态。"""
+    _resolve_arknights_asset(kind, name)
+    return Response(headers={"Content-Type": "image/png"})
+
+
+def _resolve_arknights_asset(kind: str, name: str):
+    try:
+        path = resolve_asset(kind, name)
+    except RepoFileNotFound as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+    except RepoPathError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+    except RepoError as exc:
+        not_synced = upstream_repo_not_synced_http_error(exc)
+        if not_synced is not None:
+            raise not_synced from exc
+        raise HTTPException(status_code=503, detail="方舟资源仓暂不可用") from exc
+    return path
 
 _MEMBER_ID_RE = re.compile(r"[0-9]{1,12}")
 _ROLE_UID_RE = re.compile(r"[0-9A-Za-z_-]{1,32}")
@@ -224,6 +261,9 @@ def skland_arknights_catalog(
     try:
         ensure_catalog(db)
     except ArknightsCatalogError as exc:
+        not_synced = upstream_repo_not_synced_http_error(exc)
+        if not_synced is not None:
+            raise not_synced from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     operators = [
         ArknightsOperatorOut(

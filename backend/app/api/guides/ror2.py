@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.platform_deps import require_feature
 from app.services.ror2.catalog import Ror2WikiError
-from app.services.ror2.schemas import Ror2CatalogOut, Ror2SurvivorDetailOut
+from app.services.ror2.schemas import Ror2CatalogResponse, Ror2SurvivorDetailResponse
 from app.services.ror2.survivor_page import Ror2MissingSurvivor
 from app.services.ror2.wiki import translated_catalog, translated_detail
 
@@ -15,12 +15,12 @@ router = APIRouter(prefix="/ror2", tags=["guides"])
 
 @router.get(
     "/catalog",
-    response_model=Ror2CatalogOut,
+    response_model=Ror2CatalogResponse,
     summary="雨中冒险2图鉴",
-    description="只解析已审且原文未变的译文文件。没有译文的栏目是空的。原文仍由定时任务落入 guide_raws。",
+    description="Wiki 来源文本统一返回显示文本、Wiki 原文与真实 Weblate context；无匹配源单元时使用原文且不附令牌，只有已审核且原文指纹匹配的译文会替换显示文本。",
     dependencies=[Depends(require_feature("guides.ror2"))],
 )
-def ror2_catalog(db: Session = Depends(get_db)) -> Ror2CatalogOut:
+def ror2_catalog(db: Session = Depends(get_db)) -> Ror2CatalogResponse:
     try:
         return translated_catalog(db)
     except Ror2WikiError as exc:
@@ -30,12 +30,12 @@ def ror2_catalog(db: Session = Depends(get_db)) -> Ror2CatalogOut:
 
 @router.get(
     "/survivors/{name}",
-    response_model=Ror2SurvivorDetailOut,
+    response_model=Ror2SurvivorDetailResponse,
     summary="雨中冒险2幸存者",
-    description="只解析该幸存者的译文文件。没有译文时段落是空的。",
+    description="从 Wiki 原文解析幸存者详情；已审核且原文指纹匹配的令牌展示译文，其余字段展示原文。",
     dependencies=[Depends(require_feature("guides.ror2"))],
 )
-def ror2_survivor(name: str, db: Session = Depends(get_db)) -> Ror2SurvivorDetailOut:
+def ror2_survivor(name: str, db: Session = Depends(get_db)) -> Ror2SurvivorDetailResponse:
     try:
         return translated_detail(db, name)
     except Ror2MissingSurvivor:

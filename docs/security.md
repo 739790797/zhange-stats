@@ -46,7 +46,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 助手首页是 `/app`。打开时请求 `/auth/me`：401 去登录页；没有状态码或其它 4xx/5xx 留在页上重试，不当成未登录。页内卡片仍是演示。
 
-改这些行为时对照 [`.cursor/rules/zhange-assistant.mdc`](../.cursor/rules/zhange-assistant.mdc)。
+改这些行为时对照 [`engineering-guidelines.md`](engineering-guidelines.md)「战鸽助手边界」。
 
 - 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧验证码是 6 位数字，有效期取「邮箱设置」但最长 30 分钟（设置接口只收 1–30，`config/email.json` 里写得更大也按 30 分钟算，邮件里写的就是封顶后的值）；同一码输错 5 次即作废，须重新获取（重发会清零计数，`register_challenges.attempts`）。发码与校验的次数见下方「账号相关限流」
 - 邮箱是否注册不外泄：注册发码 / 重发 / 找回发码 / 绑定邮箱发码先判断邮件发不发得出去（发不出去对任何地址都同样 503），再查库。已注册邮箱申请注册、没有可找回账号的邮箱申请找回、已被别的账号占用的邮箱申请绑定，照样记一条验证码，只是收到的是不带验证码的提醒信；接口响应（状态码、文案、`delivery`）与正常邮箱逐字相同，`delivery` 不再出现 `skipped`。注册 / 验证邮箱 / 重置 / 绑定邮箱先核销验证码再看账号：码不对一律「验证码错误」，「邮箱已被注册」「重置失败，请检查邮箱与验证码」「该邮箱已被其他账号使用」只有拿到码的人才看得到；验证邮箱遇到没有账号的邮箱回通用错误，并把码留给注册用。登录与关联已有账号在账号不存在时也对固定的哑哈希跑一次 bcrypt，耗时与输错口令一样
@@ -98,7 +98,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 ## 塔科夫联机
 
-公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/lib/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
+公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/features/legal/model/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
 
 - **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。房间级 `map_slug` 恒为空。预览不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠、各人查看图；**公开大厅列表**按设计带 `host_user_id` 与在座成员的 `user_id`（都是公开房里已对外的信息），另有在座昵称、每人当前地图和相位（战局 / 匹配用进程内日志相位里的图，否则用查看图；不入库）。房间 WebSocket 须已入座。在线标记带端类型：浏览器报 `web`，战鸽助手嵌入报 `desktop`；同一账号任一端连着即在线。端类型不进大厅列表。访客不能占座
 - **写权限**：认领 / 标点等须在座；密码只在 **join** 时校验（口令哈希在事务外先比对，不占房间锁）。公开或私密在创建时确定，之后不能改。私密房可不设密码，设了须 4–32 个字符（否则 400）。房间写事务按**房间**串行到提交为止（不同房间互不阻塞）；撞唯一键（并发占座、重复声明）整笔重跑一次，仍冲突回 409「房间状态刚变过，请刷新后重试」。写操作顺手刷新该成员 `last_seen_at`：只走 HTTP 的成员不会因为不发心跳而被收座位
@@ -117,8 +117,8 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 公开页 `/guides/ror2`（未登录可读）。`GET /api/guides/ror2/catalog` 不要求登录，仍 `require_feature("guides.ror2")`。
 
 - **回源**：只请求 `https://riskofrain2.wiki.gg/api.php`。先列 Module 命名空间（828）的全部页面再逐页取正文；图鉴解析其中的 Items、Equipment、Survivors、Enemies、Environments、Challenges、Interactables、Artifacts、Skills、Lore，其余模块以 `module/` 前缀只存原文。另外还有每个幸存者词条（`survivor/{名字}` 一行）。原文写入 `guide_raws`（`game=ror2`）。解析不过的那一份不覆盖旧行。定时任务 `ror2_wiki_sync`（功能开关 `guides.ror2.wiki_sync`，每天 4:40）先同步这些模块，再逐页同步幸存者词条。库是空的时候，列表接口冷启动只回源模块，短等锁，失败后 60 秒内不再打 Wiki。详情页缺的是哪一页，就只补那一页
-- **译文**：Weblate 是唯一译文出口。集成密钥里填站点地址、项目、组件和 API 令牌（令牌只写不回显，不进日志）。组件是单语 JSON，源语言 `en`，翻译语言 `zh_Hans`。定时任务 `ror2_weblate_sync`（`guides.ror2.weblate_sync`，每天 4:55）把每一份已落库的 Wiki 原文拆成字符串再推上去。Lua 表按路径编号，有 LocalizationInternalName 的挂在令牌下；解析不了的正文按空行分段。拉回时只收已审、且原文指纹和当前文件一致的译文，按同样的正文格式写入 `zh-Hans/` 下的同名文件。指纹是 NFC、换行收成 `\n`、去掉每行行尾空白和首尾空行之后的 SHA-256。展示数据只解析这些译文文件；没有译文或原文已经变了，对应栏目是空的。图鉴页面先不开放。站内不再运行 SteamCMD，也不再更新游戏语言文件。安装根里若还留着以前的 `steamcmd/config` 或 `ssfn*`，文件管理仍然不可下载
-- **展示**：图鉴页面先隐藏。以后列表和详情只解析 `zh-Hans/` 下的译文文件，不另存一份结果表。没有译文的栏目是空的。
+- **译文**：Weblate 是独立服务，也是唯一译文出口；本项目只通过 Weblate REST API 交换数据，不读写 Weblate 主机文件。集成密钥里填站点地址、项目、组件和 API 令牌（令牌只写不回显，不进日志）。组件是单语 JSON，源语言 `en`，翻译语言 `zh_Hans`。定时任务 `ror2_weblate_sync`（`guides.ror2.weblate_sync`，每天 4:55）从已落库的 Wiki 原文解析令牌字符串：新 context 通过 `add` 增加，已有 context 的源文本变化时只调用单元 API 更新该源文本，不用整文件 `replace`，避免覆盖无关字符串或目标译文。分页链接只接受配置部署前缀内的同源 `/api/` 路径，REST 请求不跟随重定向；任务完整分页核对 Weblate 源清单后才刷新本地缓存。权限不足、API 不支持源文本更新或源清单仍不一致时任务失败，并保留上一份缓存。Lua 表按路径编号，有 LocalizationInternalName 的字段挂在令牌下；无法结构化的正文按空行分段。已审且源指纹匹配的译文与全部源单元状态缓存在本项目数据库，页面请求只读本地缓存，不逐页访问 Weblate。指纹是 NFC、换行收成 `\n`、去掉每行行尾空白和首尾空行之后的 SHA-256。展示译文还必须保留 Wiki 格式标签、运行时占位符及换行结构；不兼容时回退到 Wiki 原文。游戏语言文件仅作 Weblate 建议，不直接作为页面译文。站内不再运行 SteamCMD，也不再更新游戏语言文件。安装根里若还留着以前的 `steamcmd/config` 或 `ssfn*`，文件管理仍然不可下载
+- **展示**：物品、幸存者列表和幸存者详情均先解析 `guide_raws` 中的 Wiki 原文，再按令牌叠加已审核且原文指纹匹配的译文。命中译文的字段显示译文；缺少、未审核或已过期的译文字段显示原文。公开页无需整份模块完全翻译后才有内容。
 - 功能开关 `guides.ror2`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
 - 条目文字来自该 Wiki，许可为 CC BY-SA 4.0。页面链回原文
 
@@ -135,6 +135,14 @@ Minecraft 页（Pelican 面板 + RCON）：状态、在线与性能须登录；�
 
 管理端「运行维护 → 文件管理」只给管理员：统计本站运行时 / 模型 / 缓存 / 依赖占用，并在**安装根**内增删改查（其下的 `data/` / venv / `node_modules` / 备份等点进去即可）。占用桶与磁盘采样都只计安装根内路径；站外缓存、家目录、`ZHANGE_BACKUP_DIR` 指向站外时不进目录树、不计入占用。进程内会把 Hugging Face / pip / tempfile 指到安装根 `data/cache` 与 `data/tmp`，避免写到用户家目录。启动时把家目录里战鸽能认的权重（TexTeller hub）拷进安装根；不搬整个 `~/.cache/huggingface`（可能混有其它工具）。**禁止**把查询参数当成任意绝对路径；越出安装根返回 400。`.secret_key`（含写入中途的 `.secret_key.*` 临时文件）、`.env`（不含 `.env.example`）、密钥类后缀、明文带口令/密钥的 `config/database.json` / `config/integrations.json` / `config/email.json`（含 `write_json` 的 `.<名>.*.tmp`）、`data/mariadb/data` 与 `data/mariadb/provision.json`、以及站点备份 `zhange-*.tar.gz` / `zhange.sql` 列出时置灰：MariaDB 数据目录不可进入，这些文件不可下载、修改、上传覆盖、重命名或删除；也不能新建同名敏感项。用 SQLite 时，当前配置的库文件（默认 `data/runtime/zhange.sqlite`）及同名 `-wal` / `-shm` / `-journal` 同样置灰，也不可下载：WAL 下最近的提交还在 `-wal` 里，单拷主文件不是一致快照，删掉或换掉旁路文件会丢这些提交，库里还有口令散列与加密的平台凭证；要副本请跑 `backup` 脚本（走 SQLite 在线备份接口），删 `data/runtime/` 等目录时这几份原样留下。判定同时看请求路径和 `resolve` 之后的真实路径。符号链接与 Windows 目录联接（junction）在 `resolve` 之前逐级判定：列表里不列出；请求路径上任一级是链接一律 400（浏览、下载、读写、上传、新建、重命名、删除，含链接本身），在链接的名字上新建、上传或改名过去回 409，删除目录时其中的链接原样留下、不跟进，所以链接不能把 `config/`、MariaDB 数据目录或备份换个名字绕过去。`.git`、`config/` 等普通目录可进入、可删（`config/` 是活站点设置，删了站点会停；其中的 `app.json` 等普通设置可编辑）。删除普通目录时跳过其中的敏感子项（删 `config/` 会留下上面三份）。文本编辑 ≤2MB，上传 ≤256MB：上传接口在工作线程里把表单临时文件按块流式写到目标目录的 `.zhange-write-*.part`，边写边计数，超限 413，写完 fsync 再 `os.replace` 落位（覆盖时保留原权限位）；超限或出错不留半截文件，也不动原文件。编辑保存与新建文件走同一套原子写。塔科夫图鉴 dump 在数据库，Minecraft 服文件在 Pelican，都不走这套本机浏览。Pelican 的 401/403 以 502 返回，避免前端把面板密钥问题当成战鸽会话失效而整站登出。用户上传元数据在 `user_files`（按流水号查路径；酒馆 UUID、头像覆盖 `member_id.jpg`），不要和管理端盘点混成一个「文件服务」；从盘上删附件不会改登记表。
 
+## 上游资源仓与终末地干员信息 / 客栈求解
+
+EndfieldData、ArknightsGameResource、Tarkov overlay 与 Tarkov SVG 浅克隆保存在安装根 `data/repos/`，由任务管理各游戏下的「外部仓库更新」任务每日 03:50 更新；首次克隆与更新都由对应同步任务执行。资源 API 只解析登记仓库中的相对路径；缺文件返回 404，仓库尚未同步返回带 `UPSTREAM_REPO_NOT_SYNCED` 的 503，前端统一提示并引导管理员前往任务配置手动同步；其他仓库错误返回 503。`data/repos/` 在管理端文件管理中属于普通目录，允许常规浏览和管理；备份不包含这些可重建副本。
+
+“烟火生缘”从本地 EndfieldData 读取客栈主题、菜单、厨师与五星目标数据，只受 `skland.endfield` 功能开关控制，不读取森空岛绑定凭证或养成盒数据。
+
+终末地“干员信息”页的完整角色列表来自本地 EndfieldData；成员自己的练度允许在其绑定凭证下刷新，其他成员只展示最近已缓存的 `endfield_box_raws` 快照，不会使用对方凭证回源。对比行显示快照时间；成员打开干员信息页或手动同步后才会更新。
+
 ## 塔科夫工作台出图
 
 工作台中间用 dump 枪图做底板，在图上点槽位换配件。第三方出图接口默认关闭（`TARKOV_WORKBENCH_IMAGE_GEN=false`）。若手动打开，限流仍为出图 `POST /api/guides/tarkov/workbench/build-image` 40/IP/10 分钟、20/账号/10 分钟；返回的 `image_url` 只接受 `image-gen.tarkov-changes.com`。
@@ -149,4 +157,4 @@ Minecraft 页（Pelican 面板 + RCON）：状态、在线与性能须登录；�
 
 对外宣传前的环境核对见 [`deploy.md`](deploy.md)「公开运营检查」。
 
-平台数据约定（养成盒 / 旁路 raw、签到展示始终 force 回源）见 [`.cursor/rules/platform-raw-cache.mdc`](../.cursor/rules/platform-raw-cache.mdc)。森空岛官服/B服与补奖见 [`.cursor/rules/skland-upstream.mdc`](../.cursor/rules/skland-upstream.mdc)。
+平台数据约定（养成盒 / 旁路 raw、签到展示始终 force 回源）见 [`engineering-guidelines.md`](engineering-guidelines.md)「签到、盒子与平台 raw 缓存」。森空岛官服/B服与补奖见 [`engineering-guidelines.md`](engineering-guidelines.md)「森空岛渠道与凭证」。

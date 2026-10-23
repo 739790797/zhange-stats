@@ -52,6 +52,7 @@ from app.models import exilium as _exilium  # noqa: F401
 from app.models import kujiequ as _kujiequ  # noqa: F401
 from app.models import mihoyo as _mihoyo  # noqa: F401
 from app.models import job_run as _job_run  # noqa: F401
+from app.models import job_run_log as _job_run_log  # noqa: F401
 from app.models import member as _member  # noqa: F401
 from app.models import play_session as _play_session  # noqa: F401
 from app.models import presence_segment as _presence_segment  # noqa: F401
@@ -268,6 +269,10 @@ async def lifespan(_: FastAPI):
 
 def _shutdown_background() -> None:
     from app.services.tarkov import goon_tracker as goon_tracker_svc
+
+    from app.services.job_process_supervisor import stop_all_sync_job_processes
+
+    stop_all_sync_job_processes()
 
     goon_tracker_svc.stop_poller()
     try:

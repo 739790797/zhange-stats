@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.biz_logging import clear_log_until_change
 from app.models.guide_raw import GuideRaw
+from app.models.guide_token_translation import GuideTokenTranslation, GuideTokenTranslationSync
 from app.services import platform_features as pf
-from app.services.guide_raw.pipeline import RawSpec
+from app.services.guide_raw.pipeline import RawSpec, upsert_raw
 from app.services.ror2.catalog import (
     Ror2WikiError,
     artifacts_from_module,
@@ -21,6 +22,8 @@ from app.services.ror2.catalog import (
     monsters_from_module,
     survivors_from_module,
 )
+from app.services.ror2.projection import catalog_response
+from app.services.ror2.schemas import Ror2CatalogOut, Ror2ItemOut, Ror2StatOut
 from app.services.ror2.wiki import (
     WIKI_API,
     PIPELINE,
@@ -31,6 +34,8 @@ from app.services.ror2.wiki import (
     reset_catalog_memo,
     sync_wiki,
 )
+from app.services.ror2.weblate import RESOURCE as WEBLATE_RESOURCE, dump_snapshot
+from app.services.ror2.wiki import translated_catalog
 from app.services.ror2.wikitext import plain_wikitext
 
 _ITEMS = """
@@ -44,7 +49,8 @@ items["Soldier's Syringe"] = {
 	Category = { "Damage", "BrotherBlacklist" },
 	ID = "Syringe",
 	Stats = {
-		{ Stat = "Attack Speed", Value = "15%", Stack = "Linear", Add = "+15%" }
+		{ Stat = "Attack Speed", Value = "15%", Stack = "Linear", Add = "+15%" },
+		{ Stat = "Damage", Value = "0", Stack = "Linear", Add = "0" }
 	},
 	LocalizationInternalName = "ITEM_SYRINGE",
 }
@@ -203,6 +209,8 @@ return p
 _LORE = """
 local lore = {}
 lore["Commando"] = { Type = "Survivors", Desc = "The soldier ducked." }
+lore["Soldier's Syringe"] = { Type = "Items", Desc = "The soldier hid a needle." }
+lore["Brilliant Behemoth"] = { Type = "Items", Desc = "The huge beast waited." }
 local p = {}
 p.lore = lore
 return p
@@ -226,6 +234,8 @@ _FIXTURES = {
 def db() -> Session:
     engine = create_engine("sqlite://")
     GuideRaw.__table__.create(engine)
+    GuideTokenTranslation.__table__.create(engine)
+    GuideTokenTranslationSync.__table__.create(engine)
     session = sessionmaker(bind=engine)()
     try:
         yield session
@@ -439,6 +449,147 @@ def test_catalog_reads_database_and_skips_refetch(db: Session) -> None:
     assert first.source == "https://riskofrain2.wiki.gg/"
 
 
+
+def test_translated_catalog_uses_source_fallback_and_approved_token_units(db: Session) -> None:
+    sync_wiki(db, fetch=lambda spec: _FIXTURES[spec.resource])
+
+    source_catalog = translated_catalog(db)
+    assert source_catalog.fetched_at
+    assert source_catalog.items
+    assert source_catalog.survivors
+    syringe = next(row for row in source_catalog.items if row.name.original == "Soldier's Syringe")
+    assert syringe.name.text == "Soldier's Syringe"
+    assert syringe.name.token is None
+    assert syringe.lore.text == "The soldier hid a needle."
+    assert syringe.lore.original == "The soldier hid a needle."
+    assert syringe.lore.token is None
+    assert syringe.description.text
+    commando = next(row for row in source_catalog.survivors if row.name.original == "Commando")
+    assert commando.name.token is None
+
+    upsert_raw(
+        db,
+        "ror2",
+        WEBLATE_RESOURCE,
+        "https://weblate.invalid/ror2",
+        dump_snapshot(
+            {
+                "items.items.ITEM_SYRINGE.name": {
+                    "source": syringe.name.original,
+                    "target": "士兵的注射器",
+                    "state": "approved",
+                },
+                "items.items.ITEM_SYRINGE.Rarity": {
+                    "source": "Common",
+                    "target": "普通",
+                    "state": "approved",
+                },
+                "items.items.ITEM_SYRINGE.Stats.2.Stack": {
+                    "source": "Linear",
+                    "target": "线性二",
+                    "state": "approved",
+                },
+                "lore.lore.Soldier's Syringe.Desc": {
+                    "source": syringe.lore.original,
+                    "target": "士兵把针藏了起来。",
+                    "state": "approved",
+                },
+                "survivors.Survivors.Commando.Name": {
+                    "source": commando.name.original,
+                    "target": "指挥官",
+                    "state": "approved",
+                },
+            },
+            {
+                "items.items.ITEM_SYRINGE.name": syringe.name.original,
+                "items.items.ITEM_SYRINGE.Rarity": "Common",
+                "items.items.ITEM_SYRINGE.Stats.1.Stack": "Linear",
+                "items.items.ITEM_SYRINGE.Stats.2.Stack": "Linear",
+                "items.items.ITEM_BEHEMOTH.Rarity": "Legendary",
+                "lore.lore.Soldier's Syringe.Desc": syringe.lore.original,
+                "lore.lore.Brilliant Behemoth.Desc": "The huge beast waited.",
+                "survivors.Survivors.Commando.Name": commando.name.original,
+            },
+        ),
+    )
+
+    localized_catalog = translated_catalog(db)
+    localized_syringe = next(row for row in localized_catalog.items if row.name.original == "Soldier's Syringe")
+    localized_commando = next(row for row in localized_catalog.survivors if row.name.original == "Commando")
+    assert localized_syringe.name.text == "士兵的注射器"
+    assert localized_syringe.name.original == "Soldier's Syringe"
+    assert localized_syringe.name.token == "items.items.ITEM_SYRINGE.name"
+    assert localized_syringe.rarity.text == "普通"
+    assert localized_syringe.rarity.original == "Common"
+    assert localized_syringe.rarity.token == "items.items.ITEM_SYRINGE.Rarity"
+    assert localized_syringe.stats[0].stack.text == "Linear"
+    assert localized_syringe.stats[0].stack.token == "items.items.ITEM_SYRINGE.Stats.1.Stack"
+    assert localized_syringe.stats[1].stack.text == "线性二"
+    assert localized_syringe.stats[1].stack.original == "Linear"
+    assert localized_syringe.stats[1].stack.token == "items.items.ITEM_SYRINGE.Stats.2.Stack"
+    assert localized_syringe.lore.text == "士兵把针藏了起来。"
+    assert localized_syringe.lore.original == "The soldier hid a needle."
+    assert localized_syringe.lore.token == "lore.lore.Soldier's Syringe.Desc"
+    behemoth = next(row for row in localized_catalog.items if row.name.original == "Brilliant Behemoth")
+    assert behemoth.rarity.text == "Legendary"
+    assert behemoth.rarity.original == "Legendary"
+    assert behemoth.rarity.token == "items.items.ITEM_BEHEMOTH.Rarity"
+    assert behemoth.lore.text == "The huge beast waited."
+    assert behemoth.lore.original == "The huge beast waited."
+    assert behemoth.lore.token == "lore.lore.Brilliant Behemoth.Desc"
+    assert localized_syringe.description.text == syringe.description.text
+    assert localized_syringe.name.token is not None
+    assert localized_commando.name.text == "指挥官"
+    assert localized_commando.name.token == "survivors.Survivors.Commando.Name"
+
+def test_rarity_and_stack_tokens_fail_closed_without_exact_context_path() -> None:
+    mapped = Ror2ItemOut(
+        name="Mapped Item",
+        rarity="Common",
+        internal_name="ITEM_MAPPED",
+        wiki_url="https://example.test/mapped",
+        stats=[Ror2StatOut(label="Stack", stack="Linear")],
+    )
+    synthetic = Ror2ItemOut(
+        name="Synthetic Item",
+        rarity="Common",
+        internal_name="ITEM_SYNTHETIC",
+        wiki_url="https://example.test/synthetic",
+    )
+    catalog = Ror2CatalogOut(
+        source="https://example.test/",
+        fetched_at="",
+        items=[mapped, synthetic],
+        equipment=[],
+        survivors=[],
+    )
+    sources = {
+        "items.items.ITEM_MAPPED.Rarity": "Common",
+        "items.items.ITEM_MAPPED.Stats.1.Stack": "Linear",
+    }
+    units = {
+        "items.items.ITEM_MAPPED.Rarity": {
+            "source": "Common",
+            "target": "普通",
+            "state": "approved",
+        },
+        "items.items.ITEM_MAPPED.Stats.1.Stack": {
+            "source": "Linear",
+            "target": "线性",
+            "state": "approved",
+        },
+    }
+
+    response = catalog_response(catalog, sources, units, [])
+
+    assert response.items[0].rarity.text == "普通"
+    assert response.items[0].rarity.token == "items.items.ITEM_MAPPED.Rarity"
+    assert response.items[0].stats[0].stack.text == "Linear"
+    assert response.items[0].stats[0].stack.token is None
+    assert response.items[1].rarity.text == "Common"
+    assert response.items[1].rarity.token is None
+
+
 def test_bad_module_does_not_replace_stored_raw(db: Session) -> None:
     sync_wiki(db, fetch=_fetch_ok({"n": 0}))
     stored = db.query(GuideRaw).filter_by(game="ror2", resource="items").one()
@@ -513,6 +664,60 @@ def test_fetch_module_only_calls_wiki_api(monkeypatch: pytest.MonkeyPatch) -> No
         fetch_module("https://example.invalid/items")
 
 
+@pytest.mark.parametrize(
+    ("statuses", "should_succeed", "expected_calls", "expected_delays", "error_match"),
+    [
+        ([502, 200], True, 2, [1.0], None),
+        ([502, 502], False, 2, [1.0], "HTTP 502"),
+        ([404], False, 1, [], "HTTP 404"),
+    ],
+)
+def test_fetch_module_retries_gateway_errors_once(
+    monkeypatch: pytest.MonkeyPatch,
+    statuses: list[int],
+    should_succeed: bool,
+    expected_calls: int,
+    expected_delays: list[float],
+    error_match: str | None,
+) -> None:
+    calls = 0
+    delays: list[float] = []
+    responses = iter(statuses)
+
+    class _Resp:
+        def __init__(self, status_code: int) -> None:
+            self.status_code = status_code
+
+        def json(self) -> dict[str, object]:
+            return {
+                "query": {
+                    "pages": [
+                        {
+                            "title": "Module:Items/Data",
+                            "revisions": [{"slots": {"main": {"content": _ITEMS}}}],
+                        }
+                    ]
+                }
+            }
+
+    def fake(_method: str, _url: str, **_kwargs: object) -> _Resp:
+        nonlocal calls
+        calls += 1
+        return _Resp(next(responses))
+
+    monkeypatch.setattr("app.services.ror2.wiki.http_request", fake)
+    monkeypatch.setattr("app.services.ror2.wiki.time.sleep", delays.append)
+
+    if should_succeed:
+        assert "Soldier" in fetch_module("Module:Items/Data")
+    else:
+        assert error_match is not None
+        with pytest.raises(Ror2WikiError, match=error_match):
+            fetch_module("Module:Items/Data")
+
+    assert calls == expected_calls
+    assert delays == expected_delays
+
 def test_module_text_rejects_missing_page() -> None:
     with pytest.raises(Ror2WikiError, match="没有"):
         module_text({"query": {"pages": [{"missing": True}]}}, "Module:Items/Data")
@@ -534,3 +739,89 @@ def test_catalog_route_is_registered() -> None:
     from app.main import app
 
     assert "/api/guides/ror2/catalog" in app.openapi()["paths"]
+
+
+def test_article_page_sync_failure_preserves_previous_raw(db: Session) -> None:
+    from app.services.guide_raw.codec import unpack_raw_text
+    from app.services.ror2.wiki import sync_wiki_articles
+    from app.services.ror2.wiki_structure import article_resource, WIKI_ARTICLE_TITLES
+
+    resource = article_resource("Items")
+    prior = "== Cached ==\n{|\n! Item !! Description\n|}"
+    upsert_raw(db, "ror2", resource, "https://riskofrain2.wiki.gg/wiki/Items", prior)
+    old_row = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    old_synced_at = old_row.synced_at
+
+    def fetch_page(title: str) -> str:
+        if title == "Items":
+            return ""
+        return "== Overview ==\n{|\n! Name !! Description\n|}"
+
+    results = sync_wiki_articles(db, fetch_page=fetch_page)
+    assert len(results) == len(WIKI_ARTICLE_TITLES)
+    failed = next(row for row in results if row["resource"] == resource)
+    assert failed["ok"] is False
+    kept = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    assert kept.synced_at == old_synced_at
+    assert unpack_raw_text(kept.raw_body) == prior
+
+def test_expansion_title_sync_keeps_previous_raw_and_projects_only_title(db: Session) -> None:
+    from app.services.guide_raw.codec import unpack_raw_text
+    from app.services.ror2.wiki import stored_wiki_articles, sync_wiki_expansion_pages
+    from app.services.ror2.wiki_structure import WIKI_EXPANSION_TITLES, expansion_resource
+
+    code = "SotV"
+    title = WIKI_EXPANSION_TITLES[code]
+    resource = expansion_resource(code)
+    prior = "cached official page body"
+    upsert_raw(db, "ror2", resource, f"https://riskofrain2.wiki.gg/wiki/{title.replace(' ', '_')}", prior)
+    old_row = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    old_synced_at = old_row.synced_at
+
+    def fetch_page(page_title: str) -> str:
+        if page_title == title:
+            return ""
+        return f"== {page_title} ==\n{{|\n! Name !! Description\n|}}"
+
+    results = sync_wiki_expansion_pages(db, fetch_page=fetch_page)
+    assert len(results) == len(WIKI_EXPANSION_TITLES)
+    failed = next(row for row in results if row["resource"] == resource)
+    assert failed["ok"] is False
+    kept = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    assert kept.synced_at == old_synced_at
+    assert unpack_raw_text(kept.raw_body) == prior
+
+    projected = [row for row in stored_wiki_articles(db) if row.id.startswith("expansion:")]
+    assert {row.id for row in projected} == {
+        f"expansion:{known_code}" for known_code in WIKI_EXPANSION_TITLES
+    }
+    assert all(row.sections == () for row in projected)
+    source = next(row for row in projected if row.id == "expansion:SotV")
+    assert source.title.context == "wiki-expansion/SotV.title"
+    assert source.title.text == title
+
+
+def test_article_page_sync_rejects_unclosed_table_and_keeps_previous_raw(db: Session) -> None:
+    from app.services.guide_raw.codec import unpack_raw_text
+    from app.services.ror2.wiki import sync_wiki_articles
+    from app.services.ror2.wiki_structure import article_resource, WIKI_ARTICLE_TITLES
+
+    resource = article_resource("Items")
+    prior = "== Cached ==\n{|\n! Item !! Description\n|}"
+    upsert_raw(db, "ror2", resource, "https://riskofrain2.wiki.gg/wiki/Items", prior)
+    old_row = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    old_synced_at = old_row.synced_at
+
+    def fetch_page(title: str) -> str:
+        if title == "Items":
+            return "== Common ==\n{|\n! Item !! Description"
+        return "== Overview ==\n{|\n! Name !! Description\n|}"
+
+    results = sync_wiki_articles(db, fetch_page=fetch_page)
+    assert len(results) == len(WIKI_ARTICLE_TITLES)
+    failed = next(row for row in results if row["resource"] == resource)
+    assert failed["ok"] is False
+    assert "没有结束标记" in str(failed["error"])
+    kept = db.query(GuideRaw).filter_by(game="ror2", resource=resource).one()
+    assert kept.synced_at == old_synced_at
+    assert unpack_raw_text(kept.raw_body) == prior

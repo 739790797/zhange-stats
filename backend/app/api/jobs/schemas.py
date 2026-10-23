@@ -26,6 +26,8 @@ class ScheduledJobOut(BaseModel):
     description: str = ""
     kind: str = "cron"
     platform: str | None = None
+    sync_category: str | None = None
+    cli_command: str | None = None
     executor_id: str = APP_EXECUTOR_ID
     registered: bool = False
     scheduler_running: bool = False
@@ -34,6 +36,7 @@ class ScheduledJobOut(BaseModel):
     next_run_at: str | None = None
     config_enabled: bool | None = None
     interval_minutes: int | None = None
+    timeout_minutes: int | None = None
     hour: int | None = None
     minute: int | None = None
     last_run: ScheduledJobLastRunOut | None = None
@@ -66,6 +69,8 @@ class JobTriggerExchangeOut(BaseModel):
 class JobTriggerOut(BaseModel):
     accepted: bool = True
     job_id: str
+    run_id: int | None = None
+    category: str | None = None
     message: str = "已提交执行"
     # 角色级同步执行时返回
     ok: bool | None = None
@@ -82,6 +87,22 @@ class JobRunOut(BaseModel):
     message: str | None = None
     stats: dict[str, Any] | None = None
     live_log: str | None = None
+
+
+class JobRunLogOut(BaseModel):
+    id: int
+    created_at: str
+    level: str
+    logger: str
+    message: str
+    is_truncation: bool = False
+
+
+class JobRunEventsOut(BaseModel):
+    run: JobRunOut
+    logs: list[JobRunLogOut] = Field(default_factory=list)
+    next_after_id: int = 0
+    has_more: bool = False
 
 
 class JobRunsPageOut(BaseModel):
@@ -161,6 +182,7 @@ class UserCheckinTasksPageOut(BaseModel):
 class JobConfigUpdateItem(BaseModel):
     enabled: bool | None = None
     interval_minutes: int | None = Field(default=None, ge=1, le=1440)
+    timeout_minutes: int | None = Field(default=None, ge=1, le=1440)
     hour: int | None = Field(default=None, ge=0, le=23)
     minute: int | None = Field(default=None, ge=0, le=59)
 

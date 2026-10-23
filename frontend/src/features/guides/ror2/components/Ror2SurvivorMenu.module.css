@@ -1,0 +1,347 @@
+.menu {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.trigger {
+  position: relative;
+  margin: 0;
+  padding: 8px 24px 9px 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #e5eadf;
+  font-family: var(--ror2-display);
+  font-size: 17px;
+  line-height: 1.2;
+  text-shadow: var(--ror2-shadow);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.trigger::after {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  content: "";
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.menu:hover .trigger,
+.menu:focus-within .trigger,
+.menuOpen .trigger {
+  border-color: var(--ror2-line);
+  background: rgba(226, 199, 121, 0.055);
+  color: var(--ror2-gold);
+}
+
+.menuOpen .trigger::after {
+  transform: translateY(-20%) rotate(225deg);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--ror2-gold);
+  outline-offset: 3px;
+}
+
+.pop {
+  --base-chip-inset: 18px;
+
+  position: absolute;
+  z-index: 40;
+  top: 100%;
+  left: 50%;
+  display: none;
+  width: min(1080px, calc(100vw - 260px));
+  max-width: min(1080px, calc(100vw - 260px));
+  max-height: min(72vh, 620px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--ror2-line-strong);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(77, 101, 79, 0.18), transparent 52%),
+    linear-gradient(145deg, rgba(20, 32, 31, 0.99), rgba(8, 14, 17, 0.99));
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.58);
+  transform: translateX(-50%);
+  scrollbar-color: rgba(151, 176, 162, 0.42) rgba(8, 13, 15, 0.65);
+  scrollbar-width: thin;
+}
+
+.menuOpen .pop {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  animation: popIn 150ms ease-out both;
+}
+
+.pop > .note,
+.pop > .feedback {
+  grid-column: 1 / -1;
+}
+
+.group {
+  min-width: 0;
+  padding: 11px 10px 12px;
+}
+
+.groupBase {
+  grid-column: 1 / -1;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ror2-line);
+  color: #f0eee3;
+  font-family: var(--ror2-display);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: var(--ror2-shadow);
+}
+
+.groupTitle::after {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, rgba(226, 199, 121, 0.28), transparent);
+  content: "";
+}
+
+.roster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groupBase .roster {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 8px;
+}
+
+.roster > li {
+  min-width: 0;
+}
+
+/* The full-width base roster compensates for the card gutters to match DLC chips. */
+.groupBase .faceRow {
+  width: calc(100% - var(--base-chip-inset));
+}
+
+.faceRow {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.faceRow :global(.ror2-token-info-trigger) {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 1;
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+.faceRow:hover :global(.ror2-token-info-trigger),
+.faceRow:focus-within :global(.ror2-token-info-trigger) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.face {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  height: 46px;
+  padding: 5px 25px 5px 7px;
+  border: 1px solid var(--ror2-line);
+  border-left: 2px solid rgba(151, 176, 162, 0.4);
+  background: linear-gradient(110deg, rgba(35, 52, 47, 0.74), rgba(11, 19, 21, 0.88));
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.face:hover {
+  border-color: rgba(226, 199, 121, 0.52);
+  border-left-color: var(--ror2-gold);
+  background: linear-gradient(110deg, rgba(63, 72, 53, 0.82), rgba(18, 28, 27, 0.94));
+  transform: translateX(2px);
+}
+
+.face:focus-visible {
+  outline: 2px solid var(--ror2-gold);
+  outline-offset: 2px;
+}
+
+.portrait,
+.fallback {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border: 1px solid var(--ror2-line);
+  background: rgba(3, 8, 10, 0.5);
+}
+
+.fallback {
+  border-style: dashed;
+}
+
+.name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: #d7e0d4;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.face:hover .name,
+.face:focus-visible .name {
+  color: #f4eed9;
+}
+
+.groupIcon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+}
+
+.note {
+  margin: 12px;
+  color: var(--ror2-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (max-width: 915px) {
+  .pop {
+    --base-chip-inset: 12px;
+  }
+
+  .menuOpen .group:not(.groupBase) {
+    grid-column: span 2;
+  }
+
+  .groupBase .roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .menuOpen .pop {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menuOpen .group:not(.groupBase) {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 375px) {
+  .pop {
+    --base-chip-inset: 0px;
+  }
+
+  .menuOpen .pop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .groupBase .roster {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .pop {
+    right: 0;
+    left: auto;
+    width: min(92vw, 620px);
+    max-width: min(92vw, 620px);
+    padding: 10px;
+    transform: none;
+  }
+
+  .menuOpen .pop {
+    gap: 10px;
+    animation-name: popInMobile;
+  }
+}
+
+@keyframes popInMobile {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .trigger {
+    padding-inline: 7px 19px;
+    font-size: 15px;
+  }
+
+  .pop {
+    right: -8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .trigger::after,
+  .face {
+    transition: none;
+  }
+
+  .menuOpen .pop {
+    animation: none;
+  }
+}

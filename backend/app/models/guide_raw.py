@@ -21,6 +21,7 @@ class GuideRaw(Base):
     resource: Mapped[str] = mapped_column(String(64), nullable=False)
     source: Mapped[str] = mapped_column(String(512), nullable=False)
     raw_body: Mapped[str] = mapped_column(LongText, nullable=False, deferred=True)
+    content_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

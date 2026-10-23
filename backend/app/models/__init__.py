@@ -1,4 +1,5 @@
 from app.models.job_run import JobRun
+from app.models.job_run_log import JobRunLog
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
 from app.models.arknights_rogue import ArknightsRogueRaw
@@ -6,6 +7,7 @@ from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.exastris import ExastrisBoxRaw
 from app.models.game_schedule import GameScheduleRaw
 from app.models.guide_raw import GuideRaw
+from app.models.guide_token_translation import GuideTokenTranslation, GuideTokenTranslationSync
 from app.models.oauth_ticket import OAuthExchangeTicket
 from app.models.play_session import PlaySession
 from app.models.presence_segment import PresenceSegment
@@ -81,6 +83,7 @@ __all__ = [
     "PlaySession",
     "PresenceSegment",
     "JobRun",
+    "JobRunLog",
     "SystemConfig",
     "RegisterChallenge",
     "OAuthExchangeTicket",
@@ -110,6 +113,8 @@ __all__ = [
     "ExastrisBoxRaw",
     "GameScheduleRaw",
     "GuideRaw",
+    "GuideTokenTranslation",
+    "GuideTokenTranslationSync",
     "TarkovItemsRaw",
     "TarkovMapsRaw",
     "TarkovTasksRaw",

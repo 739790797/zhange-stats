@@ -86,6 +86,16 @@ def test_stale_running_row_does_not_block_trigger() -> None:
     db.commit()
     assert _job_has_running_run(db, "tarkov_full_sync") is True
 
+    db.add(
+        JobRun(
+            job_key="endfield_repo_sync",
+            status="queued",
+            started_at=now_naive(),
+        )
+    )
+    db.commit()
+    assert _job_has_running_run(db, "endfield_repo_sync") is True
+
 
 def test_last_runs_by_key_not_crowded_out_by_frequent_jobs() -> None:
     db = _session()

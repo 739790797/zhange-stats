@@ -14,7 +14,7 @@ from app.services.checkin.common import CheckinResult
 def test_arknights_item_icon_url() -> None:
     assert (
         arknights_item_icon_url("DIAMOND_SHD")
-        == "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/item/DIAMOND_SHD.png"
+        == "/api/skland/arknights/assets/item/DIAMOND_SHD.png"
     )
     assert arknights_item_icon_url("") is None
     assert arknights_item_icon_url("../x") is None

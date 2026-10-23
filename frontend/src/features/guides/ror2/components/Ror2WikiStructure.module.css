@@ -1,0 +1,142 @@
+.structure {
+  margin: 12px 0 16px;
+  border: 1px solid var(--ror2-line);
+  background: linear-gradient(135deg, rgba(21, 32, 31, 0.88), rgba(10, 17, 19, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 13px;
+  color: var(--ror2-gold);
+  cursor: pointer;
+  font-family: var(--ror2-display);
+  font-size: 15px;
+  text-shadow: var(--ror2-shadow);
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::before {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  content: "";
+  transition: transform 140ms ease;
+}
+
+.structure[open] > .summary {
+  border-bottom: 1px solid var(--ror2-line);
+}
+
+.structure[open] > .summary::before {
+  transform: rotate(90deg);
+}
+
+.summary:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--ror2-gold);
+  outline-offset: -3px;
+}
+
+.articles {
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.article {
+  min-width: 0;
+}
+
+.articleTitle,
+.sectionTitle,
+.caption {
+  margin: 8px 0;
+  color: var(--ror2-text);
+  font-family: var(--ror2-display);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.articleTitle {
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--ror2-line);
+  color: var(--ror2-gold);
+}
+
+.section {
+  margin-top: 9px;
+  padding-left: 12px;
+  border-left: 1px solid var(--ror2-line-strong);
+}
+
+.section[data-level="3"] {
+  margin-left: 12px;
+}
+
+.section[data-level="4"],
+.section[data-level="5"],
+.section[data-level="6"] {
+  margin-left: 24px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+}
+
+.table {
+  max-width: 100%;
+  margin: 8px 0 12px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1px solid var(--ror2-line);
+  background: rgba(5, 11, 13, 0.4);
+}
+
+.caption {
+  color: var(--ror2-muted);
+  font-size: 12px;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.columns li {
+  padding: 3px 7px;
+  border: 1px solid var(--ror2-line);
+  background: rgba(165, 190, 173, 0.04);
+  color: #d5ddd1;
+  font-family: var(--ror2-mono);
+  font-size: 11px;
+}
+
+@media (max-width: 560px) {
+  .section[data-level="3"],
+  .section[data-level="4"],
+  .section[data-level="5"],
+  .section[data-level="6"] {
+    margin-left: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary::before {
+    transition: none;
+  }
+}
