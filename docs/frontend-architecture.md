@@ -33,7 +33,6 @@ frontend/src/
 │   └── guides/
 │       ├── shared/              # 攻略域内导航与共享页面部件
 │       ├── minecraft/
-│       ├── ror2/
 │       └── tarkov/
 └── shared/
     ├── api/                     # HTTP transport、错误基础设施与生成契约

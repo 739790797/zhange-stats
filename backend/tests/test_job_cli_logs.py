@@ -60,7 +60,7 @@ def test_cli_dispatches_each_registered_sync_job(monkeypatch) -> None:
         ),
     )
 
-    assert len(SYNC_JOB_CATEGORIES) == 12
+    assert len(SYNC_JOB_CATEGORIES) == 10
     assert set(SYNC_JOB_CATEGORIES) <= set(SYSTEM_CRON_HANDLERS)
     for job_id in SYNC_JOB_CATEGORIES:
         assert cli.main(["run-job", job_id]) == 0

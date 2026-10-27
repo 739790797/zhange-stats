@@ -69,22 +69,6 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "tarkov_full",
     },
     {
-        "id": "ror2_wiki_sync",
-        "sync_category": SYNC_JOB_CATEGORIES["ror2_wiki_sync"],
-        "name": "图鉴数据更新",
-        "description": "回源 riskofrain2.wiki.gg 的 Module 命名空间全部页面，以及每个幸存者词条。图鉴用的十份模块解析不过就不覆盖；其余模块只存原文",
-        "kind": "cron",
-        "platform": "ror2_wiki",
-    },
-    {
-        "id": "ror2_weblate_sync",
-        "sync_category": SYNC_JOB_CATEGORIES["ror2_weblate_sync"],
-        "name": "图鉴译文",
-        "description": "把每份已落库的 Wiki 原文拆成字符串推到 Weblate。Lua 表按路径编号；有令牌的挂在令牌下。已审且原文未变的译文写回快照",
-        "kind": "cron",
-        "platform": "ror2_weblate",
-    },
-    {
         "id": "endfield_repo_sync",
         "sync_category": SYNC_JOB_CATEGORIES["endfield_repo_sync"],
         "name": "外部仓库更新",

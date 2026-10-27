@@ -22,9 +22,7 @@ SYNC_JOB_CATEGORIES: dict[str, str] = {
     "game_schedule_arknights_sync": "data_pipeline",
     "game_schedule_endfield_sync": "data_pipeline",
     "tarkov_full_sync": "data_pipeline",
-    "ror2_wiki_sync": "data_pipeline",
     "arknights_box_sync": "batch_sync",
-    "ror2_weblate_sync": "asset_sync",
     "texteller_model_sync": "asset_sync",
 }
 

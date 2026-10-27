@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { featureIconName, featureTreeIcon } from "./platformIcons";
 
 describe("featureIconName", () => {
-  it("maps tarkov, minecraft, and ror2 guide games to their logos", () => {
+  it("maps the remaining guide games to their logos", () => {
     expect(featureIconName("guides.tarkov")).toBe("tarkov");
     expect(featureIconName("guides.minecraft")).toBe("minecraft");
-    expect(featureIconName("guides.ror2")).toBe("ror2");
   });
 });
 
@@ -18,6 +17,5 @@ describe("featureTreeIcon", () => {
   it("keeps third-party platform icons", () => {
     expect(featureTreeIcon("steam", "platform")).toBe("steam");
     expect(featureTreeIcon("guides.tarkov", "game")).toBe("tarkov");
-    expect(featureTreeIcon("guides.ror2", "game")).toBe("ror2");
   });
 });

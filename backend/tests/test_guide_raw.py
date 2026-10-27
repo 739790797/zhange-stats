@@ -56,3 +56,32 @@ def test_unchanged_body_keeps_synced_at_and_reject_keeps_old_row() -> None:
     still = db.query(GuideRaw).filter_by(game="demo", resource="items").one()
     assert unpack_raw_text(still.raw_body) == "alpha"
     assert pipeline.load_texts(db) == {"items": "alpha"}
+
+
+def test_pipeline_can_abort_remaining_specs_on_fatal_upstream_error() -> None:
+    db = _db()
+
+    class _FatalUpstreamError(Exception):
+        pass
+
+    attempted: list[str] = []
+    pipeline = GuideRawPipeline(
+        "demo",
+        (
+            RawSpec("first", "https://example/first", lambda: "", lambda _body: None),
+            RawSpec("second", "https://example/second", lambda: "", lambda _body: None),
+        ),
+    )
+
+    def fetch(spec: RawSpec) -> str:
+        attempted.append(spec.resource)
+        raise _FatalUpstreamError("stop after rate limit")
+
+    try:
+        pipeline.sync(db, fetch=fetch, abort_on=(_FatalUpstreamError,))
+    except _FatalUpstreamError as exc:
+        assert "rate limit" in str(exc)
+    else:
+        raise AssertionError("the configured fatal exception must stop the batch")
+
+    assert attempted == ["first"]

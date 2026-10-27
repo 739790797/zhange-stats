@@ -1,11 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const frontendDir = path.dirname(fileURLToPath(import.meta.url));
+
 function readAppVersion(): string {
   try {
-    const raw = fs.readFileSync(path.resolve(__dirname, "../VERSION"), "utf8");
+    const raw = fs.readFileSync(path.resolve(frontendDir, "../VERSION"), "utf8");
     return raw.trim().replace(/^v/i, "") || "dev";
   } catch {
     return "dev";
@@ -17,10 +20,10 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(readAppVersion()),
   },
-  cacheDir: path.resolve(__dirname, "../data/cache/vite"),
+  cacheDir: path.resolve(frontendDir, "../data/cache/vite"),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(frontendDir, "src"),
     },
   },
   build: {

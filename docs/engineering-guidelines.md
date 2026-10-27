@@ -47,7 +47,7 @@
 - 主要 CTA 使用 `type="primary"`，一个操作区保持一致尺寸；次要/取消/刷新用默认按钮，表格行/工具条用小号 link 或默认按钮，图标按钮用小号 text；破坏性操作须 `danger` 并二次确认。不要显式写默认 `size="middle"`、同一操作区混用 large/small，或用业务页原生 `<button>` 冒充主操作。
 - 主内容区维持键盘可达的跳转链接、明确 `main`/导航标签和换页后的焦点行为；标题与页面切换使用项目现有文档标题、回顶和错误边界能力。新增焦点交互不可只支持鼠标。
 - Modal 高度与窄屏宽度由全局 CSS 约束；不要在业务代码写死 `height`、`maxHeight: 720` 或 `72vh`。近全屏弹窗使用 `100dvh` 约束并让正文按需滚动，内容未溢出视口时不要制造滚动条。
-- 例外保持局部：QQ 官方登录图、塔科夫模块、Minecraft 向导和雨中冒险 2 攻略壳的专用控件；酒馆编辑器可使用 TipTap 但工具栏仍用 Ant Design，公式渲染使用 KaTeX/LaTeX 与现有识别流程，不另加编辑器/公式编辑器主题。塔科夫滚动条统一走 `tarkovScrollbar.css`，不要在模块 CSS 复制原生滚动条规则。
+- 例外保持局部：QQ 官方登录图、塔科夫模块和 Minecraft 向导的专用控件；酒馆编辑器可使用 TipTap 但工具栏仍用 Ant Design，公式渲染使用 KaTeX/LaTeX 与现有识别流程，不另加编辑器/公式编辑器主题。塔科夫滚动条统一走 `tarkovScrollbar.css`，不要在模块 CSS 复制原生滚动条规则。
 
 ## 签到、盒子与平台 raw 缓存
 
@@ -70,7 +70,6 @@
 - 安装根 `data/repos/` 中登记的资源仓由 `backend/app/services/upstream_repos.py` 统一管理，并由任务浅克隆/更新；普通读请求只解析本地登记仓，不按请求运行 Git，也不直接逐文件请求 raw URL。缺仓时用统一提示，引导管理员前往任务配置页手动同步。资源仓、时间、备份与文件管理以 [`data/README.md`](../data/README.md) 和 [`deploy.md`](deploy.md) 为准。
 - 涉及仓生命周期、同步错误、资源解析的 pytest 必须使用本地 fixture、临时目录和注入的 Git runner；不得访问 GitHub/真实服务或执行 Git。更新失败要保留最后一份可用 checkout/raw。
 - 通用图鉴复用 `GuideRawPipeline`：每份上游文件一行 raw 记录；先保存被接受的原始来源，再纯函数解析；压缩、冷启动和失败不覆盖规则沿用已有实现。不要另造重复 raw 表/压缩管道，也不要把解析结果当上游权威。
-- 雨中冒险 2 的图鉴源为 `riskofrain2.wiki.gg` 同步原文并写入 `guide_raws`；Weblate 是独立服务，只通过 REST API 管理按路径/LocalizationInternalName 编号的令牌源单元与译文。本地数据库缓存源文本、审核状态和译文，页面请求不得直接访问 Weblate。增量同步只用 `add` 新建单元；更新已有源文本时调用单元 API 的源字段更新，不用整文件 `replace`；若部署版本或令牌权限不支持，任务应失败并保留现有快照。展示先解析原文，再逐字段叠加已审核且源指纹匹配、格式标签/占位符/换行结构兼容的译文；不兼容、未翻译、未审核或原文已变的字段回退原文。普通 Wiki 文章只接受结构完整的表格 raw；无效更新保留最后一份可用 raw。不得现场回源其他图鉴 API、用 SteamCMD 更新游戏或把未审核建议当译文。测试使用 dump/fixture。
 - 塔科夫图鉴回源只读 `json.tarkov.dev` 的 `/regular/` 与 `/pve/` dump；每张 `tarkov_*_raws` 表对应一份来源文件，缺少的 dump 字段就视为不存在，不以 GraphQL 补齐。新标点从 `maps` raw 投影。历史 GraphQL split 信封仅为旧 raw 行兼容，不能扩展成新回源路径。
 - 塔科夫 overlay 从已登记的本地 `data/repos/tarkov-data-overlay/dist/overlay.json` 在内存合并；不要把浏览器/raw URL 或额外 GraphQL 当作来源，也不要再落一份合并后的权威表。地图 SVG/瓦片、格仓轮廓属于展示资源，不是图鉴 API。
 - 塔科夫工作台预览以 dump 枪图为底板，按槽位选择配件；缺少整枪坐标不意味着可把出图服务改成数据权威。image-gen 代理默认关闭，只有显式配置 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才可启用。社区配装只 GET EFTForge 公开列表并投影为 dump 可装部件；不代投票/评论、不热链社区图片、不把其作为图鉴源，除短时 KV 外不持久化。枪匠约束来自 tasks dump 的 `buildWeapon`/`buildAttributes`，不 vendor 社区 JSON；工作台测试不得访问真实上游。

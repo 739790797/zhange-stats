@@ -1,4 +1,4 @@
-"""ROR2 guide cache migrations add normalized Weblate state without altering Wiki raws."""
+"""Guide cache migrations add normalized translation state without altering source raws."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def pre_translation_cache_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         connection.exec_driver_sql(
             "INSERT INTO guide_raws "
             "(game, resource, source, raw_body, synced_at, note) "
-            "VALUES ('ror2', 'items', 'wiki', 'raw wiki body', '2026-10-22 00:00:00', NULL)"
+            "VALUES ('demo', 'items', 'wiki', 'raw body', '2026-10-22 00:00:00', NULL)"
         )
         connection.exec_driver_sql(
             "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
@@ -48,7 +48,7 @@ def pre_translation_cache_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         get_settings.cache_clear()
 
 
-def test_upgrade_adds_weblate_cache_and_raw_fingerprint(pre_translation_cache_db) -> None:
+def test_upgrade_adds_translation_cache_and_raw_fingerprint(pre_translation_cache_db) -> None:
     config = _alembic_config()
     command.upgrade(config, "head")
 
@@ -85,12 +85,12 @@ def test_upgrade_adds_weblate_cache_and_raw_fingerprint(pre_translation_cache_db
     } == {column["name"] for column in inspector.get_columns("guide_token_translation_syncs")}
     with pre_translation_cache_db.connect() as connection:
         raw = connection.exec_driver_sql(
-            "SELECT raw_body, content_fingerprint FROM guide_raws WHERE game = 'ror2'"
+            "SELECT raw_body, content_fingerprint FROM guide_raws WHERE game = 'demo'"
         ).one()
         revision = connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
-    assert raw.raw_body == "raw wiki body"
+    assert raw.raw_body == "raw body"
     assert raw.content_fingerprint is None  # Existing content is hashed lazily on next Wiki sync.
     assert revision == _REVISION
 
@@ -98,5 +98,5 @@ def test_upgrade_adds_weblate_cache_and_raw_fingerprint(pre_translation_cache_db
     command.upgrade(config, "head")
     with pre_translation_cache_db.connect() as connection:
         assert connection.exec_driver_sql(
-            "SELECT raw_body FROM guide_raws WHERE game = 'ror2'"
-        ).scalar_one() == "raw wiki body"
+            "SELECT raw_body FROM guide_raws WHERE game = 'demo'"
+        ).scalar_one() == "raw body"

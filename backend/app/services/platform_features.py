@@ -274,27 +274,6 @@ FEATURE_TREE: list[dict[str, Any]] = [
                     },
                 ],
             },
-            {
-                "id": "guides.ror2",
-                "name": "雨中冒险2",
-                "kind": "game",
-                "children": [
-                    {
-                        "id": "guides.ror2.wiki_sync",
-                        "name": "图鉴数据更新",
-                        "kind": "job",
-                        "job_id": "ror2_wiki_sync",
-                        "schedule": "cron",
-                    },
-                    {
-                        "id": "guides.ror2.weblate_sync",
-                        "name": "图鉴译文",
-                        "kind": "job",
-                        "job_id": "ror2_weblate_sync",
-                        "schedule": "cron",
-                    },
-                ],
-            },
             # Minecraft 页面已停用（总览 / 启动 / 管理 / 插件 / 模组，以及在线时长轮询）。
             # {
             #     "id": "guides.minecraft",
@@ -331,8 +310,6 @@ JOB_FEATURE_IDS: dict[str, str] = {
     "tarkov_overlay_repo_sync": "guides.tarkov.overlay_repo_sync",
     "tarkov_svg_repo_sync": "guides.tarkov.svg_repo_sync",
     "tarkov_full_sync": "guides.tarkov.full_sync",
-    "ror2_wiki_sync": "guides.ror2.wiki_sync",
-    "ror2_weblate_sync": "guides.ror2.weblate_sync",
     "texteller_model_sync": "zhange.texteller_model",
 }
 
@@ -363,8 +340,6 @@ PLATFORM_SHORT_NAMES: dict[str, str] = {
     "tarkov_svg_repo": "塔科夫 SVG 仓库",
     # "minecraft": "Minecraft",
     "tarkov_full": "攻略数据全量更新",
-    "ror2_wiki": "雨中冒险2图鉴",
-    "ror2_weblate": "雨中冒险2译文",
 }
 
 # 旧平台 id → 现行节点。战鸽酒馆仍用 require_feature("tavern")，与「战鸽数据」同开同关。
@@ -391,6 +366,14 @@ _ALL_FEATURE_ID_SET: set[str] = set(_ALL_FEATURE_IDS)
 _RESERVED_FEATURE_IDS: set[str] = {
     str(n["id"]) for n, _ in _iter_nodes() if n.get("reserved")
 }
+_RETIRED_ROR2_FEATURE_FLAGS = frozenset(
+    {
+        "guides.ror2",
+        "guides.ror2.wiki_sync",
+        "guides.ror2.weblate_sync",
+        "guides.ror2.lang_sync",
+    }
+)
 
 
 def default_features() -> dict[str, bool]:
@@ -408,8 +391,6 @@ def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) ->
     if "zhange.texteller_model" not in flags:
         if "tavern.texteller_sync" in flags:
             base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])
-    if "guides.ror2.weblate_sync" not in flags and "guides.ror2.lang_sync" in flags:
-        base["guides.ror2.weblate_sync"] = bool(flags["guides.ror2.lang_sync"])
     if "zhange" in flags or "zhange.upstream_repos" in flags:
         legacy_on = bool(flags.get("zhange", True)) and bool(
             flags.get("zhange.upstream_repos", True)
@@ -442,6 +423,11 @@ def load_feature_flags(_db: Session | None = None) -> dict[str, bool]:
     blob = read_json("jobs") or {}
     flags = blob.get("features")
     if isinstance(flags, dict):
+        retired_flags = _RETIRED_ROR2_FEATURE_FLAGS.intersection(flags)
+        if retired_flags:
+            flags = {key: value for key, value in flags.items() if key not in retired_flags}
+            blob = {**blob, "features": flags}
+            write_json("jobs", blob)
         for fid in base:
             if fid in flags and flags[fid] is not None:
                 base[fid] = bool(flags[fid])

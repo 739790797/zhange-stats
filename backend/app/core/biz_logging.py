@@ -23,7 +23,6 @@ _PLATFORM_PREFIXES: tuple[str, ...] = (
     "steam",
     "minecraft",
     "tarkov",
-    "ror2",
     "arknights",
     "pelican",
     "qq",
@@ -197,6 +196,7 @@ def configure_runtime_logging() -> int:
     logging.getLogger("app").setLevel(level)
     logging.getLogger("zhange").setLevel(level)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     # 由 zhange.http 中间件打结构化请求日志，避免与 uvicorn.access 重复
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     if level <= logging.DEBUG:

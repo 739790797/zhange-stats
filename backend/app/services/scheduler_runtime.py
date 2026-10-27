@@ -44,8 +44,6 @@ from app.services.upstream_repos import (
     upstream_repo_sync_job,
 )
 from app.services.tarkov.sync import full_sync_job_wrapper as tarkov_full_sync_job_wrapper
-from app.services.ror2.wiki import sync_job as ror2_wiki_sync_job
-from app.services.ror2.weblate import sync_job as ror2_weblate_sync_job
 
 from app.services.checkin.queue import CHECKIN_QUEUE_WINDOW_MINUTES
 
@@ -91,8 +89,6 @@ SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
         upstream_repo_sync_job, REPO_TARKOV_SVG
     ),
     "tarkov_full_sync": tarkov_full_sync_job_wrapper,
-    "ror2_wiki_sync": ror2_wiki_sync_job,
-    "ror2_weblate_sync": ror2_weblate_sync_job,
     "texteller_model_sync": texteller_model_sync_job,
     "job_runs_prune": prune_job_wrapper,
 }

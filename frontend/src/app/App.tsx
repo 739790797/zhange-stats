@@ -73,13 +73,6 @@ const RumPage = lazyWithReload(() => import("@/features/admin/pages/RumPage"));
 const RuntimeEnvPage = lazyWithReload(() => import("@/features/admin/pages/RuntimeEnvPage"));
 const SystemUpdatePage = lazyWithReload(() => import("@/features/admin/pages/SystemUpdatePage"));
 const TarkovGuidesRoute = lazyWithReload(() => import("@/app/router/TarkovGuidesRoute"));
-const Ror2GuidesRoute = lazyWithReload(() => import("@/app/router/Ror2GuidesRoute"));
-const Ror2HomePage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2HomePage"));
-const Ror2ItemsPage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2ItemsPage"));
-const Ror2ItemDetailPage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2ItemDetailPage"));
-const Ror2SurvivorsPage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2SurvivorsPage"));
-const Ror2SurvivorPage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2SurvivorPage"));
-const Ror2DirectoryPage = lazyWithReload(() => import("@/features/guides/ror2/pages/Ror2DirectoryPage"));
 const TarkovHomePage = lazyWithReload(() => import("@/features/guides/tarkov/pages/TarkovHomePage"));
 const TarkovItemsHubPage = lazyWithReload(
   () => import("@/features/guides/tarkov/pages/TarkovItemsHubPage"),
@@ -465,21 +458,6 @@ export default function App() {
                     path="progression"
                     element={<TarkovProgressionPage />}
                   />
-                </Route>
-                <Route path="/guides/ror2" element={<Ror2GuidesRoute />}>
-                  <Route index element={<Ror2HomePage />} />
-                  <Route path="items" element={<Ror2ItemsPage />} />
-                  <Route path="items/:itemKind/:itemId" element={<Ror2ItemDetailPage />} />
-                  <Route path="survivors" element={<Ror2SurvivorsPage />} />
-                  <Route path="survivors/:name" element={<Ror2SurvivorPage />} />
-                  <Route path="monsters" element={<Ror2DirectoryPage section="monsters" />} />
-                  <Route path="environments" element={<Ror2DirectoryPage section="environments" />} />
-                  <Route path="challenges" element={<Ror2DirectoryPage section="challenges" />} />
-                  <Route path="interactables" element={<Ror2DirectoryPage section="interactables" />} />
-                  <Route path="drones" element={<Ror2DirectoryPage section="drones" />} />
-                  <Route path="artifacts" element={<Ror2DirectoryPage section="artifacts" />} />
-                  <Route path="newt-altars" element={<Ror2DirectoryPage section="newt-altars" />} />
-                  <Route path="unreleased" element={<Ror2DirectoryPage section="unreleased" />} />
                 </Route>
                 <Route element={<PrivateRoute />}>
                 <Route

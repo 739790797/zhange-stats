@@ -29,13 +29,14 @@ JOB_IDS = (
     "mihoyo_checkin",
     *REPO_SYNC_JOB_IDS.values(),
     "tarkov_full_sync",
-    "ror2_wiki_sync",
-    "ror2_weblate_sync",
     "texteller_model_sync",
     "job_runs_prune",
 )
 
 UPSTREAM_REPO_JOB_IDS = tuple(REPO_SYNC_JOB_IDS.values())
+_RETIRED_ROR2_SCHEDULER_KEYS = frozenset(
+    {"ror2_wiki_sync", "ror2_weblate_sync", "ror2_lang_sync"}
+)
 
 INTERVAL_JOB_IDS = frozenset({"steam_presence"})
 
@@ -89,8 +90,6 @@ def _code_defaults() -> dict[str, dict[str, Any]]:
             for job_id in REPO_SYNC_JOB_IDS.values()
         },
         "tarkov_full_sync": {"enabled": True, "hour": 4, "minute": 25},
-        "ror2_wiki_sync": {"enabled": True, "hour": 4, "minute": 40},
-        "ror2_weblate_sync": {"enabled": True, "hour": 4, "minute": 55},
         "texteller_model_sync": {"enabled": True, "hour": 4, "minute": 50},
         "taygedo_checkin": {"enabled": True, "hour": 0, "minute": 1},
         "exilium_checkin": {"enabled": True, "hour": 0, "minute": 1},
@@ -138,6 +137,27 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
 def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any]]:
     base = _code_defaults()
     blob = read_json("jobs") or {}
+    scheduler = blob.get("scheduler")
+    retired_settings = False
+    if isinstance(scheduler, dict):
+        cleaned_scheduler = {
+            key: value
+            for key, value in scheduler.items()
+            if key not in _RETIRED_ROR2_SCHEDULER_KEYS
+        }
+        if len(cleaned_scheduler) != len(scheduler):
+            blob = {**blob, "scheduler": cleaned_scheduler}
+            retired_settings = True
+    cleaned_blob = {
+        key: value
+        for key, value in blob.items()
+        if key not in _RETIRED_ROR2_SCHEDULER_KEYS
+    }
+    if len(cleaned_blob) != len(blob):
+        blob = cleaned_blob
+        retired_settings = True
+    if retired_settings:
+        write_json("jobs", blob)
     stored = blob.get("scheduler") if isinstance(blob.get("scheduler"), dict) else blob
     if not isinstance(stored, dict):
         return {jid: dict(base[jid]) for jid in JOB_IDS}
@@ -153,10 +173,6 @@ def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any
             "game_schedule_endfield_sync",
         ):
             legacy = stored.get("game_schedule_sync")
-            if isinstance(legacy, dict):
-                item = legacy
-        if not isinstance(item, dict) and jid == "ror2_weblate_sync":
-            legacy = stored.get("ror2_lang_sync")
             if isinstance(legacy, dict):
                 item = legacy
         if isinstance(item, dict):

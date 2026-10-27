@@ -1,4 +1,4 @@
-import { GithubOutlined, QqOutlined, TranslationOutlined } from "@ant-design/icons";
+import { GithubOutlined, QqOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -29,21 +29,16 @@ type FormValues = {
   qq_app_id?: string;
   qq_app_key?: string;
   github_token?: string;
-  weblate_url?: string;
-  weblate_project?: string;
-  weblate_component?: string;
-  weblate_token?: string;
   // Minecraft 页面已停用，面板 / RCON / 公开地址不再出现在表单里。
 };
 
-type SecretKey = "steam_api_key" | "qq_app_key" | "github_token" | "weblate_token";
+type SecretKey = "steam_api_key" | "qq_app_key" | "github_token";
 type ClearFlags = Record<SecretKey, boolean>;
 
 const NO_CLEAR: ClearFlags = {
   steam_api_key: false,
   qq_app_key: false,
   github_token: false,
-  weblate_token: false,
 };
 
 function formValuesOf(data: IntegrationsSettings): FormValues {
@@ -52,10 +47,6 @@ function formValuesOf(data: IntegrationsSettings): FormValues {
     qq_app_id: data.qq_app_id || "",
     qq_app_key: "",
     github_token: "",
-    weblate_url: data.weblate_url || "",
-    weblate_project: data.weblate_project || "",
-    weblate_component: data.weblate_component || "",
-    weblate_token: "",
   };
 }
 
@@ -65,14 +56,9 @@ function toPayload(values: FormValues, clearing: ClearFlags): IntegrationsUpdate
     qq_app_id: values.qq_app_id ?? "",
     qq_app_key: secretPayloadValue(values.qq_app_key, clearing.qq_app_key),
     github_token: secretPayloadValue(values.github_token, clearing.github_token),
-    weblate_url: values.weblate_url ?? "",
-    weblate_project: values.weblate_project ?? "",
-    weblate_component: values.weblate_component ?? "",
-    weblate_token: secretPayloadValue(values.weblate_token, clearing.weblate_token),
     clear_steam_api_key: clearing.steam_api_key,
     clear_qq_app_key: clearing.qq_app_key,
     clear_github_token: clearing.github_token,
-    clear_weblate_token: clearing.weblate_token,
     // 不回写 Minecraft 面板 / RCON / 公开地址，避免保存其它密钥时清空已有值。
     clear_pelican_client_token: false,
     clear_pelican_application_token: false,
@@ -227,45 +213,6 @@ export default function IntegrationsSettingsPage() {
           hint={data?.steam_api_key_hint}
           emptyPlaceholder="请输入 Steam Web API Key"
           {...clearProps("steam_api_key")}
-        />
-      </IntegrationBlock>
-
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <TranslationOutlined />
-          </IntegrationMark>
-        }
-        title="Weblate"
-        configured={data?.weblate_configured}
-      >
-        <Form.Item
-          name="weblate_url"
-          label="站点地址"
-          extra="单语 JSON 组件，源语言 en，翻译语言 zh_Hans。令牌需要译文上传和读取权限。"
-        >
-          <Input placeholder="https://weblate.example.com" autoComplete="off" />
-        </Form.Item>
-        <Row gutter={16}>
-          <Col xs={24} sm={12}>
-            <Form.Item name="weblate_project" label="项目">
-              <Input placeholder="zhange" autoComplete="off" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12}>
-            <Form.Item name="weblate_component" label="组件">
-              <Input placeholder="ror2" autoComplete="off" />
-            </Form.Item>
-          </Col>
-        </Row>
-        <SecretFormItem
-          name="weblate_token"
-          label="API 令牌"
-          style={{ marginBottom: 0 }}
-          set={Boolean(data?.weblate_token_set)}
-          hint={data?.weblate_token_hint}
-          emptyPlaceholder="请输入 Weblate API 令牌"
-          {...clearProps("weblate_token")}
         />
       </IntegrationBlock>
 

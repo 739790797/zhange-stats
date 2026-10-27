@@ -28,7 +28,7 @@ zhange-stats/
   backend/app/
     api/ cli/                # API；cli/ 提供 python -m app.cli run-job
     services/
-      checkin/ skland/ (endfield_inn/) mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ ror2/ guide_raw/ articles/ user_files/
+      checkin/ skland/ (endfield_inn/) mihoyo/ kujiequ/ taygedo/ exilium/ steam/ minecraft/ tarkov/ guide_raw/ articles/ user_files/
       （横切仍留根上，见下表）
     models/ schemas/ core/
 ```

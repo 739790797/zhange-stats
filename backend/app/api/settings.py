@@ -125,13 +125,6 @@ class IntegrationsOut(BaseModel):
     minecraft_public_host: str = ""
     minecraft_public_port: int = 25565
     minecraft_public_configured: bool = False
-    weblate_url: str = ""
-    weblate_project: str = ""
-    weblate_component: str = ""
-    weblate_token: str = ""
-    weblate_token_set: bool = False
-    weblate_token_hint: str = ""
-    weblate_configured: bool = False
 
 
 class IntegrationsUpdate(BaseModel):
@@ -156,11 +149,6 @@ class IntegrationsUpdate(BaseModel):
     clear_minecraft_rcon_password: bool = False
     minecraft_public_host: str | None = None
     minecraft_public_port: int | None = Field(default=None, ge=0, le=65535)
-    weblate_url: str | None = None
-    weblate_project: str | None = None
-    weblate_component: str | None = None
-    weblate_token: str | None = None
-    clear_weblate_token: bool = False
 
 
 class AuthAdminBrief(BaseModel):

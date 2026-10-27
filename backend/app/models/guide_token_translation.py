@@ -1,4 +1,4 @@
-"""Parsed translation cache for source tokens served by Weblate."""
+"""Parsed translation cache for guide source tokens."""
 
 from datetime import datetime
 
@@ -11,7 +11,7 @@ from app.core.timeutil import now_naive
 
 
 class GuideTokenTranslation(Base):
-    """One cached Weblate unit, keyed by a digest of its context."""
+    """One cached translation unit, keyed by a digest of its context."""
 
     __tablename__ = "guide_token_translations"
     __table_args__ = (
@@ -35,7 +35,7 @@ class GuideTokenTranslation(Base):
 
 
 class GuideTokenTranslationSync(Base):
-    """Successful Weblate snapshot marker, including an intentionally empty snapshot."""
+    """Successful translation snapshot marker, including an intentionally empty snapshot."""
 
     __tablename__ = "guide_token_translation_syncs"
 

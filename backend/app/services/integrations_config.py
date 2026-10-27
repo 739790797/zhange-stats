@@ -20,7 +20,6 @@ SECRET_FIELDS = (
     "pelican_client_token",
     "pelican_application_token",
     "minecraft_rcon_password",
-    "weblate_token",
 )
 # 长 token 回末 4 位方便认出是哪把；口令类（RCON）不给。
 HINTED_SECRET_FIELDS = frozenset(
@@ -30,7 +29,6 @@ HINTED_SECRET_FIELDS = frozenset(
         "github_token",
         "pelican_client_token",
         "pelican_application_token",
-        "weblate_token",
     }
 )
 HINT_MIN_LENGTH = 16
@@ -69,10 +67,6 @@ def _defaults() -> dict[str, str]:
         "minecraft_rcon_password": "",
         "minecraft_public_host": "",
         "minecraft_public_port": "25565",
-        "weblate_url": "",
-        "weblate_project": "",
-        "weblate_component": "",
-        "weblate_token": "",
     }
 
 
@@ -99,12 +93,6 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
         merged["minecraft_public_host"] = str(stored.get("minecraft_public_host") or "").strip()
     if stored.get("minecraft_public_port") is not None:
         merged["minecraft_public_port"] = str(stored.get("minecraft_public_port") or "").strip()
-    if stored.get("weblate_url") is not None:
-        merged["weblate_url"] = str(stored.get("weblate_url") or "").strip()
-    if stored.get("weblate_project") is not None:
-        merged["weblate_project"] = str(stored.get("weblate_project") or "").strip()
-    if stored.get("weblate_component") is not None:
-        merged["weblate_component"] = str(stored.get("weblate_component") or "").strip()
     for key in SECRET_FIELDS:
         if key not in stored or stored.get(key) is None:
             continue
@@ -123,26 +111,26 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
         "minecraft_rcon_password": merged.get("minecraft_rcon_password") or "",
         "minecraft_public_host": (merged.get("minecraft_public_host") or "").strip(),
         "minecraft_public_port": str(_parse_game_port(merged.get("minecraft_public_port"))),
-        "weblate_url": (merged.get("weblate_url") or "").strip().rstrip("/"),
-        "weblate_project": (merged.get("weblate_project") or "").strip(),
-        "weblate_component": (merged.get("weblate_component") or "").strip(),
-        "weblate_token": merged.get("weblate_token") or "",
     }
 
 
-_RETIRED_STEAMCMD_KEYS = (
+_RETIRED_INTEGRATION_KEYS = (
     "steamcmd_username",
     "steamcmd_password",
     "steamcmd_guard_code",
     "steamcmd_path",
     "steamcmd_install_dir",
+    "weblate_url",
+    "weblate_project",
+    "weblate_component",
+    "weblate_token",
 )
 
 
 def load_integrations(_db: Session | None = None) -> dict[str, str]:
     raw = read_json("integrations")
-    if isinstance(raw, dict) and any(key in raw for key in _RETIRED_STEAMCMD_KEYS):
-        raw = {key: value for key, value in raw.items() if key not in _RETIRED_STEAMCMD_KEYS}
+    if isinstance(raw, dict) and any(key in raw for key in _RETIRED_INTEGRATION_KEYS):
+        raw = {key: value for key, value in raw.items() if key not in _RETIRED_INTEGRATION_KEYS}
         write_json("integrations", raw)
     return _normalize(raw)
 
@@ -179,12 +167,6 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
         stored["minecraft_public_host"] = str(payload.get("minecraft_public_host") or "").strip()
     if "minecraft_public_port" in payload and payload.get("minecraft_public_port") is not None:
         stored["minecraft_public_port"] = str(_parse_game_port(payload.get("minecraft_public_port")))
-    if "weblate_url" in payload and payload.get("weblate_url") is not None:
-        stored["weblate_url"] = str(payload.get("weblate_url") or "").strip()
-    if "weblate_project" in payload and payload.get("weblate_project") is not None:
-        stored["weblate_project"] = str(payload.get("weblate_project") or "").strip()
-    if "weblate_component" in payload and payload.get("weblate_component") is not None:
-        stored["weblate_component"] = str(payload.get("weblate_component") or "").strip()
     rcon_changed = any(
         key in payload
         for key in (
@@ -229,15 +211,6 @@ def public_integrations(cfg: dict[str, str]) -> dict[str, Any]:
         "minecraft_public_host": public_host,
         "minecraft_public_port": _parse_game_port(cfg.get("minecraft_public_port")),
         "minecraft_public_configured": bool(public_host),
-        "weblate_url": cfg.get("weblate_url") or "",
-        "weblate_project": cfg.get("weblate_project") or "",
-        "weblate_component": cfg.get("weblate_component") or "",
-        "weblate_configured": bool(
-            cfg.get("weblate_url")
-            and cfg.get("weblate_project")
-            and cfg.get("weblate_component")
-            and values["weblate_token"]
-        ),
     }
     for key, value in values.items():
         out[key] = ""

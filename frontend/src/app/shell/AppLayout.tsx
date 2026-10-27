@@ -144,8 +144,7 @@ export function AppLayout() {
   const isMobile = screens.md === false;
   const assistantEmbed = isAssistantEmbed();
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
-  const isRor2Guide = location.pathname.startsWith("/guides/ror2");
-  const isFullBleedGuide = isTarkovGuide || isRor2Guide;
+  const isFullBleedGuide = isTarkovGuide;
   const contentShell = adminContentShell(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -653,7 +652,7 @@ export function AppLayout() {
       style={{
         height: "100vh",
         overflow: "hidden",
-        background: isTarkovGuide ? "#161710" : isRor2Guide ? "#121216" : undefined,
+        background: isTarkovGuide ? "#161710" : undefined,
       }}
     >
       {isFullBleedGuide ? null : (
@@ -696,7 +695,7 @@ export function AppLayout() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          background: isTarkovGuide ? "#161710" : isRor2Guide ? "#121216" : undefined,
+          background: isTarkovGuide ? "#161710" : undefined,
         }}
       >
         {isMobile && !assistantEmbed ? (
@@ -766,7 +765,7 @@ export function AppLayout() {
         >
           {isFullBleedGuide ? (
             <Suspense fallback={<RouteFallback />}>
-              <RouteErrorBoundary resetKey={isRor2Guide ? "/guides/ror2" : "/guides/tarkov"}>
+              <RouteErrorBoundary resetKey="/guides/tarkov">
                 <Outlet />
               </RouteErrorBoundary>
             </Suspense>

@@ -112,16 +112,6 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 - **房间画板上限**：单张图钉点 80 / 直线 80 / 笔画 240 / 文字 80，另加**整房总量 600**；快照随地图数增长会被整房上限挡住
 - **日志**：客户端本机解析；同步后在浏览器审阅（日志行、任务名、状态变更），原文不入库。库表 `tarkov_user_raid_logs` 只存摘要。离线战局手选地图只在本机 localStorage。截图坐标只广播数字，不传图片；最近一次坐标留在进程内存，供同房间晚加入的入座成员（含同一账号的其他设备）从 WS snapshot 拿到，不落库
 
-## 雨中冒险2
-
-公开页 `/guides/ror2`（未登录可读）。`GET /api/guides/ror2/catalog` 不要求登录，仍 `require_feature("guides.ror2")`。
-
-- **回源**：只请求 `https://riskofrain2.wiki.gg/api.php`。先列 Module 命名空间（828）的全部页面再逐页取正文；图鉴解析其中的 Items、Equipment、Survivors、Enemies、Environments、Challenges、Interactables、Artifacts、Skills、Lore，其余模块以 `module/` 前缀只存原文。另外还有每个幸存者词条（`survivor/{名字}` 一行）。原文写入 `guide_raws`（`game=ror2`）。解析不过的那一份不覆盖旧行。定时任务 `ror2_wiki_sync`（功能开关 `guides.ror2.wiki_sync`，每天 4:40）先同步这些模块，再逐页同步幸存者词条。库是空的时候，列表接口冷启动只回源模块，短等锁，失败后 60 秒内不再打 Wiki。详情页缺的是哪一页，就只补那一页
-- **译文**：Weblate 是独立服务，也是唯一译文出口；本项目只通过 Weblate REST API 交换数据，不读写 Weblate 主机文件。集成密钥里填站点地址、项目、组件和 API 令牌（令牌只写不回显，不进日志）。组件是单语 JSON，源语言 `en`，翻译语言 `zh_Hans`。定时任务 `ror2_weblate_sync`（`guides.ror2.weblate_sync`，每天 4:55）从已落库的 Wiki 原文解析令牌字符串：新 context 通过 `add` 增加，已有 context 的源文本变化时只调用单元 API 更新该源文本，不用整文件 `replace`，避免覆盖无关字符串或目标译文。分页链接只接受配置部署前缀内的同源 `/api/` 路径，REST 请求不跟随重定向；任务完整分页核对 Weblate 源清单后才刷新本地缓存。权限不足、API 不支持源文本更新或源清单仍不一致时任务失败，并保留上一份缓存。Lua 表按路径编号，有 LocalizationInternalName 的字段挂在令牌下；无法结构化的正文按空行分段。已审且源指纹匹配的译文与全部源单元状态缓存在本项目数据库，页面请求只读本地缓存，不逐页访问 Weblate。指纹是 NFC、换行收成 `\n`、去掉每行行尾空白和首尾空行之后的 SHA-256。展示译文还必须保留 Wiki 格式标签、运行时占位符及换行结构；不兼容时回退到 Wiki 原文。游戏语言文件仅作 Weblate 建议，不直接作为页面译文。站内不再运行 SteamCMD，也不再更新游戏语言文件。安装根里若还留着以前的 `steamcmd/config` 或 `ssfn*`，文件管理仍然不可下载
-- **展示**：物品、幸存者列表和幸存者详情均先解析 `guide_raws` 中的 Wiki 原文，再按令牌叠加已审核且原文指纹匹配的译文。命中译文的字段显示译文；缺少、未审核或已过期的译文字段显示原文。公开页无需整份模块完全翻译后才有内容。
-- 功能开关 `guides.ror2`；关闭后公开 API 403。访客侧栏靠 `allowGuest` 露出入口，不打需登录的 `/platform-features/effective`
-- 条目文字来自该 Wiki，许可为 CC BY-SA 4.0。页面链回原文
-
 ## Minecraft
 
 Minecraft 页（Pelican 面板 + RCON）：状态、在线与性能须登录；文件、模组、启动指令与控制台只给管理员。

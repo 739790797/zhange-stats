@@ -20,6 +20,7 @@ _LOGGERS = (
     "alembic.runtime.migration",
     "app",
     "zhange",
+    "httpx",
     "sqlalchemy.engine",
 )
 
@@ -89,3 +90,14 @@ def test_each_record_is_kept_once(fresh_install: Path, uvicorn_cli: bool) -> Non
         _, lines = buffer.snapshot(limit=50, q=message)
         assert [(x.logger, x.message) for x in lines] == [(name, message)], name
         assert [r["logger"] for r in rows if r["message"] == message] == [name], name
+
+
+def test_httpx_successful_request_logs_are_suppressed(fresh_install: Path) -> None:
+    buffer = runtime_log_buffer.install_runtime_log_buffer(capacity=200)
+
+    logging.getLogger("httpx").info("HTTP Request: GET https://example.invalid/api HTTP/1.1 200 OK")
+
+    _, lines = buffer.snapshot(limit=20, q="HTTP Request")
+    assert lines == []
+    if fresh_install.exists():
+        assert "HTTP Request" not in fresh_install.read_text(encoding="utf-8")

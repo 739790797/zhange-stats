@@ -6,7 +6,7 @@
 用法::
 
     pipeline = GuideRawPipeline(
-        "ror2",
+        "example_game",
         (
             RawSpec(
                 resource="items",
@@ -59,8 +59,14 @@ class GuideRawPipeline:
         self.specs = tuple(specs)
         self.gate = gate or SyncGate()
 
-    def sync(self, db: Session, *, fetch: FetchSpec | None = None) -> list[dict[str, object]]:
-        """逐份拉取并落库。一份失败不影响已经提交的其他行。"""
+    def sync(
+        self,
+        db: Session,
+        *,
+        fetch: FetchSpec | None = None,
+        abort_on: tuple[type[Exception], ...] = (),
+    ) -> list[dict[str, object]]:
+        """逐份拉取并落库；abort_on 指定需要立即中断整批同步的异常。"""
         reader = fetch or (lambda spec: spec.fetch())
         results: list[dict[str, object]] = []
         for spec in self.specs:
@@ -71,6 +77,8 @@ class GuideRawPipeline:
                 results.append({**saved, "ok": True, "error": None})
             except Exception as exc:  # noqa: BLE001 — 一份失败要留给其余文件
                 db.rollback()
+                if isinstance(exc, abort_on):
+                    raise
                 results.append({"resource": spec.resource, "ok": False, "changed": False, "error": str(exc)})
         return results
 
@@ -109,9 +117,19 @@ def raw_fingerprint(body: str) -> str:
 
 
 def upsert_raw(
-    db: Session, game: str, resource: str, source: str, body: str, *, note: str = ""
+    db: Session,
+    game: str,
+    resource: str,
+    source: str,
+    body: str,
+    *,
+    note: str = "",
+    commit: bool = True,
 ) -> dict[str, object]:
-    """Hash the raw body; unchanged content keeps its timestamp. Callers validate first."""
+    """Hash the raw body; unchanged content keeps its timestamp. Callers validate first.
+
+    ``commit=False`` lets a caller save coupled raw resources in one transaction.
+    """
     packed = pack_raw_text(body)
     body_fingerprint = raw_fingerprint(body)
     now = now_naive()
@@ -147,6 +165,7 @@ def upsert_raw(
             row.content_fingerprint = body_fingerprint
             if note:
                 row.note = note
-    db.commit()
+    if commit:
+        db.commit()
     synced = row.synced_at.isoformat() if row.synced_at else now.isoformat()
     return {"resource": resource, "source": source, "synced_at": synced, "changed": changed}

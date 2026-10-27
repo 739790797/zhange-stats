@@ -36,7 +36,6 @@
 | 改表或迁移 | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md) |
 | 安全、文件管理、签到/游戏权限 | [`security.md`](security.md)、[`engineering-guidelines.md`](engineering-guidelines.md) |
 | 日志或代码分包 | [`logging.md`](logging.md)、[`directory-layout.md`](directory-layout.md) |
-| 雨中冒险 2 列表与新增目录页 | [ROR2 列表规则](ror2-list-rules.md) |
 
 ## 根目录与就地 README
 
