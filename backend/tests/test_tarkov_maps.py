@@ -205,9 +205,7 @@ def test_apply_map_markers_fills_missing_coords() -> None:
 
 def test_apply_map_markers_appends_transits_when_coords_exist() -> None:
     factory = {str(r["slug"]): r for r in parse_map_rows(_payload())}["factory"]
-    factory["extracts"] = [
-        row for row in factory["extracts"] if not str(row.get("id") or "").startswith("transit:")
-    ]
+    factory["extracts"] = [row for row in factory["extracts"] if not str(row.get("id") or "").startswith("transit:")]
     for row in factory["extracts"]:
         row["x"] = 1
         row["z"] = 2
@@ -380,12 +378,8 @@ def test_parse_map_rows_projects_lock_and_hazard_coords() -> None:
             "position": {"x": 3, "y": 0, "z": 4},
         }
     ]
-    payload["maps"]["factory"]["artillery"] = {
-        "zones": [{"position": {"x": 9, "y": 2, "z": 7}, "top": 6, "bottom": 1}]
-    }
-    payload["maps"]["factory"]["lootLoose"] = [
-        {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 1}}
-    ]
+    payload["maps"]["factory"]["artillery"] = {"zones": [{"position": {"x": 9, "y": 2, "z": 7}, "top": 6, "bottom": 1}]}
+    payload["maps"]["factory"]["lootLoose"] = [{"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 1}}]
     payload["locale"]["Minefield"] = "雷区"
     payload["locale"]["Dorm 114 Key"] = "宿舍 114"
     factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
@@ -513,9 +507,7 @@ def test_parse_map_rows_resolves_loot_container_catalog() -> None:
             "position": {"x": 1, "y": 0, "z": 2},
         }
     ]
-    payload["maps"]["factory"]["lootLoose"] = [
-        {"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}
-    ]
+    payload["maps"]["factory"]["lootLoose"] = [{"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}]
     payload["locale"]["578f87a3245977356274f2cb Name"] = "旅行袋"
     factory = {str(r["slug"]): r for r in parse_map_rows(payload)}["factory"]
     box = factory["loot_containers"][0]
@@ -533,16 +525,9 @@ def test_parse_map_rows_resolves_loot_container_catalog() -> None:
 
 def test_parse_map_rows_can_skip_loot_layers() -> None:
     payload = _payload()
-    payload["maps"]["factory"]["lootContainers"] = [
-        {"lootContainer": "box", "position": {"x": 1, "y": 0, "z": 2}}
-    ]
-    payload["maps"]["factory"]["lootLoose"] = [
-        {"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}
-    ]
-    factory = {
-        str(r["slug"]): r
-        for r in parse_map_rows(payload, loot_loose=False, loot_containers=False)
-    }["factory"]
+    payload["maps"]["factory"]["lootContainers"] = [{"lootContainer": "box", "position": {"x": 1, "y": 0, "z": 2}}]
+    payload["maps"]["factory"]["lootLoose"] = [{"items": [{"id": "rouble"}], "position": {"x": 9, "y": 0, "z": 8}}]
+    factory = {str(r["slug"]): r for r in parse_map_rows(payload, loot_loose=False, loot_containers=False)}["factory"]
     assert factory["loot_containers"] == []
     assert factory["loot_loose"] == []
 
@@ -597,9 +582,7 @@ def test_apply_map_markers_skips_loot_when_disabled() -> None:
     overlay = {
         "factory": {
             "normalizedName": "factory",
-            "lootLoose": [
-                {"items": [{"id": "rouble"}], "position": {"x": 3, "y": 0, "z": 4}}
-            ],
+            "lootLoose": [{"items": [{"id": "rouble"}], "position": {"x": 3, "y": 0, "z": 4}}],
             "lootContainers": [
                 {
                     "lootContainer": "box",
@@ -625,9 +608,7 @@ def test_apply_map_markers_fills_lock_coords_when_dump_lacks_them() -> None:
             "key_short_name": "Dorm 114",
         }
     ]
-    factory["extracts"] = [
-        {"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2}
-    ]
+    factory["extracts"] = [{"id": "e1", "name": "Gate 3", "faction": "PMC", "x": 1, "z": 2}]
     overlay = {
         "factory": {
             "normalizedName": "factory",
@@ -664,9 +645,7 @@ def test_apply_map_markers_replaces_empty_locks_from_overlay() -> None:
                     "position": {"x": 5, "y": 0, "z": 6},
                 }
             ],
-            "lootLoose": [
-                {"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 2}}
-            ],
+            "lootLoose": [{"items": [{"id": "rouble"}], "position": {"x": 1, "y": 0, "z": 2}}],
         }
     }
     _apply_map_markers(factory, {}, overlay=overlay)
@@ -801,9 +780,7 @@ def test_parse_map_rows_extract_outline_switches_transfer_and_botom() -> None:
             }
         ]
     }
-    payload["maps"]["factory"]["lootLoose"] = [
-        {"items": ["roubles", "bandage"], "position": {"x": 3, "y": 0, "z": 4}}
-    ]
+    payload["maps"]["factory"]["lootLoose"] = [{"items": ["roubles", "bandage"], "position": {"x": 3, "y": 0, "z": 4}}]
     payload["maps"]["factory"]["spawns"] = [
         {
             "categories": ["sniper"],
@@ -825,9 +802,7 @@ def test_parse_map_rows_extract_outline_switches_transfer_and_botom() -> None:
     assert extract["transfer_item"]["count"] == 20000
     assert extract["transfer_item"]["name"] == "卢布"
     switch = next(row for row in factory["switches"] if row["id"] == "sw-unlock")
-    assert switch["activates"] == [
-        {"operation": "Unlock", "name": "ZB-013", "kind": "extract"}
-    ]
+    assert switch["activates"] == [{"operation": "Unlock", "name": "ZB-013", "kind": "extract"}]
     slave = next(row for row in factory["switches"] if row["id"] == "sw-slave")
     assert slave["activated_by"] == "泵站"
     assert slave["activates"][0]["kind"] == "switch"
@@ -1167,9 +1142,7 @@ def test_maps_bundle_decodes_the_dump_once_per_header(monkeypatch) -> None:
     try:
         first = maps_svc.list_maps(object())
         detail = maps_svc.get_map_detail(object(), "factory")
-        layers = maps_svc.get_map_loot_layers(
-            object(), "factory", loot_loose=True, loot_containers=False
-        )
+        layers = maps_svc.get_map_loot_layers(object(), "factory", loot_loose=True, loot_containers=False)
     finally:
         maps_svc.clear_maps_caches()
     assert len(calls) == 1

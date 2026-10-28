@@ -3,112 +3,82 @@ import type { components } from "../../../../shared/api/generated/schema";
 
 export type MinecraftStatus = components["schemas"]["MinecraftStatusOut"];
 export type MinecraftPlayer = components["schemas"]["MinecraftPlayerOut"];
-export type MinecraftPowerSignal =
-  components["schemas"]["MinecraftPowerIn"]["signal"];
+export type MinecraftPowerSignal = components["schemas"]["MinecraftPowerIn"]["signal"];
 export type MinecraftPowerResult = components["schemas"]["MinecraftPowerOut"];
 export type MinecraftFileEntry = components["schemas"]["MinecraftFileEntryOut"];
 export type MinecraftFileList = components["schemas"]["MinecraftFileListOut"];
-export type MinecraftFileContents =
-  components["schemas"]["MinecraftFileContentsOut"];
+export type MinecraftFileContents = components["schemas"]["MinecraftFileContentsOut"];
 export type MinecraftFileOk = components["schemas"]["MinecraftFileOkOut"];
-export type MinecraftFileDownload =
-  components["schemas"]["MinecraftFileDownloadOut"];
+export type MinecraftFileDownload = components["schemas"]["MinecraftFileDownloadOut"];
 export type MinecraftModTools = components["schemas"]["MinecraftModToolsOut"];
 export type MinecraftModTool = components["schemas"]["MinecraftModToolOut"];
-export type MinecraftModInventoryJar =
-  components["schemas"]["MinecraftModInventoryJarOut"];
-export type MinecraftChunkyStatus =
-  components["schemas"]["MinecraftChunkyStatusOut"];
-export type MinecraftModToolCommand =
-  components["schemas"]["MinecraftModToolCommandOut"];
-export type MinecraftModToolCommandIn =
-  components["schemas"]["MinecraftModToolCommandIn"];
+export type MinecraftModInventoryJar = components["schemas"]["MinecraftModInventoryJarOut"];
+export type MinecraftChunkyStatus = components["schemas"]["MinecraftChunkyStatusOut"];
+export type MinecraftModToolCommand = components["schemas"]["MinecraftModToolCommandOut"];
+export type MinecraftModToolCommandIn = components["schemas"]["MinecraftModToolCommandIn"];
 export type MinecraftChunkyAction = MinecraftModToolCommandIn["action"];
-export type MinecraftModToolExecIn =
-  components["schemas"]["MinecraftModToolExecIn"];
-export type MinecraftModCommandNode =
-  components["schemas"]["MinecraftModCommandNodeOut"];
-export type MinecraftModCommandArg =
-  components["schemas"]["MinecraftModCommandArgOut"];
-export type MinecraftModFeature =
-  components["schemas"]["MinecraftModFeatureOut"];
-export type MinecraftModToolInstall =
-  components["schemas"]["MinecraftModToolInstallOut"];
-export type MinecraftModToolInstallIn =
-  components["schemas"]["MinecraftModToolInstallIn"];
-export type MinecraftModToolVersions =
-  components["schemas"]["MinecraftModToolVersionsOut"];
-export type MinecraftModToolPresetApply =
-  components["schemas"]["MinecraftModToolPresetApplyOut"];
-export type MinecraftModToolPreset =
-  components["schemas"]["MinecraftModToolPresetOut"];
-export type MinecraftModToolPresetPin =
-  components["schemas"]["MinecraftModToolPresetPinOut"];
-export type MinecraftModToolPresetIn =
-  components["schemas"]["MinecraftModToolPresetIn"];
-export type MinecraftModToolPresetKeys =
-  components["schemas"]["MinecraftModToolPresetKeysOut"];
-export type MinecraftFileCompressIn =
-  components["schemas"]["MinecraftFileCompressIn"];
+export type MinecraftModToolExecIn = components["schemas"]["MinecraftModToolExecIn"];
+export type MinecraftModCommandNode = components["schemas"]["MinecraftModCommandNodeOut"];
+export type MinecraftModCommandArg = components["schemas"]["MinecraftModCommandArgOut"];
+export type MinecraftModFeature = components["schemas"]["MinecraftModFeatureOut"];
+export type MinecraftModToolInstall = components["schemas"]["MinecraftModToolInstallOut"];
+export type MinecraftModToolInstallIn = components["schemas"]["MinecraftModToolInstallIn"];
+export type MinecraftModToolVersions = components["schemas"]["MinecraftModToolVersionsOut"];
+export type MinecraftModToolPresetApply = components["schemas"]["MinecraftModToolPresetApplyOut"];
+export type MinecraftModToolPreset = components["schemas"]["MinecraftModToolPresetOut"];
+export type MinecraftModToolPresetPin = components["schemas"]["MinecraftModToolPresetPinOut"];
+export type MinecraftModToolPresetIn = components["schemas"]["MinecraftModToolPresetIn"];
+export type MinecraftModToolPresetKeys = components["schemas"]["MinecraftModToolPresetKeysOut"];
+export type MinecraftFileCompressIn = components["schemas"]["MinecraftFileCompressIn"];
 export type MinecraftPerf = components["schemas"]["MinecraftPerfOut"];
 export type MinecraftPresence = components["schemas"]["MinecraftPresenceOut"];
-export type MinecraftPresenceRow =
-  components["schemas"]["MinecraftPresenceRowOut"];
+export type MinecraftPresenceRow = components["schemas"]["MinecraftPresenceRowOut"];
 export type MinecraftStartup = components["schemas"]["MinecraftStartupOut"];
 export type MinecraftStartupIn = components["schemas"]["MinecraftStartupIn"];
 
 export async function fetchMinecraftStatus() {
-  const { data } = await client.get<MinecraftStatus>(
-    "/guides/minecraft/status",
-    { timeout: 45_000 },
-  );
+  const { data } = await client.get<MinecraftStatus>("/guides/minecraft/status", {
+    timeout: 45_000,
+  });
   return data;
 }
 
 export async function fetchMinecraftStartup() {
-  const { data } = await client.get<MinecraftStartup>(
-    "/guides/minecraft/startup",
-    { timeout: 45_000 },
-  );
+  const { data } = await client.get<MinecraftStartup>("/guides/minecraft/startup", {
+    timeout: 45_000,
+  });
   return data;
 }
 
 export async function saveMinecraftStartup(body: MinecraftStartupIn) {
-  const { data } = await client.put<MinecraftStartup>(
-    "/guides/minecraft/startup",
-    body,
-    { timeout: 45_000 },
-  );
+  const { data } = await client.put<MinecraftStartup>("/guides/minecraft/startup", body, {
+    timeout: 45_000,
+  });
   return data;
 }
 
 export async function applyMinecraftStartup(body: MinecraftStartupIn) {
-  const { data } = await client.post<MinecraftStartup>(
-    "/guides/minecraft/startup/apply",
-    body,
-    { timeout: 180_000 },
-  );
+  const { data } = await client.post<MinecraftStartup>("/guides/minecraft/startup/apply", body, {
+    timeout: 180_000,
+  });
   return data;
 }
 
 export type MinecraftStartupBuilds = components["schemas"]["MinecraftStartupBuildsOut"];
 
 export async function fetchMinecraftStartupBuilds(core: string) {
-  const { data } = await client.get<MinecraftStartupBuilds>(
-    "/guides/minecraft/startup/builds",
-    { params: { core }, timeout: 30_000 },
-  );
+  const { data } = await client.get<MinecraftStartupBuilds>("/guides/minecraft/startup/builds", {
+    params: { core },
+    timeout: 30_000,
+  });
   return data;
 }
 
 export async function fetchMinecraftPresence(date: string, end?: string) {
-  const { data } = await client.get<MinecraftPresence>(
-    "/guides/minecraft/presence",
-    {
-      params: end ? { date, end } : { date },
-      timeout: 20_000,
-    },
-  );
+  const { data } = await client.get<MinecraftPresence>("/guides/minecraft/presence", {
+    params: end ? { date, end } : { date },
+    timeout: 20_000,
+  });
   return data;
 }
 
@@ -192,18 +162,14 @@ export async function uploadMinecraftFile(
 }
 
 export async function createMinecraftFolder(directory: string, name: string) {
-  const { data } = await client.post<MinecraftFileOk>(
-    `${FILES}/create-folder`,
-    { directory, name },
-  );
+  const { data } = await client.post<MinecraftFileOk>(`${FILES}/create-folder`, {
+    directory,
+    name,
+  });
   return data;
 }
 
-export async function createMinecraftFile(
-  directory: string,
-  name: string,
-  content = "",
-) {
+export async function createMinecraftFile(directory: string, name: string, content = "") {
   const { data } = await client.post<MinecraftFileOk>(
     `${FILES}/create-file`,
     { directory, name, content },
@@ -212,11 +178,7 @@ export async function createMinecraftFile(
   return data;
 }
 
-export async function renameMinecraftFile(
-  directory: string,
-  src: string,
-  dest: string,
-) {
+export async function renameMinecraftFile(directory: string, src: string, dest: string) {
   const { data } = await client.post<MinecraftFileOk>(`${FILES}/rename`, {
     directory,
     src,
@@ -238,14 +200,10 @@ export async function deleteMinecraftFiles(directory: string, names: string[]) {
   return data;
 }
 
-export async function compressMinecraftFiles(
-  payload: MinecraftFileCompressIn,
-) {
-  const { data } = await client.post<MinecraftFileOk>(
-    `${FILES}/compress`,
-    payload,
-    { timeout: FILE_TIMEOUT },
-  );
+export async function compressMinecraftFiles(payload: MinecraftFileCompressIn) {
+  const { data } = await client.post<MinecraftFileOk>(`${FILES}/compress`, payload, {
+    timeout: FILE_TIMEOUT,
+  });
   return data;
 }
 
@@ -258,11 +216,7 @@ export async function decompressMinecraftFile(directory: string, name: string) {
   return data;
 }
 
-export async function chmodMinecraftFiles(
-  directory: string,
-  names: string[],
-  mode: string,
-) {
+export async function chmodMinecraftFiles(directory: string, names: string[], mode: string) {
   const { data } = await client.post<MinecraftFileOk>(`${FILES}/chmod`, {
     directory,
     names,
@@ -271,11 +225,7 @@ export async function chmodMinecraftFiles(
   return data;
 }
 
-export async function pullMinecraftFile(
-  directory: string,
-  url: string,
-  filename = "",
-) {
+export async function pullMinecraftFile(directory: string, url: string, filename = "") {
   const { data } = await client.post<MinecraftFileOk>(
     `${FILES}/pull`,
     { directory, url, filename },
@@ -285,16 +235,14 @@ export async function pullMinecraftFile(
 }
 
 export async function fetchMinecraftModTools(force = false) {
-  const { data } = await client.get<MinecraftModTools>(
-    "/guides/minecraft/mod-tools",
-    { params: { force }, timeout: 45_000 },
-  );
+  const { data } = await client.get<MinecraftModTools>("/guides/minecraft/mod-tools", {
+    params: { force },
+    timeout: 45_000,
+  });
   return data;
 }
 
-export async function runMinecraftChunkyCommand(
-  payload: MinecraftModToolCommandIn,
-) {
+export async function runMinecraftChunkyCommand(payload: MinecraftModToolCommandIn) {
   const { data } = await client.post<MinecraftModToolCommand>(
     "/guides/minecraft/mod-tools/chunky",
     payload,
@@ -303,10 +251,7 @@ export async function runMinecraftChunkyCommand(
   return data;
 }
 
-export async function runMinecraftModToolCommand(
-  toolId: string,
-  payload: MinecraftModToolExecIn,
-) {
+export async function runMinecraftModToolCommand(toolId: string, payload: MinecraftModToolExecIn) {
   const { data } = await client.post<MinecraftModToolCommand>(
     `/guides/minecraft/mod-tools/${toolId}/command`,
     payload,
@@ -355,10 +300,7 @@ export async function fetchMinecraftModToolPreset(toolId: string) {
   return data;
 }
 
-export async function fetchMinecraftModToolPresetKeys(
-  toolId: string,
-  path: string,
-) {
+export async function fetchMinecraftModToolPresetKeys(toolId: string, path: string) {
   const { data } = await client.get<MinecraftModToolPresetKeys>(
     `/guides/minecraft/mod-tools/${toolId}/preset/keys`,
     { params: { path } },

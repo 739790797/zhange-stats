@@ -1,6 +1,9 @@
 import { Suspense, lazy } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
-import { TarkovItemBrowseLayout } from "@/features/guides/tarkov/components/TarkovItemCatalogPanel";
+import {
+  TarkovItemBrowseLayout,
+  TarkovItemCatalogPanel,
+} from "@/features/guides/tarkov/components/TarkovItemCatalogPanel";
 import { TarkovItemsPageShell } from "@/features/guides/tarkov/components/TarkovItemsPageShell";
 import { PanelFallback } from "@/shared/ui/PanelFallback";
 import { TARKOV_HOME_PATH } from "@/features/guides/tarkov/model/tarkovHomeNav";
@@ -27,20 +30,12 @@ const TarkovGunsPanel = lazy(() =>
   })),
 );
 
-const TarkovItemCatalogPanel = lazy(() =>
-  import("@/features/guides/tarkov/components/TarkovItemCatalogPanel").then((m) => ({
-    default: m.TarkovItemCatalogPanel,
-  })),
-);
-
 export default function TarkovItemTypePage() {
   const { typeSegment } = useParams<{ typeSegment: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = itemPageBySlug(typeSegment);
   const childParam = (searchParams.get("child") || "").trim();
-  const activeChild = page
-    ? findHandbookChild(page.children, childParam) || null
-    : null;
+  const activeChild = page ? findHandbookChild(page.children, childParam) || null : null;
 
   const setChild = (id: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -66,9 +61,7 @@ export default function TarkovItemTypePage() {
     const childId = page.categoryIds[0];
     if (childId && !next.get("child")) next.set("child", childId);
     const qs = next.toString();
-    return (
-      <Navigate to={`${handbookHref(parent)}${qs ? `?${qs}` : ""}`} replace />
-    );
+    return <Navigate to={`${handbookHref(parent)}${qs ? `?${qs}` : ""}`} replace />;
   }
 
   const kind = itemBrowseKind(page, activeChild);
@@ -76,12 +69,10 @@ export default function TarkovItemTypePage() {
   const weaponClasses = weaponClassesForHandbookChildId(activeChild?.id);
 
   const catalog = (
-    <Suspense fallback={<PanelFallback tip="加载物品…" />}>
-      <TarkovItemCatalogPanel
-        key={`${catalogPage.slug}:${activeChild?.id || "all"}`}
-        page={catalogPage}
-      />
-    </Suspense>
+    <TarkovItemCatalogPanel
+      key={`${catalogPage.slug}:${activeChild?.id || "all"}`}
+      page={catalogPage}
+    />
   );
 
   let main = catalog;

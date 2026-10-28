@@ -19,15 +19,12 @@ export const RAID_ROOM_TITLE_MAX = 40;
 export function defaultRaidRoomTitle(displayName?: string | null): string {
   const name = (displayName || "").replace(/\n/g, " ").trim() || "房间";
   const title = `${name}的房间`;
-  return title.length > RAID_ROOM_TITLE_MAX
-    ? title.slice(0, RAID_ROOM_TITLE_MAX)
-    : title;
+  return title.length > RAID_ROOM_TITLE_MAX ? title.slice(0, RAID_ROOM_TITLE_MAX) : title;
 }
 
 export function raidRoomJoinNeedsPassword(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const status = (error as { response?: { status?: number } }).response
-    ?.status;
+  const status = (error as { response?: { status?: number } }).response?.status;
   if (status !== 403) return false;
   return formatRequestError(error, "") === "需要房间密码";
 }
@@ -46,13 +43,14 @@ export {
 /** 单人准备的假房间 id：不进大厅席位、不连 WS。 */
 export const SOLO_RAID_ROOM_PUBLIC_ID = "solo";
 
-export function soloRaidActor(user?: {
-  id?: number | null;
-  displayName?: string | null;
-} | null): { userId: number; name: string } {
+export function soloRaidActor(
+  user?: {
+    id?: number | null;
+    displayName?: string | null;
+  } | null,
+): { userId: number; name: string } {
   const userId = user?.id && user.id > 0 ? user.id : 0;
-  const name =
-    (user?.displayName || "").trim() || (userId ? `用户${userId}` : "游客");
+  const name = (user?.displayName || "").trim() || (userId ? `用户${userId}` : "游客");
   return { userId, name };
 }
 
@@ -121,9 +119,7 @@ export function buildSoloRaidRoomDetail(opts: SoloRaidRoomDetailInput) {
       started_count: number;
     }[],
     map_overlap: [] as { map_slug: string }[],
-    view_maps: mapSlug
-      ? [{ user_id: actor.userId, map_slug: mapSlug }]
-      : [],
+    view_maps: mapSlug ? [{ user_id: actor.userId, map_slug: mapSlug }] : [],
   };
 }
 
@@ -301,10 +297,7 @@ export function parseRaidRoomLogPhases(raw: unknown): RaidRoomLogPhase[] {
 export function overlayRaidRoomLocalPhase(
   phases: readonly RaidRoomLogPhase[],
   userId: number | null | undefined,
-  local:
-    | Pick<RaidRoomLogPhase, "kind" | "mapId" | "mapLabel" | "raidId" | "at">
-    | null
-    | undefined,
+  local: Pick<RaidRoomLogPhase, "kind" | "mapId" | "mapLabel" | "raidId" | "at"> | null | undefined,
 ): RaidRoomLogPhase[] {
   const uid = Number(userId);
   if (!local || !Number.isFinite(uid) || uid <= 0 || !String(local.kind || "").trim()) {
@@ -338,12 +331,7 @@ export function formatRaidRoomLiveStatus(status: "preparing" | "in_raid"): strin
   return status === "in_raid" ? "已在战局中" : "准备中";
 }
 
-export type RaidRoomMemberActivity =
-  | "offline"
-  | "unknown"
-  | "in_raid"
-  | "matching"
-  | "lobby";
+export type RaidRoomMemberActivity = "offline" | "unknown" | "in_raid" | "matching" | "lobby";
 
 /** 在线时看日志相位；离线不再标成战局中。开战相位不按时间过期。 */
 export function raidRoomMemberActivity(opts: {
@@ -622,10 +610,9 @@ export function withRaidRoomViewerFlags<T extends RaidRoomSnapshotLike>(
   room: T,
   userId: number | null | undefined,
 ): T & { is_host: boolean; is_member: boolean; can_edit: boolean } {
-  const seated = (room.occupants || []).some((row) => row.user_id === userId)
-    || (room.members || []).some(
-      (row) => row.user_id === userId && row.in_room !== false,
-    );
+  const seated =
+    (room.occupants || []).some((row) => row.user_id === userId) ||
+    (room.members || []).some((row) => row.user_id === userId && row.in_room !== false);
   const is_host = userId != null && room.host_user_id === userId;
   return {
     ...room,
@@ -776,8 +763,7 @@ export function patchRaidRoomKeyOwns(
 ): RaidRoomKeyBringLike[] {
   const id = String(itemId || "").trim();
   const rest = (owns || []).filter(
-    (row) =>
-      !(row.user_id === user.userId && String(row.item_id || "").trim() === id),
+    (row) => !(row.user_id === user.userId && String(row.item_id || "").trim() === id),
   );
   if (!nextHas || !id) return rest;
   return [
@@ -802,10 +788,7 @@ export function formatKeyBringHint(
   if (!names.length) {
     return canToggle ? "点击声明我带了这把钥匙" : "还没人声明带这把钥匙";
   }
-  const who =
-    names.length === 1
-      ? `${names[0]}带了这把钥匙`
-      : `${names.join("、")}带了这把钥匙`;
+  const who = names.length === 1 ? `${names[0]}带了这把钥匙` : `${names.join("、")}带了这把钥匙`;
   return `${who}。`;
 }
 
@@ -856,10 +839,7 @@ export function claimTaskIdsForUser(
   return out;
 }
 
-export function markMatchesFloor(
-  mark: { floor?: string | null },
-  floor: string,
-): boolean {
+export function markMatchesFloor(mark: { floor?: string | null }, floor: string): boolean {
   return (mark.floor || "") === (floor || "");
 }
 
@@ -878,7 +858,9 @@ export function keepRaidRoomPresence<T extends RaidRoomSnapshotLike>(
   for (const row of current.occupants || []) take(row);
   for (const row of current.members || []) take(row);
   if (!byId.size) return next;
-  const patch = <R extends { user_id: number; online?: boolean; clients?: readonly string[] | null }>(
+  const patch = <
+    R extends { user_id: number; online?: boolean; clients?: readonly string[] | null },
+  >(
     rows: R[] | undefined,
   ): R[] | undefined =>
     rows?.map((row) =>
@@ -905,19 +887,13 @@ export function isNewerRoomSnapshot(
   current: object | null | undefined,
 ): boolean {
   if (!current) return true;
-  const nextSeq = Number(
-    (next as { seq?: number } | null | undefined)?.seq || 0,
-  );
-  const curSeq = Number(
-    (current as { seq?: number } | null | undefined)?.seq || 0,
-  );
+  const nextSeq = Number((next as { seq?: number } | null | undefined)?.seq || 0);
+  const curSeq = Number((current as { seq?: number } | null | undefined)?.seq || 0);
   if (!nextSeq || !curSeq) return true;
   return nextSeq >= curSeq;
 }
 
-export function raidRoomLiveSig(
-  room: RaidRoomSnapshotLike | null | undefined,
-): string {
+export function raidRoomLiveSig(room: RaidRoomSnapshotLike | null | undefined): string {
   if (!room) return "";
   const claims = (room.claims || [])
     .map((row) => `${row.user_id}:${row.task_id}`)
@@ -999,11 +975,13 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
     const next = event.seq ? { ...room, seq: event.seq } : room;
     if (!online && !clientMap) return withRaidRoomViewerFlags(next, userId);
     const ids = online ? new Set(online) : null;
-    const patch = <R extends { user_id: number; online?: boolean; clients?: readonly string[] | null }>(
+    const patch = <
+      R extends { user_id: number; online?: boolean; clients?: readonly string[] | null },
+    >(
       rows: R[] | undefined,
     ) =>
       rows?.map((row) => {
-        const nextClients = clientMap ? clientMap.get(row.user_id) ?? [] : row.clients;
+        const nextClients = clientMap ? (clientMap.get(row.user_id) ?? []) : row.clients;
         const nextOnline = ids
           ? ids.has(row.user_id)
           : Boolean(nextClients && nextClients.length) || Boolean(row.online);
@@ -1072,10 +1050,7 @@ export function applyRoomWsEvent<T extends RaidRoomSnapshotLike>(
   if ((kind === "claim_add" || kind === "claim_remove") && event.claims) {
     return withPresence({ ...current, claims: event.claims });
   }
-  if (
-    (kind === "key_bring_add" || kind === "key_bring_remove") &&
-    event.key_brings
-  ) {
+  if ((kind === "key_bring_add" || kind === "key_bring_remove") && event.key_brings) {
     return withPresence({ ...current, key_brings: event.key_brings });
   }
   if (
@@ -1159,9 +1134,7 @@ export function normalizeMarkLabel(raw: string): string {
 }
 
 /** Leaflet 把字符串 tooltip 写进 innerHTML；昵称是用户自填，必须转义。 */
-export function markAuthorTooltipHtml(
-  mark: Pick<RaidRoomMarkLike, "author_display_name">,
-): string {
+export function markAuthorTooltipHtml(mark: Pick<RaidRoomMarkLike, "author_display_name">): string {
   return escapeHtml((mark.author_display_name || "").trim());
 }
 
@@ -1170,11 +1143,7 @@ export function markStrokePoints(mark: RaidRoomMarkLike): StrokePoint[] {
     const parsed = parseStrokePoints(mark.points);
     if (parsed.length) return parsed;
   }
-  if (
-    (mark.kind === "line" || mark.kind === "stroke") &&
-    mark.x2 != null &&
-    mark.z2 != null
-  ) {
+  if ((mark.kind === "line" || mark.kind === "stroke") && mark.x2 != null && mark.z2 != null) {
     return [
       { x: mark.x, z: mark.z },
       { x: mark.x2, z: mark.z2 },
@@ -1191,13 +1160,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function isMapDrawTool(mode: TarkovMapDrawMode): boolean {
-  return (
-    mode === "pen" ||
-    mode === "pin" ||
-    mode === "line" ||
-    mode === "text" ||
-    mode === "erase"
-  );
+  return mode === "pen" || mode === "pin" || mode === "line" || mode === "text" || mode === "erase";
 }
 
 /** 画笔/钉点等占用左键时，右键用来拖地图。 */
@@ -1242,9 +1205,7 @@ export type TarkovMapPlayerMark = {
 };
 
 /** 定位点旁的名字：自己和队友都展示。 */
-export function playerFixMarkerCaption(
-  name: string | null | undefined,
-): string {
+export function playerFixMarkerCaption(name: string | null | undefined): string {
   return (name || "").trim();
 }
 
@@ -1255,8 +1216,7 @@ export function collectPlayerFixMarks(
 ): TarkovMapPlayerMark[] {
   if (!local) return [...remote];
   const uid = local.userId;
-  const rest =
-    uid > 0 ? remote.filter((row) => row.userId !== uid) : [...remote];
+  const rest = uid > 0 ? remote.filter((row) => row.userId !== uid) : [...remote];
   return [...rest, { ...local, self: true }];
 }
 
@@ -1305,18 +1265,12 @@ export function parsePlayerFixEvent(
 }
 
 /** WS snapshot / 广播里的截图定位列表；无效行跳过。 */
-export function parsePlayerFixEvents(
-  raw: unknown,
-  now = Date.now(),
-): RaidRoomPlayerFix[] {
+export function parsePlayerFixEvents(raw: unknown, now = Date.now()): RaidRoomPlayerFix[] {
   if (!Array.isArray(raw)) return [];
   const out: RaidRoomPlayerFix[] = [];
   for (const row of raw) {
     if (!row || typeof row !== "object") continue;
-    const parsed = parsePlayerFixEvent(
-      row as Parameters<typeof parsePlayerFixEvent>[0],
-      now,
-    );
+    const parsed = parsePlayerFixEvent(row as Parameters<typeof parsePlayerFixEvent>[0], now);
     if (parsed) out.push(parsed);
   }
   return out;
@@ -1344,10 +1298,7 @@ export function playerFixFollowSig(
 }
 
 /** 两边都有地图且等价才算同一频道。没有地图的坐标丢掉。 */
-export function playerFixMatchesRoomMap(
-  fixMapId: string | undefined,
-  roomMapId: string,
-): boolean {
+export function playerFixMatchesRoomMap(fixMapId: string | undefined, roomMapId: string): boolean {
   const room = (roomMapId || "").trim();
   const fix = (fixMapId || "").trim();
   if (!room || !fix) return false;
@@ -1365,10 +1316,7 @@ export function playerFixVisibleOnView(opts: {
   phaseKind?: string | null;
   online?: boolean;
 }): boolean {
-  if (
-    raidRoomMemberActivity({ online: opts.online, kind: opts.phaseKind }) !==
-    "in_raid"
-  ) {
+  if (raidRoomMemberActivity({ online: opts.online, kind: opts.phaseKind }) !== "in_raid") {
     return false;
   }
   return playerFixMatchesRoomMap(opts.fixMapId || "", opts.viewMapId || "");
@@ -1389,11 +1337,7 @@ export function shouldSuppressLocalPlayerFix(opts: {
   return !playerFixMatchesRoomMap(logMap, opts.viewMapId);
 }
 
-export function playerFixIsFresh(
-  at: number,
-  now = Date.now(),
-  ttlMs = PLAYER_FIX_TTL_MS,
-): boolean {
+export function playerFixIsFresh(at: number, now = Date.now(), ttlMs = PLAYER_FIX_TTL_MS): boolean {
   return now - at <= ttlMs;
 }
 
@@ -1457,19 +1401,14 @@ export function playerFixPulseOpacity(
   return 1 - age / ttlMs;
 }
 
-export function playerFixPulseCrossFloor(
-  fromFloor: string,
-  toFloor: string,
-): boolean {
+export function playerFixPulseCrossFloor(fromFloor: string, toFloor: string): boolean {
   const a = (fromFloor || "").trim();
   const b = (toFloor || "").trim();
   if (!a || !b) return false;
   return a !== b;
 }
 
-export function playerFixPulseIdentity(
-  mark: RaidRoomPlayerFixPulseMark,
-): string {
+export function playerFixPulseIdentity(mark: RaidRoomPlayerFixPulseMark): string {
   if (mark.key) return `${mark.userId}:${mark.key}`;
   return `${mark.userId}:${mark.x}:${mark.y}:${mark.z}`;
 }
@@ -1530,10 +1469,7 @@ export function replacePlayerFixPulseLines(
   nextForUpdater: readonly RaidRoomPlayerFixPulseLine[],
   updaterId: number,
 ): RaidRoomPlayerFixPulseLine[] {
-  return [
-    ...current.filter((row) => row.toUserId !== updaterId),
-    ...nextForUpdater,
-  ];
+  return [...current.filter((row) => row.toUserId !== updaterId), ...nextForUpdater];
 }
 
 export function playerFixPulseLinesEqual(
@@ -1542,10 +1478,7 @@ export function playerFixPulseLinesEqual(
 ): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
-  return a.every(
-    (row, index) =>
-      row.key === b[index]?.key && row.bornAt === b[index]?.bornAt,
-  );
+  return a.every((row, index) => row.key === b[index]?.key && row.bornAt === b[index]?.bornAt);
 }
 
 export function retainPlayerFixPulseLines(
@@ -1564,15 +1497,13 @@ export function retainPlayerFixPulseLines(
     if (playerFixPulseOpacity(line.bornAt, opts.now, ttlMs) <= 0) return false;
     if (
       opts.seatedUserIds &&
-      (!opts.seatedUserIds.has(line.fromUserId) ||
-        !opts.seatedUserIds.has(line.toUserId))
+      (!opts.seatedUserIds.has(line.fromUserId) || !opts.seatedUserIds.has(line.toUserId))
     ) {
       return false;
     }
     if (
       opts.locatedUserIds &&
-      (!opts.locatedUserIds.has(line.fromUserId) ||
-        !opts.locatedUserIds.has(line.toUserId))
+      (!opts.locatedUserIds.has(line.fromUserId) || !opts.locatedUserIds.has(line.toUserId))
     ) {
       return false;
     }
@@ -1589,9 +1520,7 @@ export const PULSE_DEMO_TICK_MAX_MS = 6_500;
 export const PULSE_DEMO_SELF_ID = 900000;
 
 export function pulseDemoSelfUserId(userId?: number | null): number {
-  return userId != null && Number.isFinite(userId) && userId > 0
-    ? userId
-    : PULSE_DEMO_SELF_ID;
+  return userId != null && Number.isFinite(userId) && userId > 0 ? userId : PULSE_DEMO_SELF_ID;
 }
 
 /** 甲乙在海关战局；丙在战局中并每 30 秒在森林和海关之间换图；丁停在海关但已回大厅。 */
@@ -1612,40 +1541,36 @@ export function pulseDemoHopMapId(hop: number): string {
   return PULSE_DEMO_SWITCH_MAPS[n % PULSE_DEMO_SWITCH_MAPS.length]!;
 }
 
-const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }>> =
-  {
-    900001: [
-      { x: 360, y: 0, z: 40 },
-      { x: 280, y: 0, z: -30 },
-      { x: 420, y: 0, z: 90 },
-      { x: 190, y: 0, z: 20 },
-    ],
-    900002: [
-      { x: 200, y: 4, z: 160 },
-      { x: 400, y: 0, z: 10 },
-      { x: 250, y: 4, z: 155 },
-      { x: 330, y: 0, z: -20 },
-    ],
-    900003: [
-      { x: 90, y: 0, z: -70 },
-      { x: 40, y: 0, z: 30 },
-      { x: 150, y: 0, z: -110 },
-      { x: 70, y: 0, z: 95 },
-    ],
-    900004: [
-      { x: 470, y: 0, z: 55 },
-      { x: 520, y: 0, z: -35 },
-      { x: 430, y: 4, z: 130 },
-      { x: 500, y: 0, z: 20 },
-    ],
-  };
+const PULSE_DEMO_PATHS: Record<number, Array<{ x: number; y: number; z: number }>> = {
+  900001: [
+    { x: 360, y: 0, z: 40 },
+    { x: 280, y: 0, z: -30 },
+    { x: 420, y: 0, z: 90 },
+    { x: 190, y: 0, z: 20 },
+  ],
+  900002: [
+    { x: 200, y: 4, z: 160 },
+    { x: 400, y: 0, z: 10 },
+    { x: 250, y: 4, z: 155 },
+    { x: 330, y: 0, z: -20 },
+  ],
+  900003: [
+    { x: 90, y: 0, z: -70 },
+    { x: 40, y: 0, z: 30 },
+    { x: 150, y: 0, z: -110 },
+    { x: 70, y: 0, z: 95 },
+  ],
+  900004: [
+    { x: 470, y: 0, z: 55 },
+    { x: 520, y: 0, z: -35 },
+    { x: 430, y: 4, z: 130 },
+    { x: 500, y: 0, z: 20 },
+  ],
+};
 
 export function nextPulseDemoWaitMs(rand = Math.random()): number {
   const t = Number.isFinite(rand) ? Math.min(1, Math.max(0, rand)) : 0;
-  return Math.round(
-    PULSE_DEMO_TICK_MIN_MS +
-      t * (PULSE_DEMO_TICK_MAX_MS - PULSE_DEMO_TICK_MIN_MS),
-  );
+  return Math.round(PULSE_DEMO_TICK_MIN_MS + t * (PULSE_DEMO_TICK_MAX_MS - PULSE_DEMO_TICK_MIN_MS));
 }
 
 /** 一次只换一个人，且不连续点同一个人。 */
@@ -1670,10 +1595,7 @@ export function isPulseDemoSession(publicId: string): boolean {
 
 export function pulseDemoBotMapId(userId: number, hop = 0): string {
   if (userId === PULSE_DEMO_SWITCH_USER_ID) return pulseDemoHopMapId(hop);
-  return (
-    PULSE_DEMO_BOTS.find((bot) => bot.userId === userId)?.mapId ||
-    PULSE_DEMO_MAP_ID
-  );
+  return PULSE_DEMO_BOTS.find((bot) => bot.userId === userId)?.mapId || PULSE_DEMO_MAP_ID;
 }
 
 export function pulseDemoFixAt(opts: {
@@ -1709,8 +1631,7 @@ export function pulseDemoChannel(
   viewMaps: RaidRoomViewMapLike[];
   phases: Map<number, { kind: string }>;
 } {
-  const selfId =
-    self && self.user_id > 0 ? self.user_id : 0;
+  const selfId = self && self.user_id > 0 ? self.user_id : 0;
   const viewMaps: RaidRoomViewMapLike[] = PULSE_DEMO_BOTS.map((bot) => ({
     user_id: bot.userId,
     map_slug: pulseDemoBotMapId(bot.userId, hop),
@@ -1724,10 +1645,12 @@ export function pulseDemoChannel(
   return { viewMaps, phases };
 }
 
-export function pulseDemoMembers(self?: {
-  user_id: number;
-  display_name: string;
-} | null): Array<{
+export function pulseDemoMembers(
+  self?: {
+    user_id: number;
+    display_name: string;
+  } | null,
+): Array<{
   user_id: number;
   display_name: string;
   is_host?: boolean;
@@ -1833,10 +1756,12 @@ function pulseDemoQuestSquare(x: number, z: number, half = 14) {
 }
 
 /** 测试房地图：几条自己要做的任务 + 几条已完成、留给假人的「帮」。 */
-export function pulseDemoQuestPreview(self?: {
-  userId?: number | null;
-  name?: string | null;
-} | null): {
+export function pulseDemoQuestPreview(
+  self?: {
+    userId?: number | null;
+    name?: string | null;
+  } | null,
+): {
   overlays: TarkovRaidPrepOverlay[];
   participantsByTask: Map<string, RaidPrepMapParticipant[]>;
   skippedByTask: RaidPrepSkipMap;

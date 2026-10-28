@@ -41,9 +41,7 @@ function formatAxisTick(ms: number, hours: number) {
     minute: "2-digit",
     hour12: false,
   });
-  const parts = Object.fromEntries(
-    fmt.formatToParts(d).map((p) => [p.type, p.value]),
-  );
+  const parts = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
   const clock = `${parts.hour}:${parts.minute}`;
   if (hours <= 24) return clock;
   return `${parts.month}-${parts.day} ${clock}`;
@@ -108,14 +106,8 @@ export default function RumPage() {
   const data = query.data;
   const trend = useMemo(() => rumTrendPoints(data?.series), [data?.series]);
   const trendDomain = useMemo(() => rumTrendDomain(data?.series), [data?.series]);
-  const apiBizOptions = useMemo(
-    () => rumBizFilterOptions(data?.api_biz),
-    [data?.api_biz],
-  );
-  const imgBizOptions = useMemo(
-    () => rumBizFilterOptions(data?.img_biz),
-    [data?.img_biz],
-  );
+  const apiBizOptions = useMemo(() => rumBizFilterOptions(data?.api_biz), [data?.api_biz]);
+  const imgBizOptions = useMemo(() => rumBizFilterOptions(data?.img_biz), [data?.img_biz]);
   const activeApiBiz =
     apiBiz !== RUM_BIZ_ALL && apiBizOptions.some((item) => item.value === apiBiz)
       ? apiBiz
@@ -124,14 +116,8 @@ export default function RumPage() {
     imgBiz !== RUM_BIZ_ALL && imgBizOptions.some((item) => item.value === imgBiz)
       ? imgBiz
       : RUM_BIZ_ALL;
-  const apiRows = useMemo(
-    () => rumRowsForBiz(data?.api, activeApiBiz),
-    [data?.api, activeApiBiz],
-  );
-  const imgRows = useMemo(
-    () => rumRowsForBiz(data?.img, activeImgBiz),
-    [data?.img, activeImgBiz],
-  );
+  const apiRows = useMemo(() => rumRowsForBiz(data?.api, activeApiBiz), [data?.api, activeApiBiz]);
+  const imgRows = useMemo(() => rumRowsForBiz(data?.img, activeImgBiz), [data?.img, activeImgBiz]);
   const apiBars = useMemo(() => rumBarPoints(apiRows), [apiRows]);
   const imgBars = useMemo(() => rumBarPoints(imgRows), [imgRows]);
   const bizBars = useMemo(() => rumBizBarPoints(data?.api_biz), [data?.api_biz]);
@@ -141,14 +127,8 @@ export default function RumPage() {
   const apiBarRows = Math.round(apiBars.length / 2);
   const imgBarRows = Math.round(imgBars.length / 2);
   const bizBarRows = Math.round(bizBars.length / 2);
-  const apiBizRadio = [
-    { label: "全部", value: RUM_BIZ_ALL },
-    ...apiBizOptions,
-  ];
-  const imgBizRadio = [
-    { label: "全部", value: RUM_BIZ_ALL },
-    ...imgBizOptions,
-  ];
+  const apiBizRadio = [{ label: "全部", value: RUM_BIZ_ALL }, ...apiBizOptions];
+  const imgBizRadio = [{ label: "全部", value: RUM_BIZ_ALL }, ...imgBizOptions];
 
   return (
     <div>
@@ -186,11 +166,7 @@ export default function RumPage() {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={12} md={6}>
           <Card size="small">
-            <Statistic
-              title="接口次数"
-              loading={query.isLoading}
-              value={data?.api_count ?? 0}
-            />
+            <Statistic title="接口次数" loading={query.isLoading} value={data?.api_count ?? 0} />
           </Card>
         </Col>
         <Col xs={12} md={6}>
@@ -279,13 +255,11 @@ export default function RumPage() {
             axis={{
               x: {
                 title: false,
-                labelFormatter: (value: number) =>
-                  formatAxisTick(Number(value), hours),
+                labelFormatter: (value: number) => formatAxisTick(Number(value), hours),
               },
             }}
             tooltip={{
-              title: (d: { t?: number }) =>
-                formatAxisTick(Number(d?.t), hours),
+              title: (d: { t?: number }) => formatAxisTick(Number(d?.t), hours),
             }}
             children={[
               {
@@ -355,11 +329,7 @@ export default function RumPage() {
       </Card>
       {bizBars.length ? (
         <Card size="small" title="接口按业务（p50 / p95）" style={{ marginBottom: 16 }}>
-          <RumP50P95Bar
-            data={bizBars}
-            height={rumBarHeight(bizBarRows)}
-            token={token}
-          />
+          <RumP50P95Bar data={bizBars} height={rumBarHeight(bizBarRows)} token={token} />
         </Card>
       ) : null}
       <Row gutter={[16, 16]}>
@@ -376,11 +346,7 @@ export default function RumPage() {
               />
             ) : null}
             {apiBars.length ? (
-              <RumP50P95Bar
-                data={apiBars}
-                height={rumBarHeight(apiBarRows)}
-                token={token}
-              />
+              <RumP50P95Bar data={apiBars} height={rumBarHeight(apiBarRows)} token={token} />
             ) : (
               <Typography.Text type="secondary">
                 {query.isLoading ? "加载中…" : "暂无接口样本"}
@@ -401,11 +367,7 @@ export default function RumPage() {
               />
             ) : null}
             {imgBars.length ? (
-              <RumP50P95Bar
-                data={imgBars}
-                height={rumBarHeight(imgBarRows)}
-                token={token}
-              />
+              <RumP50P95Bar data={imgBars} height={rumBarHeight(imgBarRows)} token={token} />
             ) : (
               <Typography.Text type="secondary">
                 {query.isLoading ? "加载中…" : "暂无第三方图样本"}

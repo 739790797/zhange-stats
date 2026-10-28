@@ -1,6 +1,9 @@
 /** 任务线账：手改完成时补前置、互斥收口，并把被挡住 / 子孙从完成·进行中拿掉。 */
 
-import { applyMutexLedger, mutexIndexFromTasks } from "@/features/guides/tarkov/model/tarkovTaskMutex";
+import {
+  applyMutexLedger,
+  mutexIndexFromTasks,
+} from "@/features/guides/tarkov/model/tarkovTaskMutex";
 
 const PREREQ_WALK_MAX = 32;
 const DESCENDANT_WALK_MAX = 256;
@@ -22,7 +25,9 @@ export type TaskLineIndex = {
 export type TaskWritableStatus = "todo" | "active" | "done" | "failed";
 
 function asId(raw: string | null | undefined): string {
-  return String(raw || "").trim().toLowerCase();
+  return String(raw || "")
+    .trim()
+    .toLowerCase();
 }
 
 function asIdList(ids: Iterable<string>): string[] {
@@ -37,20 +42,14 @@ function asIdList(ids: Iterable<string>): string[] {
   return out;
 }
 
-function pushEdge(
-  map: Map<string, string[]>,
-  from: string,
-  to: string,
-): void {
+function pushEdge(map: Map<string, string[]>, from: string, to: string): void {
   if (!from || !to || from === to) return;
   const row = map.get(from) || [];
   if (!row.includes(to)) row.push(to);
   map.set(from, row);
 }
 
-export function taskLineIndexFromTasks(
-  items: ReadonlyArray<TaskLineSpec>,
-): TaskLineIndex {
+export function taskLineIndexFromTasks(items: ReadonlyArray<TaskLineSpec>): TaskLineIndex {
   const prereqById = new Map<string, string[]>();
   const childrenById = new Map<string, string[]>();
   const blockedById = new Map<string, string[]>();
@@ -115,10 +114,12 @@ export function dropBlockedProgress(
   const drop = new Set<string>();
   for (const [id, blockers] of blockedById) {
     if (!id) continue;
-    if (blockers.some((raw) => {
-      const blocker = asId(String(raw || ""));
-      return Boolean(blocker && (doneSet.has(blocker) || startedSet.has(blocker)));
-    })) {
+    if (
+      blockers.some((raw) => {
+        const blocker = asId(String(raw || ""));
+        return Boolean(blocker && (doneSet.has(blocker) || startedSet.has(blocker)));
+      })
+    ) {
       drop.add(id);
     }
   }
@@ -137,19 +138,8 @@ export function applyTaskLineLedger(
   index: TaskLineIndex,
   prefer?: Iterable<string>,
 ): { done: string[]; started: string[]; failed: string[] } {
-  const mutexed = applyMutexLedger(
-    doneIds,
-    startedIds,
-    failedIds,
-    index.mutexById,
-    prefer,
-  );
-  return dropBlockedProgress(
-    mutexed.done,
-    mutexed.started,
-    mutexed.failed,
-    index.blockedById,
-  );
+  const mutexed = applyMutexLedger(doneIds, startedIds, failedIds, index.mutexById, prefer);
+  return dropBlockedProgress(mutexed.done, mutexed.started, mutexed.failed, index.blockedById);
 }
 
 function walkComplete(
@@ -193,9 +183,7 @@ export function setTaskLineStatus(
   const ident = asId(taskId);
   const done = new Set(asIdList(doneIds));
   const failed = new Set(asIdList(failedIds).filter((id) => !done.has(id)));
-  const started = new Set(
-    asIdList(startedIds).filter((id) => !done.has(id) && !failed.has(id)),
-  );
+  const started = new Set(asIdList(startedIds).filter((id) => !done.has(id) && !failed.has(id)));
   if (!ident) {
     return { done: [...done], started: [...started], failed: [...failed] };
   }

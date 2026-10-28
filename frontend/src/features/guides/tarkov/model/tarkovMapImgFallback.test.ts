@@ -1,9 +1,6 @@
-/** @vitest-environment happy-dom */
+/** @vitest-environment jsdom */
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  attachFallbackImgErrors,
-  fallbackImgHtml,
-} from "./tarkovMapImgFallback";
+import { attachFallbackImgErrors, fallbackImgHtml } from "./tarkovMapImgFallback";
 
 const ICON = "https://tarkov.dev/images/traders/prapor-icon.jpg";
 const PORTRAIT = "https://tarkov.dev/images/traders/prapor-portrait.png";

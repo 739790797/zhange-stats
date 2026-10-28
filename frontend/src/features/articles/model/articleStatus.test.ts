@@ -1,7 +1,4 @@
-import {
-  articleStatusColor,
-  articleStatusLabel,
-} from "./articleStatus";
+import { articleStatusColor, articleStatusLabel } from "./articleStatus";
 import { describe, expect, it } from "vitest";
 
 describe("articleStatus", () => {

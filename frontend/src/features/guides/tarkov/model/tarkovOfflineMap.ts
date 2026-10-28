@@ -5,8 +5,7 @@ import {
   normalizeRaidPrepMapId,
 } from "@/features/guides/tarkov/model/tarkovMapSlugs";
 
-export const TARKOV_OFFLINE_MAP_STORAGE_KEY =
-  "zhange.guides.tarkov.offlineMap.v1";
+export const TARKOV_OFFLINE_MAP_STORAGE_KEY = "zhange.guides.tarkov.offlineMap.v1";
 export const TARKOV_OFFLINE_MAP_EVENT = "zhange-tarkov-offline-map";
 
 export function parseOfflineMapId(raw: unknown): string {
@@ -16,9 +15,7 @@ export function parseOfflineMapId(raw: unknown): string {
 export function loadOfflineMapId(): string {
   if (typeof window === "undefined") return "";
   try {
-    return parseOfflineMapId(
-      window.localStorage.getItem(TARKOV_OFFLINE_MAP_STORAGE_KEY),
-    );
+    return parseOfflineMapId(window.localStorage.getItem(TARKOV_OFFLINE_MAP_STORAGE_KEY));
   } catch {
     return "";
   }
@@ -50,7 +47,9 @@ export function resolveOfflineLogMapId(opts: {
   if (!offline) return "";
   const kind = String(opts.phaseKind || "").trim();
   if (kind === "raid_exited" || kind === "matching_aborted") return "";
-  const raidMode = String(opts.raidMode || "").trim().toLowerCase();
+  const raidMode = String(opts.raidMode || "")
+    .trim()
+    .toLowerCase();
   if (raidMode === "offline" || raidMode === "local") return offline;
   if (isRaidPrepAutoMapKind(kind)) return offline;
   return "";

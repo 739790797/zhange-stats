@@ -58,9 +58,7 @@ def test_env_set_fields_are_reported_locked(monkeypatch, tmp_path) -> None:
 def test_changing_env_locked_field_is_rejected(monkeypatch) -> None:
     _env(monkeypatch, TRUST_X_FORWARDED_FOR="true")
     with pytest.raises(HTTPException) as exc:
-        update_runtime_env(
-            RuntimeEnvUpdate(trust_x_forwarded_for=False, csp_enforce=True), ADMIN
-        )
+        update_runtime_env(RuntimeEnvUpdate(trust_x_forwarded_for=False, csp_enforce=True), ADMIN)
     assert exc.value.status_code == 409
     assert "TRUST_X_FORWARDED_FOR" in exc.value.detail
     assert not read_json("app")
@@ -69,9 +67,7 @@ def test_changing_env_locked_field_is_rejected(monkeypatch) -> None:
 def test_unchanged_locked_field_is_skipped(monkeypatch) -> None:
     _env(monkeypatch, TRUST_X_FORWARDED_FOR="true", APP_ENV="Production")
     out = update_runtime_env(
-        RuntimeEnvUpdate(
-            trust_x_forwarded_for=True, app_env="production", rate_limit_enabled=False
-        ),
+        RuntimeEnvUpdate(trust_x_forwarded_for=True, app_env="production", rate_limit_enabled=False),
         ADMIN,
     )
     saved = read_json("app") or {}

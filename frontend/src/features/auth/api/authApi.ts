@@ -4,8 +4,7 @@ import type { components } from "../../../shared/api/generated/schema";
 
 type RegisterResponse = components["schemas"]["RegisterResponse"];
 type BindEmailResponse = components["schemas"]["BindEmailResponse"];
-type LinkExistingAccountResponse =
-  components["schemas"]["LinkExistingAccountResponse"];
+type LinkExistingAccountResponse = components["schemas"]["LinkExistingAccountResponse"];
 type ResetPasswordResponse = components["schemas"]["ResetPasswordResponse"];
 
 export async function login(username: string, password: string) {
@@ -16,28 +15,20 @@ export async function login(username: string, password: string) {
   return data;
 }
 
-export async function register(payload: {
-  email: string;
-  password: string;
-  code: string;
-}) {
+export async function register(payload: { email: string; password: string; code: string }) {
   const { data } = await client.post<RegisterResponse>("/auth/register", payload);
   return data;
 }
 
 export async function sendRegisterCode(email: string) {
-  const { data } = await client.post<RegisterResponse>(
-    "/auth/send-register-code",
-    { email },
-  );
+  const { data } = await client.post<RegisterResponse>("/auth/send-register-code", { email });
   return data;
 }
 
 export async function sendResetPasswordCode(email: string) {
-  const { data } = await client.post<ResetPasswordResponse>(
-    "/auth/send-reset-password-code",
-    { email },
-  );
+  const { data } = await client.post<ResetPasswordResponse>("/auth/send-reset-password-code", {
+    email,
+  });
   return data;
 }
 
@@ -46,37 +37,21 @@ export async function resetPassword(payload: {
   code: string;
   new_password: string;
 }) {
-  const { data } = await client.post<ResetPasswordResponse>(
-    "/auth/reset-password",
-    payload,
-  );
+  const { data } = await client.post<ResetPasswordResponse>("/auth/reset-password", payload);
   return data;
 }
 
 export async function sendBindEmailCode(email: string) {
-  const { data } = await client.post<RegisterResponse>(
-    "/auth/send-bind-email-code",
-    { email },
-  );
+  const { data } = await client.post<RegisterResponse>("/auth/send-bind-email-code", { email });
   return data;
 }
 
-export async function bindEmail(payload: {
-  email: string;
-  code: string;
-  password?: string;
-}) {
-  const { data } = await client.post<BindEmailResponse>(
-    "/auth/bind-email",
-    payload,
-  );
+export async function bindEmail(payload: { email: string; code: string; password?: string }) {
+  const { data } = await client.post<BindEmailResponse>("/auth/bind-email", payload);
   return data;
 }
 
-export async function linkExistingAccount(payload: {
-  email: string;
-  password: string;
-}) {
+export async function linkExistingAccount(payload: { email: string; password: string }) {
   const { data } = await client.post<LinkExistingAccountResponse>(
     "/auth/link-existing-account",
     payload,
@@ -105,9 +80,7 @@ export async function fetchMe() {
 }
 
 export async function fetchPasswordPolicy() {
-  const { data } = await client.get<{ min_password_length: number }>(
-    "/auth/password-policy",
-  );
+  const { data } = await client.get<{ min_password_length: number }>("/auth/password-policy");
   return data;
 }
 
@@ -162,9 +135,8 @@ export async function sendDeleteAccountCode() {
 }
 
 export async function deleteOwnAccount(code: string) {
-  const { data } = await client.post<{ ok: boolean; message: string }>(
-    "/auth/account/delete",
-    { code },
-  );
+  const { data } = await client.post<{ ok: boolean; message: string }>("/auth/account/delete", {
+    code,
+  });
   return data;
 }

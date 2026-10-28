@@ -100,9 +100,7 @@ def test_stash_cannot_drop_to_zero() -> None:
     stations = _catalog()
     levels = filled_levels(stations, {"stash": 1})
     assert apply_level(stations, levels, "stash", 0)["stash"] == 1
-    assert apply_level(stations, {"stash": 2, "gen": 1, "bench": 0}, "stash", 1)[
-        "stash"
-    ] == 1
+    assert apply_level(stations, {"stash": 2, "gen": 1, "bench": 0}, "stash", 1)["stash"] == 1
 
 
 def test_skip_levels_rejected() -> None:

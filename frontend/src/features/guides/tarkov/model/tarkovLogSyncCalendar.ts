@@ -7,7 +7,10 @@ import type {
   TarkovLogPreviewRaid,
   TarkovLogSessionStub,
 } from "@/features/guides/tarkov/model/tarkovGameLogs";
-import { breakpointMatchesGameMode, latestIdentityForMode } from "@/features/guides/tarkov/model/tarkovLogBreakpoints";
+import {
+  breakpointMatchesGameMode,
+  latestIdentityForMode,
+} from "@/features/guides/tarkov/model/tarkovLogBreakpoints";
 import { compareBeijingClock, formatBeijing, parseBeijing } from "@/shared/lib/time";
 
 export type LogSyncCalendarRaid = TarkovLogPreviewRaid;
@@ -103,7 +106,9 @@ export function logSyncCalendarLaunches(
       raids,
     });
   }
-  launches.sort((a, b) => compareBeijingClock(a.startedAt, b.startedAt) || a.folder.localeCompare(b.folder));
+  launches.sort(
+    (a, b) => compareBeijingClock(a.startedAt, b.startedAt) || a.folder.localeCompare(b.folder),
+  );
   const seen = new Map<string, number>();
   for (const launch of launches) {
     const next = (seen.get(launch.day) || 0) + 1;
@@ -113,9 +118,7 @@ export function logSyncCalendarLaunches(
   return launches;
 }
 
-export function launchCountByDay(
-  launches: readonly LogSyncCalendarLaunch[],
-): Map<string, number> {
+export function launchCountByDay(launches: readonly LogSyncCalendarLaunch[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const launch of launches) {
     counts.set(launch.day, (counts.get(launch.day) || 0) + 1);
@@ -174,7 +177,7 @@ export function accountArchiveFromFloor(
 ): AccountArchiveAnchor | null {
   const floor = (resetAt || "").trim();
   if (!floor) return null;
-  let best: AccountArchiveAnchor & { at: string } | null = null;
+  let best: (AccountArchiveAnchor & { at: string }) | null = null;
   for (const launch of launches) {
     for (const raid of launch.raids) {
       const at = (raid.endedAt || raid.startedAt || "").trim();

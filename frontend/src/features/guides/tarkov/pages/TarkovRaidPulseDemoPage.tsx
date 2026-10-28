@@ -32,10 +32,7 @@ export default function TarkovRaidPulseDemoPage() {
   });
   const selfName = (me?.display_name || me?.username || "").trim();
   const self = useMemo(
-    () =>
-      me?.id
-        ? { user_id: me.id, display_name: selfName || `用户${me.id}` }
-        : null,
+    () => (me?.id ? { user_id: me.id, display_name: selfName || `用户${me.id}` } : null),
     [me?.id, selfName],
   );
   const [mapHop, setMapHop] = useState(0);

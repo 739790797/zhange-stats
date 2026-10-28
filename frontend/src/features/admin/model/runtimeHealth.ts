@@ -15,9 +15,7 @@ export function healthMeta(status: string) {
   return HEALTH_TAG[status] ?? { color: "default", label: status || "—" };
 }
 
-export function healthHint(
-  item: Pick<RuntimeHealthService, "detail" | "latency_ms">,
-): string {
+export function healthHint(item: Pick<RuntimeHealthService, "detail" | "latency_ms">): string {
   const latency =
     item.latency_ms != null && Number.isFinite(item.latency_ms)
       ? `${Math.round(item.latency_ms)}ms`

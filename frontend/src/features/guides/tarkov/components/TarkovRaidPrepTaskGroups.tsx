@@ -59,18 +59,12 @@ function VirtualRowBlock<T extends Row>({
     <div ref={measure} data-raid-prep-row-block="">
       {win?.padTop ? <div style={{ height: win.padTop }} aria-hidden="true" /> : null}
       {slice.map((row, index) => renderRow(row, start + index))}
-      {win?.padBottom ? (
-        <div style={{ height: win.padBottom }} aria-hidden="true" />
-      ) : null}
+      {win?.padBottom ? <div style={{ height: win.padBottom }} aria-hidden="true" /> : null}
     </div>
   );
 }
 
-export function TarkovRaidPrepTaskGroups<T extends Row>({
-  groups,
-  renderRow,
-  empty,
-}: Props<T>) {
+export function TarkovRaidPrepTaskGroups<T extends Row>({ groups, renderRow, empty }: Props<T>) {
   const [rootRef, win, container] = useScrollWindow<HTMLDivElement>();
   const [offsets, setOffsets] = useState<Record<string, number>>({});
   const blockRefs = useRef(new Map<string, HTMLDivElement>());
@@ -102,9 +96,7 @@ export function TarkovRaidPrepTaskGroups<T extends Row>({
     });
   }, [container, groups, win.viewportHeight]);
 
-  const visible = RAID_PREP_PROGRESS_STATUSES.filter(
-    (status) => groups[status].length,
-  );
+  const visible = RAID_PREP_PROGRESS_STATUSES.filter((status) => groups[status].length);
   if (!visible.length) return <>{empty}</>;
 
   const rowBlock = (key: string, rows: readonly T[]) => (
@@ -127,11 +119,7 @@ export function TarkovRaidPrepTaskGroups<T extends Row>({
             {RAID_PREP_LIST_SCOPE_LABELS[status]} {groups[status].length}
           </p>
           {status === "active" ? (
-            <ActiveMapGroups
-              status={status}
-              rows={groups[status]}
-              rowBlock={rowBlock}
-            />
+            <ActiveMapGroups status={status} rows={groups[status]} rowBlock={rowBlock} />
           ) : (
             rowBlock(status, groups[status])
           )}
@@ -161,10 +149,7 @@ function ActiveMapGroups<T extends Row>({
     <>
       {blocks.map((block) => (
         <div key={block.key} className={styles.taskSubGroup}>
-          <p
-            className={styles.taskSubGroupLabel}
-            data-map={block.key === "onMap" ? "on" : "off"}
-          >
+          <p className={styles.taskSubGroupLabel} data-map={block.key === "onMap" ? "on" : "off"}>
             {RAID_PREP_ACTIVE_MAP_GROUP_LABELS[block.key]} {block.rows.length}
           </p>
           {rowBlock(`${status}:${block.key}`, block.rows)}

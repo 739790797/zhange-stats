@@ -71,9 +71,7 @@ describe("groupBossSpawnWaves", () => {
     expect(groups[0].showLocationChance).toBe(false);
     expect(groups[1].maps.map((row) => row.slug)).toEqual(["icebreaker"]);
     expect(groups[1].sharedSpawnChance).toBe("100%");
-    expect(groups[1].escorts).toEqual([
-      { slug: "rogue", name: "游荡者", count: 2, chance: 1 },
-    ]);
+    expect(groups[1].escorts).toEqual([{ slug: "rogue", name: "游荡者", count: 2, chance: 1 }]);
   });
 
   it("keeps maps on one row when combo matches but spawn chance differs", () => {
@@ -145,9 +143,7 @@ describe("groupBossSpawnWaves", () => {
       maps: [{ slug: "lighthouse", name: "灯塔", spawn_chance: "30%" }],
       shared_spawn_chance: "30%",
       land_label: "开局",
-      locations: [
-        { map: "灯塔", map_slug: "lighthouse", name: "Zone_Chalet", chance: 0.5 },
-      ],
+      locations: [{ map: "灯塔", map_slug: "lighthouse", name: "Zone_Chalet", chance: 0.5 }],
       escorts: [{ slug: "big-pipe", name: "Big Pipe", count: 1, chance: 1 }],
       show_location_chance: false,
     });
@@ -189,13 +185,9 @@ describe("escort combo labels", () => {
 
   it("numbers spawn groups that share a map", () => {
     const ice = { slug: "icebreaker", name: "破冰船", spawnChance: "100%" };
-    expect(
-      spawnGroupComboNumbers([
-        { maps: [ice] },
-        { maps: [ice] },
-        { maps: [ice] },
-      ]),
-    ).toEqual([1, 2, 3]);
+    expect(spawnGroupComboNumbers([{ maps: [ice] }, { maps: [ice] }, { maps: [ice] }])).toEqual([
+      1, 2, 3,
+    ]);
     expect(
       spawnGroupComboNumbers([
         { maps: [{ slug: "customs", name: "海关", spawnChance: "20%" }] },

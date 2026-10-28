@@ -39,7 +39,10 @@ describe("questBoundaryFromServer", () => {
   it("merges cleared marks keeping the later time", () => {
     const server = clearedMapFromServer([{ task_id: "A", cleared_at: "2026-10-13 15:00:00" }]);
     expect(server.get("a")).toBe("2026-10-13 15:00:00");
-    const local = new Map([["a", "2026-10-13 16:00:00"], ["b", "2026-10-01 00:00:00"]]);
+    const local = new Map([
+      ["a", "2026-10-13 16:00:00"],
+      ["b", "2026-10-01 00:00:00"],
+    ]);
     expect(Object.fromEntries(mergeClearedMaps(server, local))).toEqual({
       a: "2026-10-13 16:00:00",
       b: "2026-10-01 00:00:00",
@@ -83,7 +86,11 @@ describe("planQuestReplay", () => {
     expect(
       planQuestReplay({
         gameMode: "pvp",
-        identities: [ident(OLD, "2025-10-01 20:00:00"), ident(CUR, "2026-06-01 10:00:00"), ident(NEW, "2026-10-13 09:00:00")],
+        identities: [
+          ident(OLD, "2025-10-01 20:00:00"),
+          ident(CUR, "2026-06-01 10:00:00"),
+          ident(NEW, "2026-10-13 09:00:00"),
+        ],
         boundary: boundary({ profileId: CUR }),
       }),
     ).toMatchObject({ profileId: NEW, fromAt: "", reset: false, reason: null });

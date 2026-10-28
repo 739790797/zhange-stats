@@ -1,7 +1,6 @@
 import type { ThemeConfig } from "antd";
 import { BRAND_NAVY } from "@/shared/styles/tokens";
 
-
 export const antdAppTheme: ThemeConfig = {
   token: {
     colorPrimary: BRAND_NAVY,

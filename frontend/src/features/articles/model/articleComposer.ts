@@ -39,10 +39,7 @@ export function markdownToArticleHtml(markdown: string): string {
   return String(file);
 }
 
-export function articleToEditorHtml(
-  body: string,
-  format: ArticleBodyFormat,
-): string {
+export function articleToEditorHtml(body: string, format: ArticleBodyFormat): string {
   const text = body || "";
   if (format === "html") return text;
   return markdownToArticleHtml(text);

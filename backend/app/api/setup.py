@@ -95,9 +95,7 @@ def _announce_setup_token() -> None:
     try:
         ensure_setup_token()
     except OSError as exc:
-        log_until_change(
-            logger, _TOKEN_LOG_KEY, "setup: cannot write install token file (%s)", exc
-        )
+        log_until_change(logger, _TOKEN_LOG_KEY, "setup: cannot write install token file (%s)", exc)
         return
     clear_log_until_change(_TOKEN_LOG_KEY)
 
@@ -133,9 +131,7 @@ def _finish_startup_after_setup() -> None:
     if scheduler.running:
         return
     try:
-        run_post_database_startup(
-            scheduler, run_steam_once=True, enforce_security_checks=False
-        )
+        run_post_database_startup(scheduler, run_steam_once=True, enforce_security_checks=False)
         start_background_services()
     except Exception:  # noqa: BLE001
         logger.exception("setup: post-setup startup failed; restart the service to retry")

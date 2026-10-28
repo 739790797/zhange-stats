@@ -27,6 +27,7 @@ from app.services.skland.client import (
     localize_endfield_server_name,
 )
 
+
 def fetch_player_info(session: SklandSession, uid: str) -> dict[str, Any]:
     """拉取森空岛玩家完整数据（含干员盒子）。"""
     uid = str(uid or "").strip()
@@ -115,14 +116,8 @@ def _parse_equips(raw_equips: Any, equip_info_map: dict[str, Any]) -> list[Arkni
 
 def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
     status = data.get("status") if isinstance(data.get("status"), dict) else {}
-    char_info_map = (
-        data.get("charInfoMap") if isinstance(data.get("charInfoMap"), dict) else {}
-    )
-    equip_info_map = (
-        data.get("equipmentInfoMap")
-        if isinstance(data.get("equipmentInfoMap"), dict)
-        else {}
-    )
+    char_info_map = data.get("charInfoMap") if isinstance(data.get("charInfoMap"), dict) else {}
+    equip_info_map = data.get("equipmentInfoMap") if isinstance(data.get("equipmentInfoMap"), dict) else {}
     raw_chars = data.get("chars") if isinstance(data.get("chars"), list) else []
     ap = status.get("ap") if isinstance(status.get("ap"), dict) else {}
 
@@ -194,9 +189,7 @@ def parse_arknights_box(data: dict[str, Any], *, uid: str) -> ArknightsBox:
             )
         )
 
-    chars.sort(
-        key=lambda c: (-c.rarity, -c.evolve_phase, -c.level, -c.potential_rank, c.name)
-    )
+    chars.sort(key=lambda c: (-c.rarity, -c.evolve_phase, -c.level, -c.potential_rank, c.name))
 
     try:
         player_level = int(status.get("level") or 0)
@@ -323,8 +316,8 @@ def _endfield_optional_int(value: Any) -> int | None:
         return None
     if isinstance(value, dict) and not value:
         return None
-    n = _endfield_int(value, -10**9)
-    if n == -10**9:
+    n = _endfield_int(value, -(10**9))
+    if n == -(10**9):
         return None
     return n
 
@@ -385,9 +378,7 @@ def _parse_endfield_equip(slot: str, label: str, raw: Any) -> EndfieldEquip | No
     data = raw.get("equipData") or raw.get("itemData") or raw.get("data") or raw
     if not isinstance(data, dict):
         data = raw
-    item_id = str(
-        data.get("id") or raw.get("equipId") or raw.get("id") or ""
-    ).strip()
+    item_id = str(data.get("id") or raw.get("equipId") or raw.get("id") or "").strip()
     name = str(data.get("name") or raw.get("name") or item_id or label).strip()
     if not item_id and not name:
         return None
@@ -439,11 +430,7 @@ def _parse_endfield_weapon(raw: Any) -> EndfieldWeapon | None:
     _, weapon_type = _endfield_named(data.get("type") or raw.get("type"))
     gem = raw.get("gem") if isinstance(raw.get("gem"), dict) else {}
     gem_data = gem.get("gemData") if isinstance(gem.get("gemData"), dict) else {}
-    gem_icon = (
-        str(gem_data.get("icon") or "").strip()
-        or str(gem.get("icon") or "").strip()
-        or None
-    )
+    gem_icon = str(gem_data.get("icon") or "").strip() or str(gem.get("icon") or "").strip() or None
     return EndfieldWeapon(
         weapon_id=weapon_id or name,
         name=name or weapon_id,
@@ -459,9 +446,7 @@ def _parse_endfield_weapon(raw: Any) -> EndfieldWeapon | None:
     )
 
 
-def _parse_endfield_skills(
-    char_data: dict[str, Any], user_skills: Any
-) -> list[EndfieldSkill]:
+def _parse_endfield_skills(char_data: dict[str, Any], user_skills: Any) -> list[EndfieldSkill]:
     catalog = char_data.get("skills") if isinstance(char_data.get("skills"), list) else []
     levels: dict[str, dict[str, Any]] = {}
     if isinstance(user_skills, dict):
@@ -483,12 +468,7 @@ def _parse_endfield_skills(
         type_key, type_value = _endfield_named(type_obj)
         if not type_key and isinstance(type_obj, str):
             type_key = type_obj
-        type_label = (
-            _ENDFIELD_SKILL_TYPE_LABEL.get(type_key)
-            or type_value
-            or type_key
-            or "技能"
-        )
+        type_label = _ENDFIELD_SKILL_TYPE_LABEL.get(type_key) or type_value or type_key or "技能"
         lvl_row = levels.get(sid) or {}
         skills.append(
             EndfieldSkill(
@@ -501,9 +481,7 @@ def _parse_endfield_skills(
                 max_level=_endfield_int(lvl_row.get("maxLevel"), 0),
             )
         )
-    skills.sort(
-        key=lambda s: (_ENDFIELD_SKILL_ORDER.get(s.skill_type, 99), s.skill_id)
-    )
+    skills.sort(key=lambda s: (_ENDFIELD_SKILL_ORDER.get(s.skill_type, 99), s.skill_id))
     return skills
 
 
@@ -585,15 +563,8 @@ def parse_endfield_box(
     chars.sort(key=lambda c: (-c.rarity, -c.level, -c.potential_level, c.name))
 
     role_id = str(base.get("roleId") or (role.role_id if role else "") or "").strip()
-    uid = str(
-        base.get("uid")
-        or base.get("roleId")
-        or (role.uid if role else "")
-        or role_id
-    ).strip()
-    server_id = str(
-        base.get("serverId") or (role.server_id if role else "") or ""
-    ).strip()
+    uid = str(base.get("uid") or base.get("roleId") or (role.uid if role else "") or role_id).strip()
+    server_id = str(base.get("serverId") or (role.server_id if role else "") or "").strip()
     char_num = _endfield_int(base.get("charNum"), len(chars))
 
     return EndfieldBox(
@@ -602,9 +573,7 @@ def parse_endfield_box(
         server_id=server_id,
         name=str(base.get("name") or (role.role_name if role else "") or uid).strip(),
         level=_endfield_int(base.get("level"), 0),
-        server_name=localize_endfield_server_name(
-            base.get("serverName") or (role.channel_name if role else "") or ""
-        ),
+        server_name=localize_endfield_server_name(base.get("serverName") or (role.channel_name if role else "") or ""),
         avatar_url=str(base.get("avatarUrl") or "").strip() or None,
         char_count=char_num or len(chars),
         chars=chars,

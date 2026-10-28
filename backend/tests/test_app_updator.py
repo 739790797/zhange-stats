@@ -66,9 +66,7 @@ def _release(
     )
 
 
-def _serve_release_downloads(
-    monkeypatch: pytest.MonkeyPatch, blobs_by_url: dict[str, bytes]
-) -> list[str]:
+def _serve_release_downloads(monkeypatch: pytest.MonkeyPatch, blobs_by_url: dict[str, bytes]) -> list[str]:
     fetched: list[str] = []
 
     async def fake_download(url: str, dest: Path, proxy: str | None = None) -> None:
@@ -250,14 +248,14 @@ def test_apply_source_zip_whitelist_only(tmp_path: Path):
 
 
 def test_parse_py_string_tuple():
-    text = '''
+    text = """
 SOURCE_WHITELIST: tuple[str, ...] = (
     "VERSION",
     "backend/app",
     "docs/extra.md",
 )
 MERGE_TREES: tuple[str, ...] = ("frontend",)
-'''
+"""
     assert u.parse_py_string_tuple(text, "SOURCE_WHITELIST") == (
         "VERSION",
         "backend/app",
@@ -301,9 +299,7 @@ def test_remove_legacy_deploy_tree(tmp_path: Path) -> None:
     (systemd / "zhange-stats.service").write_text("old\n", encoding="utf-8")
     assert u.remove_legacy_deploy_tree(install) is True
     assert not (install / "deploy").exists()
-    assert (install / "scripts" / "linux" / "zhange-stats.service").read_text(
-        encoding="utf-8"
-    ) == "unit\n"
+    assert (install / "scripts" / "linux" / "zhange-stats.service").read_text(encoding="utf-8") == "unit\n"
     assert u.remove_legacy_deploy_tree(install) is False
 
 
@@ -338,14 +334,14 @@ def test_apply_source_zip_new_whitelist_path_from_incoming_updator(tmp_path: Pat
 
     zip_path = tmp_path / "src.zip"
     root = "zhange-stats-abc/"
-    updator = '''
+    updator = """
 SOURCE_WHITELIST: tuple[str, ...] = (
     "VERSION",
     "backend/app",
     "docs/extra.md",
 )
 MERGE_TREES: tuple[str, ...] = ("frontend",)
-'''
+"""
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr(root + "VERSION", "1.2.3\n")
         zf.writestr(root + "backend/app/main.py", "ok\n")
@@ -527,9 +523,7 @@ def test_update_allowed_requires_writable(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(
         u.os,
         "access",
-        lambda path, mode, **kwargs: False
-        if str(path) == str(app_dir) and mode == u.os.W_OK
-        else True,
+        lambda path, mode, **kwargs: False if str(path) == str(app_dir) and mode == u.os.W_OK else True,
     )
     ok2, reason = u.update_allowed()
     assert ok2 is False
@@ -657,9 +651,7 @@ def test_run_install_migrations_raises_on_nonzero(tmp_path: Path, monkeypatch: p
         u.run_install_migrations(install)
 
 
-def test_run_install_migrations_noop_before_database_configured(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_run_install_migrations_noop_before_database_configured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def no_subprocess(*_a, **_k):
         raise AssertionError("migrate subprocess must not run without a database")
 
@@ -669,23 +661,19 @@ def test_run_install_migrations_noop_before_database_configured(
 
 
 def _run_core(install: Path, target: u.ReleaseInfo, *, reboot: bool = False) -> u.UpdateResult:
-    return asyncio.run(
-        u._apply_update_core(target=target, proxy=None, reboot=reboot, install_dir=install)
-    )
+    return asyncio.run(u._apply_update_core(target=target, proxy=None, reboot=reboot, install_dir=install))
 
 
-def test_apply_update_core_rolls_back_when_migrate_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_apply_update_core_rolls_back_when_migrate_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
-    incoming_updator = '''
+    incoming_updator = """
 SOURCE_WHITELIST: tuple[str, ...] = (
     "VERSION",
     "backend/app",
     "docs/extra.md",
 )
 MERGE_TREES: tuple[str, ...] = ("frontend",)
-'''
+"""
     target, blobs = _new_release_031(
         extra_files={
             "backend/app/services/app_updator.py": incoming_updator,
@@ -719,9 +707,7 @@ MERGE_TREES: tuple[str, ...] = ("frontend",)
     assert not (install / "backend" / ".venv" / u.PIP_STAMP_NAME).exists()
 
 
-def test_apply_update_core_pip_failure_changes_nothing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_apply_update_core_pip_failure_changes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     target, blobs = _new_release_031()
     _serve_release_downloads(monkeypatch, blobs)
@@ -749,18 +735,14 @@ def test_apply_update_core_pip_failure_changes_nothing(
     assert not (install / "static.new").exists()
 
 
-def test_apply_update_core_refuses_checksum_mismatch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_apply_update_core_refuses_checksum_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     target, blobs = _new_release_031()
     static_name = "zhange-stats-0.3.1-static.tar.gz"
     blobs[target.assets[static_name].url] = b"tampered"
     fetched = _serve_release_downloads(monkeypatch, blobs)
     monkeypatch.setattr(u, "get_settings", lambda: _fake_settings(install))
-    monkeypatch.setattr(
-        u, "pip_install_requirements", lambda *_a, **_k: pytest.fail("pip must not run")
-    )
+    monkeypatch.setattr(u, "pip_install_requirements", lambda *_a, **_k: pytest.fail("pip must not run"))
 
     with pytest.raises(u.ChecksumMismatch, match="sha256"):
         _run_core(install, target)
@@ -770,9 +752,7 @@ def test_apply_update_core_refuses_checksum_mismatch(
     assert (install / "static" / "index.html").read_text(encoding="utf-8") == "old-ui"
 
 
-def test_apply_update_core_success_swaps_static_and_writes_stamp(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_apply_update_core_success_swaps_static_and_writes_stamp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     target, blobs = _new_release_031()
     _serve_release_downloads(monkeypatch, blobs)
@@ -804,23 +784,19 @@ def test_apply_update_core_success_swaps_static_and_writes_stamp(
     assert stamp == u.requirements_stamp(install / "backend")
 
 
-def test_apply_update_core_skips_pip_when_stamp_matches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_apply_update_core_skips_pip_when_stamp_matches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     target, blobs = _new_release_031()
     _serve_release_downloads(monkeypatch, blobs)
     monkeypatch.setattr(u, "get_settings", lambda: _fake_settings(install))
     staged = tmp_path / "same-reqs"
     staged.mkdir()
-    (staged / "requirements.txt").write_text("httpx\n", encoding="utf-8")
-    (staged / "constraints.txt").write_text("httpx==0.28.1\n", encoding="utf-8")
-    (install / "backend" / ".venv" / u.PIP_STAMP_NAME).write_text(
-        u.requirements_stamp(staged).replace("\n", "\r\n"), encoding="utf-8"
+    (staged / "requirements.txt").write_bytes(b"httpx\n")
+    (staged / "constraints.txt").write_bytes(b"httpx==0.28.1\n")
+    (install / "backend" / ".venv" / u.PIP_STAMP_NAME).write_bytes(
+        u.requirements_stamp(staged).replace("\n", "\r\n").encode("utf-8")
     )
-    monkeypatch.setattr(
-        u, "pip_install_requirements", lambda *_a, **_k: pytest.fail("pip must be skipped")
-    )
+    monkeypatch.setattr(u, "pip_install_requirements", lambda *_a, **_k: pytest.fail("pip must be skipped"))
     monkeypatch.setattr(u, "run_install_migrations", lambda _install: None)
 
     result = _run_core(install, target)
@@ -851,18 +827,13 @@ def test_download_retryable_and_size_helpers(tmp_path: Path):
     assert u._download_retryable(u.IncompleteDownload("x"))
     assert u._download_retryable(
         httpx.RemoteProtocolError(
-            "peer closed connection without sending complete message body "
-            "(received 6634923 bytes, expected 6889538)"
+            "peer closed connection without sending complete message body (received 6634923 bytes, expected 6889538)"
         )
     )
     not_found = httpx.Response(404, request=httpx.Request("GET", "https://example.com/x"))
-    assert not u._download_retryable(
-        httpx.HTTPStatusError("nope", request=not_found.request, response=not_found)
-    )
+    assert not u._download_retryable(httpx.HTTPStatusError("nope", request=not_found.request, response=not_found))
     bad_gateway = httpx.Response(502, request=httpx.Request("GET", "https://example.com/x"))
-    assert u._download_retryable(
-        httpx.HTTPStatusError("bad", request=bad_gateway.request, response=bad_gateway)
-    )
+    assert u._download_retryable(httpx.HTTPStatusError("bad", request=bad_gateway.request, response=bad_gateway))
     assert not u._download_retryable(RuntimeError("缺少 zipball_url"))
 
     assert u._parse_content_range("bytes 5-9/10") == (5, 9, 10)
@@ -871,9 +842,7 @@ def test_download_retryable_and_size_helpers(tmp_path: Path):
 
     headers = httpx.Headers({"Content-Length": "10"})
     assert u._expected_total_bytes(status=200, headers=headers, resume_from=0) == 10
-    headers_206 = httpx.Headers(
-        {"Content-Range": "bytes 5-9/10", "Content-Length": "5"}
-    )
+    headers_206 = httpx.Headers({"Content-Range": "bytes 5-9/10", "Content-Length": "5"})
     assert u._expected_total_bytes(status=206, headers=headers_206, resume_from=5) == 10
 
     dest = tmp_path / "partial.bin"
@@ -885,8 +854,7 @@ def test_download_retryable_and_size_helpers(tmp_path: Path):
 
     msg = u._format_download_error(
         httpx.RemoteProtocolError(
-            "peer closed connection without sending complete message body "
-            "(received 6634923 bytes, expected 6889538)"
+            "peer closed connection without sending complete message body (received 6634923 bytes, expected 6889538)"
         )
     )
     assert "从 GitHub 下载被中断" in msg
@@ -902,9 +870,7 @@ def test_download_retryable_and_size_helpers(tmp_path: Path):
     assert not u._download_send_range("https://codeload.github.com/x/y/zip/v1", 0)
 
 
-def _patch_download_client(
-    monkeypatch: pytest.MonkeyPatch, handler
-) -> None:
+def _patch_download_client(monkeypatch: pytest.MonkeyPatch, handler) -> None:
     transport = httpx.MockTransport(handler)
     real_client = httpx.AsyncClient
 
@@ -920,9 +886,7 @@ def _patch_download_client(
     monkeypatch.setattr(u.asyncio, "sleep", no_sleep)
 
 
-def test_download_retries_truncated_body_then_succeeds(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_download_retries_truncated_body_then_succeeds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dest = tmp_path / "file.bin"
     payload = b"abcdefghij"
     state = {"n": 0}
@@ -948,9 +912,7 @@ def test_download_retries_truncated_body_then_succeeds(
     assert state["n"] == 2
 
 
-def test_download_resumes_partial_with_range(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_download_resumes_partial_with_range(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dest = tmp_path / "file.bin"
     dest.write_bytes(b"hello")
     seen: dict[str, str | None] = {"range": None}
@@ -996,17 +958,13 @@ def test_download_404_does_not_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert state["n"] == 1
 
 
-def test_download_exhausted_retries_use_chinese_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_download_exhausted_retries_use_chinese_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dest = tmp_path / "file.bin"
     state = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
         state["n"] += 1
-        raise httpx.RemoteProtocolError(
-            "peer closed connection without sending complete message body"
-        )
+        raise httpx.RemoteProtocolError("peer closed connection without sending complete message body")
 
     _patch_download_client(monkeypatch, handler)
     monkeypatch.setattr(u, "_DOWNLOAD_ATTEMPTS", 3)
@@ -1039,9 +997,7 @@ def test_fetch_releases_direct_first_then_proxy_without_token(
     assert "ghp-secret" not in caplog.text
 
 
-def test_fetch_releases_direct_success_never_touches_proxy(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_fetch_releases_direct_success_never_touches_proxy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(u, "get_settings", lambda: _fake_settings(tmp_path))
     monkeypatch.setattr(u, "_github_token", lambda: "")
     hosts: list[str] = []
@@ -1062,9 +1018,7 @@ def test_fetch_releases_direct_success_never_touches_proxy(
     assert [r.tag_name for r in releases] == ["v1.0.0"]
 
 
-def test_fetch_release_by_tag_404_does_not_fall_back(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_fetch_release_by_tag_404_does_not_fall_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(u, "get_settings", lambda: _fake_settings(tmp_path))
     monkeypatch.setattr(u, "_github_token", lambda: "")
     urls: list[str] = []
@@ -1160,13 +1114,9 @@ def test_parse_sha256sums_and_cross_check():
         u.expected_sha256(rel, static, {static: b})
 
 
-def test_download_release_files_verifies_sha256sums_and_prefers_source(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_download_release_files_verifies_sha256sums_and_prefers_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     target, blobs = _new_release_031()
-    sums_text = "".join(
-        f"{_sha(blobs[asset.url])}  {name}\n" for name, asset in target.assets.items()
-    ).encode()
+    sums_text = "".join(f"{_sha(blobs[asset.url])}  {name}\n" for name, asset in target.assets.items()).encode()
     sums_asset = u.ReleaseAsset(
         name=u.SHA256SUMS_NAME,
         url="https://github.com/o/r/releases/download/v0.3.1/SHA256SUMS",
@@ -1193,18 +1143,14 @@ def test_download_release_files_zipball_fallback_warns(
         zipball="https://api.github.com/repos/o/r/zipball/v0.3.1",
     )
     assert target.static_asset_url
-    _serve_release_downloads(
-        monkeypatch, {target.static_asset_url: static, target.zipball_url: b"PK"}
-    )
+    _serve_release_downloads(monkeypatch, {target.static_asset_url: static, target.zipball_url: b"PK"})
     caplog.set_level(logging.WARNING, logger=u.logger.name)
     source, _ = asyncio.run(u.download_release_files(target, tmp_path / "work", proxy=None))
     assert source is not None and source.name == "source.zip"
     assert "zipball" in caplog.text
 
 
-def test_download_release_files_refuses_missing_static_or_digest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_download_release_files_refuses_missing_static_or_digest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     no_static = _release("0.3.1", {"other-static.tar.gz": b"x"}, zipball="https://example.com/z")
     _serve_release_downloads(monkeypatch, {})
     with pytest.raises(RuntimeError, match="缺少前端资产"):
@@ -1233,9 +1179,7 @@ def test_extract_source_archive_tar_and_zip(tmp_path: Path):
 
 
 @pytest.mark.parametrize("with_data_filter", [True, False])
-def test_extract_tar_rejects_path_traversal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_data_filter: bool
-):
+def test_extract_tar_rejects_path_traversal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_data_filter: bool):
     if with_data_filter and not hasattr(tarfile, "data_filter"):
         pytest.skip("tarfile.data_filter unavailable on this Python")
     if not with_data_filter:
@@ -1296,9 +1240,7 @@ def test_requirements_stamp_matches_sha256sum_output(tmp_path: Path):
         assert out == expected
 
 
-def test_pip_install_requirements_uses_staged_constraints(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_pip_install_requirements_uses_staged_constraints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = tmp_path / "install"
     venv_py = install / "backend" / ".venv" / "bin" / "python"
     venv_py.parent.mkdir(parents=True)
@@ -1335,9 +1277,7 @@ def test_pip_install_requirements_uses_staged_constraints(
     assert str(staged / "constraints.txt") in req_cmd
 
 
-def test_enqueue_update_keeps_background_task_reference(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_enqueue_update_keeps_background_task_reference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     monkeypatch.setattr(u, "update_allowed", lambda **_kw: (True, ""))
     monkeypatch.setattr(u, "resolve_install_dir", lambda: install)
@@ -1373,9 +1313,7 @@ def test_enqueue_update_keeps_background_task_reference(
         u._set_progress(busy=False, phase="", message="", error="", target_version="")
 
 
-def test_install_static_only_verifies_and_installs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_install_static_only_verifies_and_installs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     (install / "VERSION").write_text("0.3.1\n", encoding="utf-8")
     (install / "static" / "index.html").unlink()
@@ -1399,9 +1337,7 @@ def test_install_static_only_verifies_and_installs(
     assert (install / "backend" / "app" / "x.py").read_text(encoding="utf-8") == "old\n"
 
 
-def test_install_static_only_failure_lists_alternatives(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_install_static_only_failure_lists_alternatives(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     install = _make_install(tmp_path)
     monkeypatch.setattr(u, "resolve_install_dir", lambda: install)
     monkeypatch.setattr(u, "get_settings", lambda: _fake_settings(install))

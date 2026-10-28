@@ -83,17 +83,12 @@ describe("parseTarkovMapViewerPrefs", () => {
   });
 
   it("defaults the filter panel open and keeps an explicit collapse", () => {
-    expect(parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" })).filterPanelOpen).toBe(
-      true,
-    );
+    expect(parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" })).filterPanelOpen).toBe(true);
     expect(
-      parseTarkovMapViewerPrefs(
-        JSON.stringify({ filterPanelOpen: false }),
-      ).filterPanelOpen,
+      parseTarkovMapViewerPrefs(JSON.stringify({ filterPanelOpen: false })).filterPanelOpen,
     ).toBe(false);
     expect(
-      parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" }))
-        .filterGroupsCollapsed,
+      parseTarkovMapViewerPrefs(JSON.stringify({ style: "svg" })).filterGroupsCollapsed,
     ).toEqual({});
     expect(
       parseTarkovMapViewerPrefs(
@@ -136,24 +131,21 @@ describe("parseTarkovMapViewerPrefs", () => {
         }),
       ).extractKinds,
     ).toEqual(defaultExtractKindFlags(false));
-    expect(
-      parseTarkovMapViewerPrefs(
-        JSON.stringify({ showExtracts: true }),
-      ).extractKinds,
-    ).toEqual(defaultExtractKindFlags(true));
+    expect(parseTarkovMapViewerPrefs(JSON.stringify({ showExtracts: true })).extractKinds).toEqual(
+      defaultExtractKindFlags(true),
+    );
   });
 
   it("migrates legacy showBosses into spawnKinds.boss", () => {
-    expect(
-      parseTarkovMapViewerPrefs(
-        JSON.stringify({ showBosses: false }),
-      ).spawnKinds,
-    ).toEqual({ pmc: true, scav: true, sniper: true, boss: false });
-    expect(
-      parseTarkovMapViewerPrefs(
-        JSON.stringify({ showBosses: true }),
-      ).spawnKinds,
-    ).toEqual(defaultSpawnKindFlags(true));
+    expect(parseTarkovMapViewerPrefs(JSON.stringify({ showBosses: false })).spawnKinds).toEqual({
+      pmc: true,
+      scav: true,
+      sniper: true,
+      boss: false,
+    });
+    expect(parseTarkovMapViewerPrefs(JSON.stringify({ showBosses: true })).spawnKinds).toEqual(
+      defaultSpawnKindFlags(true),
+    );
   });
 });
 
@@ -178,22 +170,12 @@ describe("resolveMapFloor", () => {
   });
 
   it("opens a map on the shown layer until the user picks ground", () => {
-    expect(defaultShownFloorName([{ name: "2nd Floor", show: true }])).toBe(
-      "2nd Floor",
-    );
-    expect(resolveMapFloor(undefined, ["2nd Floor"], "2nd Floor")).toBe(
-      "2nd Floor",
-    );
+    expect(defaultShownFloorName([{ name: "2nd Floor", show: true }])).toBe("2nd Floor");
+    expect(resolveMapFloor(undefined, ["2nd Floor"], "2nd Floor")).toBe("2nd Floor");
     expect(resolveMapFloor("", ["2nd Floor"], "2nd Floor")).toBe("");
-    expect(defaultShownFloorName(findInteractiveMap("icebreaker")?.layers)).toBe(
-      "Infirmary",
-    );
-    expect(
-      defaultShownFloorName(findInteractiveMap("interchange")?.layers),
-    ).toBe("2nd Floor");
-    expect(
-      defaultShownFloorName(findInteractiveMap("streets-of-tarkov")?.layers),
-    ).toBe("");
+    expect(defaultShownFloorName(findInteractiveMap("icebreaker")?.layers)).toBe("Infirmary");
+    expect(defaultShownFloorName(findInteractiveMap("interchange")?.layers)).toBe("2nd Floor");
+    expect(defaultShownFloorName(findInteractiveMap("streets-of-tarkov")?.layers)).toBe("");
   });
 });
 

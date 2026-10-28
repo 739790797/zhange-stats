@@ -26,18 +26,12 @@ def test_neoforge_version_maps_to_minecraft_and_java():
 def test_heap_suggestion_leaves_headroom():
     assert suggest_heap_flags(8192) == "-Xms6G -Xmx6G"
     assert suggest_heap_flags(0) == "-Xms2G -Xmx2G"
-    assert heap_flags_from_text("-Xms4G --add-opens java.base/java.lang=ALL-UNNAMED -Xmx4G") == (
-        "-Xms4G -Xmx4G"
-    )
+    assert heap_flags_from_text("-Xms4G --add-opens java.base/java.lang=ALL-UNNAMED -Xmx4G") == ("-Xms4G -Xmx4G")
 
 
 def test_jar_and_args_commands():
-    assert build_jar_command("-Xms4G -Xmx4G", "arclight.jar", "nogui") == (
-        "java -Xms4G -Xmx4G -jar arclight.jar nogui"
-    )
-    assert build_jar_command("-Xms4G -Xmx4G", "paper.jar", "--nogui") == (
-        "java -Xms4G -Xmx4G -jar paper.jar --nogui"
-    )
+    assert build_jar_command("-Xms4G -Xmx4G", "arclight.jar", "nogui") == ("java -Xms4G -Xmx4G -jar arclight.jar nogui")
+    assert build_jar_command("-Xms4G -Xmx4G", "paper.jar", "--nogui") == ("java -Xms4G -Xmx4G -jar paper.jar --nogui")
     unix = "libraries/net/neoforged/neoforge/21.1.248/unix_args.txt"
     assert build_args_command(unix) == f"java @user_jvm_args.txt @{unix} nogui"
     assert build_args_command("server.jar") == ""
@@ -47,9 +41,7 @@ def test_incomplete_until_files_exist():
     ok, why = assess_command("jar", jar="arclight.jar", jar_exists=False, unix_args="", unix_exists=False)
     assert not ok
     assert "jar" in why
-    ok, _why = assess_command(
-        "jar", jar="arclight.jar", jar_exists=True, unix_args="", unix_exists=False
-    )
+    ok, _why = assess_command("jar", jar="arclight.jar", jar_exists=True, unix_args="", unix_exists=False)
     assert ok
     ok, why = assess_command("args", jar="", jar_exists=False, unix_args="", unix_exists=False)
     assert not ok
@@ -162,9 +154,7 @@ def test_arclight_core_is_verified_before_startup_switches(monkeypatch):
 
     monkeypatch.setattr(svc.pelican, "pull_file_verified", pull_verified)
     monkeypatch.setattr(svc.pelican, "find_application_server", lambda *_a: {"id": 1, "egg": 2})
-    monkeypatch.setattr(
-        svc.pelican, "update_application_startup", lambda *_a, **_k: order.append("startup")
-    )
+    monkeypatch.setattr(svc.pelican, "update_application_startup", lambda *_a, **_k: order.append("startup"))
     svc.sync_startup_command(
         object(),
         core_id="arclight",

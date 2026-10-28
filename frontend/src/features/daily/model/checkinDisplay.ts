@@ -1,9 +1,9 @@
 import { PLATFORM_NAV } from "@/features/platforms/shared/model/platformFeatures";
 
 /** 侧栏签到平台顺序（排除 Steam） */
-export const CHECKIN_PLATFORM_ORDER: string[] = PLATFORM_NAV.filter(
-  (p) => p.icon !== "steam",
-).map((p) => p.icon);
+export const CHECKIN_PLATFORM_ORDER: string[] = PLATFORM_NAV.filter((p) => p.icon !== "steam").map(
+  (p) => p.icon,
+);
 
 export const CHECKIN_PLATFORM_LABELS: Record<string, string> = {
   skland: "森空岛",

@@ -18,9 +18,7 @@ def test_parse_graphql_guns():
                     "shortName": "AK-74N",
                     "iconLink": "https://example/icon.webp",
                     "types": ["gun"],
-                    "categories": [
-                        {"id": "5447b5f14bdc2d61278b4567", "normalizedName": "assault-rifle"}
-                    ],
+                    "categories": [{"id": "5447b5f14bdc2d61278b4567", "normalizedName": "assault-rifle"}],
                     "properties": {
                         "__typename": "ItemPropertiesWeapon",
                         "caliber": "Caliber545x39",

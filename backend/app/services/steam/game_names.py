@@ -65,9 +65,7 @@ def has_cjk(text: str | None) -> bool:
     return bool(text and _CJK_RE.search(text))
 
 
-def prefer_display_name(
-    preferred: str | None, fallback: str | None, app_id: str | None = None
-) -> str | None:
+def prefer_display_name(preferred: str | None, fallback: str | None, app_id: str | None = None) -> str | None:
     """尽量选中文名；都没有中文时用商店名，再退回 Steam 实时名 / App id。"""
     if has_cjk(preferred):
         return preferred
@@ -102,9 +100,7 @@ def is_known_app(db: Session, app_id: str) -> bool:
     return False
 
 
-def _missed_recently(
-    missed_at: datetime | None, retry_after: timedelta, now: datetime
-) -> bool:
+def _missed_recently(missed_at: datetime | None, retry_after: timedelta, now: datetime) -> bool:
     return missed_at is not None and _aware(missed_at) + retry_after > now
 
 
@@ -144,17 +140,13 @@ def _is_client_icon_url(url: str | None) -> bool:
 def _http_url_ok(url: str, *, min_bytes: int = 200, timeout: float = 8) -> bool:
     """校验图片 URL 可下载（部分新游戏的 client icon hash 会 404）。"""
     try:
-        resp = http_request(
-            "GET", url, headers={"User-Agent": _UA}, timeout=timeout
-        )
+        resp = http_request("GET", url, headers={"User-Agent": _UA}, timeout=timeout)
     except HttpRequestError:
         return False
     return 200 <= resp.status_code < 300 and len(resp.content) >= min_bytes
 
 
-def fetch_store_details(
-    app_id: str, *, lang: str = "schinese", cc: str = "cn"
-) -> StoreDetails:
+def fetch_store_details(app_id: str, *, lang: str = "schinese", cc: str = "cn") -> StoreDetails:
     """拉取 Steam 商店详情（简体 + 国区价格）。"""
     app_id = str(app_id).strip()
     if not is_valid_app_id(app_id):
@@ -163,9 +155,7 @@ def fetch_store_details(
     params = urllib.parse.urlencode({"appids": app_id, "l": lang, "cc": cc})
     url = f"https://store.steampowered.com/api/appdetails?{params}"
     try:
-        resp = http_request(
-            "GET", url, headers={"User-Agent": _UA}, timeout=15
-        )
+        resp = http_request("GET", url, headers={"User-Agent": _UA}, timeout=15)
         payload = resp.json()
     except (HttpRequestError, ValueError, OSError) as exc:
         logger.debug("Steam Store appdetails failed for %s: %s", app_id, exc)
@@ -183,12 +173,7 @@ def fetch_store_details(
         data = {}
     name = str(data.get("name") or "").strip()[:256] or None
     header = str(data.get("header_image") or "").strip()[:512] or None
-    capsule = (
-        str(data.get("capsule_image") or data.get("capsule_imagev5") or "").strip()[
-            :512
-        ]
-        or None
-    )
+    capsule = str(data.get("capsule_image") or data.get("capsule_imagev5") or "").strip()[:512] or None
     raw_desc = str(data.get("short_description") or "").strip()
     desc = _strip_html(raw_desc)[:_DESC_MAX] or None
     is_free = bool(data.get("is_free"))
@@ -410,10 +395,7 @@ def _candidate_steam_ids_for_icons(db: Session, app_id: str) -> list[str]:
 
 
 def _client_icon_cdn_url(app_id: str, icon_hash: str) -> str:
-    return (
-        "https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/"
-        f"apps/{app_id}/{icon_hash}.jpg"
-    )
+    return f"https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/{app_id}/{icon_hash}.jpg"
 
 
 def _fetch_icon_hash_from_steamcmd(app_id: str) -> str | None:
@@ -423,9 +405,7 @@ def _fetch_icon_hash_from_steamcmd(app_id: str) -> str | None:
         return None
     url = f"https://api.steamcmd.net/v1/info/{app_id}"
     try:
-        resp = http_request(
-            "GET", url, headers={"User-Agent": _UA}, timeout=15
-        )
+        resp = http_request("GET", url, headers={"User-Agent": _UA}, timeout=15)
         payload = resp.json()
     except (HttpRequestError, ValueError, OSError) as exc:
         logger.debug("steamcmd appinfo failed for %s: %s", app_id, exc)
@@ -462,9 +442,7 @@ def _backfill_client_icon(db: Session, app_id: str) -> str | None:
             try:
                 icons = adapter.fetch_owned_game_icons(steam_id)
             except RuntimeError as exc:
-                log_until_change(
-                    logger, "steam-icon:owned-games", "GetOwnedGames for client icons failed: %s", exc
-                )
+                log_until_change(logger, "steam-icon:owned-games", "GetOwnedGames for client icons failed: %s", exc)
                 break
             clear_log_until_change("steam-icon:owned-games")
             url = icons.get(app_id)
@@ -535,8 +513,7 @@ def _cached_store_card(row: SteamApp | None) -> dict[str, Any] | None:
 
 def _store_card_settled(row: SteamApp | None, now: datetime) -> bool:
     return row is not None and (
-        _details_fresh(row, now)
-        or _missed_recently(row.details_missed_at, _DETAILS_MISS_RETRY, now)
+        _details_fresh(row, now) or _missed_recently(row.details_missed_at, _DETAILS_MISS_RETRY, now)
     )
 
 

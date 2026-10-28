@@ -23,10 +23,7 @@ export function CheckinTreeNameLabel(props: {
 }) {
   const { kind, platform, label, gameCode, strong, type, style, iconSize = 16 } = props;
   const platformIcon = featureIconName(platform);
-  const iconName =
-    kind === "platform"
-      ? platformIcon
-      : checkinGameIcon(gameCode, platformIcon);
+  const iconName = kind === "platform" ? platformIcon : checkinGameIcon(gameCode, platformIcon);
 
   return (
     <span style={{ ...nameLabelStyle, ...style }}>

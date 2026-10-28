@@ -21,16 +21,11 @@ export function TarkovTaskDetailSection({
   className,
 }: Props) {
   return (
-    <section
-      id={id}
-      className={[styles.section, className].filter(Boolean).join(" ")}
-    >
+    <section id={id} className={[styles.section, className].filter(Boolean).join(" ")}>
       <h2 className={styles.sectionHead}>
         {icon}
         {title}
-        {count != null ? (
-          <span className={styles.sectionCount}>{count}</span>
-        ) : null}
+        {count != null ? <span className={styles.sectionCount}>{count}</span> : null}
         <span className={styles.sectionRule} aria-hidden />
       </h2>
       {empty ? <div className={styles.muted}>无</div> : children}

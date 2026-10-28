@@ -46,10 +46,7 @@ export function tarkovStashFloor(edition: unknown): number {
 export function parseTarkovPlayerLevel(raw: unknown): number {
   const value = Number(raw);
   if (!Number.isFinite(value)) return TARKOV_PLAYER_LEVEL_MIN;
-  return Math.min(
-    Math.max(Math.trunc(value), TARKOV_PLAYER_LEVEL_MIN),
-    TARKOV_PLAYER_LEVEL_MAX,
-  );
+  return Math.min(Math.max(Math.trunc(value), TARKOV_PLAYER_LEVEL_MIN), TARKOV_PLAYER_LEVEL_MAX);
 }
 
 export function parseTarkovTraderLoyalty(raw: unknown): number {
@@ -96,9 +93,7 @@ export function formatTraderStanding(value: number): string {
 }
 
 export function indexTraderLoyaltyBySlug(
-  traders:
-    | Array<{ slug?: string; levels?: TarkovLoyaltyLevelReq[] }>
-    | undefined,
+  traders: Array<{ slug?: string; levels?: TarkovLoyaltyLevelReq[] }> | undefined,
 ): Map<string, TarkovLoyaltyLevelReq[]> {
   const out = new Map<string, TarkovLoyaltyLevelReq[]>();
   for (const row of traders || []) {
@@ -163,9 +158,7 @@ export function traderLoyaltyReqParts(
   return parts;
 }
 
-export function traderLoyaltyReqTitle(
-  spec: TarkovLoyaltyLevelReq | undefined,
-): string {
+export function traderLoyaltyReqTitle(spec: TarkovLoyaltyLevelReq | undefined): string {
   if (!spec) return "";
   const level = Number(spec.level || 0);
   const prefix = level ? `LL${level}` : "";

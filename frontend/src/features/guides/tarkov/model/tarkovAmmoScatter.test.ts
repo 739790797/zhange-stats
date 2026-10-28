@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TarkovAmmoItem } from "@/features/guides/tarkov/api/guidesApi";
-import {
-  ammoScatterAxisMax,
-  filterAmmoByIds,
-} from "./tarkovAmmoScatter";
+import { ammoScatterAxisMax, filterAmmoByIds } from "./tarkovAmmoScatter";
 
 function ammo(partial: Partial<TarkovAmmoItem> & Pick<TarkovAmmoItem, "id">): TarkovAmmoItem {
   return {
@@ -34,10 +31,7 @@ describe("filterAmmoByIds", () => {
   const items = [ammo({ id: "a" }), ammo({ id: "b" }), ammo({ id: "c" })];
 
   it("keeps only requested ids", () => {
-    expect(filterAmmoByIds(items, ["c", "a"]).map((row) => row.id)).toEqual([
-      "a",
-      "c",
-    ]);
+    expect(filterAmmoByIds(items, ["c", "a"]).map((row) => row.id)).toEqual(["a", "c"]);
   });
 
   it("ignores blank ids", () => {

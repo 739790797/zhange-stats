@@ -2,7 +2,10 @@ import type { AxiosError } from "axios";
 import { client } from "@/shared/api/http";
 import { isUnsafeHttpMethod, readCsrfToken } from "@/shared/api/csrfCookie";
 import { handleHttpError } from "./httpErrorHandler";
-import { handleTarkovResponse, prepareTarkovRequest } from "@/features/guides/tarkov/api/httpIntegration";
+import {
+  handleTarkovResponse,
+  prepareTarkovRequest,
+} from "@/features/guides/tarkov/api/httpIntegration";
 import { markAxiosRumStart, recordAxiosRum } from "@/app/telemetry/httpAxios";
 
 let installed = false;

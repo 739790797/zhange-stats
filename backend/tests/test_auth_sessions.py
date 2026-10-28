@@ -41,9 +41,7 @@ def env(monkeypatch):
     get_settings.cache_clear()
     reset_rate_limits_for_tests()
     reset_ephemeral_kv_for_tests()
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
 
@@ -291,9 +289,7 @@ def test_login_body_carries_no_token(env) -> None:
 )
 def test_login_rejects_out_of_bounds_input(env, username, password) -> None:
     api, _, _ = env
-    resp = TestClient(api).post(
-        "/api/auth/login", json={"username": username, "password": password}
-    )
+    resp = TestClient(api).post("/api/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 422
 
 

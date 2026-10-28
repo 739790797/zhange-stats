@@ -26,11 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_or_create_profile(db: Session) -> MinecraftServerProfile:
-    row = (
-        db.query(MinecraftServerProfile)
-        .filter(MinecraftServerProfile.id == PROFILE_ROW_ID)
-        .first()
-    )
+    row = db.query(MinecraftServerProfile).filter(MinecraftServerProfile.id == PROFILE_ROW_ID).first()
     if row:
         if seed_applied_if_missing(row):
             db.commit()
@@ -106,11 +102,7 @@ def _view_from_parts(
     overrides: dict[str, str],
 ) -> dict[str, Any]:
     props_text = overrides.get("server.properties") or ""
-    extra = [
-        {"path": path, "content": content}
-        for path, content in overrides.items()
-        if path != "server.properties"
-    ]
+    extra = [{"path": path, "content": content} for path, content in overrides.items() if path != "server.properties"]
     return {
         "mc_version": mc_version,
         "loader": loader,
@@ -127,11 +119,7 @@ def view_from_snapshot(snap: dict[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(snap, dict):
         return None
     overrides_raw = snap.get("overrides")
-    overrides = (
-        {str(k): str(v) for k, v in overrides_raw.items()}
-        if isinstance(overrides_raw, dict)
-        else {}
-    )
+    overrides = {str(k): str(v) for k, v in overrides_raw.items()} if isinstance(overrides_raw, dict) else {}
     mods_raw = snap.get("mods")
     mods = [m for m in mods_raw if isinstance(m, dict)] if isinstance(mods_raw, list) else []
     return _view_from_parts(
@@ -227,11 +215,7 @@ def merge_overview_mods(
     live_mods: list[dict[str, str]] | None,
     applied_mods: list[dict[str, str]],
 ) -> list[dict[str, str]]:
-    applied_by_file = {
-        str(row.get("filename") or ""): row
-        for row in applied_mods
-        if str(row.get("filename") or "")
-    }
+    applied_by_file = {str(row.get("filename") or ""): row for row in applied_mods if str(row.get("filename") or "")}
     if live_mods is None:
         return list(applied_mods)
     out: list[dict[str, str]] = []
@@ -313,11 +297,7 @@ def invalidate_live_public_facts() -> None:
 
 
 def _public_property_map(raw: dict[str, Any]) -> dict[str, str]:
-    return {
-        key: str(raw[key])
-        for key in pack.COMMON_PROPERTY_KEYS
-        if key in raw and str(raw.get(key) or "").strip()
-    }
+    return {key: str(raw[key]) for key in pack.COMMON_PROPERTY_KEYS if key in raw and str(raw.get(key) or "").strip()}
 
 
 def load_live_public_facts(base: str, token: str, uuid: str) -> dict[str, Any]:
@@ -496,5 +476,3 @@ def collect_status(db: Session) -> dict[str, Any]:
         "whitelist": whitelist,
         "roster": roster,
     }
-
-

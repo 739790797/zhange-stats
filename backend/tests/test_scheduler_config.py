@@ -16,9 +16,7 @@ def test_git_repo_sync_timeouts_default_to_thirty_minutes_and_are_independent(
     config = scheduler_config.load_scheduler_config()
 
     assert DEFAULT_REPO_SYNC_TIMEOUT_MINUTES == 30
-    assert {
-        config[job_id]["timeout_minutes"] for job_id in REPO_SYNC_JOB_IDS.values()
-    } == {30}
+    assert {config[job_id]["timeout_minutes"] for job_id in REPO_SYNC_JOB_IDS.values()} == {30}
 
 
 def test_git_repo_sync_timeout_can_be_configured_per_job(monkeypatch) -> None:

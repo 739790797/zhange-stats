@@ -81,9 +81,7 @@ def test_pvp_and_pve_layouts_are_separate() -> None:
     pve = use_game_mode("pve")
     try:
         layout.replace_layout(db, user, [{"item_id": "pve-only", "col": 1, "row": 1}])
-        assert layout.list_placements(db, user.id) == [
-            {"item_id": "pve-only", "col": 1, "row": 1, "rotated": False}
-        ]
+        assert layout.list_placements(db, user.id) == [{"item_id": "pve-only", "col": 1, "row": 1, "rotated": False}]
     finally:
         reset_game_mode(pve)
     assert layout.list_placements(db, user.id, game_mode="pvp") == [
@@ -126,9 +124,7 @@ def test_existing_placements_count_as_saved_without_marker() -> None:
     token = use_game_mode("pvp")
     try:
         assert layout.get_layout(db, user.id) == {
-            "placements": [
-                {"item_id": "legacy", "col": 0, "row": 0, "rotated": False}
-            ],
+            "placements": [{"item_id": "legacy", "col": 0, "row": 0, "rotated": False}],
             "saved": True,
         }
     finally:

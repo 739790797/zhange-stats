@@ -26,30 +26,16 @@ describe("itemPageBySlug", () => {
     expect(itemPageBySlug("headsets")?.types).toContain("headphones");
     expect(itemPageBySlug("ammo-packs")?.types).toContain("ammoBox");
     expect(itemPageBySlug("melee")?.types).toContain("melee");
-    expect(itemPageBySlug("ammo-packs")?.categoryIds).toContain(
-      "5b47574386f77428ca22b33c",
-    );
-    expect(itemPageBySlug("melee")?.categoryIds).toContain(
-      "5b5f7a0886f77409407a7f96",
-    );
+    expect(itemPageBySlug("ammo-packs")?.categoryIds).toContain("5b47574386f77428ca22b33c");
+    expect(itemPageBySlug("melee")?.categoryIds).toContain("5b5f7a0886f77409407a7f96");
     expect(itemPageBySlug("battle-pass")?.types).toContain("poster");
     expect(itemPageBySlug("helmets")?.types).toEqual(["helmet"]);
-    expect(itemPageBySlug("helmets")?.categoryIds).toContain(
-      "5b47574386f77428ca22b330",
-    );
+    expect(itemPageBySlug("helmets")?.categoryIds).toContain("5b47574386f77428ca22b330");
     const mods = itemPageBySlug("weapon-mods");
-    expect(mods?.children.map((c) => c.label)).toEqual([
-      "装备配件",
-      "功能模块",
-      "基础部件",
-    ]);
-    expect(mods?.children[0]?.children?.map((c) => c.label)).toContain(
-      "手枪式握把",
-    );
+    expect(mods?.children.map((c) => c.label)).toEqual(["装备配件", "功能模块", "基础部件"]);
+    expect(mods?.children[0]?.children?.map((c) => c.label)).toContain("手枪式握把");
     expect(mods?.categoryIds).toContain("5b5f731a86f774093e6cb4f9");
-    expect(itemPageBySlug("pistol-grips")?.categoryIds).toContain(
-      "5b5f761f86f774094242f1a1",
-    );
+    expect(itemPageBySlug("pistol-grips")?.categoryIds).toContain("5b5f761f86f774094242f1a1");
   });
 
   it("maps gun aliases", () => {
@@ -59,40 +45,20 @@ describe("itemPageBySlug", () => {
 
 describe("itemHrefFromTypes", () => {
   it("picks ammo/guns/keys then falls back to barter", () => {
-    expect(itemHrefFromTypes("a1", ["ammo"])).toBe(
-      "/guides/tarkov/items/ammo/a1",
-    );
-    expect(itemHrefFromTypes("p1", ["ammoBox"])).toBe(
-      "/guides/tarkov/items/ammo-packs/p1",
-    );
-    expect(itemHrefFromTypes("m1", ["melee"])).toBe(
-      "/guides/tarkov/items/melee/m1",
-    );
-    expect(itemHrefFromTypes("g1", ["gun"])).toBe(
-      "/guides/tarkov/items/guns/g1",
-    );
-    expect(itemHrefFromTypes("r1", ["preset", "rig"])).toBe(
-      "/guides/tarkov/items/rigs/r1",
-    );
-    expect(itemHrefFromTypes("k1", ["keys"])).toBe(
-      "/guides/tarkov/items/keys/k1",
-    );
-    expect(itemHrefFromTypes("s1", ["suppressor"])).toBe(
-      "/guides/tarkov/items/suppressors/s1",
-    );
-    expect(itemHrefFromTypes("h1", ["headphones"])).toBe(
-      "/guides/tarkov/items/headsets/h1",
-    );
-    expect(itemHrefFromTypes("p-default", ["preset"])).toBe(
-      "/guides/tarkov/items/guns/p-default",
-    );
+    expect(itemHrefFromTypes("a1", ["ammo"])).toBe("/guides/tarkov/items/ammo/a1");
+    expect(itemHrefFromTypes("p1", ["ammoBox"])).toBe("/guides/tarkov/items/ammo-packs/p1");
+    expect(itemHrefFromTypes("m1", ["melee"])).toBe("/guides/tarkov/items/melee/m1");
+    expect(itemHrefFromTypes("g1", ["gun"])).toBe("/guides/tarkov/items/guns/g1");
+    expect(itemHrefFromTypes("r1", ["preset", "rig"])).toBe("/guides/tarkov/items/rigs/r1");
+    expect(itemHrefFromTypes("k1", ["keys"])).toBe("/guides/tarkov/items/keys/k1");
+    expect(itemHrefFromTypes("s1", ["suppressor"])).toBe("/guides/tarkov/items/suppressors/s1");
+    expect(itemHrefFromTypes("h1", ["headphones"])).toBe("/guides/tarkov/items/headsets/h1");
+    expect(itemHrefFromTypes("p-default", ["preset"])).toBe("/guides/tarkov/items/guns/p-default");
   });
 
   it("reads a category label and listing href from item types", () => {
     expect(itemTypeLabelFromTypes(["suppressor"])).toBe("消音器");
-    expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
-      itemListingHref("suppressors"),
-    );
+    expect(itemTypeHrefFromTypes(["suppressor"])).toBe(itemListingHref("suppressors"));
     expect(itemTypeHrefFromTypes(["suppressor"])).toBe(
       "/guides/tarkov/items/weapon-mods?child=5b5f731a86f774093e6cb4f9",
     );
@@ -105,10 +71,7 @@ describe("itemHrefFromTypes", () => {
 describe("handbookCategoryFromIds", () => {
   it("prefers the handbook child over the parent root", () => {
     expect(
-      handbookCategoryFromIds([
-        "5b47574386f77428ca22b33e",
-        "5b47574386f77428ca22b2ef",
-      ]),
+      handbookCategoryFromIds(["5b47574386f77428ca22b33e", "5b47574386f77428ca22b2ef"]),
     ).toEqual({
       id: "5b47574386f77428ca22b2ef",
       label: "电子产品",

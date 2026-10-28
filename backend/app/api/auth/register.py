@@ -37,9 +37,7 @@ def _send_register_code_or_notice(db: Session, email: str) -> dict:
     _require_email_delivery(db)
     existing = db.query(User).filter(User.email == email).first()
     notice = NOTICE_ALREADY_REGISTERED if existing and existing.email_verified else None
-    _, delivery = _upsert_register_challenge(
-        db, email, purpose=PURPOSE_REGISTER, notice=notice
-    )
+    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_REGISTER, notice=notice)
     return delivery
 
 
@@ -78,9 +76,7 @@ def register(
     auth_limiter.hit(f"register:email:{email}", limit=10, window_sec=600)
 
     try:
-        password = validate_password(
-            body.password, min_length=get_min_password_length(db)
-        )
+        password = validate_password(body.password, min_length=get_min_password_length(db))
     except PasswordPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

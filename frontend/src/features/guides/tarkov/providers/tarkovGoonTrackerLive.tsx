@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  tarkovGoonsWsUrl,
-  type TarkovGoonTracker,
-} from "@/features/guides/tarkov/api/guidesApi";
+import { tarkovGoonsWsUrl, type TarkovGoonTracker } from "@/features/guides/tarkov/api/guidesApi";
 import { useAuthStore } from "@/features/auth/model/authStore";
 import {
   TarkovGoonTrackerLiveContext,
@@ -16,10 +13,7 @@ type WsBundle = {
   pve?: TarkovGoonTracker;
 };
 
-function applyBundle(
-  queryClient: ReturnType<typeof useQueryClient>,
-  payload: WsBundle,
-) {
+function applyBundle(queryClient: ReturnType<typeof useQueryClient>, payload: WsBundle) {
   if (payload.pvp) {
     queryClient.setQueryData(goonsQueryKey("pvp"), payload.pvp);
   }

@@ -39,9 +39,7 @@ describe("tarkovCommunityBuilds", () => {
   it("filters by query and all selected tags", () => {
     expect(filterCommunityBuilds(builds, "m4", []).map((row) => row.id)).toEqual(["1"]);
     expect(filterCommunityBuilds(builds, "lian", []).map((row) => row.id)).toEqual(["1"]);
-    expect(filterCommunityBuilds(builds, "", ["ergo", "meta"]).map((row) => row.id)).toEqual([
-      "1",
-    ]);
+    expect(filterCommunityBuilds(builds, "", ["ergo", "meta"]).map((row) => row.id)).toEqual(["1"]);
     expect(filterCommunityBuilds(builds, "", ["ergo", "budget"])).toEqual([]);
   });
 

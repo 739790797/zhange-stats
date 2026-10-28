@@ -76,22 +76,14 @@ describe("tarkov map tooltip side", () => {
   });
 
   it("reads leaflet direction classes", () => {
-    expect(tooltipSideFromClassName("leaflet-tooltip leaflet-tooltip-top")).toBe(
-      "top",
-    );
-    expect(
-      tooltipSideFromClassName("leaflet-tooltip leaflet-tooltip-bottom spawn"),
-    ).toBe("bottom");
+    expect(tooltipSideFromClassName("leaflet-tooltip leaflet-tooltip-top")).toBe("top");
+    expect(tooltipSideFromClassName("leaflet-tooltip leaflet-tooltip-bottom spawn")).toBe("bottom");
     expect(tooltipSideFromClassName("leaflet-tooltip")).toBeNull();
   });
 
   it("estimates loot icon rows a bit taller than a name chip", () => {
-    expect(estimatedCanvasTooltipHeight(`<div class="lootLooseTip"></div>`)).toBe(
-      56,
-    );
-    expect(estimatedCanvasTooltipHeight(`<div class="lockTipChip">门</div>`)).toBe(
-      84,
-    );
+    expect(estimatedCanvasTooltipHeight(`<div class="lootLooseTip"></div>`)).toBe(56);
+    expect(estimatedCanvasTooltipHeight(`<div class="lockTipChip">门</div>`)).toBe(84);
     expect(estimatedCanvasTooltipHeight(`<div class="lockTip"></div>`)).toBe(52);
     expect(estimatedCanvasTooltipHeight("<strong>Boss</strong>")).toBe(48);
   });
@@ -134,16 +126,10 @@ describe("tarkov map tooltip side", () => {
   it("flips a nested item card when it would leave the map", () => {
     const wrap = { left: 0, top: 0, right: 400, bottom: 300 };
     expect(
-      lootDetailCardOverflowFlip(
-        { left: 350, top: 40, right: 520, bottom: 100 },
-        wrap,
-      ),
+      lootDetailCardOverflowFlip({ left: 350, top: 40, right: 520, bottom: 100 }, wrap),
     ).toEqual({ flipX: true, flipY: false });
     expect(
-      lootDetailCardOverflowFlip(
-        { left: 20, top: -20, right: 180, bottom: 40 },
-        wrap,
-      ),
+      lootDetailCardOverflowFlip({ left: 20, top: -20, right: 180, bottom: 40 }, wrap),
     ).toEqual({ flipX: false, flipY: true });
   });
 });

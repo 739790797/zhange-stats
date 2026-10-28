@@ -52,9 +52,7 @@ def filter_log_lines(
             continue
         if min_num is not None and _LEVEL_ORDER.get(line.level, 0) < min_num:
             continue
-        if prefix and not (
-            line.logger == prefix or line.logger.startswith(f"{prefix}.")
-        ):
+        if prefix and not (line.logger == prefix or line.logger.startswith(f"{prefix}.")):
             continue
         if biz and not (line.biz == biz or line.biz.startswith(f"{biz}.")):
             continue

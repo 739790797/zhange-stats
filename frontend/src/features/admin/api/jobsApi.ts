@@ -18,10 +18,7 @@ export type ScheduledJobs = components["schemas"]["ScheduledJobsOut"];
 
 export type JobMemberOption = components["schemas"]["JobMemberOptionOut"];
 
-export async function triggerScheduledJob(
-  jobId: string,
-  payload?: JobTriggerRequest | null,
-) {
+export async function triggerScheduledJob(jobId: string, payload?: JobTriggerRequest | null) {
   const { data } = await client.post<JobTriggerResult>(
     `/settings/jobs/${encodeURIComponent(jobId)}/trigger`,
     payload || {},
@@ -40,11 +37,7 @@ export async function fetchJobRuns(
   return data;
 }
 
-export async function fetchJobRunEvents(
-  jobId: string,
-  runId: number,
-  afterId: number,
-) {
+export async function fetchJobRunEvents(jobId: string, runId: number, afterId: number) {
   const { data } = await client.get<JobRunEvents>(
     `/settings/jobs/${encodeURIComponent(jobId)}/runs/${runId}/events`,
     { params: { after_id: afterId } },
@@ -68,9 +61,6 @@ export async function fetchUserCheckinTasks(params?: {
   page?: number;
   page_size?: number;
 }) {
-  const { data } = await client.get<UserCheckinTasksPage>(
-    "/settings/jobs/user-tasks",
-    { params },
-  );
+  const { data } = await client.get<UserCheckinTasksPage>("/settings/jobs/user-tasks", { params });
   return data;
 }

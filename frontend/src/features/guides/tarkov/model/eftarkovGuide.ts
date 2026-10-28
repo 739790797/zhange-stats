@@ -10,10 +10,7 @@ export function eftarkovTaskGuideUrl(taskId: string): string | null {
 }
 
 /** 点任务名打开攻略时保留该 id；未指定才回落到已勾选的第一条。 */
-export function resolveRaidPrepGuideId(
-  selectedIds: readonly string[],
-  guideParam: string,
-): string {
+export function resolveRaidPrepGuideId(selectedIds: readonly string[], guideParam: string): string {
   const guide = guideParam.trim();
   if (guide) return guide;
   return selectedIds[0] || "";

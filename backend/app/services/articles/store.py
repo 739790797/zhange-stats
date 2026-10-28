@@ -277,12 +277,8 @@ def save_article_bytes(
     if name.lower().endswith(".svg") or _looks_like_htmlish(raw):
         raise HTTPException(status_code=400, detail="不支持的文件类型")
     if looks_like_article_image(raw):
-        return write_article_image(
-            raw, db=db, owner_user_id=owner_user_id, filename=name
-        )
-    return write_article_attachment(
-        raw, name, db=db, owner_user_id=owner_user_id
-    )
+        return write_article_image(raw, db=db, owner_user_id=owner_user_id, filename=name)
+    return write_article_attachment(raw, name, db=db, owner_user_id=owner_user_id)
 
 
 def save_article_asset(

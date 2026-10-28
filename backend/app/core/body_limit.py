@@ -38,10 +38,7 @@ class RequestBodyTooLarge(HTTPException):
 
 
 def _compile_template(template: str) -> re.Pattern[str]:
-    segments = [
-        "[^/]+" if _PARAM_SEGMENT.fullmatch(seg) else re.escape(seg)
-        for seg in template.strip("/").split("/")
-    ]
+    segments = ["[^/]+" if _PARAM_SEGMENT.fullmatch(seg) else re.escape(seg) for seg in template.strip("/").split("/")]
     return re.compile("^/" + "/".join(segments) + "/?$")
 
 

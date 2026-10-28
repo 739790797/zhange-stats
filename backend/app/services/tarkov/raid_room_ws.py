@@ -180,9 +180,7 @@ async def _drop_session(client: WebSocket, public_id: str, code: int) -> None:
 
 async def run_room_session(client: WebSocket, public_id: str) -> None:
     try:
-        first = await asyncio.wait_for(
-            receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10
-        )
+        first = await asyncio.wait_for(receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10)
     except TimeoutError:
         await client.close(code=CLOSE_UNAUTHORIZED)
         return
@@ -216,9 +214,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
         return
 
     try:
-        online = await hub.join(
-            public_id, client, user.id, presence_client(first.get("client"))
-        )
+        online = await hub.join(public_id, client, user.id, presence_client(first.get("client")))
     except RoomSocketLimit:
         # 同一账号或同一房间的 socket 太多：每条连接各有一套令牌桶，不限量就是 N 倍画笔速率。
         await client.close(code=CLOSE_TOO_MANY_SOCKETS)
@@ -270,9 +266,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                 await send_json_timeout(client, {"event": "pong"})
                 continue
             if event == "view_map":
-                slug = rooms_svc.normalize_room_map_slug(
-                    str(raw.get("map_id") or raw.get("map") or "")
-                )
+                slug = rooms_svc.normalize_room_map_slug(str(raw.get("map_id") or raw.get("map") or ""))
                 if not slug or not await seat.ok():
                     continue
                 moved = hub.view_map_of(public_id, user.id) != slug
@@ -330,9 +324,7 @@ async def run_room_session(client: WebSocket, public_id: str) -> None:
                     continue
                 previous = hub.log_phase_of(public_id, user.id)
                 phases = hub.set_log_phase(public_id, user.id, phase)
-                changed = rooms_svc.note_view_map_from_phase(
-                    public_id, user.id, phase, previous=previous
-                )
+                changed = rooms_svc.note_view_map_from_phase(public_id, user.id, phase, previous=previous)
                 payload: dict[str, Any] = {
                     "event": "log_phase",
                     "user_id": user.id,

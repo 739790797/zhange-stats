@@ -129,29 +129,11 @@ def _weighted_avg(pairs: list[tuple[float, int]]) -> float | None:
 
 def merge_stats(parts: list[RollupStats]) -> RollupStats:
     if not parts:
-        return stats_from_metric_lists(
-            sample_count=0, tps=[], mspt=[], entities=[], chunks=[]
-        )
-    tps_pairs = [
-        (p.tps_avg, p.sample_count)
-        for p in parts
-        if p.tps_avg is not None and p.sample_count > 0
-    ]
-    mspt_pairs = [
-        (p.mspt_avg, p.sample_count)
-        for p in parts
-        if p.mspt_avg is not None and p.sample_count > 0
-    ]
-    ent_pairs = [
-        (p.entities_avg, p.sample_count)
-        for p in parts
-        if p.entities_avg is not None and p.sample_count > 0
-    ]
-    chunk_pairs = [
-        (p.chunks_avg, p.sample_count)
-        for p in parts
-        if p.chunks_avg is not None and p.sample_count > 0
-    ]
+        return stats_from_metric_lists(sample_count=0, tps=[], mspt=[], entities=[], chunks=[])
+    tps_pairs = [(p.tps_avg, p.sample_count) for p in parts if p.tps_avg is not None and p.sample_count > 0]
+    mspt_pairs = [(p.mspt_avg, p.sample_count) for p in parts if p.mspt_avg is not None and p.sample_count > 0]
+    ent_pairs = [(p.entities_avg, p.sample_count) for p in parts if p.entities_avg is not None and p.sample_count > 0]
+    chunk_pairs = [(p.chunks_avg, p.sample_count) for p in parts if p.chunks_avg is not None and p.sample_count > 0]
     tps_mins = [p.tps_min for p in parts if p.tps_min is not None]
     tps_maxs = [p.tps_max for p in parts if p.tps_max is not None]
     mspt_mins = [p.mspt_min for p in parts if p.mspt_min is not None]
@@ -187,9 +169,7 @@ def _apply_stats(row: MinecraftPerfRollup, stats: RollupStats) -> None:
     row.chunks_max = stats.chunks_max
 
 
-def upsert_rollup(
-    db: Session, *, grain: str, bucket_at: datetime, stats: RollupStats
-) -> None:
+def upsert_rollup(db: Session, *, grain: str, bucket_at: datetime, stats: RollupStats) -> None:
     if stats.sample_count <= 0:
         return
     bucket = to_naive(bucket_at)
@@ -248,9 +228,7 @@ def rollup_parent_bucket(db: Session, *, grain: str, bucket_at: datetime) -> Non
     )
 
 
-def _walk_range(
-    first: datetime | None, last: datetime | None, grain: str
-) -> list[datetime]:
+def _walk_range(first: datetime | None, last: datetime | None, grain: str) -> list[datetime]:
     if first is None or last is None:
         return []
     start = truncate_to_grain(first, grain)
@@ -288,9 +266,7 @@ def backfill_minutes_from_raw(db: Session) -> int:
             minute = truncate_to_grain(sample.sampled_at, GRAIN_1M)
             by_minute.setdefault(minute, []).append(sample)
         for minute, rows in by_minute.items():
-            upsert_rollup(
-                db, grain=GRAIN_1M, bucket_at=minute, stats=stats_from_samples(rows)
-            )
+            upsert_rollup(db, grain=GRAIN_1M, bucket_at=minute, stats=stats_from_samples(rows))
             n += 1
         db.flush()
     return n
@@ -298,16 +274,8 @@ def backfill_minutes_from_raw(db: Session) -> int:
 
 def backfill_from_children(db: Session, *, parent_grain: str) -> int:
     child = _CHILD_GRAIN[parent_grain]
-    first = (
-        db.query(func.min(MinecraftPerfRollup.bucket_at))
-        .filter(MinecraftPerfRollup.grain == child)
-        .scalar()
-    )
-    last = (
-        db.query(func.max(MinecraftPerfRollup.bucket_at))
-        .filter(MinecraftPerfRollup.grain == child)
-        .scalar()
-    )
+    first = db.query(func.min(MinecraftPerfRollup.bucket_at)).filter(MinecraftPerfRollup.grain == child).scalar()
+    last = db.query(func.max(MinecraftPerfRollup.bucket_at)).filter(MinecraftPerfRollup.grain == child).scalar()
     n = 0
     for bucket in _walk_range(first, last, parent_grain):
         rollup_parent_bucket(db, grain=parent_grain, bucket_at=bucket)
@@ -340,9 +308,7 @@ def prune_raw_and_minutes(db: Session, now: datetime) -> dict[str, int]:
     }
 
 
-def maintain_perf_archive(
-    db: Session, *, now: datetime | None = None, prune: bool = False
-) -> dict[str, Any]:
+def maintain_perf_archive(db: Session, *, now: datetime | None = None, prune: bool = False) -> dict[str, Any]:
     """刷新当前/上一分钟与已闭合的小时/日桶。prune=True 时回填缺口并删过期原始/1m。"""
     now_n = to_naive(now) if now is not None else now_naive()
     minute = truncate_to_grain(now_n, GRAIN_1M)
@@ -394,7 +360,4 @@ def fetch_rollup_tuples(
         .order_by(MinecraftPerfRollup.bucket_at.asc())
         .all()
     )
-    return [
-        (row.bucket_at, row.tps_avg, row.mspt_avg, row.entities_avg, row.chunks_avg)
-        for row in rows
-    ]
+    return [(row.bucket_at, row.tps_avg, row.mspt_avg, row.entities_avg, row.chunks_avg) for row in rows]

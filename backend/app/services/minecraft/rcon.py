@@ -162,10 +162,7 @@ def parse_chunks_text(raw: str) -> int | None:
     text = strip_section_codes(raw or "").replace("\r", "\n")
     if not text.strip():
         return None
-    totals = [
-        int(match.group(1))
-        for match in re.finditer(r"(\d+)\s+chunks?\b", text, re.I)
-    ]
+    totals = [int(match.group(1)) for match in re.finditer(r"(\d+)\s+chunks?\b", text, re.I)]
     if totals:
         return int(sum(totals))
     single = re.search(r"\bchunks?\s*[:=]\s*(\d+)\b", text, re.I)
@@ -440,9 +437,7 @@ def query_perf(host: str, port: int, password: str, *, timeout: float = 3.0) -> 
     raise MinecraftRconError(last_error)
 
 
-def query_chunks(
-    host: str, port: int, password: str, *, timeout: float = 3.0
-) -> dict[str, Any] | None:
+def query_chunks(host: str, port: int, password: str, *, timeout: float = 3.0) -> dict[str, Any] | None:
     """尽力读取已加载区块总数；Spark/原版无轻量命令时返回 None。"""
     if _SESSION.chunks_unsupported:
         return None

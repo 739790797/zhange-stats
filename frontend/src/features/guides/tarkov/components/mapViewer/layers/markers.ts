@@ -3,7 +3,6 @@
 import { escapeHtml } from "@/shared/lib/escapeHtml";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import {
   type TarkovMapBoss,
   type TarkovMapBtrStop,
@@ -18,7 +17,10 @@ import {
 } from "@/features/guides/tarkov/api/guidesApi";
 import { type TarkovCanvasMarker } from "@/features/guides/tarkov/model/tarkovMapCanvasMarkers";
 import { pos } from "@/features/guides/tarkov/model/tarkovMapCrs";
-import { tarkovBossMapLabel, tarkovMapLabel } from "@/features/guides/tarkov/model/tarkovMapLabelsZh";
+import {
+  tarkovBossMapLabel,
+  tarkovMapLabel,
+} from "@/features/guides/tarkov/model/tarkovMapLabelsZh";
 import { mapLayerFloorBands } from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import { inventoryThumbUrl } from "@/features/guides/tarkov/model/tarkovItemImages";
 import { itemHrefFromTypes } from "@/features/guides/tarkov/model/tarkovItemTypes";
@@ -104,9 +106,7 @@ function extractPopupExtraHtml(row: TarkovMapExtract): string {
     const count = item.count && item.count !== 1 ? `${item.count} × ` : "";
     const href = itemHrefFromTypes(item.id, item.types || []);
     const thumb = inventoryThumbUrl(item.icon_link, item.id);
-    const img = thumb
-      ? `<img src="${escapeHtml(thumb)}" alt="" width="18" height="18"/>`
-      : "";
+    const img = thumb ? `<img src="${escapeHtml(thumb)}" alt="" width="18" height="18"/>` : "";
     const text = `需携带 ${count}${label}`;
     lines.push(
       href
@@ -114,9 +114,7 @@ function extractPopupExtraHtml(row: TarkovMapExtract): string {
         : `${img}${escapeHtml(text)}`,
     );
   }
-  return lines
-    .map((line) => `<span class="${styles.extractPopupMeta}">${line}</span>`)
-    .join("");
+  return lines.map((line) => `<span class="${styles.extractPopupMeta}">${line}</span>`).join("");
 }
 
 export function addExtractMarkers(
@@ -162,7 +160,9 @@ export function collectPlayerSpawnMarkers(
 ): TarkovCanvasMarker[] {
   const out: TarkovCanvasMarker[] = [];
   spawns.forEach((row, index) => {
-    const kind = String(row.kind || "").trim().toLowerCase() as TarkovSpawnKind;
+    const kind = String(row.kind || "")
+      .trim()
+      .toLowerCase() as TarkovSpawnKind;
     if (kind !== "pmc" && kind !== "scav" && kind !== "sniper") return;
     if (!kindFlags[kind]) return;
     if (row.x == null || row.z == null) return;
@@ -196,9 +196,7 @@ export function collectBossMarkers(
   bosses.forEach((boss, bossIndex) => {
     const label = tarkovBossMapLabel(boss.name);
     const chance =
-      boss.spawn_chance != null && boss.spawn_chance > 0
-        ? `${boss.spawn_chance}%`
-        : "";
+      boss.spawn_chance != null && boss.spawn_chance > 0 ? `${boss.spawn_chance}%` : "";
     (boss.locations || []).forEach((loc, locIndex) => {
       (loc.positions || []).forEach((point, pointIndex) => {
         if (point.x == null || point.z == null) return;
@@ -215,9 +213,7 @@ export function collectBossMarkers(
             tooltipHtml: [
               `<strong>${escapeHtml(label)}</strong>`,
               chance ? `<div>出生率 ${escapeHtml(chance)}</div>` : "",
-              locLabel && locLabel !== label
-                ? `<div>${escapeHtml(locLabel)}</div>`
-                : "",
+              locLabel && locLabel !== label ? `<div>${escapeHtml(locLabel)}</div>` : "",
             ]
               .filter(Boolean)
               .join(""),
@@ -315,11 +311,7 @@ export function addHazardOutlines(
     if (row.x == null || row.z == null) return;
     const kind = String(row.hazard_type || "").trim();
     if (!kindOn(kind)) return;
-    const polygon = addMarkerOutline(
-      group,
-      row.outline,
-      hazardOutlineColor(kind),
-    );
+    const polygon = addMarkerOutline(group, row.outline, hazardOutlineColor(kind));
     if (polygon) byId.set(`hazard:${row.id || index}`, polygon);
   });
 }

@@ -37,9 +37,7 @@ function buildTreeNodes(
       // 新探测默认全选；已有 pref 时尊重 included
       const selected = r.included !== false;
       if (selected) defaultChecked.push(key);
-      const label = r.channel_name
-        ? `${r.role_name} · ${r.channel_name}`
-        : r.role_name;
+      const label = r.channel_name ? `${r.role_name} · ${r.channel_name}` : r.role_name;
       return {
         key,
         title: <Typography.Text>{label}</Typography.Text>,
@@ -131,13 +129,9 @@ export function RoleMembershipTreeModal({
     };
   }, [open, platform, loadTree, defaultSelectAllWhenUnset]);
 
-  const { tree, allLeafKeys } = useMemo(
-    () => buildTreeNodes(platform, roles),
-    [platform, roles],
-  );
+  const { tree, allLeafKeys } = useMemo(() => buildTreeNodes(platform, roles), [platform, roles]);
 
-  const platformLabel =
-    CHECKIN_PLATFORM_LABELS[platform] || platform;
+  const platformLabel = CHECKIN_PLATFORM_LABELS[platform] || platform;
 
   const onOk = async () => {
     const checked = new Set(checkedKeys);
@@ -198,9 +192,7 @@ export function RoleMembershipTreeModal({
           checkedKeys={checkedKeys}
           onCheck={(keys) => {
             const next = Array.isArray(keys) ? keys : keys.checked;
-            setCheckedKeys(
-              (next as string[]).filter((k) => allLeafKeys.includes(k)),
-            );
+            setCheckedKeys((next as string[]).filter((k) => allLeafKeys.includes(k)));
           }}
           treeData={tree}
         />

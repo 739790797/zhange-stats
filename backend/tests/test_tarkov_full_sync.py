@@ -74,9 +74,7 @@ def _stub_overlay_sync(monkeypatch, *, fail: bool = False) -> None:
         monkeypatch.setattr(
             overlay_svc,
             "download_overlay",
-            lambda *_a, **_k: (_ for _ in ()).throw(
-                overlay_svc.TarkovOverlayError("cdn down")
-            ),
+            lambda *_a, **_k: (_ for _ in ()).throw(overlay_svc.TarkovOverlayError("cdn down")),
         )
         return
     monkeypatch.setattr(
@@ -148,13 +146,12 @@ def test_sync_all_dumps_json_then_applies(monkeypatch) -> None:
     assert "locks" in ids
     assert "overlay" in ids
 
+
 def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         upstream_svc,
         "download_site_json",
-        lambda **_k: upstream_svc.SiteDump(
-            files=_sample_dump(), upstream_times={}
-        ),
+        lambda **_k: upstream_svc.SiteDump(files=_sample_dump(), upstream_times={}),
     )
     monkeypatch.setattr(
         upstream_svc,
@@ -187,6 +184,7 @@ def test_sync_all_keeps_going_when_one_apply_fails(monkeypatch) -> None:
     assert "tasks down" in (by_id["tasks"]["error"] or "")
     assert by_id["items"]["ok"] is True
     assert by_id["overlay"]["ok"] is True
+
 
 def test_sync_all_projects_files_that_were_not_modified(monkeypatch) -> None:
     """304 的 items 不在本轮下载里，投影仍用库里上一份，不能报 dump 缺少 items。"""
@@ -233,9 +231,7 @@ def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         upstream_svc,
         "download_site_json",
-        lambda **_k: upstream_svc.SiteDump(
-            files=_sample_dump(), upstream_times={}
-        ),
+        lambda **_k: upstream_svc.SiteDump(files=_sample_dump(), upstream_times={}),
     )
     monkeypatch.setattr(upstream_svc, "persist_site_json", lambda *_a, **_k: [])
     monkeypatch.setattr(
@@ -258,6 +254,7 @@ def test_sync_all_keeps_going_when_overlay_fails(monkeypatch) -> None:
     assert by_id["overlay"]["ok"] is False
     assert "cdn down" in (by_id["overlay"]["error"] or "")
     assert by_id["items"]["ok"] is True
+
 
 def test_sync_all_raises_when_dump_fails(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -290,9 +287,7 @@ class _RawQuery:
             right = getattr(expr, "right", None)
             value = getattr(right, "value", right)
             if key:
-                self._rows = [
-                    r for r in self._rows if getattr(r, key, None) == value
-                ]
+                self._rows = [r for r in self._rows if getattr(r, key, None) == value]
         return self
 
     def one_or_none(self):
@@ -335,11 +330,7 @@ def test_load_main_payload_merges_locale() -> None:
     assert synced
     assert payload["data"]["items"]["a1"]["id"] == "a1"
     assert payload["locale"]["a1 Name"] == "测试物"
-    main = next(
-        row
-        for row in db.store[upstream_svc.RAW_MODELS["items"]]
-        if (row.lang or "") == ""
-    )
+    main = next(row for row in db.store[upstream_svc.RAW_MODELS["items"]] if (row.lang or "") == "")
     assert "locale" not in json.loads(main.raw_json)
 
 
@@ -363,11 +354,7 @@ def test_persist_site_json_writes_eight_raw_tables() -> None:
     assert "dump:hideout" in ok_ids
     assert "dump:barters" in ok_ids
     assert "dump:crafts" in ok_ids
-    filled = {
-        name
-        for name, model in upstream_svc.RAW_MODELS.items()
-        if db.store.get(model)
-    }
+    filled = {name for name, model in upstream_svc.RAW_MODELS.items() if db.store.get(model)}
     assert filled == set(upstream_svc.RAW_MODELS)
 
 
@@ -437,9 +424,7 @@ def test_persist_raw_roundtrips_compressed_json(monkeypatch) -> None:
     db = _RawDb()
     payload = {"data": {"items": {"a1": {"name": "手枪式握把" * 40}}}}
     with game_mode_scope("pvp"):
-        first = upstream_svc.persist_raw(
-            db, "items", payload, source="json", note="n", changed=True
-        )
+        first = upstream_svc.persist_raw(db, "items", payload, source="json", note="n", changed=True)
         stored = _stored(db, "items")
         assert stored.startswith("gz1:")
         assert "手枪式握把" not in stored
@@ -514,11 +499,7 @@ def test_persist_site_json_records_upstream_last_modified() -> None:
     by_id = {row["id"]: row for row in rows}
     assert by_id["dump:items"]["upstream_at"] == "2026-08-26T09:01:54+00:00"
     assert by_id["dump:items"]["mode"] == "pvp"
-    items = next(
-        row
-        for row in db.store[upstream_svc.RAW_MODELS["items"]]
-        if (row.lang or "") == ""
-    )
+    items = next(row for row in db.store[upstream_svc.RAW_MODELS["items"]] if (row.lang or "") == "")
     assert "上游 2026-08-26T09:01:54+00:00" in (items.note or "")
 
 
@@ -528,8 +509,7 @@ def _stored(db, resource: str) -> str:
     row = next(
         r
         for r in db.store[model]
-        if (getattr(r, "lang", "") or "") == ""
-        and getattr(r, "mode_id", None) == upstream_svc.raw_row_id()
+        if (getattr(r, "lang", "") or "") == "" and getattr(r, "mode_id", None) == upstream_svc.raw_row_id()
     )
     return row.raw_json
 
@@ -580,9 +560,7 @@ def test_persist_site_json_rejects_error_envelope() -> None:
     with game_mode_scope("pvp"):
         upstream_svc.persist_site_json(db, _sample_dump())
         good = _stored(db, "tasks")
-        rows = upstream_svc.persist_site_json(
-            db, {"tasks": {"errors": [{"message": "boom"}]}}
-        )
+        rows = upstream_svc.persist_site_json(db, {"tasks": {"errors": [{"message": "boom"}]}})
     by_id = {row["id"]: row for row in rows}
     assert by_id["dump:tasks"]["ok"] is False
     assert _stored(db, "tasks") == good
@@ -594,9 +572,7 @@ def test_persist_site_json_accepts_empty_barters_list() -> None:
 
     db = _RawDb()
     with game_mode_scope("pvp"):
-        rows = upstream_svc.persist_site_json(
-            db, {"barters": {"data": []}, "crafts": {"data": []}}
-        )
+        rows = upstream_svc.persist_site_json(db, {"barters": {"data": []}, "crafts": {"data": []}})
     by_id = {row["id"]: row for row in rows}
     assert by_id["dump:barters"]["ok"] is True
     assert by_id["dump:crafts"]["ok"] is True
@@ -611,22 +587,12 @@ def test_persist_site_json_skips_locale_that_lost_its_content() -> None:
     dump["items_zh"] = {"data": {"a1 Name": "测试物"}}
     with game_mode_scope("pvp"):
         upstream_svc.persist_site_json(db, dump)
-        zh_row = next(
-            r
-            for r in db.store[upstream_svc.RAW_MODELS["items"]]
-            if (r.lang or "") == "zh"
-        )
+        zh_row = next(r for r in db.store[upstream_svc.RAW_MODELS["items"]] if (r.lang or "") == "zh")
         good_zh = zh_row.raw_json
-        rows = upstream_svc.persist_site_json(
-            db, {**dump, "items_zh": {"data": {}}}
-        )
+        rows = upstream_svc.persist_site_json(db, {**dump, "items_zh": {"data": {}}})
     by_id = {row["id"]: row for row in rows}
     assert by_id["dump:items_zh"]["ok"] is False
-    zh_row = next(
-        r
-        for r in db.store[upstream_svc.RAW_MODELS["items"]]
-        if (r.lang or "") == "zh"
-    )
+    zh_row = next(r for r in db.store[upstream_svc.RAW_MODELS["items"]] if (r.lang or "") == "zh")
     assert zh_row.raw_json == good_zh
 
 
@@ -640,6 +606,7 @@ def _all_validators() -> dict[str, str]:
 
 def test_download_site_json_uses_stored_validator_and_keeps_304(monkeypatch) -> None:
     """带条件请求：304 的文件不进 files，也不该被当成失败。"""
+
     class _Resp:
         def __init__(self, status, content=b"", headers=None):  # noqa: ANN001
             self.status_code = status
@@ -665,6 +632,7 @@ def test_download_site_json_uses_stored_validator_and_keeps_304(monkeypatch) -> 
 
 def test_download_site_json_raises_when_nothing_usable(monkeypatch) -> None:
     """没有一份完整资源、也没有 304：整站不可用。"""
+
     class _Resp:
         status_code = 200
         headers: dict = {}
@@ -699,9 +667,7 @@ def test_persist_raw_skips_the_old_blob_compare_when_upstream_changed(
             return real(dbc, resource, **kwargs)
 
         monkeypatch.setattr(upstream_svc, "load_raw_row", spy)
-        upstream_svc.persist_raw(
-            db, "maps", payload, source="json", note="second", changed=True
-        )
+        upstream_svc.persist_raw(db, "maps", payload, source="json", note="second", changed=True)
     assert loads == [False]
 
 
@@ -739,19 +705,12 @@ def test_download_site_json_emits_file_progress(monkeypatch) -> None:
 
     monkeypatch.setattr(upstream_svc, "download_json_resource", fake_resource)
     events: list[dict] = []
-    site = upstream_svc.download_site_json(
-        on_progress=lambda event: events.append(event)
-    )
+    site = upstream_svc.download_site_json(on_progress=lambda event: events.append(event))
     dump = site.files
     assert dump["items"]["data"]["items"]
     assert dump["items_zh"] == {"data": {}}
-    assert any(
-        event["file"] == "items" and event["bytes"] == 3 and not event["done"]
-        for event in events
-    )
-    assert any(
-        event["domain_id"] == "dump:items" and event["done"] for event in events
-    )
+    assert any(event["file"] == "items" and event["bytes"] == 3 and not event["done"] for event in events)
+    assert any(event["domain_id"] == "dump:items" and event["done"] for event in events)
     assert any(event["file"] == "items_zh" for event in events)
     specs = upstream_svc.site_dump_specs(lang="zh")
     ids = [row[2] for row in specs]
@@ -763,10 +722,7 @@ def test_download_site_json_emits_file_progress(monkeypatch) -> None:
 
 def test_format_full_sync_message() -> None:
     assert full_sync.format_full_sync_message("start") == "正在全量更新…"
-    assert (
-        full_sync.format_full_sync_message("download", file="items", index=2, total=12)
-        == "正在下载 items（2/12）"
-    )
+    assert full_sync.format_full_sync_message("download", file="items", index=2, total=12) == "正在下载 items（2/12）"
     assert full_sync.format_full_sync_message("overlay") == "正在下载 overlay…"
 
 

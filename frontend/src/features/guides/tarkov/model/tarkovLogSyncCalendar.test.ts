@@ -12,7 +12,9 @@ import {
 
 const PROFILE = "aa11bb22cc33dd44ee55ff66";
 
-function session(patch: Partial<TarkovLogSessionStub> & Pick<TarkovLogSessionStub, "folder" | "startedAt">): TarkovLogSessionStub {
+function session(
+  patch: Partial<TarkovLogSessionStub> & Pick<TarkovLogSessionStub, "folder" | "startedAt">,
+): TarkovLogSessionStub {
   return {
     identities: [
       {
@@ -124,25 +126,15 @@ describe("previewRaidsFromParsed", () => {
 describe("launchOverlapsArchive", () => {
   it("skips a launch whose next launch is already before the floor", () => {
     expect(
-      launchOverlapsArchive(
-        "2026-09-01 10:00:00",
-        "2026-09-02 10:00:00",
-        "2026-09-09 00:08:13",
-      ),
+      launchOverlapsArchive("2026-09-01 10:00:00", "2026-09-02 10:00:00", "2026-09-09 00:08:13"),
     ).toBe(false);
   });
 
   it("keeps the launch that crosses the floor and later launches", () => {
     expect(
-      launchOverlapsArchive(
-        "2026-09-08 21:00:00",
-        "2026-09-09 10:00:00",
-        "2026-09-09 00:08:13",
-      ),
+      launchOverlapsArchive("2026-09-08 21:00:00", "2026-09-09 10:00:00", "2026-09-09 00:08:13"),
     ).toBe(true);
-    expect(
-      launchOverlapsArchive("2026-09-10 08:00:00", "", "2026-09-09 00:08:13"),
-    ).toBe(true);
+    expect(launchOverlapsArchive("2026-09-10 08:00:00", "", "2026-09-09 00:08:13")).toBe(true);
   });
 });
 

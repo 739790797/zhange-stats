@@ -45,12 +45,8 @@ class _CredCache:
 @pytest.fixture
 def cred_cache(monkeypatch):
     cache = _CredCache()
-    monkeypatch.setattr(
-        "app.services.skland.checkin._session_for_bind", cache.session_for_bind
-    )
-    monkeypatch.setattr(
-        "app.services.skland.session_cache.invalidate_skland_session", cache.invalidate
-    )
+    monkeypatch.setattr("app.services.skland.checkin._session_for_bind", cache.session_for_bind)
+    monkeypatch.setattr("app.services.skland.session_cache.invalidate_skland_session", cache.invalidate)
     return cache
 
 
@@ -131,12 +127,8 @@ def test_checkin_renews_stale_cred_once(monkeypatch, cred_cache, db_bind):
         return [_ROLE]
 
     monkeypatch.setattr("app.services.skland.checkin.list_roles", list_roles)
-    monkeypatch.setattr(
-        "app.services.skland.checkin.query_role_today", lambda _s, _r: _result("pending")
-    )
-    monkeypatch.setattr(
-        "app.services.skland.checkin.checkin_role", lambda _s, _r: _result("ok")
-    )
+    monkeypatch.setattr("app.services.skland.checkin.query_role_today", lambda _s, _r: _result("pending"))
+    monkeypatch.setattr("app.services.skland.checkin.checkin_role", lambda _s, _r: _result("ok"))
 
     out = run_checkin_for_bind(db, bind, force=False)
 
@@ -159,9 +151,7 @@ def test_query_today_does_not_retry_non_auth(monkeypatch, cred_cache, db_bind):
     assert cred_cache.invalidated == []
 
 
-def test_second_auth_failure_is_surfaced_without_another_retry(
-    monkeypatch, cred_cache, db_bind
-):
+def test_second_auth_failure_is_surfaced_without_another_retry(monkeypatch, cred_cache, db_bind):
     db, bind = db_bind
     listed: list[str] = []
 
@@ -178,9 +168,7 @@ def test_second_auth_failure_is_surfaced_without_another_retry(
     assert cred_cache.invalidated == [9]
 
 
-def test_expired_hg_token_during_renewal_gets_friendly_message(
-    monkeypatch, cred_cache, db_bind
-):
+def test_expired_hg_token_during_renewal_gets_friendly_message(monkeypatch, cred_cache, db_bind):
     db, bind = db_bind
     cred_cache.login_error = "登录已过期"
 

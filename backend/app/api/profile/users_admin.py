@@ -42,6 +42,7 @@ from app.api.profile.helpers import (
 
 router = APIRouter(tags=["profile"])
 
+
 @router.get("/users", response_model=list[UserBrief])
 def list_users(
     db: Session = Depends(get_db),
@@ -114,12 +115,7 @@ def create_user(
     if body.steam_id is not None:
         _set_steam_id(db, member, body.steam_id)
     db.commit()
-    user = (
-        db.query(User)
-        .options(joinedload(User.member))
-        .filter(User.id == user.id)
-        .first()
-    )
+    user = db.query(User).options(joinedload(User.member)).filter(User.id == user.id).first()
     return _user_brief(user)
 
 
@@ -132,12 +128,7 @@ def update_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ) -> UserBrief:
-    user = (
-        db.query(User)
-        .options(joinedload(User.member))
-        .filter(User.id == user_id)
-        .first()
-    )
+    user = db.query(User).options(joinedload(User.member)).filter(User.id == user_id).first()
     if not user or user_is_anonymized(user):
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -160,11 +151,7 @@ def update_user(
         email = _normalize_email(data["email"])
         if "@" not in email:
             raise HTTPException(status_code=400, detail="邮箱格式不正确")
-        taken = (
-            db.query(User)
-            .filter(User.email == email, User.id != user.id)
-            .first()
-        )
+        taken = db.query(User).filter(User.email == email, User.id != user.id).first()
         if taken:
             raise HTTPException(status_code=400, detail="该邮箱已被注册")
         user.email = email
@@ -225,12 +212,7 @@ def update_user(
     db.commit()
     if password_set and user.id == current.id:
         issue_session(response, request, user)
-    user = (
-        db.query(User)
-        .options(joinedload(User.member))
-        .filter(User.id == user_id)
-        .first()
-    )
+    user = db.query(User).options(joinedload(User.member)).filter(User.id == user_id).first()
     return _user_brief(user)
 
 
@@ -240,12 +222,7 @@ def delete_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_admin),
 ) -> None:
-    user = (
-        db.query(User)
-        .options(joinedload(User.member))
-        .filter(User.id == user_id)
-        .first()
-    )
+    user = db.query(User).options(joinedload(User.member)).filter(User.id == user_id).first()
     if not user or user_is_anonymized(user):
         raise HTTPException(status_code=404, detail="用户不存在")
     if user.id == current.id:
@@ -262,5 +239,3 @@ def delete_user(
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=400, detail=f"删除失败：{exc}") from exc
-
-

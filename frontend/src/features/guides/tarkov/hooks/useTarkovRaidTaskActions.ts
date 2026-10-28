@@ -53,16 +53,10 @@ type Opts = {
   replaceObjDone: (next: RaidPrepSkipMap) => void;
   toggleObjDoneLocal: (taskId: string, objectiveId: string) => void;
   /** 本机和账号账都已按这一下改完，页面用来立刻落本图存档 / 房间记录。 */
-  onUserObjectiveToggle?: (
-    taskId: string,
-    objectiveId: string,
-    checked: boolean,
-  ) => void;
+  onUserObjectiveToggle?: (taskId: string, objectiveId: string, checked: boolean) => void;
   /** 本图 overlay 用的任务（定位点从它取，缺了再回源）。 */
   overlayTasks: readonly TarkovRaidPrepTask[];
-  ensureGeometry: (
-    taskId: string,
-  ) => Promise<TarkovRaidPrepTask | undefined>;
+  ensureGeometry: (taskId: string) => Promise<TarkovRaidPrepTask | undefined>;
   /** 换图时把定位序号清掉，下一次从头开始循环。 */
   locateResetKey?: string;
 };
@@ -93,19 +87,15 @@ export function useTarkovRaidTaskActions({
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTaskId, setGuideTaskId] = useState("");
   const [highlightTaskId, setHighlightTaskId] = useState("");
-  const [focusRequest, setFocusRequest] = useState<RaidTaskFocusRequest | null>(
-    null,
-  );
+  const [focusRequest, setFocusRequest] = useState<RaidTaskFocusRequest | null>(null);
   const locateIndexRef = useRef<Record<string, number>>({});
   const focusSeqRef = useRef(0);
   const objToggleSeqRef = useRef(0);
   /** 这一页上用户亲手勾过的步骤。之后的并集不能把取消的步骤加回来。 */
   const objectivePinsRef = useRef(new Map<string, boolean>());
   const adoptObjectiveSkip = useCallback(
-    (
-      current: RaidPrepSkipMap | null | undefined,
-      merged: RaidPrepSkipMap | null | undefined,
-    ) => adoptMergedObjectiveSkip(current, merged, objectivePinsRef.current),
+    (current: RaidPrepSkipMap | null | undefined, merged: RaidPrepSkipMap | null | undefined) =>
+      adoptMergedObjectiveSkip(current, merged, objectivePinsRef.current),
     [],
   );
   const locateResetRef = useRef(locateResetKey);
@@ -115,8 +105,7 @@ export function useTarkovRaidTaskActions({
   }
 
   const taskStatusOf = useCallback(
-    (taskId: string) =>
-      raidPrepTaskProgressStatus(taskId, doneSet, startedSet),
+    (taskId: string) => raidPrepTaskProgressStatus(taskId, doneSet, startedSet),
     [doneSet, startedSet],
   );
 
@@ -141,12 +130,7 @@ export function useTarkovRaidTaskActions({
       const pin = objectivePinKey(taskId, objectiveId);
       if (pin) objectivePinsRef.current.set(pin, plan.nextChecked);
       if (plan.toggleLocal) toggleObjDoneLocal(taskId, objectiveId);
-      const pairs = commitTaskObjective(
-        gameMode,
-        taskId,
-        objectiveId,
-        plan.nextChecked,
-      );
+      const pairs = commitTaskObjective(gameMode, taskId, objectiveId, plan.nextChecked);
       const progress = plan.reopenTask
         ? commitTaskStatus(gameMode, taskId, "active", undefined, undefined, catalog)
         : {
@@ -167,17 +151,19 @@ export function useTarkovRaidTaskActions({
         ),
       );
       onUserObjectiveToggle?.(taskId, objectiveId, plan.nextChecked);
-      const applyServer = (data: {
-        task_ids?: string[];
-        started_ids?: string[];
-        failed_ids?: string[];
-        objective_dones?: typeof pairs;
-        cleared?: Array<{ task_id?: string | null; cleared_at?: string | null }> | null;
-        reset_at?: string | null;
-        pending_clear_at?: string | null;
-        reset_profile_id?: string | null;
-        reset_epoch?: number | null;
-      } | null) => {
+      const applyServer = (
+        data: {
+          task_ids?: string[];
+          started_ids?: string[];
+          failed_ids?: string[];
+          objective_dones?: typeof pairs;
+          cleared?: Array<{ task_id?: string | null; cleared_at?: string | null }> | null;
+          reset_at?: string | null;
+          pending_clear_at?: string | null;
+          reset_profile_id?: string | null;
+          reset_epoch?: number | null;
+        } | null,
+      ) => {
         if (!data || seq !== objToggleSeqRef.current) return;
         queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
           overlayTaskProgressCache(
@@ -223,8 +209,7 @@ export function useTarkovRaidTaskActions({
         return;
       }
       const task = catalog.find((row) => row.id === taskId);
-      const fillIds =
-        status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
+      const fillIds = status === "done" && task ? raidPrepAllObjectiveIds(task) : undefined;
       if (status === "done" && fillIds?.length) {
         for (const objectiveId of fillIds) {
           const pin = objectivePinKey(taskId, objectiveId);
@@ -236,14 +221,7 @@ export function useTarkovRaidTaskActions({
         started: loadTaskStartedIds(gameMode),
         failed: loadTaskFailedIds(gameMode),
       };
-      const next = commitTaskStatus(
-        gameMode,
-        taskId,
-        status,
-        fillIds,
-        task?.mutex_ids,
-        catalog,
-      );
+      const next = commitTaskStatus(gameMode, taskId, status, fillIds, task?.mutex_ids, catalog);
       if (fillIds?.length) {
         applyObjectiveDones(
           next.objectives.map((row) => ({
@@ -255,12 +233,7 @@ export function useTarkovRaidTaskActions({
       queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
         overlayTaskProgressCache(
           prev,
-          taskProgressQueryData(
-            next.done,
-            next.started,
-            next.objectives,
-            next.failed,
-          ),
+          taskProgressQueryData(next.done, next.started, next.objectives, next.failed),
         ),
       );
       void writeTaskProgressLedger(
@@ -278,12 +251,7 @@ export function useTarkovRaidTaskActions({
           queryClient.setQueryData(["guides-tarkov-task-dones", gameMode], (prev) =>
             overlayTaskProgressCache(
               prev,
-              taskProgressQueryData(
-                next.done,
-                next.started,
-                objectives,
-                next.failed,
-              ),
+              taskProgressQueryData(next.done, next.started, objectives, next.failed),
               data,
             ),
           );
@@ -328,11 +296,7 @@ export function useTarkovRaidTaskActions({
         try {
           const rich = await ensureGeometry(row.id);
           points = rich
-            ? resolveRaidPrepLocateTargets(
-                rich,
-                mapId,
-                raidPrepSkippedIds(objDoneView, row.id),
-              )
+            ? resolveRaidPrepLocateTargets(rich, mapId, raidPrepSkippedIds(objDoneView, row.id))
             : [];
         } catch {
           return;

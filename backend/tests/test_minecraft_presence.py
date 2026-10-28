@@ -24,9 +24,7 @@ def _session() -> Session:
 
 
 def test_parse_list_names_vanilla() -> None:
-    assert parse_list_names(
-        "There are 2 of a max of 20 players online: BaiYi, zhanjun"
-    ) == ["BaiYi", "zhanjun"]
+    assert parse_list_names("There are 2 of a max of 20 players online: BaiYi, zhanjun") == ["BaiYi", "zhanjun"]
     assert parse_list_names("There are 0 of a max of 20 players online:") == []
     assert parse_list_names("当前有 1 名玩家在线：Steve") == ["Steve"]
     assert parse_list_names("There are 2 players online: Alice and Bob") == [
@@ -40,9 +38,7 @@ def test_clip_to_window() -> None:
     end = datetime(2026, 8, 22, tzinfo=BEIJING)
     window_start = datetime(2026, 8, 21, 12, tzinfo=BEIJING)
     window_end = datetime(2026, 8, 21, 18, tzinfo=BEIJING)
-    clipped = _clip_to_window(
-        start, end, window_start, window_end, span_seconds=6 * 3600
-    )
+    clipped = _clip_to_window(start, end, window_start, window_end, span_seconds=6 * 3600)
     assert clipped == (0, 6 * 3600)
 
 
@@ -74,11 +70,7 @@ def test_apply_snapshot_only_tracks_online():
         stale_after=timedelta(minutes=3),
     )
     db.commit()
-    online_closed = (
-        db.query(MinecraftPresenceSegment)
-        .filter(MinecraftPresenceSegment.player_name == "BaiYi")
-        .one()
-    )
+    online_closed = db.query(MinecraftPresenceSegment).filter(MinecraftPresenceSegment.player_name == "BaiYi").one()
     assert online_closed.status == "online"
     assert online_closed.ended_at is not None
     assert db.query(MinecraftPresenceSegment).count() == 1

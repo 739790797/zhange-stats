@@ -1,4 +1,5 @@
 """森空岛：绑定状态、签到、绑定/解绑。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -54,9 +55,7 @@ from app.services.skland.qr import poll_qr_bind, start_qr_bind
 router = APIRouter(tags=["skland"])
 
 
-def _status_out(
-    db: Session, member: Member, *, include_roles: bool, force: bool
-) -> SklandStatusOut:
+def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool) -> SklandStatusOut:
     bind = get_bind_for_member(db, member.id)
 
     def _ser_role(r: object) -> SklandRoleOut:
@@ -140,9 +139,7 @@ def skland_bind_sms_send(
     ip = client_ip(request)
     platform_limiter.hit(f"skland-sms:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"skland-sms:uid:{user.id}", limit=5, window_sec=600)
-    platform_limiter.hit(
-        f"skland-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
-    )
+    platform_limiter.hit(f"skland-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600)
     try:
         send_skland_sms(payload.phone)
     except SklandApiError as exc:
@@ -335,9 +332,7 @@ def skland_checkin_now(
     member = _member_or_404(db, user)
     role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(
-            db, member, force=True, role_keys=role_keys
-        )
+        out = run_checkin_for_member(db, member, force=True, role_keys=role_keys)
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return build_checkin_response(

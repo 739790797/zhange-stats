@@ -15,9 +15,7 @@ from app.services.minecraft.pelican import PelicanError, parse_websocket_credent
 
 
 def test_parse_websocket_credentials_pterodactyl_shape():
-    socket, token = parse_websocket_credentials(
-        {"data": {"token": "jwt-here", "socket": "wss://wings.example/ws"}}
-    )
+    socket, token = parse_websocket_credentials({"data": {"token": "jwt-here", "socket": "wss://wings.example/ws"}})
     assert socket == "wss://wings.example/ws"
     assert token == "jwt-here"
 
@@ -55,9 +53,7 @@ def test_client_command_rejects_set_state_and_newlines():
 
 
 def test_parse_wings_console_and_stats():
-    parsed = parse_wings_message(
-        json.dumps({"event": "console output", "args": ["Hello"]})
-    )
+    parsed = parse_wings_message(json.dumps({"event": "console output", "args": ["Hello"]}))
     assert parsed == {"event": "console output", "args": ["Hello"]}
     stats = parse_stats_payload(
         [
@@ -158,9 +154,7 @@ def test_console_ws_rejects_cross_site_origin(monkeypatch):
 
     calls: list[str] = []
     monkeypatch.setattr(console_svc, "_load_console_session", lambda jwt: calls.append(jwt))
-    with _console_client().websocket_connect(
-        "/minecraft/console", headers={"origin": "https://evil.example"}
-    ) as ws:
+    with _console_client().websocket_connect("/minecraft/console", headers={"origin": "https://evil.example"}) as ws:
         with pytest.raises(WebSocketDisconnect) as caught:
             ws.receive_json()
     assert caught.value.code == 4403

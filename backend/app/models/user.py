@@ -29,13 +29,9 @@ class User(Base):
         default=UserRole.user,
     )
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    anonymized_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 写进 JWT 的 ver；改密 / 重置 / 降级 / 注销 / 退出所有设备时 +1，旧令牌即失效
-    token_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=now_naive,

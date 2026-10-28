@@ -36,10 +36,7 @@ function openDb(): Promise<IDBDatabase> {
           if (!cursor) return;
           const rec = cursor.value as TarkovMapFileRecord | undefined;
           if (typeof cursor.key === "string" && rec?.etag) {
-            etags.put(
-              { etag: rec.etag, savedAt: rec.savedAt || 0 },
-              cursor.key,
-            );
+            etags.put({ etag: rec.etag, savedAt: rec.savedAt || 0 }, cursor.key);
           }
           cursor.continue();
         };
@@ -72,10 +69,7 @@ export async function loadAllMapFileEtags(): Promise<Map<string, string>> {
     if (!db.objectStoreNames.contains(ETAG_STORE)) return out;
     const tx = db.transaction(ETAG_STORE, "readonly");
     const store = tx.objectStore(ETAG_STORE);
-    const [keys, vals] = await Promise.all([
-      idbReq(store.getAllKeys()),
-      idbReq(store.getAll()),
-    ]);
+    const [keys, vals] = await Promise.all([idbReq(store.getAllKeys()), idbReq(store.getAll())]);
     await waitTx(tx);
     const recs = vals as TarkovMapFileEtagRecord[];
     (keys as IDBValidKey[]).forEach((key, index) => {
@@ -89,15 +83,11 @@ export async function loadAllMapFileEtags(): Promise<Map<string, string>> {
   return out;
 }
 
-export async function loadMapFile(
-  key: string,
-): Promise<TarkovMapFileRecord | undefined> {
+export async function loadMapFile(key: string): Promise<TarkovMapFileRecord | undefined> {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, "readonly");
-    const rec = (await idbReq(
-      tx.objectStore(STORE).get(key),
-    )) as TarkovMapFileRecord | undefined;
+    const rec = (await idbReq(tx.objectStore(STORE).get(key))) as TarkovMapFileRecord | undefined;
     await waitTx(tx);
     if (rec && rec.etag) return rec;
     return undefined;
@@ -107,29 +97,19 @@ export async function loadMapFile(
 }
 
 /** 返回因超出上限被删掉的 key。挑淘汰对象只读小的 etags 表，不把整份地图正文读出来。 */
-export async function saveMapFile(
-  key: string,
-  record: TarkovMapFileRecord,
-): Promise<string[]> {
+export async function saveMapFile(key: string, record: TarkovMapFileRecord): Promise<string[]> {
   const db = await openDb();
   try {
-    const stores = [STORE, ETAG_STORE].filter((name) =>
-      db.objectStoreNames.contains(name),
-    );
+    const stores = [STORE, ETAG_STORE].filter((name) => db.objectStoreNames.contains(name));
     const putTx = db.transaction(stores, "readwrite");
     putTx.objectStore(STORE).put(record, key);
     if (stores.includes(ETAG_STORE)) {
-      putTx.objectStore(ETAG_STORE).put(
-        { etag: record.etag, savedAt: record.savedAt },
-        key,
-      );
+      putTx.objectStore(ETAG_STORE).put({ etag: record.etag, savedAt: record.savedAt }, key);
     }
     await waitTx(putTx);
 
     const readTx = db.transaction(stores, "readonly");
-    const etagStore = stores.includes(ETAG_STORE)
-      ? readTx.objectStore(ETAG_STORE)
-      : null;
+    const etagStore = stores.includes(ETAG_STORE) ? readTx.objectStore(ETAG_STORE) : null;
     const [fileKeys, etagKeys, etagVals] = await Promise.all([
       idbReq(readTx.objectStore(STORE).getAllKeys()),
       etagStore ? idbReq(etagStore.getAllKeys()) : Promise.resolve([]),

@@ -25,9 +25,7 @@ export function OwnedDetailTooltip({
           <span style={{ fontWeight: 400, opacity: 0.85 }}> · {channelName}</span>
         ) : null}
       </div>
-      {roleName ? (
-        <div style={{ opacity: 0.85, marginBottom: 6 }}>{roleName}</div>
-      ) : null}
+      {roleName ? <div style={{ opacity: 0.85, marginBottom: 6 }}>{roleName}</div> : null}
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{op.name}</div>
       <div>
         {evolveLabel(owned.evolve_phase)} Lv.{owned.level}
@@ -48,7 +46,9 @@ export function OwnedDetailTooltip({
           {mods.map((e) => (
             <div key={e.equip_id}>
               {e.name}
-              {e.type_icon ? `（${e.type_icon.split("-").pop()?.toUpperCase() || e.type_icon}）` : ""}
+              {e.type_icon
+                ? `（${e.type_icon.split("-").pop()?.toUpperCase() || e.type_icon}）`
+                : ""}
               {` Lv.${e.level}`}
             </div>
           ))}

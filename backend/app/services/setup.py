@@ -116,8 +116,7 @@ def ensure_setup_token() -> Path:
         if not _token_announced:
             _token_announced = True
             logger.warning(
-                "setup: install token is in %s; enter it in the setup wizard "
-                "(deleted once setup completes)",
+                "setup: install token is in %s; enter it in the setup wizard (deleted once setup completes)",
                 path,
             )
     return path
@@ -239,11 +238,7 @@ def complete_initial_admin(
     db.flush()
 
     # 极窄竞态：若已有其他管理员，撤销本次创建
-    others = (
-        db.query(User)
-        .filter(User.role == UserRole.admin, User.id != user.id)
-        .count()
-    )
+    others = db.query(User).filter(User.role == UserRole.admin, User.id != user.id).count()
     if others > 0:
         db.rollback()
         raise SetupError("系统已完成初始化", status_code=409)

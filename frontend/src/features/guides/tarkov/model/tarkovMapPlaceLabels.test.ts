@@ -62,9 +62,7 @@ describe("resolveMapPlaceLabels", () => {
 
   it("splits the two cottages west/east and keeps 蓝铁皮 toward the resort", () => {
     const layer = findInteractiveMap("shoreline");
-    const byText = new Map(
-      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row.position]),
-    );
+    const byText = new Map(snapshotUpstreamPlaces(layer!).map((row) => [row.text, row.position]));
     const fake = byText.get("假别墅");
     const real = byText.get("真别墅");
     const blue = byText.get("蓝铁皮");
@@ -158,9 +156,10 @@ describe("resolveMapPlaceLabels", () => {
       label_x: 3,
       label_z: 4,
     });
-    expect(
-      placeLabelMovePatch({ kind: "point", name: "点", x: 1, z: 2 }, { x: 8, z: 9 }),
-    ).toEqual({ x: 8, z: 9 });
+    expect(placeLabelMovePatch({ kind: "point", name: "点", x: 1, z: 2 }, { x: 8, z: 9 })).toEqual({
+      x: 8,
+      z: 9,
+    });
   });
 
   it("hides floor-scoped places on other levels", () => {
@@ -175,9 +174,7 @@ describe("resolveMapPlaceLabels", () => {
     const layer = findInteractiveMap("interchange");
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
-    const byText = new Map(
-      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
-    );
+    const byText = new Map(snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]));
     const idea = byText.get("IDEA");
     const goshan = byText.get("好圣");
     const garage = byText.get("车库 A");
@@ -214,9 +211,7 @@ describe("resolveMapPlaceLabels", () => {
   it("keeps snapshot height when the same rows come back from the database", () => {
     const layer = findInteractiveMap("factory");
     const items = fallbackPlacesForImport(layer!);
-    expect(items.some((row) => row.name === "更衣室" && row.bottom != null)).toBe(
-      true,
-    );
+    expect(items.some((row) => row.name === "更衣室" && row.bottom != null)).toBe(true);
     const places = resolveMapPlaceLabels(
       layer!,
       items.map((row, index) => ({ id: index + 1, ...row })),
@@ -259,9 +254,7 @@ describe("place labels on every interactive map", () => {
       const places = snapshotUpstreamPlaces(layer);
       const floors = selectableFloors(layer);
       for (const floor of floors) {
-        const visible = places.filter((row) =>
-          placeVisibleOnFloor(row, floor, bands),
-        );
+        const visible = places.filter((row) => placeVisibleOnFloor(row, floor, bands));
         for (let i = 0; i < visible.length; i += 1) {
           const a = visible[i]!;
           if (!placeHasHeight(a)) continue;
@@ -278,9 +271,7 @@ describe("place labels on every interactive map", () => {
             const bLo = Math.min(b.bottom ?? b.top ?? 0, b.top ?? b.bottom ?? 0);
             const bHi = Math.max(b.bottom ?? b.top ?? 0, b.top ?? b.bottom ?? 0);
             if (aHi < bLo || bHi < aLo) {
-              stacks.push(
-                `${group.normalizedName} ${floor || "ground"}: ${a.text} × ${b.text}`,
-              );
+              stacks.push(`${group.normalizedName} ${floor || "ground"}: ${a.text} × ${b.text}`);
             }
           }
         }
@@ -293,9 +284,7 @@ describe("place labels on every interactive map", () => {
     const layer = findInteractiveMap("factory");
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
-    const byText = new Map(
-      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
-    );
+    const byText = new Map(snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]));
     const lockers = byText.get("更衣室");
     const mainOffice = byText.get("主办公区");
     const stash = byText.get("地下藏匿点");
@@ -314,9 +303,7 @@ describe("place labels on every interactive map", () => {
     const layer = findInteractiveMap("the-lab");
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
-    const byText = new Map(
-      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
-    );
+    const byText = new Map(snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]));
     const vestibule = byText.get("门厅 1");
     const security = byText.get("安保 1");
     const infirmary1 = byText.get("医务室 1 层");
@@ -336,9 +323,7 @@ describe("place labels on every interactive map", () => {
     const layer = findInteractiveMap("ground-zero");
     expect(layer).toBeTruthy();
     const bands = mapLayerFloorBands(layer);
-    const byText = new Map(
-      snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]),
-    );
+    const byText = new Map(snapshotUpstreamPlaces(layer!).map((row) => [row.text, row]));
     const office = byText.get("科学办公室");
     const winery = byText.get("ASAP 酒庄");
     expect(office && winery).toBeTruthy();

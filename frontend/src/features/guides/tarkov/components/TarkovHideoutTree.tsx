@@ -66,14 +66,9 @@ export function TarkovHideoutTree({
   }, [stations]);
   const [hoverKey, setHoverKey] = useState("");
   const selectedKey =
-    selectedId && selectedLevel
-      ? hideoutTreeNodeKey(selectedId, selectedLevel)
-      : "";
+    selectedId && selectedLevel ? hideoutTreeNodeKey(selectedId, selectedLevel) : "";
   const activeKey = hideoutTreeActiveKey(selectedKey, hoverKey);
-  const focus = useMemo(
-    () => hideoutTreeFocus(activeKey, layout.edges),
-    [activeKey, layout.edges],
-  );
+  const focus = useMemo(() => hideoutTreeFocus(activeKey, layout.edges), [activeKey, layout.edges]);
   const focusWires = useMemo(
     () => hideoutTreeWires(layout.nodes, layout.edges, focus.edges),
     [focus.edges, layout.edges, layout.nodes],
@@ -86,14 +81,8 @@ export function TarkovHideoutTree({
 
   return (
     <div className={styles.wrap}>
-      <div
-        className={styles.board}
-        onMouseLeave={() => setHoverKey("")}
-      >
-        <div
-          className={styles.canvas}
-          style={{ width: layout.width, height: layout.height }}
-        >
+      <div className={styles.board} onMouseLeave={() => setHoverKey("")}>
+        <div className={styles.canvas} style={{ width: layout.width, height: layout.height }}>
           <svg
             className={styles.edges}
             width={layout.width}
@@ -101,12 +90,7 @@ export function TarkovHideoutTree({
             aria-hidden="true"
           >
             {layout.wires.map((wire) => (
-              <path
-                key={wire.key}
-                className={styles.edge}
-                d={wire.path}
-                strokeWidth={2}
-              />
+              <path key={wire.key} className={styles.edge} d={wire.path} strokeWidth={2} />
             ))}
             {focusWires.map((wire) => (
               <path
@@ -128,10 +112,7 @@ export function TarkovHideoutTree({
                 key={node.key}
                 node={node}
                 station={station}
-                current={
-                  levels[node.stationId] ??
-                  hideoutDefaultLevel(station, stashFloor)
-                }
+                current={levels[node.stationId] ?? hideoutDefaultLevel(station, stashFloor)}
                 levels={levels}
                 byId={byId}
                 stashFloor={stashFloor}
@@ -199,17 +180,10 @@ function TreeNode({
     Boolean(onChangeLevel) &&
     node.level === current &&
     current > hideoutDefaultLevel(station, stashFloor);
-  const kindClass =
-    wiki || active || prereq
-      ? ""
-      : kind === "locked"
-        ? styles.nodeLocked
-        : "";
+  const kindClass = wiki || active || prereq ? "" : kind === "locked" ? styles.nodeLocked : "";
   return (
     <span
-      className={`${styles.pin}${
-        active || prereq ? ` ${styles.pinOn}` : ""
-      }`}
+      className={`${styles.pin}${active || prereq ? ` ${styles.pinOn}` : ""}`}
       data-hideout-node={node.key}
       style={{
         left: node.x,
@@ -239,9 +213,7 @@ function TreeNode({
           }
         }}
       >
-        {node.imageLink ? (
-          <img className={styles.icon} src={node.imageLink} alt="" />
-        ) : null}
+        {node.imageLink ? <img className={styles.icon} src={node.imageLink} alt="" /> : null}
         <span className={styles.body}>
           <span className={styles.name}>{node.stationName}</span>
           <span className={styles.roman}>{node.roman}</span>

@@ -153,17 +153,11 @@ export function defaultTarkovMapKindFlags(): TarkovMapKindFlags {
   return {};
 }
 
-export function isHazardKindOn(
-  flags: TarkovMapKindFlags,
-  kind: string,
-): boolean {
+export function isHazardKindOn(flags: TarkovMapKindFlags, kind: string): boolean {
   return flags[kind] !== false;
 }
 
-export function isLootContainerKindOn(
-  flags: TarkovMapKindFlags,
-  kind: string,
-): boolean {
+export function isLootContainerKindOn(flags: TarkovMapKindFlags, kind: string): boolean {
   return flags[kind] === true;
 }
 
@@ -225,10 +219,7 @@ export function withArrivedLootKindsOn(
   return next || flags;
 }
 
-export function uniqueKinds(
-  values: Iterable<string>,
-  preferred: readonly string[] = [],
-): string[] {
+export function uniqueKinds(values: Iterable<string>, preferred: readonly string[] = []): string[] {
   const seen = new Set<string>();
   for (const value of values) {
     const kind = value.trim();
@@ -239,18 +230,14 @@ export function uniqueKinds(
   return [...preferredHit, ...rest];
 }
 
-export function hazardKindsPresent(
-  rows: ReadonlyArray<TarkovMapHazardLike>,
-): string[] {
+export function hazardKindsPresent(rows: ReadonlyArray<TarkovMapHazardLike>): string[] {
   return uniqueKinds(
     rows.map((row) => String(row.hazard_type || "")),
     HAZARD_KIND_ORDER,
   );
 }
 
-export function lootContainerKindKey(
-  row: TarkovMapLootContainerLike,
-): string {
+export function lootContainerKindKey(row: TarkovMapLootContainerLike): string {
   const kind = String(row.normalized_name || "").trim();
   if (kind && !isLikelyTarkovItemId(kind)) return kind;
   return LOOT_CONTAINER_OTHER_KIND;
@@ -262,10 +249,7 @@ export function lootContainerKindsPresent(
   return uniqueKinds(rows.map((row) => lootContainerKindKey(row)));
 }
 
-export function tarkovHazardKindLabel(
-  kind: string,
-  fallbackName = "",
-): string {
+export function tarkovHazardKindLabel(kind: string, fallbackName = ""): string {
   const key = kind.trim();
   return HAZARD_KIND_LABELS[key] || fallbackName.trim() || key || "危险区";
 }
@@ -358,8 +342,7 @@ function lockKeyHeldByOther(
   viewerId: number | null,
 ): boolean {
   const other = (row: RaidRoomKeyBringLike) =>
-    String(row.item_id || "").trim() === keyId &&
-    (viewerId == null || row.user_id !== viewerId);
+    String(row.item_id || "").trim() === keyId && (viewerId == null || row.user_id !== viewerId);
   return (owns || []).some(other) || (brings || []).some(other);
 }
 
@@ -371,10 +354,7 @@ export function tarkovLockKeyBadge(
   const mode = ctx.mode || "neutral";
   if (!id || mode === "neutral") return undefined;
   const viewerId = ctx.viewerId ?? null;
-  if (
-    userOwnsKey(ctx.owns, id, viewerId) ||
-    userBroughtKey(ctx.brings, id, viewerId)
-  ) {
+  if (userOwnsKey(ctx.owns, id, viewerId) || userBroughtKey(ctx.brings, id, viewerId)) {
     return "own";
   }
   if (mode === "party" && lockKeyHeldByOther(id, ctx.owns, ctx.brings, viewerId)) {
@@ -406,17 +386,12 @@ function escapeLockTipHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export function tarkovLockTypeLine(
-  lockType: string | null | undefined,
-): string {
+export function tarkovLockTypeLine(lockType: string | null | undefined): string {
   const type = lockTypeLabel(lockType || undefined);
   return type ? `锁的类型：${type}` : "";
 }
 
-function lockTypeChipHtml(
-  label: string,
-  classes: TarkovLockTooltipClasses,
-): string {
+function lockTypeChipHtml(label: string, classes: TarkovLockTooltipClasses): string {
   const chipClass = classes.chip || "";
   const text = `<span class="${classes.chipLabel || ""}">${escapeLockTipHtml(label)}</span>`;
   return `<span class="${chipClass}">${text}</span>`;
@@ -488,9 +463,7 @@ function isFiniteHeight(value: number | null | undefined): value is number {
 }
 
 /** 图标用落点 y 判层；top/bottom 是体积盒，街区炮区会跨整栋楼。 */
-export function tarkovMarkerHeightSpan(
-  row: TarkovMapMarkerPoint,
-): RaidPrepHeightSpan | null {
+export function tarkovMarkerHeightSpan(row: TarkovMapMarkerPoint): RaidPrepHeightSpan | null {
   const y = row.y;
   if (isFiniteHeight(y)) return { min: y, max: y };
   const top = row.top;
@@ -507,9 +480,7 @@ const STREETS_MAP_KEYS = new Set(["streets-of-tarkov", "streets"]);
  * 街区 maps.json 地面带到 10、楼上从 10 起；门锁/容器实际多在 0–8。
  * 图标按楼层故事高度淡化，任务区仍走官方带。
  */
-export const STREETS_MARKER_STORY_HEIGHT: Readonly<
-  Record<string, { min: number; max: number }>
-> = {
+export const STREETS_MARKER_STORY_HEIGHT: Readonly<Record<string, { min: number; max: number }>> = {
   "": { min: -6, max: 2.5 },
   "2nd Floor": { min: 2.5, max: 5.5 },
   "3rd Floor": { min: 5.5, max: 8.5 },
@@ -542,9 +513,7 @@ export function mapLayerMarkerFloorBands(
 }
 
 /** 官方带过宽、楼上从地面带顶开始、又没有建筑框：街上二层会被算进地面。 */
-export function floorBandsNeedStoryRemap(
-  bands: ReturnType<typeof mapLayerFloorBands>,
-): boolean {
+export function floorBandsNeedStoryRemap(bands: ReturnType<typeof mapLayerFloorBands>): boolean {
   const ground = bands.find((band) => !band.name);
   const named = bands.filter((band) => band.name);
   if (!ground || !named.length) return false;
@@ -553,14 +522,10 @@ export function floorBandsNeedStoryRemap(
   );
   if (namedHasBounds) return false;
   if (ground.max - ground.min < 8) return false;
-  return named.some(
-    (band) => band.min >= 8 && Math.abs(band.min - ground.max) <= 0.05,
-  );
+  return named.some((band) => band.min >= 8 && Math.abs(band.min - ground.max) <= 0.05);
 }
 
-function markerFloorAt(
-  row: TarkovMapMarkerPoint,
-): { x: number; z: number } | undefined {
+function markerFloorAt(row: TarkovMapMarkerPoint): { x: number; z: number } | undefined {
   const x = row.x;
   const z = row.z;
   if (typeof x !== "number" || typeof z !== "number") return undefined;

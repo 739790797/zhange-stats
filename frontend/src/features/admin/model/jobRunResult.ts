@@ -61,13 +61,7 @@ const STAT_LABELS: Record<string, string> = {
 };
 
 const HIDDEN_STAT_KEYS = new Set(["percent", "phase"]);
-const DOWNLOAD_STAT_KEYS = new Set([
-  "file",
-  "bytes",
-  "total_bytes",
-  "files_done",
-  "files_total",
-]);
+const DOWNLOAD_STAT_KEYS = new Set(["file", "bytes", "total_bytes", "files_done", "files_total"]);
 
 const DOMAIN_STATUSES = new Set([
   "pending",
@@ -212,11 +206,7 @@ export function jobRunDomainStatusColor(
 ): "default" | "processing" | "success" | "error" | "blue" {
   if (status === "ok") return "success";
   if (status === "error") return "error";
-  if (
-    status === "downloading" ||
-    status === "persisting" ||
-    status === "applying"
-  ) {
+  if (status === "downloading" || status === "persisting" || status === "applying") {
     return "processing";
   }
   if (status === "downloaded") return "blue";
@@ -247,10 +237,7 @@ export function formatJobRunClock(iso?: string | null): string {
   return text === "—" ? iso : text;
 }
 
-export function jobRunAgeLabel(
-  iso?: string | null,
-  nowMs?: number,
-): string {
+export function jobRunAgeLabel(iso?: string | null, nowMs?: number): string {
   if (!iso) return "";
   const d = parseBeijing(iso);
   if (!d.isValid()) return "";
@@ -273,9 +260,7 @@ export function jobRunUpstreamText(
     : `上游 ${formatJobRunClock(row.upstreamAt)}`;
 }
 
-export function jobRunSyncedText(
-  row: Pick<JobRunDomainRow, "syncedAt">,
-): string {
+export function jobRunSyncedText(row: Pick<JobRunDomainRow, "syncedAt">): string {
   if (!row.syncedAt) return "";
   return formatJobRunClock(row.syncedAt);
 }
@@ -306,10 +291,7 @@ export function jobRunDomainProgressText(
   return jobRunUpstreamText(row, nowMs);
 }
 
-export function jobRunFreshnessSummary(
-  domains: JobRunDomainRow[],
-  nowMs?: number,
-): string | null {
+export function jobRunFreshnessSummary(domains: JobRunDomainRow[], nowMs?: number): string | null {
   const stamps = domains
     .map((row) => row.upstreamAt)
     .filter((value): value is string => Boolean(value))
@@ -347,9 +329,7 @@ export function pickWatchedJobRun(
   );
 }
 
-export function jobRunWatchPollMs(args: {
-  run: JobRunLike | null;
-}): number | false {
+export function jobRunWatchPollMs(args: { run: JobRunLike | null }): number | false {
   if (args.run && isJobRunFinished(args.run.status)) return false;
   return JOB_RUN_WATCH_POLL_MS;
 }
@@ -412,8 +392,7 @@ function parseDomainRow(value: unknown): JobRunDomainRow | null {
   const source = row.source == null ? undefined : String(row.source);
   const mode = row.mode == null ? undefined : String(row.mode);
   const syncedAt = row.synced_at == null ? undefined : String(row.synced_at);
-  const upstreamAt =
-    row.upstream_at == null ? undefined : String(row.upstream_at);
+  const upstreamAt = row.upstream_at == null ? undefined : String(row.upstream_at);
   const status = parseDomainStatus(row);
   return {
     id,
@@ -430,14 +409,10 @@ function parseDomainRow(value: unknown): JobRunDomainRow | null {
   };
 }
 
-export function jobRunProgressRows(
-  run: JobRunLike | null | undefined,
-): JobRunDomainRow[] {
+export function jobRunProgressRows(run: JobRunLike | null | undefined): JobRunDomainRow[] {
   const fromStats = run?.stats?.domains;
   if (Array.isArray(fromStats)) {
-    return fromStats
-      .map(parseDomainRow)
-      .filter((row): row is JobRunDomainRow => Boolean(row));
+    return fromStats.map(parseDomainRow).filter((row): row is JobRunDomainRow => Boolean(row));
   }
   const parsed = parseJobRunMessage(run?.message);
   return parsed?.kind === "domains" ? parsed.domains : [];
@@ -449,9 +424,7 @@ export type JobRunStep = {
   status: "waiting" | "running" | "success" | "warning" | "error" | "skipped";
 };
 
-export function jobRunSteps(
-  stats: Record<string, unknown> | null | undefined,
-): JobRunStep[] {
+export function jobRunSteps(stats: Record<string, unknown> | null | undefined): JobRunStep[] {
   const rows = stats?.steps;
   if (!Array.isArray(rows)) return [];
   return rows.flatMap((value, index) => {
@@ -459,7 +432,9 @@ export function jobRunSteps(
     if (!row) return [];
     const label = String(row.label || row.id || `步骤 ${index + 1}`);
     const rawStatus = String(row.status || "waiting");
-    const status = ["waiting", "running", "success", "warning", "error", "skipped"].includes(rawStatus)
+    const status = ["waiting", "running", "success", "warning", "error", "skipped"].includes(
+      rawStatus,
+    )
       ? (rawStatus as JobRunStep["status"])
       : "waiting";
     return [{ id: String(row.id || index), label, status }];
@@ -515,10 +490,7 @@ export function jobRunDownloadProgress(
   const filesTotal = parseOptionalNumber(stats.files_total) ?? null;
   const downloadPhase = phase === "download" || phase === "overlay";
   const has =
-    downloadPhase ||
-    Boolean(file) ||
-    bytes != null ||
-    (filesTotal != null && filesTotal > 0);
+    downloadPhase || Boolean(file) || bytes != null || (filesTotal != null && filesTotal > 0);
   if (!has) return null;
   let filePercent: number | null = null;
   if (totalBytes != null && totalBytes > 0 && bytes != null) {
@@ -530,9 +502,7 @@ export function jobRunDownloadProgress(
   if (bytesPart && totalPart) bytesText = `${bytesPart} / ${totalPart}`;
   else if (bytesPart) bytesText = bytesPart;
   const filesText =
-    filesDone != null && filesTotal != null
-      ? `${filesDone} / ${filesTotal} 个文件`
-      : "";
+    filesDone != null && filesTotal != null ? `${filesDone} / ${filesTotal} 个文件` : "";
   return {
     file,
     phase,
@@ -547,9 +517,7 @@ export function jobRunDownloadProgress(
   };
 }
 
-export function parseJobRunMessage(
-  message: string | null | undefined,
-): ParsedJobRunMessage | null {
+export function parseJobRunMessage(message: string | null | undefined): ParsedJobRunMessage | null {
   const raw = (message || "").trim();
   if (!raw) return null;
   if (raw.startsWith("{") || raw.startsWith("[")) {
@@ -576,10 +544,7 @@ export function parseJobRunMessage(
   return { kind: "text", text: raw };
 }
 
-export function jobRunSummaryText(
-  run: JobRunLike | null,
-  acceptedMessage?: string,
-): string {
+export function jobRunSummaryText(run: JobRunLike | null, acceptedMessage?: string): string {
   if (!run) return acceptedMessage || "已提交执行，正在运行…";
   if (run.status === "queued") return run.message || "任务排队中…";
   if (run.status === "running") {
@@ -606,7 +571,8 @@ export function jobRunStatEntries(
   return Object.entries(stats)
     .filter(([key, value]) => {
       if (HIDDEN_STAT_KEYS.has(key)) return false;
-      if (["schema_version", "category", "steps", "progress", "result", "domains"].includes(key)) return false;
+      if (["schema_version", "category", "steps", "progress", "result", "domains"].includes(key))
+        return false;
       if (opts?.omitDownload && DOWNLOAD_STAT_KEYS.has(key)) return false;
       return value != null && typeof value !== "object";
     })

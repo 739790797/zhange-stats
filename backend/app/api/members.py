@@ -31,11 +31,7 @@ def get_member(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> Member:
-    member = (
-        db.query(Member)
-        .filter(Member.id == member_id, Member.user_id.isnot(None))
-        .first()
-    )
+    member = db.query(Member).filter(Member.id == member_id, Member.user_id.isnot(None)).first()
     if not member:
         raise HTTPException(status_code=404, detail="成员不存在")
     return member

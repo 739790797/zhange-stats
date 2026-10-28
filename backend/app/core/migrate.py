@@ -153,11 +153,7 @@ def _run_server_schema(engine: Engine) -> None:
                 "Alembic 修订号冲突（常见于 v0.2.37 双 0056）。"
                 "请在主机拉代码后执行 scripts/linux/install.sh 与 scripts/linux/restart.sh"
             ) from exc
-        if (
-            "Duplicate column" in msg
-            or "1060" in msg
-            or "already exists" in msg.lower()
-        ):
+        if "Duplicate column" in msg or "1060" in msg or "already exists" in msg.lower():
             raise RuntimeError(
                 "迁移半完成（对象已存在但 alembic_version 未前进；常见于 MySQL/MariaDB "
                 "非事务 DDL）。请确认迁移幂等后重试，或在主机拉代码后执行 "

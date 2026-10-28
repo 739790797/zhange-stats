@@ -2,7 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
 import { Modal, Select, Space, Tabs, Typography, message } from "antd";
 import { useState } from "react";
-import { exchangeMihoyoItem, fetchMihoyoExchange, fetchMihoyoStatus } from "@/features/platforms/mihoyo/api/mihoyoApi";
+import {
+  exchangeMihoyoItem,
+  fetchMihoyoExchange,
+  fetchMihoyoStatus,
+} from "@/features/platforms/mihoyo/api/mihoyoApi";
 import type { MihoyoExchangeItem, MihoyoExchangeRole } from "@/features/platforms/mihoyo/api/types";
 import { MihoyoBindPanel } from "@/features/platforms/mihoyo/components/MihoyoBindPanel";
 import { ExchangeGoodsCard } from "@/features/platforms/shared/components/ExchangeGoodsCard";
@@ -12,14 +16,7 @@ import { useRoleMembershipPicker } from "@/features/profile/hooks/useRoleMembers
 import type { PlatformIconName } from "@/features/platforms/shared/model/platformIcons";
 
 type Shop = Awaited<ReturnType<typeof fetchMihoyoExchange>>;
-type GameFilter =
-  | "all"
-  | "community"
-  | "genshin"
-  | "bh3"
-  | "starrail"
-  | "zzz"
-  | "bh2";
+type GameFilter = "all" | "community" | "genshin" | "bh3" | "starrail" | "zzz" | "bh2";
 
 const GAME_TABS: {
   key: GameFilter;
@@ -71,12 +68,8 @@ export function MihoyoExchangePanel() {
   const queryClient = useQueryClient();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>("all");
-  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>(
-    {},
-  );
-  const [exchangeItem, setExchangeItem] = useState<MihoyoExchangeItem | null>(
-    null,
-  );
+  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>({});
+  const [exchangeItem, setExchangeItem] = useState<MihoyoExchangeItem | null>(null);
   const [pickedRoleUid, setPickedRoleUid] = useState<string>("");
   const [pickedRegion, setPickedRegion] = useState<string>("");
   const rolePicker = useRoleMembershipPicker("mihoyo");
@@ -99,10 +92,7 @@ export function MihoyoExchangePanel() {
     onError: (e: unknown) => message.error(apiError(e, "兑换失败")),
   });
 
-  const openExchange = (
-    item: MihoyoExchangeItem,
-    roles: MihoyoExchangeRole[],
-  ) => {
+  const openExchange = (item: MihoyoExchangeItem, roles: MihoyoExchangeRole[]) => {
     if (needsRole(item)) {
       const matched = roles.filter(
         (r) =>
@@ -111,8 +101,7 @@ export function MihoyoExchangePanel() {
       );
       const key = itemGameKey(item);
       const last = lastRoleByGame[key];
-      const preferredRole =
-        matched.find((r) => r.role_uid === last) || matched[0] || null;
+      const preferredRole = matched.find((r) => r.role_uid === last) || matched[0] || null;
       setPickedRoleUid(preferredRole?.role_uid || "");
       setPickedRegion(preferredRole?.region || "");
       setExchangeItem(item);
@@ -196,10 +185,8 @@ export function MihoyoExchangePanel() {
           : needsRole(exchangeItem)
             ? roles.filter(
                 (r) =>
-                  (exchangeItem.game_biz &&
-                    r.game_biz === exchangeItem.game_biz) ||
-                  (exchangeItem.game_code &&
-                    r.game_code === exchangeItem.game_code),
+                  (exchangeItem.game_biz && r.game_biz === exchangeItem.game_biz) ||
+                  (exchangeItem.game_code && r.game_code === exchangeItem.game_code),
               )
             : [];
         return (
@@ -267,9 +254,7 @@ export function MihoyoExchangePanel() {
         const points = shop.points ?? 0;
         const items = shop.items || [];
         const filtered =
-          gameFilter === "all"
-            ? items
-            : items.filter((it) => itemGameKey(it) === gameFilter);
+          gameFilter === "all" ? items : items.filter((it) => itemGameKey(it) === gameFilter);
         return filtered.map((item) => {
           const label = itemStatus(item, points);
           const disabled = Boolean(label);
@@ -283,9 +268,7 @@ export function MihoyoExchangePanel() {
               imageUrl={item.goods_img || undefined}
               title={`${item.goods_name}×${item.goods_num}`}
               subtitle={item.game_name || "米游社"}
-              badge={
-                remain != null ? `限兑 ${item.exchanged_count}/${item.exchange_limit}` : null
-              }
+              badge={remain != null ? `限兑 ${item.exchanged_count}/${item.exchange_limit}` : null}
               disabled={disabled}
               loading={pendingId === item.goods_id}
               buttonLabel={label || item.price}

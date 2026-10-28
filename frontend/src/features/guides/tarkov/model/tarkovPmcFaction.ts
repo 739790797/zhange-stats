@@ -7,8 +7,7 @@ import {
   type TarkovGameMode,
 } from "@/features/guides/tarkov/model/tarkovGameMode";
 
-export const TARKOV_PMC_FACTION_STORAGE_KEY =
-  "zhange.guides.tarkov.pmcFaction.v1";
+export const TARKOV_PMC_FACTION_STORAGE_KEY = "zhange.guides.tarkov.pmcFaction.v1";
 
 export const TARKOV_PMC_FACTIONS = ["bear", "usec"] as const;
 
@@ -35,9 +34,7 @@ export function parseTarkovPmcFaction(raw: unknown): TarkovPmcFactionChoice {
   return "";
 }
 
-export function tarkovPmcFactionLabel(
-  faction: TarkovPmcFactionChoice,
-): string {
+export function tarkovPmcFactionLabel(faction: TarkovPmcFactionChoice): string {
   if (!faction) return "";
   return FACTION_LABEL[faction];
 }
@@ -52,9 +49,10 @@ export function taskVisibleForFaction(
   return name === selected;
 }
 
-export function filterTasksByFaction<
-  T extends { faction_name?: string | null },
->(rows: readonly T[], selected: TarkovPmcFactionChoice): T[] {
+export function filterTasksByFaction<T extends { faction_name?: string | null }>(
+  rows: readonly T[],
+  selected: TarkovPmcFactionChoice,
+): T[] {
   if (!selected) return [...rows];
   return rows.filter((row) => taskVisibleForFaction(row.faction_name, selected));
 }

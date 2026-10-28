@@ -21,10 +21,7 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function itemValue(
-  items: Array<{ name?: string; value?: unknown }>,
-  name: string,
-): number {
+function itemValue(items: Array<{ name?: string; value?: unknown }>, name: string): number {
   const raw = items.find((it) => it.name === name)?.value;
   const n = Number(raw);
   return Number.isFinite(n) ? n : 0;
@@ -79,9 +76,7 @@ type ScatterPlotInstance = {
   on: (event: string, handler: (ev: unknown) => void) => void;
 };
 
-function ammoFromPlotEvent(event: {
-  data?: { data?: unknown } | unknown;
-}): TarkovAmmoItem | null {
+function ammoFromPlotEvent(event: { data?: { data?: unknown } | unknown }): TarkovAmmoItem | null {
   const raw = (event?.data as { data?: unknown } | undefined)?.data ?? event?.data;
   const candidates = Array.isArray(raw) ? raw : [raw];
   for (const item of candidates) {
@@ -155,8 +150,9 @@ function ammoNearestFromClick(
   };
 
   try {
-    const root = plot.chart?.getContext?.()?.canvas?.document
-      ?.documentElement as G2Node | undefined;
+    const root = plot.chart?.getContext?.()?.canvas?.document?.documentElement as
+      | G2Node
+      | undefined;
     walk(root);
   } catch {
     return null;
@@ -165,10 +161,7 @@ function ammoNearestFromClick(
   return bestAmmo;
 }
 
-function colorKeyOf(
-  row: TarkovAmmoItem,
-  field: AmmoScatterColorField,
-): string {
+function colorKeyOf(row: TarkovAmmoItem, field: AmmoScatterColorField): string {
   if (field === "caliber") return row.caliber;
   if (field === "short_name") return row.short_name || row.name || row.id;
   return row.name || row.short_name || row.id;
@@ -221,15 +214,12 @@ export function TarkovAmmoScatterChart({
 
   const domain = useMemo(() => {
     if (colorDomain?.length) return colorDomain;
-    return Array.from(
-      new Set(plotData.map((row) => colorKeyOf(row, colorField))),
-    ).sort((a, b) => a.localeCompare(b, "zh", { numeric: true }));
+    return Array.from(new Set(plotData.map((row) => colorKeyOf(row, colorField)))).sort((a, b) =>
+      a.localeCompare(b, "zh", { numeric: true }),
+    );
   }, [colorDomain, colorField, plotData]);
 
-  const colors = useMemo(
-    () => domain.map((_, i) => distinctCaliberColor(i)),
-    [domain],
-  );
+  const colors = useMemo(() => domain.map((_, i) => distinctCaliberColor(i)), [domain]);
 
   const onReady = useCallback((plot: ScatterPlotInstance) => {
     const handle = (ev: unknown) => {
@@ -244,10 +234,7 @@ export function TarkovAmmoScatterChart({
       );
       if (!ammo) return;
       const now = Date.now();
-      if (
-        lastNavRef.current.id === ammo.id &&
-        now - lastNavRef.current.at < 400
-      ) {
+      if (lastNavRef.current.id === ammo.id && now - lastNavRef.current.at < 400) {
         return;
       }
       lastNavRef.current = { id: ammo.id, at: now };
@@ -383,15 +370,13 @@ export function TarkovAmmoScatterChart({
           domainMin: 0,
           domainMax: axisMax.x,
           nice: false,
-          tickMethod: () =>
-            Array.from({ length: axisMax.x / 10 + 1 }, (_, i) => i * 10),
+          tickMethod: () => Array.from({ length: axisMax.x / 10 + 1 }, (_, i) => i * 10),
         },
         y: {
           domainMin: 0,
           domainMax: axisMax.y,
           nice: false,
-          tickMethod: () =>
-            Array.from({ length: axisMax.y / 10 + 1 }, (_, i) => i * 10),
+          tickMethod: () => Array.from({ length: axisMax.y / 10 + 1 }, (_, i) => i * 10),
         },
         color: {
           domain,
@@ -408,17 +393,7 @@ export function TarkovAmmoScatterChart({
           : {}),
       },
     }),
-    [
-      axisMax.x,
-      axisMax.y,
-      clickable,
-      colorField,
-      colors,
-      domain,
-      enlarge,
-      height,
-      plotData,
-    ],
+    [axisMax.x, axisMax.y, clickable, colorField, colors, domain, enlarge, height, plotData],
   );
 
   return <Scatter {...config} onReady={onReady} />;

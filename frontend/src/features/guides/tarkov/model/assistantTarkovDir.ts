@@ -52,11 +52,7 @@ function listedMeta(row: AssistantDirEntry): ListedFileMeta {
   };
 }
 
-function toEntry(
-  bound: AssistantBoundDir,
-  rel: string,
-  row: AssistantDirEntry,
-): ReadableEntry {
+function toEntry(bound: AssistantBoundDir, rel: string, row: AssistantDirEntry): ReadableEntry {
   if (row.kind === "directory") {
     return childDir(bound, joinRel(rel, row.name));
   }
@@ -135,9 +131,7 @@ export function isAssistantDir(dir: ReadableDir | null | undefined): boolean {
   return Boolean(dir && (dir as Partial<AssistantDir>)[BOUND]);
 }
 
-export function assistantDirWatch(
-  dir: ReadableDir,
-): ((onChange: () => void) => () => void) | null {
+export function assistantDirWatch(dir: ReadableDir): ((onChange: () => void) => () => void) | null {
   const watch = (dir as AssistantDir)[WATCH];
   return typeof watch === "function" ? watch : null;
 }

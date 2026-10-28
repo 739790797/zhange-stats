@@ -30,6 +30,7 @@ from app.services.integrations_config import get_steam_api_key
 from app.services.job_runs_prune import prune_job_wrapper
 from app.services.job_run_progress import category_for_job
 from app.services.job_runner import scheduled_sync_job
+
 # from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
 from app.services.scheduler_config import JOB_IDS, load_scheduler_config
@@ -54,9 +55,7 @@ CHECKIN_MISFIRE_GRACE_SECONDS = CHECKIN_QUEUE_WINDOW_MINUTES * 60
 SYSTEM_CRON_MISFIRE_GRACE_SECONDS = 600
 
 _SCHEDULER_LOCK = threading.Lock()
-_MANUAL_TRIGGER_LOCKS: dict[str, threading.Lock] = {
-    job_id: threading.Lock() for job_id in JOB_IDS
-}
+_MANUAL_TRIGGER_LOCKS: dict[str, threading.Lock] = {job_id: threading.Lock() for job_id in JOB_IDS}
 
 APP_EXECUTOR_ID = "app"
 APP_EXECUTOR_NAME = "战鸽应用"
@@ -66,13 +65,11 @@ _CHECKIN_ADAPTERS_BY_JOB = {a.job_key: a for a in get_checkin_adapters().values(
 CHECKIN_JOB_IDS = tuple(_CHECKIN_ADAPTERS_BY_JOB)
 
 CHECKIN_DUE_HANDLERS: dict[str, Callable[[], bool]] = {
-    job_id: partial(checkin_job_wrapper, adapter, due_only=True)
-    for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
+    job_id: partial(checkin_job_wrapper, adapter, due_only=True) for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
 
 CHECKIN_MANUAL_HANDLERS: dict[str, Callable[..., bool]] = {
-    job_id: partial(checkin_job_wrapper, adapter)
-    for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
+    job_id: partial(checkin_job_wrapper, adapter) for job_id, adapter in _CHECKIN_ADAPTERS_BY_JOB.items()
 }
 
 SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
@@ -82,12 +79,8 @@ SYSTEM_CRON_HANDLERS: dict[str, Callable[[], None]] = {
     REPO_SYNC_JOB_IDS[REPO_ENDFIELD]: partial(upstream_repo_sync_job, REPO_ENDFIELD),
     "game_schedule_arknights_sync": game_schedule_arknights_sync_job_wrapper,
     "game_schedule_endfield_sync": game_schedule_endfield_sync_job_wrapper,
-    REPO_SYNC_JOB_IDS[REPO_TARKOV_OVERLAY]: partial(
-        upstream_repo_sync_job, REPO_TARKOV_OVERLAY
-    ),
-    REPO_SYNC_JOB_IDS[REPO_TARKOV_SVG]: partial(
-        upstream_repo_sync_job, REPO_TARKOV_SVG
-    ),
+    REPO_SYNC_JOB_IDS[REPO_TARKOV_OVERLAY]: partial(upstream_repo_sync_job, REPO_TARKOV_OVERLAY),
+    REPO_SYNC_JOB_IDS[REPO_TARKOV_SVG]: partial(upstream_repo_sync_job, REPO_TARKOV_SVG),
     "tarkov_full_sync": tarkov_full_sync_job_wrapper,
     "texteller_model_sync": texteller_model_sync_job,
     "job_runs_prune": prune_job_wrapper,

@@ -82,8 +82,7 @@ export function claimTarkovProgressOwner(
     const action = planTarkovProgressOwner({
       stored: storage.getItem(TARKOV_PROGRESS_OWNER_KEY),
       next,
-      leaving:
-        previousUserId === undefined ? null : tarkovProgressOwnerOf(previousUserId),
+      leaving: previousUserId === undefined ? null : tarkovProgressOwnerOf(previousUserId),
     });
     if (action === "keep") return action;
     if (action === "stash") {
@@ -125,9 +124,7 @@ export function readTarkovGuestProgress(
   }
 }
 
-export function discardTarkovGuestProgress(
-  storage: Pick<Storage, "removeItem">,
-): void {
+export function discardTarkovGuestProgress(storage: Pick<Storage, "removeItem">): void {
   try {
     storage.removeItem(TARKOV_GUEST_PROGRESS_KEY);
   } catch {

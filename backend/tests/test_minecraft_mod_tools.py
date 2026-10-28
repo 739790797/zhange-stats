@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.minecraft.mod_registry import (
+    ModCommandError,
     SPECS,
     assemble_mod_command,
     command_tree_out,
@@ -18,6 +19,7 @@ from app.services.minecraft.mod_registry import (
     version_from_jar,
 )
 from app.services.minecraft.mod_tools import (
+    MinecraftModToolsError,
     build_chunky_commands,
     is_unknown_command,
     parse_bluemap_maps,
@@ -87,7 +89,7 @@ def test_parse_chunky_needs_confirm():
 
 def test_unknown_command_hints():
     assert is_unknown_command("Unknown or incomplete command, see below for error")
-    assert is_unknown_command("Unknown command. Type \"/help\" for help.")
+    assert is_unknown_command('Unknown command. Type "/help" for help.')
     assert not is_unknown_command("Task running for world.")
 
 
@@ -124,7 +126,7 @@ def test_build_chunky_apply_sequence():
 
 
 def test_build_chunky_rejects_bad_world():
-    with pytest.raises(Exception, match="世界名"):
+    with pytest.raises(MinecraftModToolsError, match="世界名"):
         build_chunky_commands("pause", world="world; stop")
 
 
@@ -143,9 +145,7 @@ def test_assemble_chunky_command_tree():
     assert assemble_mod_command(spec, "shape", {"shape": "circle"}) == "chunky shape circle"
     assert assemble_mod_command(spec, "center", {"x": 32, "z": -64}) == "chunky center 32 -64"
     assert assemble_mod_command(spec, "worldborder", {}) == "chunky worldborder"
-    assert assemble_mod_command(spec, "worldborder", {"world": "world"}) == (
-        "chunky worldborder world"
-    )
+    assert assemble_mod_command(spec, "worldborder", {"world": "world"}) == ("chunky worldborder world")
     tree = command_tree_out(spec)
     ids = [row["id"] for row in tree]
     assert "start" not in ids
@@ -157,11 +157,11 @@ def test_assemble_chunky_command_tree():
 
 def test_assemble_chunky_rejects_injection():
     spec = _chunky()
-    with pytest.raises(Exception, match="世界"):
+    with pytest.raises(ModCommandError, match="世界"):
         assemble_mod_command(spec, "world", {"world": "world; stop"})
-    with pytest.raises(Exception, match="指令"):
+    with pytest.raises(ModCommandError, match="指令"):
         assemble_mod_command(spec, "start")
-    with pytest.raises(Exception, match="形状"):
+    with pytest.raises(ModCommandError, match="形状"):
         assemble_mod_command(spec, "shape", {"shape": "nope"})
 
 
@@ -170,16 +170,13 @@ def test_assemble_bluemap_command_tree():
     assert assemble_mod_command(spec, "status") == "bluemap"
     assert assemble_mod_command(spec, "start") == "bluemap start"
     assert assemble_mod_command(spec, "reload", {"mode": "light"}) == "bluemap reload light"
-    assert assemble_mod_command(spec, "freeze", {"map": "world_nether"}) == (
-        "bluemap freeze world_nether"
-    )
+    assert assemble_mod_command(spec, "freeze", {"map": "world_nether"}) == ("bluemap freeze world_nether")
     assert assemble_mod_command(spec, "update", {"map": "world"}) == "bluemap update world"
-    assert assemble_mod_command(
-        spec, "force-update", {"map": "world", "x": 0, "z": 64, "radius": 500}
-    ) == "bluemap force-update world 0 64 500"
-    assert assemble_mod_command(spec, "tasks-cancel", {"target": "all"}) == (
-        "bluemap tasks cancel all"
+    assert (
+        assemble_mod_command(spec, "force-update", {"map": "world", "x": 0, "z": 64, "radius": 500})
+        == "bluemap force-update world 0 64 500"
     )
+    assert assemble_mod_command(spec, "tasks-cancel", {"target": "all"}) == ("bluemap tasks cancel all")
     tree_ids = [row["id"] for row in command_tree_out(spec)]
     assert "status" in tree_ids
     assert "force-update" in tree_ids
@@ -191,11 +188,11 @@ def test_assemble_bluemap_command_tree():
 
 def test_assemble_bluemap_rejects_partial_update_range():
     spec = _bluemap()
-    with pytest.raises(Exception, match="前面的参数"):
+    with pytest.raises(ModCommandError, match="前面的参数"):
         assemble_mod_command(spec, "update", {"radius": 500})
-    with pytest.raises(Exception, match="地图"):
+    with pytest.raises(ModCommandError, match="地图"):
         assemble_mod_command(spec, "freeze", {})
-    with pytest.raises(Exception, match="地图"):
+    with pytest.raises(ModCommandError, match="地图"):
         assemble_mod_command(spec, "purge", {"map": "world; stop"})
 
 
@@ -320,9 +317,7 @@ def test_collect_ignores_unrelated_jars(monkeypatch):
     )
     monkeypatch.setattr(svc, "_rcon_creds", lambda _db: ("", 25575, ""))
     monkeypatch.setattr(svc, "lookup_latest_pin", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"}
-    )
+    monkeypatch.setattr(svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"})
     data = svc.collect_mod_tools(object())
     chunky = next(row for row in data["tools"] if row["id"] == "chunky")
     assert chunky["present"] is False
@@ -406,9 +401,7 @@ def test_catalog_newer_version_is_update(monkeypatch):
 def test_server_context_is_current_server_only(monkeypatch):
     from app.services.minecraft import mod_tools as svc
 
-    monkeypatch.setattr(
-        svc, "_live_egg_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"}
-    )
+    monkeypatch.setattr(svc, "_live_egg_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"})
     assert svc._server_context(object()) == {"loader": "neoforge", "mc_version": "1.21.1"}
     assert not hasattr(svc, "_applied_context")
 
@@ -495,19 +488,20 @@ def test_factory_pins_follow_loader():
     assert {row["file"] for row in plugin_pins} == {"config.yml"}
     assert any(row["key"] == "continue-on-restart" for row in plugin_pins)
     blue = factory_pins_out(_bluemap(), "neoforge")
-    assert blue == [
-        {"file": "core.conf", "key": "accept-download", "value": "true"}
-    ]
+    assert blue == [{"file": "core.conf", "key": "accept-download", "value": "true"}]
 
 
 def test_config_relpath_stays_inside_directory():
     from app.services.minecraft.mod_registry import relativize_config_path, safe_config_relpath
 
     assert safe_config_relpath("../secret") == ""
-    assert relativize_config_path(
-        "/config/chunky/tasks/config.json",
-        "/config/chunky",
-    ) == "tasks/config.json"
+    assert (
+        relativize_config_path(
+            "/config/chunky/tasks/config.json",
+            "/config/chunky",
+        )
+        == "tasks/config.json"
+    )
     assert relativize_config_path("config.json", "/config/chunky") == "config.json"
     assert relativize_config_path("../../server.properties", "/config/chunky") == ""
     assert relativize_config_path("/mods/foo.jar", "/config/chunky") == ""
@@ -629,9 +623,7 @@ def test_collect_detects_bluemap_and_keeps_chunky(monkeypatch):
         },
     )
     monkeypatch.setattr(svc, "_rcon_creds", lambda _db: ("", 25575, ""))
-    monkeypatch.setattr(
-        svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"}
-    )
+    monkeypatch.setattr(svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"})
     monkeypatch.setattr(svc, "lookup_latest_pin", lambda *args, **kwargs: None)
     data = svc.collect_mod_tools(object())
     ids = [row["id"] for row in data["tools"]]
@@ -699,9 +691,7 @@ def test_get_tool_preset_treats_pelican_500_as_missing_file(monkeypatch):
     from app.services.minecraft import mod_tools as svc
     from app.services.minecraft.pelican import PelicanError
 
-    monkeypatch.setattr(
-        svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"}
-    )
+    monkeypatch.setattr(svc, "_server_context", lambda _db: {"loader": "neoforge", "mc_version": "1.21.1"})
     monkeypatch.setattr(svc, "_present_directory", lambda *_a, **_k: "/mods")
     monkeypatch.setattr(svc, "_preset_blob", lambda _db: {})
     monkeypatch.setattr(

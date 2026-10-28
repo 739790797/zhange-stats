@@ -39,22 +39,14 @@ type Props = {
 const EED_HINT =
   "与纸面人机不同，Evo人机工效将装备重量一并纳入计算。两把Evo人机相同的枪操纵性理论上完全一致（过摆行为与开镜速度均相同，除去技能等级等变量影响）。人物重量会影响开镜速度，但不影响过摆。请设置装备人机工效修正以获得准确结果。";
 
-const OVERSWING_HINT =
-  "表示开镜后准星是否会摆过中心点。当EED为负时发生。预计偏差 ±2 EED。";
+const OVERSWING_HINT = "表示开镜后准星是否会摆过中心点。当EED为负时发生。预计偏差 ±2 EED。";
 
-const STRENGTH_HINT =
-  "影响站立时手臂耐力耗尽所需秒数，预计偏差 ±0.5s";
+const STRENGTH_HINT = "影响站立时手臂耐力耗尽所需秒数，预计偏差 ±0.5s";
 
 const EQUIP_ERGO_HINT =
   "所佩戴装备（头盔、防弹衣、背包、战术背心、面罩、护目镜）的人机工效惩罚总和 - 请根据游戏中的实际装备进行设置。";
 
-function StatInfoTip({
-  label,
-  children,
-}: {
-  label?: string;
-  children: string;
-}) {
+function StatInfoTip({ label, children }: { label?: string; children: string }) {
   const tipId = useId();
   return (
     <Tooltip
@@ -114,22 +106,14 @@ export function TarkovWorkbenchStatsPane({
   lead,
 }: Props) {
   const [strength, setStrength] = useState(loadWorkbenchStrengthLevel);
-  const [equipPenalty, setEquipPenalty] = useState(
-    loadWorkbenchEquipErgoPenaltyPct,
-  );
+  const [equipPenalty, setEquipPenalty] = useState(loadWorkbenchEquipErgoPenaltyPct);
 
   const ergo = stats?.ergonomics ?? 0;
   const weight = stats?.weight ?? 0;
   const equipErgo = workbenchEquipErgoModifier(equipPenalty);
-  const eed = stats
-    ? workbenchEvoErgoDelta(ergo, weight, equipErgo)
-    : null;
-  const armStamina = stats
-    ? workbenchArmStaminaSeconds(weight, ergo, strength, equipErgo)
-    : null;
-  const overswing = stats
-    ? workbenchOverswing(ergo, weight, equipErgo)
-    : false;
+  const eed = stats ? workbenchEvoErgoDelta(ergo, weight, equipErgo) : null;
+  const armStamina = stats ? workbenchArmStaminaSeconds(weight, ergo, strength, equipErgo) : null;
+  const overswing = stats ? workbenchOverswing(ergo, weight, equipErgo) : false;
 
   const persistStrength = (value: number) => {
     const next = clampWorkbenchStrengthLevel(value);
@@ -149,21 +133,11 @@ export function TarkovWorkbenchStatsPane({
       <div className={styles.paneHead}>属性</div>
       <div className={styles.stats}>
         <StatRow label="人机">{formatWorkbenchErgo(stats?.ergonomics)}</StatRow>
-        <StatRow label="垂直后坐">
-          {stats?.recoil_vertical ?? "—"}
-        </StatRow>
-        <StatRow label="水平后坐">
-          {stats?.recoil_horizontal ?? "—"}
-        </StatRow>
-        <StatRow label="精确度">
-          {formatWorkbenchAccuracyMoa(stats?.accuracy_moa)}
-        </StatRow>
+        <StatRow label="垂直后坐">{stats?.recoil_vertical ?? "—"}</StatRow>
+        <StatRow label="水平后坐">{stats?.recoil_horizontal ?? "—"}</StatRow>
+        <StatRow label="精确度">{formatWorkbenchAccuracyMoa(stats?.accuracy_moa)}</StatRow>
         <StatRow label="重量">{formatWeight(stats?.weight)}</StatRow>
-        <StatRow
-          label="Evo人机Delta"
-          hintLabel="Evo人机Delta（EED）： "
-          hint={EED_HINT}
-        >
+        <StatRow label="Evo人机Delta" hintLabel="Evo人机Delta（EED）： " hint={EED_HINT}>
           {eed == null ? (
             "—"
           ) : (
@@ -181,23 +155,17 @@ export function TarkovWorkbenchStatsPane({
             "—"
           )}
         </StatRow>
-        <StatRow label="手臂耐力">
-          {formatWorkbenchArmStamina(armStamina)}
-        </StatRow>
+        <StatRow label="手臂耐力">{formatWorkbenchArmStamina(armStamina)}</StatRow>
         <StatRow label="瞄具距离">
           {stats?.sighting_range != null ? `${stats.sighting_range} m` : "—"}
         </StatRow>
         <StatRow label="膛口初速">
-          {ammoId
-            ? formatWorkbenchMuzzleVelocity(stats?.muzzle_velocity)
-            : "无弹药"}
+          {ammoId ? formatWorkbenchMuzzleVelocity(stats?.muzzle_velocity) : "无弹药"}
         </StatRow>
         <StatRow label="弹匣容量">{stats?.mag_capacity ?? "—"}</StatRow>
         <StatRow label="估价">{formatMoney(stats?.price_rub)}</StatRow>
 
-        {hasConflicts ? (
-          <p className={styles.warn}>冲突件已标红，请卸下或更换</p>
-        ) : null}
+        {hasConflicts ? <p className={styles.warn}>冲突件已标红，请卸下或更换</p> : null}
 
         <div className={styles.statTune}>
           <div className={styles.statTuneTitle}>自身情况</div>

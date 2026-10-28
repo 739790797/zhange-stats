@@ -68,9 +68,7 @@ router = APIRouter(
 )
 
 
-def _status_out(
-    db: Session, member: Member, *, include_roles: bool, force: bool
-) -> KujiequStatusOut:
+def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool) -> KujiequStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -130,9 +128,7 @@ def kujiequ_bind_sms_send(
     ip = client_ip(request)
     platform_limiter.hit(f"kujiequ-sms:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"kujiequ-sms:uid:{user.id}", limit=5, window_sec=600)
-    platform_limiter.hit(
-        f"kujiequ-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
-    )
+    platform_limiter.hit(f"kujiequ-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600)
     try:
         result = send_sms_captcha(payload.phone, payload.gee_test_data)
     except KujiequApiError as exc:
@@ -288,9 +284,7 @@ def kujiequ_checkin(
 ):
     role_keys = role_keys_from_now_body(body)
     try:
-        result = run_checkin_for_member(
-            db, member, force=True, role_keys=role_keys
-        )
+        result = run_checkin_for_member(db, member, force=True, role_keys=role_keys)
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
     return build_checkin_response(
@@ -364,14 +358,12 @@ def kujiequ_attendance_calendar(
 ):
     """鸣潮 / 战双签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。"""
     try:
-        parsed, role, roles, synced_at, stale = (
-            get_kujiequ_attendance_calendar_for_member(
-                db,
-                member,
-                game_code=game_code,
-                role_uid=role_uid,
-                force=force,
-            )
+        parsed, role, roles, synced_at, stale = get_kujiequ_attendance_calendar_for_member(
+            db,
+            member,
+            game_code=game_code,
+            role_uid=role_uid,
+            force=force,
         )
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
@@ -444,14 +436,8 @@ def _ww_box_out(box, role, roles, synced_at, stale: bool) -> WwBoxOut:
         rouge_score_limit=box.rouge_score_limit,
         rouge_title=box.rouge_title,
         rouge_icon_url=box.rouge_icon_url,
-        treasure_boxes=[
-            WwBoxItemOut(name=i.name, num=i.num, icon_url=i.icon_url)
-            for i in box.treasure_boxes
-        ],
-        phantom_boxes=[
-            WwBoxItemOut(name=i.name, num=i.num, icon_url=i.icon_url)
-            for i in box.phantom_boxes
-        ],
+        treasure_boxes=[WwBoxItemOut(name=i.name, num=i.num, icon_url=i.icon_url) for i in box.treasure_boxes],
+        phantom_boxes=[WwBoxItemOut(name=i.name, num=i.num, icon_url=i.icon_url) for i in box.phantom_boxes],
         calabash_level=box.calabash_level,
         calabash_unlock=box.calabash_unlock,
         calabash_max=box.calabash_max,
@@ -484,9 +470,7 @@ def kujiequ_ww_box(
 ):
     """鸣潮资料卡（roleBox）：默认读库二次加工；force 或首次回源落库。"""
     try:
-        box, role, roles, synced_at, stale = get_ww_box_for_member(
-            db, member, uid, force=force
-        )
+        box, role, roles, synced_at, stale = get_ww_box_for_member(db, member, uid, force=force)
     except KujiequApiError as exc:
         raise_api_error(exc, KujiequApiError)
     return _ww_box_out(box, role, roles, synced_at, stale)

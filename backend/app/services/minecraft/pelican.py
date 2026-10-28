@@ -47,11 +47,7 @@ def normalize_server_uuid(value: str) -> str:
 
 
 def pelican_configured(base_url: str, token: str, server_uuid: str) -> bool:
-    return bool(
-        normalize_pelican_base_url(base_url)
-        and (token or "").strip()
-        and normalize_server_uuid(server_uuid)
-    )
+    return bool(normalize_pelican_base_url(base_url) and (token or "").strip() and normalize_server_uuid(server_uuid))
 
 
 def normalize_remote_directory(path: str) -> str:
@@ -199,9 +195,7 @@ def _request(
     elif json_body is not None:
         data = json.dumps(json_body, ensure_ascii=False).encode("utf-8")
     try:
-        resp = http_request(
-            method, url, headers=headers, content=data, timeout=timeout
-        )
+        resp = http_request(method, url, headers=headers, content=data, timeout=timeout)
         payload = resp.content
         if resp.status_code >= 400:
             detail = _read_error_body(payload.decode("utf-8", errors="replace"))
@@ -405,9 +399,7 @@ def download_file(
         ) as resp:
             if resp.status_code >= 400:
                 detail = _read_capped(resp, 300).decode("utf-8", errors="replace")
-                raise PelicanError(
-                    friendly_error(resp.status_code, detail), status_code=resp.status_code
-                )
+                raise PelicanError(friendly_error(resp.status_code, detail), status_code=resp.status_code)
             declared = str(resp.headers.get("content-length") or "").strip()
             if declared.isdigit() and int(declared) > max_bytes:
                 raise PelicanError("文件过大，无法读取模组信息")
@@ -808,8 +800,7 @@ def startup_details(data: dict[str, Any]) -> dict[str, Any]:
                     "value": str(
                         attrs.get("server_value")
                         if attrs.get("server_value") is not None
-                        else attrs.get("default_value")
-                        or ""
+                        else attrs.get("default_value") or ""
                     ),
                 }
             )
@@ -971,9 +962,7 @@ def parse_application_server(data: Any) -> dict[str, Any]:
         attrs = {}
     container = attrs.get("container") if isinstance(attrs.get("container"), dict) else {}
     env_raw = container.get("environment") if isinstance(container.get("environment"), dict) else {}
-    environment = {
-        str(key): "" if value is None else str(value) for key, value in env_raw.items()
-    }
+    environment = {str(key): "" if value is None else str(value) for key, value in env_raw.items()}
     return {
         "id": _as_int(attrs.get("id")),
         "uuid": str(attrs.get("uuid") or ""),

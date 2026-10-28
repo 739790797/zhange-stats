@@ -1,12 +1,6 @@
 /** 登录后回跳：只允许站内路径，避免协议相对 / 反斜杠开重定向。 */
 
-const AUTH_PREFIXES = [
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/verify-email",
-  "/setup",
-];
+const AUTH_PREFIXES = ["/login", "/register", "/forgot-password", "/verify-email", "/setup"];
 
 const STORAGE_KEY = "zhange.postLoginPath";
 
@@ -42,9 +36,7 @@ function isSafeInAppPathname(pathname: string): boolean {
 }
 
 export function postLoginPath(from?: LoginFromLocation): string {
-  const parts = splitInAppPath(
-    `${from?.pathname || ""}${from?.search || ""}${from?.hash || ""}`,
-  );
+  const parts = splitInAppPath(`${from?.pathname || ""}${from?.search || ""}${from?.hash || ""}`);
   const pathname = (parts?.pathname || "").trim();
   if (!pathname || pathname === "/") return "/";
   if (!isSafeInAppPathname(pathname)) return "/";

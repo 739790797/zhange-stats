@@ -12,7 +12,10 @@ import { TodayCheckinAwards } from "@/features/daily/components/CheckinAwardsLin
 import { CheckinStatusTag } from "@/features/daily/components/CheckinStatusTag";
 import { CheckinTreeNameLabel } from "@/features/daily/components/checkinTaskDisplay";
 import { CHECKIN_STATUS, isCheckinSuccess } from "@/features/daily/model/checkinStatus";
-import { formatCheckinTime, displayCheckinChannelName } from "@/features/daily/model/checkinDisplay";
+import {
+  formatCheckinTime,
+  displayCheckinChannelName,
+} from "@/features/daily/model/checkinDisplay";
 import {
   DAILY_CRED_BROKEN_HINT,
   DAILY_CRED_BROKEN_TITLE,
@@ -40,13 +43,7 @@ function AutoHint({ task }: { task: UserCheckinTask }) {
   );
 }
 
-function RoleRow({
-  task,
-  platform,
-}: {
-  task: UserCheckinTask;
-  platform: string;
-}) {
+function RoleRow({ task, platform }: { task: UserCheckinTask; platform: string }) {
   const signed = isCheckinSuccess(task.today_status);
   const failed = (task.today_status || "").trim() === CHECKIN_STATUS.ERROR;
   const className = [
@@ -100,11 +97,7 @@ function RoleRow({
   );
 }
 
-function CredPlatformRow({
-  group,
-}: {
-  group: DailyPlatformGroup<UserCheckinTask>;
-}) {
+function CredPlatformRow({ group }: { group: DailyPlatformGroup<UserCheckinTask> }) {
   const href = checkinPlatformHref(group.platform);
   return (
     <div className={styles.credRow}>
@@ -131,11 +124,7 @@ function CredPlatformRow({
   );
 }
 
-function PlatformSection({
-  group,
-}: {
-  group: DailyPlatformGroup<UserCheckinTask>;
-}) {
+function PlatformSection({ group }: { group: DailyPlatformGroup<UserCheckinTask> }) {
   const { token } = theme.useToken();
   const href = checkinPlatformHref(group.platform);
   const allSigned = group.total > 0 && group.signed === group.total;
@@ -155,9 +144,7 @@ function PlatformSection({
           <Typography.Text type="secondary">
             {group.signed}/{group.total}
           </Typography.Text>
-          {allSigned ? (
-            <CheckCircleFilled style={{ color: token.colorSuccess }} />
-          ) : null}
+          {allSigned ? <CheckCircleFilled style={{ color: token.colorSuccess }} /> : null}
         </span>
         {href ? (
           <Link to={href}>
@@ -198,12 +185,9 @@ export function MyDailyBoard({
   onRefresh?: () => void;
 }) {
   const { token } = theme.useToken();
-  const percent =
-    summary.total > 0 ? Math.round((summary.signed / summary.total) * 100) : 0;
+  const percent = summary.total > 0 ? Math.round((summary.signed / summary.total) * 100) : 0;
   const complete =
-    summary.total > 0 &&
-    summary.signed === summary.total &&
-    summary.credBroken === 0;
+    summary.total > 0 && summary.signed === summary.total && summary.credBroken === 0;
   const headline = dailyHeadline(summary);
   const credGroups = groups.filter((group) => group.credBroken);
   const liveGroups = groups.filter((group) => !group.credBroken);
@@ -223,10 +207,7 @@ export function MyDailyBoard({
 
   if (summary.total === 0) {
     return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="暂无已加入本站的角色"
-      >
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已加入本站的角色">
         <Link to="/profile">
           <Button type="primary">去个人中心选择角色</Button>
         </Link>
@@ -289,9 +270,7 @@ export function MyDailyBoard({
             {summary.credPlatforms > 0 ? (
               <span className={styles.summaryMetaItem}>
                 <Typography.Text type="danger">凭证失效</Typography.Text>
-                <Typography.Text type="danger">
-                  {summary.credPlatforms}
-                </Typography.Text>
+                <Typography.Text type="danger">{summary.credPlatforms}</Typography.Text>
               </span>
             ) : null}
             <span className={styles.summaryMetaItem}>

@@ -16,11 +16,7 @@ ARKNIGHTS_ITEM_ICON_BASE = f"{asset_url('item', '').rstrip('/')}"
 @lru_cache(maxsize=1)
 def _item_icon_ids() -> dict[str, str]:
     """itemId → iconId（ArknightsGameResource/item/{iconId}.png）。"""
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "resources"
-        / "arknights_item_icon_ids.json"
-    )
+    path = Path(__file__).resolve().parents[2] / "resources" / "arknights_item_icon_ids.json"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -51,9 +47,7 @@ def arknights_item_icon_url(
     resource_id: Any = None,
 ) -> str | None:
     """按 iconId（或兼容旧调用的 type）拼物品图标 URL。"""
-    key = resolve_arknights_icon_key(
-        resource_id=resource_id, resource_type=resource_type
-    )
+    key = resolve_arknights_icon_key(resource_id=resource_id, resource_type=resource_type)
     if not key or "/" in key or "\\" in key or ".." in key:
         return None
     return f"{ARKNIGHTS_ITEM_ICON_BASE}/{key}.png"
@@ -142,14 +136,10 @@ def arknights_result_needs_award_icons(result: Any) -> bool:
     awards = getattr(result, "awards", None) or []
     if not isinstance(awards, list) or not awards:
         return True
-    return not any(
-        isinstance(a, dict) and str(a.get("icon_url") or "").strip() for a in awards
-    )
+    return not any(isinstance(a, dict) and str(a.get("icon_url") or "").strip() for a in awards)
 
 
-def format_award_items(
-    awards: list[Any], *, with_icons: bool = False
-) -> tuple[str | None, list[dict[str, Any]]]:
+def format_award_items(awards: list[Any], *, with_icons: bool = False) -> tuple[str | None, list[dict[str, Any]]]:
     items: list[dict[str, Any]] = []
     parts: list[str] = []
     for a in awards:
@@ -308,17 +298,13 @@ def awards_from_claim_records(
         if not ts_is_beijing_day(rec.get("ts"), day):
             continue
         if isinstance(rec.get("awards"), list):
-            nested_text, nested_items = format_award_items(
-                rec["awards"], with_icons=with_icons
-            )
+            nested_text, nested_items = format_award_items(rec["awards"], with_icons=with_icons)
             if nested_text:
                 parts.append(nested_text)
                 award_items.extend(nested_items)
             continue
         rid = rec.get("awardId") or rec.get("resourceId") or rec.get("id")
-        parsed = award_from_resource(
-            resource_map, rid, rec.get("count"), with_icon=with_icons
-        )
+        parsed = award_from_resource(resource_map, rid, rec.get("count"), with_icon=with_icons)
         if parsed is None and rid is not None:
             name = str(rec.get("name") or "奖励").strip() or "奖励"
             try:
@@ -352,7 +338,4 @@ def has_claim_today(resp: dict[str, Any], *, day) -> bool:
     records = data.get("records") or []
     if not isinstance(records, list):
         return False
-    return any(
-        isinstance(rec, dict) and ts_is_beijing_day(rec.get("ts"), day)
-        for rec in records
-    )
+    return any(isinstance(rec, dict) and ts_is_beijing_day(rec.get("ts"), day) for rec in records)

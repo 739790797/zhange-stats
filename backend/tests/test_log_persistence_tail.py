@@ -180,9 +180,7 @@ def test_runtime_logs_api_honors_after_id_for_file_source(log_file: Path) -> Non
 
 def test_lazy_handler_creates_directory_on_first_record(tmp_path: Path) -> None:
     target = tmp_path / "data" / "logs" / "app.jsonl"
-    handler = lp._LazyDirRotatingFileHandler(
-        target, maxBytes=1024 * 1024, backupCount=1, encoding="utf-8", delay=True
-    )
+    handler = lp._LazyDirRotatingFileHandler(target, maxBytes=1024 * 1024, backupCount=1, encoding="utf-8", delay=True)
     handler.setFormatter(lp.JsonLineLogFormatter())
     try:
         assert not target.parent.exists()

@@ -50,11 +50,7 @@ def access_token_from_request(
     credentials: HTTPAuthorizationCredentials | None = None,
 ) -> tuple[str | None, bool]:
     """Cookie 或 Bearer。via_bearer 供 CSRF：Cookie 会话的写操作才校验。"""
-    if (
-        credentials is not None
-        and credentials.scheme.lower() == "bearer"
-        and credentials.credentials
-    ):
+    if credentials is not None and credentials.scheme.lower() == "bearer" and credentials.credentials:
         return credentials.credentials, True
     auth = (request.headers.get("authorization") or "").strip()
     if auth.lower().startswith("bearer "):

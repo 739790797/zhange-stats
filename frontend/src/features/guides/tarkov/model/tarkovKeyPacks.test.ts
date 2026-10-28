@@ -40,9 +40,7 @@ import {
 
 describe("parseOwnedState", () => {
   it("reads v1 owned list", () => {
-    expect(parseOwnedState(JSON.stringify({ v: 1, owned: ["a", "", "b"] }))).toEqual(
-      ["a", "b"],
-    );
+    expect(parseOwnedState(JSON.stringify({ v: 1, owned: ["a", "", "b"] }))).toEqual(["a", "b"]);
   });
 
   it("returns empty on junk", () => {
@@ -115,9 +113,7 @@ describe("packOwnedCount / filter", () => {
       description: "三层宿舍 114 房间的钥匙。",
       lock_types: ["door"],
       needs_power: true,
-      used_in_tasks: [
-        { id: "t1", name: "验收", notes: ["打开宿舍 114 的门"] },
-      ],
+      used_in_tasks: [{ id: "t1", name: "验收", notes: ["打开宿舍 114 的门"] }],
     };
     expect(keyMatchesQuery(key, "三层宿舍")).toBe(true);
     expect(keyMatchesQuery(key, "验收")).toBe(true);
@@ -128,15 +124,9 @@ describe("packOwnedCount / filter", () => {
   });
 
   it("filters by owned / missing / query", () => {
-    expect(filterPackKeys(keys, "", "owned", owned).map((k) => k.id)).toEqual([
-      "a",
-    ]);
-    expect(filterPackKeys(keys, "", "missing", owned).map((k) => k.id)).toEqual([
-      "b",
-    ]);
-    expect(filterPackKeys(keys, "别墅", "all", owned).map((k) => k.id)).toEqual([
-      "b",
-    ]);
+    expect(filterPackKeys(keys, "", "owned", owned).map((k) => k.id)).toEqual(["a"]);
+    expect(filterPackKeys(keys, "", "missing", owned).map((k) => k.id)).toEqual(["b"]);
+    expect(filterPackKeys(keys, "别墅", "all", owned).map((k) => k.id)).toEqual(["b"]);
   });
 });
 
@@ -156,8 +146,18 @@ describe("collectPackKeys / isAllPackSlug", () => {
   it("dedupes keys across packs", () => {
     expect(
       collectPackKeys([
-        { keys: [{ id: "a", name: "宿舍" }, { id: "b", name: "别墅" }] },
-        { keys: [{ id: "b", name: "别墅" }, { id: "c", name: "实验室" }] },
+        {
+          keys: [
+            { id: "a", name: "宿舍" },
+            { id: "b", name: "别墅" },
+          ],
+        },
+        {
+          keys: [
+            { id: "b", name: "别墅" },
+            { id: "c", name: "实验室" },
+          ],
+        },
         { keys: [{ id: "", name: "空" }] },
       ]).map((key) => key.id),
     ).toEqual(["a", "b", "c"]);
@@ -197,10 +197,7 @@ describe("buildKeyPackNav", () => {
   });
 
   it("keeps home Chinese label when api name is English", () => {
-    const nav = buildKeyPackNav(
-      [{ slug: "customs", name: "Customs", keys: [] }],
-      [],
-    );
+    const nav = buildKeyPackNav([{ slug: "customs", name: "Customs", keys: [] }], []);
     expect(nav.find((row) => row.slug === "customs")?.name).toBe("海关");
   });
 });
@@ -270,12 +267,8 @@ describe("formatKeyUses / formatKeyMetaTags", () => {
       { kind: "uses", label: "最大耐久", hint: "10" },
       { kind: "access", label: "入场", hint: "" },
     ]);
-    expect(
-      formatKeyTagLine({ label: "最大耐久", hint: "40" }),
-    ).toBe("最大耐久：40");
-    expect(
-      formatKeyTagLine({ label: "跳蚤市场", hint: "24,000 ₽" }),
-    ).toBe("跳蚤市场：24,000 ₽");
+    expect(formatKeyTagLine({ label: "最大耐久", hint: "40" })).toBe("最大耐久：40");
+    expect(formatKeyTagLine({ label: "跳蚤市场", hint: "24,000 ₽" })).toBe("跳蚤市场：24,000 ₽");
     expect(formatKeyTagLine({ label: "入场", hint: "" })).toBe("入场");
     expect(formatKeyMetaTags({ id: "x", lock_count: 1 })).toEqual([]);
   });
@@ -321,12 +314,7 @@ describe("formatKeySourceTags", () => {
         flea: { price: 88000 },
       },
     });
-    expect(tags.map((row) => row.kind)).toEqual([
-      "barter",
-      "craft",
-      "task",
-      "flea",
-    ]);
+    expect(tags.map((row) => row.kind)).toEqual(["barter", "craft", "task", "flea"]);
     expect(tags[0]).toMatchObject({ label: "以物易物", hint: "Therapist 1级" });
     expect(tags[1].href).toBe("/guides/tarkov/hideout/intelligence-center");
     expect(tags[2].href).toContain("/tasks/task-1");
@@ -346,11 +334,7 @@ describe("formatKeySourceTags", () => {
         flea: { price: 88000 },
       },
     };
-    expect(formatKeyObtainTags(key).map((row) => row.label)).toEqual([
-      "商人",
-      "制作",
-      "任务",
-    ]);
+    expect(formatKeyObtainTags(key).map((row) => row.label)).toEqual(["商人", "制作", "任务"]);
     expect(formatKeyFleaTag(key)?.hint).toContain("88,000");
     expect(formatKeyObtainTags({ id: "x" })).toEqual([]);
     expect(formatKeyFleaTag({ id: "x" })).toBeNull();
@@ -370,9 +354,7 @@ describe("formatKeySourceTags", () => {
     const tags = formatKeySourceTags({
       id: "k1",
       sources: {
-        tasks: [
-          { id: "6745fcde0dfbbc74ca0f721d", name: "6745fcde0dfbbc74ca0f721d name" },
-        ],
+        tasks: [{ id: "6745fcde0dfbbc74ca0f721d", name: "6745fcde0dfbbc74ca0f721d name" }],
       },
     });
     expect(tags).toEqual([
@@ -456,12 +438,8 @@ describe("formatKeyUsageMarks / sort values", () => {
     expect(keyUsesSortValue({ id: "a", uses: 40 })).toBe(40);
     expect(keyUsesSortValue({ id: "b", uses: 0 })).toBe(Number.POSITIVE_INFINITY);
     expect(keyUsesSortValue({ id: "c" })).toBe(-1);
-    expect(keyFleaSortValue({ id: "a", sources: { flea: { price: 88000 } } })).toBe(
-      88000,
-    );
-    expect(keyFleaSortValue({ id: "b", sources: { flea: { price: null } } })).toBe(
-      0,
-    );
+    expect(keyFleaSortValue({ id: "a", sources: { flea: { price: 88000 } } })).toBe(88000);
+    expect(keyFleaSortValue({ id: "b", sources: { flea: { price: null } } })).toBe(0);
     expect(keyFleaSortValue({ id: "c" })).toBe(-1);
   });
 });

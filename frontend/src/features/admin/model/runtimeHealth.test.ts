@@ -8,10 +8,7 @@ import {
   RUNTIME_STATUS_IDS,
 } from "./runtimeHealth";
 
-function item(
-  id: string,
-  extra: Partial<RuntimeHealthService> = {},
-): RuntimeHealthService {
+function item(id: string, extra: Partial<RuntimeHealthService> = {}): RuntimeHealthService {
   return {
     id,
     name: id,
@@ -24,9 +21,10 @@ function item(
 describe("pickHealthServices", () => {
   it("keeps requested order and skips missing ids", () => {
     const services = [item("redis"), item("database"), item("smtp")];
-    expect(
-      pickHealthServices(services, ["database", "redis"]).map((s) => s.id),
-    ).toEqual(["database", "redis"]);
+    expect(pickHealthServices(services, ["database", "redis"]).map((s) => s.id)).toEqual([
+      "database",
+      "redis",
+    ]);
   });
 
   it("returns empty when the snapshot has no services", () => {
@@ -37,9 +35,7 @@ describe("pickHealthServices", () => {
 
 describe("healthById", () => {
   it("finds a service by id", () => {
-    expect(healthById([item("database"), item("redis")], "redis")?.id).toBe(
-      "redis",
-    );
+    expect(healthById([item("database"), item("redis")], "redis")?.id).toBe("redis");
     expect(healthById([item("database")], "smtp")).toBeUndefined();
     expect(healthById(undefined, "database")).toBeUndefined();
   });
@@ -53,9 +49,7 @@ describe("healthMeta / healthHint", () => {
   });
 
   it("joins detail and rounded latency", () => {
-    expect(healthHint({ detail: "SELECT 1 ok", latency_ms: 1.4 })).toBe(
-      "SELECT 1 ok · 1ms",
-    );
+    expect(healthHint({ detail: "SELECT 1 ok", latency_ms: 1.4 })).toBe("SELECT 1 ok · 1ms");
     expect(healthHint({ detail: "未配置 REDIS_URL" })).toBe("未配置 REDIS_URL");
     expect(healthHint({ detail: "", latency_ms: null })).toBe("");
   });

@@ -188,9 +188,7 @@ def apply_role_pref_update(
             status_code=400,
             detail="请至少指定 included 或 enabled",
         )
-    if payload.enabled and (
-        payload.checkin_hour is None or payload.checkin_minute is None
-    ):
+    if payload.enabled and (payload.checkin_hour is None or payload.checkin_minute is None):
         raise HTTPException(status_code=400, detail="开启自动签到时必须设置签到时间")
     from app.services.checkin.role_prefs import upsert_role_pref
 
@@ -242,16 +240,10 @@ def build_role_membership_tree(
     except api_error_cls as exc:  # type: ignore[misc]
         raise_api_error(exc, api_error_cls)
         raise  # pragma: no cover
-    retire_vanished_prefs(
-        db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles
-    )
-    pref_map = ensure_prefs_for_roles(
-        db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles
-    )
+    retire_vanished_prefs(db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles)
+    pref_map = ensure_prefs_for_roles(db, platform=platform, member_id=member_id, bind=bind, roles=raw_roles)
     db.commit()
-    nodes = build_membership_tree_from_roles(
-        platform=platform, roles=raw_roles, pref_map=pref_map
-    )
+    nodes = build_membership_tree_from_roles(platform=platform, roles=raw_roles, pref_map=pref_map)
     return RoleMembershipTreeOut(
         platform=platform,
         roles=[

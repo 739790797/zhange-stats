@@ -37,11 +37,9 @@ describe("articleImages", () => {
 
   it("appends an embed after existing body", () => {
     expect(insertArticleImage("", "/u.png", "markdown")).toBe("![](/u.png)\n");
-    expect(insertArticleImage("hello", "/u.png", "markdown")).toBe(
-      "hello\n\n![](/u.png)\n",
-    );
+    expect(insertArticleImage("hello", "/u.png", "markdown")).toBe("hello\n\n![](/u.png)\n");
     expect(insertArticleImage("hello\n", "/u.png", "html")).toBe(
-      "hello\n\n<figure><img src=\"/u.png\" alt=\"\"></figure>\n",
+      'hello\n\n<figure><img src="/u.png" alt=""></figure>\n',
     );
   });
 
@@ -77,15 +75,13 @@ describe("articleImages", () => {
   });
 
   it("rejects non-image or oversized files", () => {
-    expect(
-      rejectArticleImageFile(new File(["x"], "a.txt", { type: "text/plain" })),
-    ).toBe("请选择图片文件");
+    expect(rejectArticleImageFile(new File(["x"], "a.txt", { type: "text/plain" }))).toBe(
+      "请选择图片文件",
+    );
     const huge = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "a.png", {
       type: "image/png",
     });
     expect(rejectArticleImageFile(huge)).toBe("图片不能超过 5MB");
-    expect(
-      rejectArticleImageFile(new File(["x"], "a.png", { type: "image/png" })),
-    ).toBeNull();
+    expect(rejectArticleImageFile(new File(["x"], "a.png", { type: "image/png" }))).toBeNull();
   });
 });

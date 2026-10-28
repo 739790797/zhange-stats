@@ -8,12 +8,7 @@ from app.services.checkin.common import award_item
 
 
 def _config_awards(item: dict[str, Any]) -> list[dict[str, Any]]:
-    name = str(
-        item.get("goodsName")
-        or item.get("goods_name")
-        or item.get("name")
-        or ""
-    ).strip()
+    name = str(item.get("goodsName") or item.get("goods_name") or item.get("name") or "").strip()
     if not name:
         name = "奖励"
     num = item.get("goodsNum")
@@ -49,11 +44,7 @@ def parse_kujiequ_attendance_calendar(
     """
     init = raw.get("init") if isinstance(raw.get("init"), dict) else {}
     configs_raw = init.get("signInGoodsConfigs")
-    configs = (
-        [x for x in configs_raw if isinstance(x, dict)]
-        if isinstance(configs_raw, list)
-        else []
-    )
+    configs = [x for x in configs_raw if isinstance(x, dict)] if isinstance(configs_raw, list) else []
 
     try:
         claimed_days = max(0, int(init.get("sigInNum") or 0))

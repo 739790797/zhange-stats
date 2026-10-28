@@ -6,7 +6,8 @@ import {
   planChunkReload,
 } from "./chunkReload";
 
-const CHUNK_MESSAGE = "Failed to fetch dynamically imported module: https://x/assets/TarkovPage-abc.js";
+const CHUNK_MESSAGE =
+  "Failed to fetch dynamically imported module: https://x/assets/TarkovPage-abc.js";
 
 describe("isChunkLoadError", () => {
   it("recognises failed dynamic imports across browsers and the Vite preload helper", () => {
@@ -27,9 +28,9 @@ describe("isChunkLoadError", () => {
   });
 
   it("ignores ordinary render and request errors", () => {
-    expect(isChunkLoadError(new TypeError("Cannot read properties of undefined (reading 'map')"))).toBe(
-      false,
-    );
+    expect(
+      isChunkLoadError(new TypeError("Cannot read properties of undefined (reading 'map')")),
+    ).toBe(false);
     expect(isChunkLoadError(new Error("Request failed with status code 500"))).toBe(false);
     expect(isChunkLoadError(null)).toBe(false);
     expect(isChunkLoadError(undefined)).toBe(false);

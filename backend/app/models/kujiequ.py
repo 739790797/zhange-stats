@@ -56,9 +56,7 @@ class KujiequCheckinLog(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
-    )
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False)
     bind_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("kujiequ_binds.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -117,9 +115,7 @@ class KujiequWwBoxRaw(Base):
     """鸣潮 roleBox（baseData + calabashData）原始 JSON（按角色最新一份）。"""
 
     __tablename__ = "kujiequ_ww_box_raws"
-    __table_args__ = (
-        UniqueConstraint("member_id", "role_id", name="uq_kujiequ_ww_box_raw_member_role"),
-    )
+    __table_args__ = (UniqueConstraint("member_id", "role_id", name="uq_kujiequ_ww_box_raw_member_role"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(

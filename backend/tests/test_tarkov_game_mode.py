@@ -28,9 +28,7 @@ def test_row_id_and_upstream_mapping():
     assert json_api_prefix("pve") == "pve"
     assert json_api_prefix("pve") == "pve"
     assert json_resource_url("tasks", mode="pve") == "https://json.tarkov.dev/pve/tasks"
-    assert json_resource_url("items", lang="zh", mode="pvp").endswith(
-        "/regular/items_zh"
-    )
+    assert json_resource_url("items", lang="zh", mode="pvp").endswith("/regular/items_zh")
 
 
 def test_scope_and_cache_key():
@@ -107,9 +105,7 @@ def test_included_router_gets_game_mode_when_include_after_dep():
     app = FastAPI()
     app.include_router(parent, prefix="/guides")
     client = TestClient(app, raise_server_exceptions=True)
-    assert client.get("/guides/tarkov/raid-rooms?game_mode=pve").json() == {
-        "mode": "pve"
-    }
+    assert client.get("/guides/tarkov/raid-rooms?game_mode=pve").json() == {"mode": "pve"}
     assert client.get("/guides/tarkov/raid-rooms").json() == {"mode": "pvp"}
 
 
@@ -117,9 +113,7 @@ def test_raid_rooms_list_openapi_exposes_game_mode():
     from app.main import app
 
     schema = app.openapi()
-    op = (schema.get("paths") or {}).get("/api/guides/tarkov/raid-rooms", {}).get(
-        "get"
-    )
+    op = (schema.get("paths") or {}).get("/api/guides/tarkov/raid-rooms", {}).get("get")
     assert op is not None
     names = {p["name"] for p in (op.get("parameters") or []) if "name" in p}
     assert "game_mode" in names

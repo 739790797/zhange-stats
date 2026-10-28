@@ -108,9 +108,7 @@ def oauth_app(production, monkeypatch):
     from app.api.profile import qq as profile_qq
     from app.api.profile import steam as profile_steam
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
 
@@ -326,9 +324,7 @@ def test_qq_login_failures_never_put_exception_text_in_url(oauth_app, monkeypatc
 
 
 def _start_qq_bind(client: TestClient, token: str) -> str:
-    return _state_from_start(
-        client.get("/api/profile/qq/oauth/start", headers={"authorization": f"Bearer {token}"})
-    )
+    return _state_from_start(client.get("/api/profile/qq/oauth/start", headers={"authorization": f"Bearer {token}"}))
 
 
 def test_qq_bind_conflict_maps_to_already_bound(oauth_app) -> None:
@@ -365,9 +361,7 @@ def steam_ready(monkeypatch):
     monkeypatch.setattr("app.services.integrations_config.get_steam_api_key", lambda _db=None: "k")
     monkeypatch.setattr(
         "app.services.steam.bind.lookup_steam_profile",
-        lambda value: SimpleNamespace(
-            steam_id=value, is_public=True, persona_name="Gabe", avatar_url=None
-        ),
+        lambda value: SimpleNamespace(steam_id=value, is_public=True, persona_name="Gabe", avatar_url=None),
     )
     checks: list[str] = []
 
@@ -447,12 +441,8 @@ def test_steam_state_is_single_use_even_with_a_fresh_assertion(oauth_app, steam_
     client = TestClient(api, base_url=SITE)
     resp, return_to, state = _steam_start(client, token)
     nonce_cookie = client.cookies.get(STEAM_OPENID_NONCE_COOKIE)
-    assert _callback(client, STEAM_CALLBACK, state=state, **_steam_assertion(return_to))[1] == {
-        "steam_bind": ["ok"]
-    }
-    client.cookies.set(
-        STEAM_OPENID_NONCE_COOKIE, nonce_cookie, domain="site.example", path="/api/profile/steam/openid"
-    )
+    assert _callback(client, STEAM_CALLBACK, state=state, **_steam_assertion(return_to))[1] == {"steam_bind": ["ok"]}
+    client.cookies.set(STEAM_OPENID_NONCE_COOKIE, nonce_cookie, domain="site.example", path="/api/profile/steam/openid")
     _loc, params = _callback(client, STEAM_CALLBACK, state=state, **_steam_assertion(return_to))
     assert params == {"steam_bind": ["error"], "reason": ["state_invalid"]}
     assert steam_ready == ["POST"]
@@ -484,9 +474,7 @@ def test_steam_bad_assertions_map_to_reason_codes(oauth_app, steam_ready, overri
     _uid, mid, token = _bind_target(SessionLocal)
     client = TestClient(api, base_url=SITE)
     _resp, return_to, state = _steam_start(client, token)
-    location, params = _callback(
-        client, STEAM_CALLBACK, state=state, **_steam_assertion(return_to, **overrides)
-    )
+    location, params = _callback(client, STEAM_CALLBACK, state=state, **_steam_assertion(return_to, **overrides))
     assert location.startswith(f"{SITE}/profile?")
     assert params == {"steam_bind": ["error"], "reason": [reason]}
     assert steam_ready == []

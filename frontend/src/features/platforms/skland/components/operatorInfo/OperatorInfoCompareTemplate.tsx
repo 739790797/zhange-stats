@@ -1,19 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  Avatar,
-  Button,
-  Card,
-  Empty,
-  Modal,
-  Select,
-  Space,
-  Tag,
-  Typography,
-} from "antd";
-import {
-  OperatorInfoFilterToolbar,
-  type OperatorInfoSortMode,
-} from "./OperatorInfoFilterToolbar";
+import { Avatar, Button, Card, Empty, Modal, Select, Space, Tag, Typography } from "antd";
+import { OperatorInfoFilterToolbar, type OperatorInfoSortMode } from "./OperatorInfoFilterToolbar";
 
 export type OperatorInfoBase = {
   char_id: string;
@@ -64,16 +51,8 @@ type Props<
   cardRows?: 1 | 2;
   memberActions?: ReactNode;
   renderMemberLabel: (row: TRow) => ReactNode;
-  renderCard: (
-    operator: TOperator,
-    progress: TProgress | undefined,
-    row: TRow,
-  ) => ReactNode;
-  renderDetails: (
-    operator: TOperator,
-    progress: TProgress | undefined,
-    row: TRow,
-  ) => ReactNode;
+  renderCard: (operator: TOperator, progress: TProgress | undefined, row: TRow) => ReactNode;
+  renderDetails: (operator: TOperator, progress: TProgress | undefined, row: TRow) => ReactNode;
 };
 
 const CARD_WIDTH = 120;
@@ -100,8 +79,9 @@ export function OperatorInfoCompareTemplate<
   const [keyword, setKeyword] = useState("");
   const [rarityFilter, setRarityFilter] = useState<number | "all">("all");
   const [professionFilter, setProfessionFilter] = useState("all");
-  const [selected, setSelected] =
-    useState<SelectedOperator<TOperator, TProgress, TRow> | null>(null);
+  const [selected, setSelected] = useState<SelectedOperator<TOperator, TProgress, TRow> | null>(
+    null,
+  );
 
   const professions = useMemo(
     () =>
@@ -153,15 +133,7 @@ export function OperatorInfoCompareTemplate<
       });
     }
     return result;
-  }, [
-    keyword,
-    operators,
-    professionFilter,
-    rarityFilter,
-    rows,
-    selfId,
-    sortMode,
-  ]);
+  }, [keyword, operators, professionFilter, rarityFilter, rows, selfId, sortMode]);
 
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -197,12 +169,8 @@ export function OperatorInfoCompareTemplate<
               style={{
                 display: "flex",
                 alignItems: "stretch",
-                minHeight:
-                  CARD_HEIGHT * cardRows + CARD_GAP * (cardRows - 1) + 24,
-                borderBottom:
-                  rowIndex === rows.length - 1
-                    ? "none"
-                    : "1px solid rgba(0,0,0,0.06)",
+                minHeight: CARD_HEIGHT * cardRows + CARD_GAP * (cardRows - 1) + 24,
+                borderBottom: rowIndex === rows.length - 1 ? "none" : "1px solid rgba(0,0,0,0.06)",
                 background: rowIndex % 2 ? "#f7f7f7" : "#fafafa",
               }}
             >
@@ -283,9 +251,7 @@ export function OperatorInfoCompareTemplate<
         width="min(900px, calc(100vw - 24px))"
         destroyOnClose
       >
-        {selected
-          ? renderDetails(selected.operator, selected.progress, selected.row)
-          : null}
+        {selected ? renderDetails(selected.operator, selected.progress, selected.row) : null}
       </Modal>
     </Space>
   );
@@ -309,9 +275,7 @@ export function OperatorInfoMemberLabel<TProgress>({
   showGameIdentity?: boolean;
 }) {
   const roles = row.roles || [];
-  const currentUid = roles.some((role) => role.uid === selectedUid)
-    ? selectedUid
-    : roles[0]?.uid;
+  const currentUid = roles.some((role) => role.uid === selectedUid) ? selectedUid : roles[0]?.uid;
   return (
     <div
       style={{
@@ -339,12 +303,7 @@ export function OperatorInfoMemberLabel<TProgress>({
           {row.nickname}
         </Typography.Text>
         {canRemove ? (
-          <Button
-            type="text"
-            size="small"
-            onClick={onRemove}
-            aria-label="移除对比"
-          >
+          <Button type="text" size="small" onClick={onRemove} aria-label="移除对比">
             ×
           </Button>
         ) : null}
@@ -398,11 +357,7 @@ export function OperatorInfoMemberLabel<TProgress>({
           )}
           {summary}
           {row.synced_at ? (
-            <Typography.Text
-              type="secondary"
-              style={{ fontSize: 11 }}
-              title={row.synced_at}
-            >
+            <Typography.Text type="secondary" style={{ fontSize: 11 }} title={row.synced_at}>
               同步于 {new Date(row.synced_at).toLocaleString("zh-CN")}
             </Typography.Text>
           ) : null}

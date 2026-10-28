@@ -150,9 +150,7 @@ def _sign_game_role(creds: MihoyoCredentials, role: Any) -> CheckinResult:
     meta = GAME_BIZ_META[role.game_biz]
 
     def _do(working: MihoyoCredentials) -> CheckinResult:
-        signed, awards_text, awards = _query_game_signed(
-            working, meta, role.region, role.role_uid
-        )
+        signed, awards_text, awards = _query_game_signed(working, meta, role.region, role.role_uid)
         if signed:
             return CheckinResult(
                 game_code=role.game_code,
@@ -177,14 +175,8 @@ def _sign_game_role(creds: MihoyoCredentials, role: Any) -> CheckinResult:
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         if payload.get("retcode") in (0, "0") and data.get("success") in (1, "1"):
             raise MihoyoApiError("签到触发人机验证，请稍后在米游社 App 内完成一次签到")
-        if (
-            payload.get("retcode") in (-5003, "-5003")
-            or "已签到" in message
-            or "签到过" in message
-        ):
-            signed, awards_text, awards = _query_game_signed(
-                working, meta, role.region, role.role_uid
-            )
+        if payload.get("retcode") in (-5003, "-5003") or "已签到" in message or "签到过" in message:
+            signed, awards_text, awards = _query_game_signed(working, meta, role.region, role.role_uid)
             return CheckinResult(
                 game_code=role.game_code,
                 game_name=role.game_name,
@@ -199,9 +191,7 @@ def _sign_game_role(creds: MihoyoCredentials, role: Any) -> CheckinResult:
                 upstream_response=format_upstream_response(payload),
             )
         _assert_ok(payload)
-        signed, awards_text, awards = _query_game_signed(
-            working, meta, role.region, role.role_uid
-        )
+        signed, awards_text, awards = _query_game_signed(working, meta, role.region, role.role_uid)
         return CheckinResult(
             game_code=role.game_code,
             game_name=role.game_name,
@@ -370,10 +360,7 @@ def complete_myb_missions(creds: MihoyoCredentials) -> str:
         except MihoyoApiError:
             pass
 
-    return (
-        f"米游币任务：浏览 {min(view_n, 3)}/3 · 点赞 {min(like_n, 5)}/5 · "
-        f"分享 {min(share_n, 1)}/1"
-    )
+    return f"米游币任务：浏览 {min(view_n, 3)}/3 · 点赞 {min(like_n, 5)}/5 · 分享 {min(share_n, 1)}/1"
 
 
 def _bbs_sign_all(creds: MihoyoCredentials) -> tuple[int, list[str]]:
@@ -416,6 +403,7 @@ def _community_signed_from_missions(creds: MihoyoCredentials) -> bool | None:
 
     返回 True/False；解析不了时返回 None。
     """
+
     def _do(working: MihoyoCredentials) -> bool | None:
         payload = _http_json(
             "GET",
@@ -468,11 +456,7 @@ def _community_result(
         else:
             points_total, failures = _bbs_sign_all(creds)
             awards_text = f"米游币+{points_total}" if points_total else None
-            awards = (
-                [award_item(name="米游币", count=points_total, resource_type="points")]
-                if points_total
-                else None
-            )
+            awards = [award_item(name="米游币", count=points_total, resource_type="points")] if points_total else None
             fail_text = _forum_fail_summary(failures)
             if failures:
                 status = "error"
@@ -526,9 +510,7 @@ def query_today_all(
     results: list[CheckinResult] = []
     # 状态查询不跑米游币任务；社区失败（含鉴权）不把整次 status 打成 token 失效
     try:
-        results.append(
-            _community_result(working, do_sign=False, attach_tasks=False)
-        )
+        results.append(_community_result(working, do_sign=False, attach_tasks=False))
     except MihoyoApiError as exc:
         # 社区鉴权失败记一行失败，不把整次 status 打成 token 失效
         # （角色列表 / 游戏福利仍可能可用；扫码重绑后尤甚）
@@ -554,9 +536,7 @@ def query_today_all(
     for role in roles:
         try:
             meta = GAME_BIZ_META[role.game_biz]
-            signed, awards_text, awards = _query_game_signed(
-                working, meta, role.region, role.role_uid
-            )
+            signed, awards_text, awards = _query_game_signed(working, meta, role.region, role.role_uid)
             if signed:
                 results.append(
                     CheckinResult(

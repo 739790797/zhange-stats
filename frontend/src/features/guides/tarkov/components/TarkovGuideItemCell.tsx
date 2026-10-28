@@ -31,9 +31,7 @@ export function TarkovGuideItemCell({
     : String(count);
   const showQty = showCount && (alwaysCount || count !== 1);
   return (
-    <span
-      className={`${catalog.nameCell} ${highlight ? styles.highlight : ""}`}
-    >
+    <span className={`${catalog.nameCell} ${highlight ? styles.highlight : ""}`}>
       {thumb ? (
         <Image
           src={thumb}
@@ -47,20 +45,11 @@ export function TarkovGuideItemCell({
         <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
       )}
       <span className={styles.body}>
-        <Link
-          className={catalog.nameLink}
-          to={itemHrefFromTypes(item.id, item.types || [])}
-        >
+        <Link className={catalog.nameLink} to={itemHrefFromTypes(item.id, item.types || [])}>
           {showQty ? `${countLabel}× ${label}` : label}
         </Link>
-        {item.found_in_raid ? (
-          <span className={styles.fir}>战局内找到</span>
-        ) : null}
-        {showPrice ? (
-          <span className={styles.price}>
-            {formatMoney(item.flea_price)}
-          </span>
-        ) : null}
+        {item.found_in_raid ? <span className={styles.fir}>战局内找到</span> : null}
+        {showPrice ? <span className={styles.price}>{formatMoney(item.flea_price)}</span> : null}
       </span>
     </span>
   );
@@ -80,8 +69,7 @@ export function TarkovItemRefGrid({
         const label = item.name || item.short_name || item.id;
         const thumb = transparentThumbUrl(item.icon_link) || item.icon_link;
         const count = Number(item.count || 1);
-        const text =
-          showCount && count > 1 ? `${count}× ${label}` : label;
+        const text = showCount && count > 1 ? `${count}× ${label}` : label;
         return (
           <Link
             key={`${item.id}-${index}`}
@@ -89,12 +77,8 @@ export function TarkovItemRefGrid({
             to={itemHrefFromTypes(item.id, item.types || [])}
             title={item.badge ? `${item.badge} · ${text}` : text}
           >
-            {item.badge ? (
-              <span className={styles.chipBadge}>{item.badge}</span>
-            ) : null}
-            <span className={styles.chipIcon}>
-              {thumb ? <img src={thumb} alt="" /> : null}
-            </span>
+            {item.badge ? <span className={styles.chipBadge}>{item.badge}</span> : null}
+            <span className={styles.chipIcon}>{thumb ? <img src={thumb} alt="" /> : null}</span>
             <span className={styles.chipName}>{text}</span>
           </Link>
         );

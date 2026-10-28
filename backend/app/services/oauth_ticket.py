@@ -65,9 +65,7 @@ def consume_oauth_ticket(db: Session, code: str) -> str:
 def prune_expired_oauth_tickets(db: Session) -> int:
     cutoff = now_naive()
     deleted = (
-        db.query(OAuthExchangeTicket)
-        .filter(OAuthExchangeTicket.expires_at < cutoff)
-        .delete(synchronize_session=False)
+        db.query(OAuthExchangeTicket).filter(OAuthExchangeTicket.expires_at < cutoff).delete(synchronize_session=False)
     )
     db.flush()
     return int(deleted)

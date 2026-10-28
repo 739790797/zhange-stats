@@ -61,9 +61,7 @@ def test_obsolete_tables_are_dropped(engine, baseline) -> None:
     assert _run(engine, baseline, *_LEGACY_DDL) == set()
 
 
-def test_same_named_table_of_another_app_is_kept(
-    engine, baseline, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_same_named_table_of_another_app_is_kept(engine, baseline, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.WARNING, logger="zhange.migrate")
     remaining = _run(
         engine,

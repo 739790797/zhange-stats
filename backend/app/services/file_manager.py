@@ -415,9 +415,7 @@ _IO_REPARSE_TAG_MOUNT_POINT = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA000
 
 
 def _lstat_is_link(st: os.stat_result) -> bool:
-    return stat.S_ISLNK(st.st_mode) or (
-        getattr(st, "st_reparse_tag", 0) == _IO_REPARSE_TAG_MOUNT_POINT
-    )
+    return stat.S_ISLNK(st.st_mode) or (getattr(st, "st_reparse_tag", 0) == _IO_REPARSE_TAG_MOUNT_POINT)
 
 
 def _is_link(path: Path) -> bool:
@@ -490,8 +488,7 @@ def walk_size(path: Path, *, exclude: tuple[Path, ...] = ()) -> tuple[int, int]:
                     try:
                         entry_path = Path(entry.path)
                         if excluded and any(
-                            same_path(entry_path, item) or is_under(entry_path, item)
-                            for item in excluded
+                            same_path(entry_path, item) or is_under(entry_path, item) for item in excluded
                         ):
                             continue
                         if _entry_is_link(entry):
@@ -552,9 +549,7 @@ def context_from_settings() -> FileManagerContext:
     models_dir = settings.models_dir_path
     static: Path | None = None
     if (settings.STATIC_DIR or "").strip():
-        static = resolve_runtime_path(
-            settings.STATIC_DIR, configured_install=settings.APP_INSTALL_DIR
-        )
+        static = resolve_runtime_path(settings.STATIC_DIR, configured_install=settings.APP_INSTALL_DIR)
     return FileManagerContext(
         install_dir=install,
         data_dir=data_dir,
@@ -792,9 +787,7 @@ def browse_roots(ctx: FileManagerContext) -> list[BrowseRoot]:
     ]
 
 
-def _attach_browse(
-    bucket: FileBucket, roots: list[BrowseRoot]
-) -> tuple[str | None, str]:
+def _attach_browse(bucket: FileBucket, roots: list[BrowseRoot]) -> tuple[str | None, str]:
     best: tuple[int, str, str] | None = None
     try:
         target = bucket.path.resolve()
@@ -1007,11 +1000,7 @@ def list_directory(
                 size = int(entry.stat(follow_symlinks=False).st_size)
             child_rel = f"{rel_n}/{entry.name}" if rel_n else entry.name
             child_real = f"{real_rel}/{entry.name}" if real_rel else entry.name
-            sensitive = (
-                is_sensitive_name(entry.name)
-                or _is_sensitive(ctx, child_rel)
-                or _is_sensitive(ctx, child_real)
-            )
+            sensitive = is_sensitive_name(entry.name) or _is_sensitive(ctx, child_rel) or _is_sensitive(ctx, child_real)
             entries.append(
                 BrowseEntry(
                     name=entry.name,
@@ -1020,9 +1009,7 @@ def list_directory(
                     modified_at=_mtime_beijing(Path(entry.path)),
                     sensitive=sensitive,
                     downloadable=is_file and not sensitive,
-                    editable=is_file
-                    and not sensitive
-                    and looks_like_text_name(entry.name, size),
+                    editable=is_file and not sensitive and looks_like_text_name(entry.name, size),
                 )
             )
         except OSError:
@@ -1133,9 +1120,7 @@ def _is_sensitive(ctx: FileManagerContext, rel: str) -> bool:
 
 def _refuse_locked(ctx: FileManagerContext, rel: str, action: str) -> None:
     if _is_locked(ctx, rel):
-        raise FileManagerError(
-            f"正在使用的数据库文件不可{action}，要拷贝请用备份脚本", status_code=403
-        )
+        raise FileManagerError(f"正在使用的数据库文件不可{action}，要拷贝请用备份脚本", status_code=403)
 
 
 def _refuse_sensitive(ctx: FileManagerContext, rel: str, action: str) -> None:
@@ -1228,9 +1213,7 @@ def _decode_text(data: bytes) -> str:
 
 
 def _upload_too_large() -> FileManagerError:
-    return FileManagerError(
-        f"上传不能超过 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB", status_code=413
-    )
+    return FileManagerError(f"上传不能超过 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB", status_code=413)
 
 
 def _atomic_write(path: Path, source: BinaryIO, *, limit: int | None = None) -> int:
@@ -1242,9 +1225,7 @@ def _atomic_write(path: Path, source: BinaryIO, *, limit: int | None = None) -> 
         keep_mode = None
     total = 0
     try:
-        fd = os.open(
-            tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o666
-        )
+        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o666)
         with os.fdopen(fd, "wb") as out:
             while chunk := source.read(_WRITE_CHUNK):
                 total += len(chunk)

@@ -1,6 +1,7 @@
 """安装向导：无管理员时创建首位管理员；安装令牌只落盘不进日志。"""
 
 import logging
+import os
 import stat
 
 import pytest
@@ -44,12 +45,8 @@ def test_needs_setup_empty() -> None:
 
 def test_complete_initial_admin(monkeypatch) -> None:
     db = _session()
-    monkeypatch.setattr(
-        "app.services.setup.get_min_password_length", lambda _db: 8
-    )
-    monkeypatch.setattr(
-        "app.services.setup.create_user_access_token", lambda _u: "tok"
-    )
+    monkeypatch.setattr("app.services.setup.get_min_password_length", lambda _db: 8)
+    monkeypatch.setattr("app.services.setup.create_user_access_token", lambda _u: "tok")
 
     user, token = complete_initial_admin(
         db,
@@ -80,9 +77,7 @@ def test_complete_initial_admin(monkeypatch) -> None:
 
 def test_rejects_weak_password(monkeypatch) -> None:
     db = _session()
-    monkeypatch.setattr(
-        "app.services.setup.get_min_password_length", lambda _db: 8
-    )
+    monkeypatch.setattr("app.services.setup.get_min_password_length", lambda _db: 8)
     try:
         complete_initial_admin(
             db,
@@ -173,7 +168,8 @@ def test_setup_token_written_privately_and_logged_by_path_only(install_dir, capl
     token = read_setup_token()
     assert path.is_relative_to(install_dir)
     assert len(token) >= 24
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert str(path) in caplog.text
     assert token not in caplog.text
 

@@ -39,10 +39,7 @@ describe("formatRequestError", () => {
 
   it("maps axios network failure", () => {
     expect(
-      formatRequestError(
-        { isAxiosError: true, message: "Network Error", request: {} },
-        "失败",
-      ),
+      formatRequestError({ isAxiosError: true, message: "Network Error", request: {} }, "失败"),
     ).toBe("暂时连不上服务器，请稍后重试");
   });
 
@@ -51,12 +48,12 @@ describe("formatRequestError", () => {
   });
 
   it("maps 429 / 5xx defaults", () => {
-    expect(
-      formatRequestError({ response: { status: 429, data: {} } }, "失败"),
-    ).toBe("请求过于频繁，请稍后再试");
-    expect(
-      formatRequestError({ response: { status: 503, data: {} } }, "失败"),
-    ).toBe("服务暂时不可用，请稍后重试");
+    expect(formatRequestError({ response: { status: 429, data: {} } }, "失败")).toBe(
+      "请求过于频繁，请稍后再试",
+    );
+    expect(formatRequestError({ response: { status: 503, data: {} } }, "失败")).toBe(
+      "服务暂时不可用，请稍后重试",
+    );
   });
 
   it("appends request id only on 5xx", () => {
@@ -82,16 +79,10 @@ describe("formatRequestError", () => {
 
   it("maps FastAPI default 404", () => {
     expect(
-      formatRequestError(
-        { response: { status: 404, data: { detail: "Not Found" } } },
-        "失败",
-      ),
+      formatRequestError({ response: { status: 404, data: { detail: "Not Found" } } }, "失败"),
     ).toBe("接口或资源不存在");
     expect(
-      formatRequestError(
-        { response: { status: 404, data: { detail: "目录不存在" } } },
-        "失败",
-      ),
+      formatRequestError({ response: { status: 404, data: { detail: "目录不存在" } } }, "失败"),
     ).toBe("目录不存在");
   });
 });

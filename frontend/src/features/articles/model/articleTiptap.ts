@@ -32,11 +32,7 @@ const INDENT_TYPES = ["paragraph", "heading", "blockquote"] as const;
 
 function elementAttr(element: unknown, name: string): string {
   if (element && typeof element === "object" && "getAttribute" in element) {
-    return (
-      (element as { getAttribute: (key: string) => string | null }).getAttribute(
-        name,
-      ) || ""
-    );
+    return (element as { getAttribute: (key: string) => string | null }).getAttribute(name) || "";
   }
   return "";
 }
@@ -140,10 +136,7 @@ declare module "@tiptap/core" {
       insertArticleImage: (attrs: { src: string; alt?: string }) => ReturnType;
     };
     articleAttachment: {
-      insertArticleAttachment: (attrs: {
-        href: string;
-        title: string;
-      }) => ReturnType;
+      insertArticleAttachment: (attrs: { href: string; title: string }) => ReturnType;
     };
     articleAlign: {
       setArticleAlign: (align: ArticleAlignValue | null) => ReturnType;
@@ -282,11 +275,7 @@ export const ArticleMath = Node.create({
     return [{ tag: `span.${ARTICLE_MATH_INLINE_CLASS}` }];
   },
   renderHTML({ node }) {
-    return [
-      "span",
-      { class: ARTICLE_MATH_INLINE_CLASS },
-      node.attrs.latex || "",
-    ];
+    return ["span", { class: ARTICLE_MATH_INLINE_CLASS }, node.attrs.latex || ""];
   },
   addNodeView() {
     return articleMathNodeView(false);
@@ -311,9 +300,7 @@ export const ArticleMath = Node.create({
             return chain().updateAttributes("articleMath", { latex: src }).run();
           }
           if (block) {
-            return chain()
-              .updateAttributes("articleMathBlock", { latex: src })
-              .run();
+            return chain().updateAttributes("articleMathBlock", { latex: src }).run();
           }
           return chain()
             .insertContent({ type: nextType, attrs: { latex: src } })
@@ -341,11 +328,7 @@ export const ArticleMathBlock = Node.create({
     return [{ tag: `div.${ARTICLE_MATH_BLOCK_CLASS}` }];
   },
   renderHTML({ node }) {
-    return [
-      "div",
-      { class: ARTICLE_MATH_BLOCK_CLASS },
-      node.attrs.latex || "",
-    ];
+    return ["div", { class: ARTICLE_MATH_BLOCK_CLASS }, node.attrs.latex || ""];
   },
   addNodeView() {
     return articleMathNodeView(true);
@@ -514,10 +497,7 @@ export const ArticleHighlight = Mark.create({
       mark: {
         default: null,
         parseHTML: (element) =>
-          parseArticleMark(
-            elementAttr(element, "class"),
-            elementHighlightStyle(element),
-          ),
+          parseArticleMark(elementAttr(element, "class"), elementHighlightStyle(element)),
         renderHTML: (attributes) => {
           const cls = articleMarkClass(attributes.mark);
           return cls ? { class: cls } : {};
@@ -531,10 +511,8 @@ export const ArticleHighlight = Mark.create({
         tag: "mark",
         getAttrs: (element) => {
           const mark =
-            parseArticleMark(
-              elementAttr(element, "class"),
-              elementHighlightStyle(element),
-            ) || "yellow";
+            parseArticleMark(elementAttr(element, "class"), elementHighlightStyle(element)) ||
+            "yellow";
           return { mark };
         },
       },
@@ -599,9 +577,7 @@ export const ArticleDragHandle = Extension.create({
               hide();
               return;
             }
-            const $pos = view.state.doc.resolve(
-              coords.inside >= 0 ? coords.inside : coords.pos,
-            );
+            const $pos = view.state.doc.resolve(coords.inside >= 0 ? coords.inside : coords.pos);
             if ($pos.depth < 1) {
               hide();
               return;
@@ -623,9 +599,7 @@ export const ArticleDragHandle = Extension.create({
           handle.addEventListener("mousedown", () => {
             if (nodePos == null) return;
             view.dispatch(
-              view.state.tr.setSelection(
-                NodeSelection.create(view.state.doc, nodePos),
-              ),
+              view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)),
             );
             view.focus();
           });
@@ -755,11 +729,7 @@ export function articleSlashItems(): ArticleSlashItem[] {
       title: "表格",
       keywords: "表格 table",
       run: (editor) =>
-        editor
-          .chain()
-          .focus()
-          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-          .run(),
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
     },
     {
       id: "hr",
@@ -777,11 +747,7 @@ export function articleSlashItems(): ArticleSlashItem[] {
           onEdit({ latex: "", display: false });
           return true;
         }
-        return editor
-          .chain()
-          .focus()
-          .setArticleMath({ latex: "E=mc^2", display: false })
-          .run();
+        return editor.chain().focus().setArticleMath({ latex: "E=mc^2", display: false }).run();
       },
     },
     {
@@ -794,11 +760,7 @@ export function articleSlashItems(): ArticleSlashItem[] {
           onEdit({ latex: "", display: true });
           return true;
         }
-        return editor
-          .chain()
-          .focus()
-          .setArticleMath({ latex: "E=mc^2", display: true })
-          .run();
+        return editor.chain().focus().setArticleMath({ latex: "E=mc^2", display: true }).run();
       },
     },
   ];
@@ -811,8 +773,6 @@ export function filterArticleSlashItems(
   const q = (query || "").trim().toLowerCase();
   if (!q) return items;
   return items.filter(
-    (item) =>
-      item.title.toLowerCase().includes(q) ||
-      item.keywords.toLowerCase().includes(q),
+    (item) => item.title.toLowerCase().includes(q) || item.keywords.toLowerCase().includes(q),
   );
 }

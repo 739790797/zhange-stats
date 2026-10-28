@@ -102,23 +102,14 @@ export type TarkovRaidRoomLiveMapProps = {
   wsGen?: number;
   onStroke?: (stroke: { floor: string; points: StrokePoint[] }) => void;
   onPin?: (mark: { floor: string; x: number; z: number }) => void;
-  onLine?: (mark: {
-    floor: string;
-    x: number;
-    z: number;
-    x2: number;
-    z2: number;
-  }) => void;
+  onLine?: (mark: { floor: string; x: number; z: number; x2: number; z2: number }) => void;
   onText?: (mark: { floor: string; x: number; z: number; label: string }) => void;
   onTextMove?: (mark: { id: number; x: number; z: number }) => void;
   canDragTextMark?: (mark: { id: number; author_user_id: number }) => boolean;
   onEraseMark?: (markId: number) => void;
   onQuestLabelClick: (taskId: string) => void;
   onQuestCompleteObjective?: (taskId: string, objectiveId: string) => void;
-  questParticipantsByTask: ReadonlyMap<
-    string,
-    readonly RaidPrepMapParticipant[]
-  >;
+  questParticipantsByTask: ReadonlyMap<string, readonly RaidPrepMapParticipant[]>;
   topRight?: ReactNode;
   topLeft?: ReactNode;
   toolbar?: ReactNode;
@@ -155,10 +146,7 @@ function RaidRoomFixRelay({
   useEffect(() => {
     const ws = wsRef.current;
     if (!canEdit || !fix || !ws || ws.readyState !== WebSocket.OPEN) return;
-    if (
-      raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !==
-      "in_raid"
-    ) {
+    if (raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !== "in_raid") {
       return;
     }
     const logMap = normalizeRaidPrepMapId(lastLogPhase?.mapId || lastLogMapId || "");
@@ -305,9 +293,7 @@ export function TarkovRaidRoomLiveMap({
     if (!import.meta.env.DEV || !isPulseDemoSession(publicId)) return;
     const store = useRaidRoomLiveStore.getState();
     const mapId = pulseDemoBotMapId(PULSE_DEMO_SWITCH_USER_ID, pulseDemoHop);
-    const current = store.fixes.find(
-      (row) => row.userId === PULSE_DEMO_SWITCH_USER_ID,
-    );
+    const current = store.fixes.find((row) => row.userId === PULSE_DEMO_SWITCH_USER_ID);
     if (current) {
       if (current.mapId === mapId) return;
       store.upsertFix({ ...current, mapId, at: Date.now() });
@@ -347,10 +333,7 @@ export function TarkovRaidRoomLiveMap({
         .map((row) => ({
           key: `u:${row.userId}:${row.fileName || row.at}`,
           userId: row.userId,
-          name:
-            (row.userId === authorUserId ? selfName : "") ||
-            names.get(row.userId) ||
-            "",
+          name: (row.userId === authorUserId ? selfName : "") || names.get(row.userId) || "",
           color: colorForUserId(row.userId),
           x: row.x,
           y: row.y,
@@ -364,8 +347,7 @@ export function TarkovRaidRoomLiveMap({
 
   const hideLocalPulseFix =
     suppressLocalFix ||
-    raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !==
-      "in_raid" ||
+    raidRoomMemberActivity({ online: true, kind: lastLogPhase?.kind }) !== "in_raid" ||
     shouldSuppressLocalPlayerFix({
       viewMapId: mapId,
       logMapId: lastLogPhase?.mapId || lastLogMapId,
@@ -417,10 +399,7 @@ export function TarkovRaidRoomLiveMap({
     );
     if (!pulsePrimedRef.current || pulseSeenRef.current?.size === 0) {
       pulsePrimedRef.current = true;
-      pulseSeenRef.current = detectPlayerFixPulseUpdaters(
-        null,
-        displayedPlayerMarks,
-      ).next;
+      pulseSeenRef.current = detectPlayerFixPulseUpdaters(null, displayedPlayerMarks).next;
       setPulseLines((prev) => {
         const nextLines = retainPlayerFixPulseLines(prev, {
           now,
@@ -466,9 +445,7 @@ export function TarkovRaidRoomLiveMap({
     const now = Date.now();
     const until = Math.max(
       0,
-      Math.min(
-        ...pulseLines.map((line) => line.bornAt + PLAYER_FIX_PULSE_MS - now),
-      ),
+      Math.min(...pulseLines.map((line) => line.bornAt + PLAYER_FIX_PULSE_MS - now)),
     );
     const timer = window.setTimeout(() => {
       const seated = seatedIdsRef.current;
@@ -478,9 +455,7 @@ export function TarkovRaidRoomLiveMap({
           seatedCount: seated.size,
           seatedUserIds: seated,
           locatedUserIds: new Set(
-            displayedMarksRef.current
-              .map((row) => row.userId)
-              .filter((id) => id > 0),
+            displayedMarksRef.current.map((row) => row.userId).filter((id) => id > 0),
           ),
         });
         return playerFixPulseLinesEqual(prev, nextLines) ? prev : nextLines;
@@ -490,11 +465,7 @@ export function TarkovRaidRoomLiveMap({
   }, [pulseLines]);
 
   const viewDrafts = useMemo(
-    () =>
-      drafts.filter(
-        (row) =>
-          !row.mapId || !mapId || raidPrepMapsEquivalent(row.mapId, mapId),
-      ),
+    () => drafts.filter((row) => !row.mapId || !mapId || raidPrepMapsEquivalent(row.mapId, mapId)),
     [drafts, mapId],
   );
 
@@ -516,12 +487,7 @@ export function TarkovRaidRoomLiveMap({
   return (
     <>
       {canEdit && wsRef ? (
-        <RaidRoomFixRelay
-          canEdit={canEdit}
-          mapId={mapId}
-          wsRef={wsRef}
-          wsGen={wsGen}
-        />
+        <RaidRoomFixRelay canEdit={canEdit} mapId={mapId} wsRef={wsRef} wsGen={wsGen} />
       ) : null}
       <TarkovMapViewer
         key={mapId}

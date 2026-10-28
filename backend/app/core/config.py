@@ -45,9 +45,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 10
     # 环境变量 SECRET_KEY；留空或保持占位值时，首次读 settings.SECRET_KEY 才生成并写入 DATA_DIR/.secret_key
-    SECRET_KEY_CONFIGURED: str = Field(
-        default=DEFAULT_SECRET_KEY, validation_alias="SECRET_KEY", repr=False
-    )
+    SECRET_KEY_CONFIGURED: str = Field(default=DEFAULT_SECRET_KEY, validation_alias="SECRET_KEY", repr=False)
     _secret_key: str | None = PrivateAttr(default=None)
     # 默认 24 小时；管理端可在 config/auth.json 再调（最长 30 天）
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24

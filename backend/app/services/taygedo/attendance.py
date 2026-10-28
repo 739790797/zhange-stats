@@ -59,10 +59,13 @@ _DEFAULT_TASK_GOLD: dict[str, int] = {
 def friendly_error_message(msg: str) -> str:
     text = (msg or "").strip() or "未知错误"
     low = text.lower()
-    if any(
-        k in text
-        for k in ("登录", "凭证", "token", "过期", "失效", "授权", "挤下线", "其他设备")
-    ) or "unauthorized" in low or "http 401" in low or "http 402" in low or "http 403" in low:
+    if (
+        any(k in text for k in ("登录", "凭证", "token", "过期", "失效", "授权", "挤下线", "其他设备"))
+        or "unauthorized" in low
+        or "http 401" in low
+        or "http 402" in low
+        or "http 403" in low
+    ):
         return f"凭证可能已失效，请重新绑定塔吉多（{text}）"
     if any(k in text for k in ("网络", "超时", "timeout", "连接")) or "timed out" in low:
         return f"网络异常，请稍后重试（{text}）"
@@ -161,12 +164,7 @@ def _item_award_dict(item: dict[str, Any]) -> dict[str, Any] | None:
         or item.get("itemId")
         or item.get("resourceId")
     )
-    rtype = (
-        source.get("type")
-        or source.get("resourceType")
-        or item.get("type")
-        or item.get("resourceType")
-    )
+    rtype = source.get("type") or source.get("resourceType") or item.get("type") or item.get("resourceType")
     return award_item(
         name=str(name),
         count=count,
@@ -189,9 +187,7 @@ def _pack_awards(items: list[dict[str, Any]]) -> tuple[str | None, list[dict[str
     text = awards_text_from_items(items)
     # 文案风格与旧逻辑兼容：空格 x
     if text:
-        text = "、".join(
-            f"{a['name']} x{a['count']}" for a in items if a.get("name")
-        )
+        text = "、".join(f"{a['name']} x{a['count']}" for a in items if a.get("name"))
     return text, items
 
 
@@ -248,9 +244,7 @@ def _h5_headers(creds: TaygedoCredentials) -> dict[str, str]:
     }
 
 
-def _get_app_sign_state(
-    creds: TaygedoCredentials, *, community_id: int = COMMUNITY_ID
-) -> bool | None:
+def _get_app_sign_state(creds: TaygedoCredentials, *, community_id: int = COMMUNITY_ID) -> bool | None:
     """GET /apihub/api/getSignState — data=true 表示今日已签。
 
     鉴权失败会抛 TaygedoApiError；其它业务失败返回 None。
@@ -317,9 +311,7 @@ def ensure_session(creds: TaygedoCredentials) -> TaygedoCredentials:
     return recovered
 
 
-def _task_gold_reward(
-    row: dict[str, Any] | None, *, fallback: int | None = None
-) -> int | None:
+def _task_gold_reward(row: dict[str, Any] | None, *, fallback: int | None = None) -> int | None:
     """从任务中心单行解析塔塔币奖励。"""
     if not isinstance(row, dict):
         return fallback
@@ -406,9 +398,7 @@ def _get_game_sign_state(creds: TaygedoCredentials, game_id: str) -> dict[str, A
         return None
 
 
-def _list_game_rewards(
-    creds: TaygedoCredentials, game_id: str, *, role_id: str | None = None
-) -> list[dict[str, Any]]:
+def _list_game_rewards(creds: TaygedoCredentials, game_id: str, *, role_id: str | None = None) -> list[dict[str, Any]]:
     params = {"gameId": game_id}
     if role_id:
         params["roleId"] = role_id
@@ -429,9 +419,7 @@ def _list_game_rewards(
         return []
 
 
-def fetch_game_attendance_bundle(
-    creds: TaygedoCredentials, game_id: str, *, role_id: str
-) -> dict[str, Any]:
+def fetch_game_attendance_bundle(creds: TaygedoCredentials, game_id: str, *, role_id: str) -> dict[str, Any]:
     """拉取签到日历落库包：signin/state + sign/rewards。"""
     state = _get_game_sign_state(creds, game_id)
     if state is None:
@@ -482,11 +470,7 @@ def _awards_from_claim_records(
             if not isinstance(rec, dict):
                 continue
             ts = (
-                rec.get("ts")
-                or rec.get("timestamp")
-                or rec.get("createTime")
-                or rec.get("signTime")
-                or rec.get("time")
+                rec.get("ts") or rec.get("timestamp") or rec.get("createTime") or rec.get("signTime") or rec.get("time")
             )
             matched = False
             if ts is not None:
@@ -525,9 +509,7 @@ def _awards_from_game_state(
     role_id: str | None = None,
 ) -> tuple[str | None, list[dict[str, Any]]]:
     """今日已签奖励：优先领取记录；否则用本月累计 days（第 N 次），禁止用日历日期。"""
-    claimed_text, claimed_items = _awards_from_claim_records(
-        creds, game_id, role_id=role_id
-    )
+    claimed_text, claimed_items = _awards_from_claim_records(creds, game_id, role_id=role_id)
     rewards = _list_game_rewards(creds, game_id, role_id=role_id)
     day_award: dict[str, Any] | None = None
     try:
@@ -669,15 +651,9 @@ def _daily_task_snapshot(creds: TaygedoCredentials) -> dict[str, Any]:
         like_need = 5
     if share_need <= 0:
         share_need = 1
-    browse_gold = _task_gold_reward(
-        tasks.get(TK_BROWSE), fallback=_DEFAULT_TASK_GOLD[TK_BROWSE]
-    )
-    like_gold = _task_gold_reward(
-        tasks.get(TK_LIKE), fallback=_DEFAULT_TASK_GOLD[TK_LIKE]
-    )
-    share_gold = _task_gold_reward(
-        tasks.get(TK_SHARE), fallback=_DEFAULT_TASK_GOLD[TK_SHARE]
-    )
+    browse_gold = _task_gold_reward(tasks.get(TK_BROWSE), fallback=_DEFAULT_TASK_GOLD[TK_BROWSE])
+    like_gold = _task_gold_reward(tasks.get(TK_LIKE), fallback=_DEFAULT_TASK_GOLD[TK_LIKE])
+    share_gold = _task_gold_reward(tasks.get(TK_SHARE), fallback=_DEFAULT_TASK_GOLD[TK_SHARE])
     coin_state = {}
     try:
         coin_state = get_user_coin_state(creds)
@@ -691,9 +667,7 @@ def _daily_task_snapshot(creds: TaygedoCredentials) -> dict[str, Any]:
         today_total = int(coin_state.get("todayTotal") or 0)
     except (TypeError, ValueError):
         today_total = 0
-    all_done = (
-        browse >= browse_need and like >= like_need and share >= share_need
-    )
+    all_done = browse >= browse_need and like >= like_need and share >= share_need
     return {
         "browse": browse,
         "browse_need": browse_need,
@@ -710,9 +684,7 @@ def _daily_task_snapshot(creds: TaygedoCredentials) -> dict[str, Any]:
     }
 
 
-def list_recommend_posts(
-    creds: TaygedoCredentials, *, count: int = 20, page: int = 1
-) -> list[dict[str, Any]]:
+def list_recommend_posts(creds: TaygedoCredentials, *, count: int = 20, page: int = 1) -> list[dict[str, Any]]:
     """GET /bbs/api/getRecommendPostList。"""
     query = urllib.parse.urlencode(
         {
@@ -786,9 +758,7 @@ def like_post(creds: TaygedoCredentials, post_id: str) -> None:
     raise TaygedoApiError(friendly_error_message(msg), code=data.get("code"))
 
 
-def share_post(
-    creds: TaygedoCredentials, post_id: str, *, platform: str = SHARE_PLATFORM
-) -> None:
+def share_post(creds: TaygedoCredentials, post_id: str, *, platform: str = SHARE_PLATFORM) -> None:
     status, data = _http(
         "POST",
         f"{TAYGEDO_BASE}/bbs/api/post/share",
@@ -805,9 +775,7 @@ def share_post(
     raise TaygedoApiError(friendly_error_message(msg), code=data.get("code"))
 
 
-def _tasks_extra_text_from_snap(
-    snap: dict[str, Any], *, gold: int | None = None
-) -> str:
+def _tasks_extra_text_from_snap(snap: dict[str, Any], *, gold: int | None = None) -> str:
     return _tasks_extra_text(
         browse=int(snap.get("browse") or 0),
         browse_need=int(snap.get("browse_need") or 0),
@@ -886,9 +854,7 @@ def complete_daily_tasks(creds: TaygedoCredentials) -> dict[str, Any]:
     return {**after, "skipped": False, "gold": gold, "text": text, "errors": errors}
 
 
-def _attach_daily_tasks(
-    creds: TaygedoCredentials, result: CheckinResult
-) -> CheckinResult:
+def _attach_daily_tasks(creds: TaygedoCredentials, result: CheckinResult) -> CheckinResult:
     """在社区签到结果上附加每日任务执行情况。"""
     try:
         tasks = complete_daily_tasks(creds)
@@ -931,9 +897,7 @@ def query_app_today(creds: TaygedoCredentials) -> CheckinResult:
             role_name="社区账号",
             channel_name="社区",
             status="already",
-            message=(
-                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
-            ),
+            message=(f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"),
             awards_text=awards_text,
             awards=awards_items or None,
         )
@@ -976,9 +940,7 @@ def query_game_today(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinRes
     state = _get_game_sign_state(creds, role.game_code)
     channel = role.game_name
     if state and state.get("todaySign"):
-        awards_text, awards_items = _awards_from_game_state(
-            creds, role.game_code, state, role_id=role.role_id
-        )
+        awards_text, awards_items = _awards_from_game_state(creds, role.game_code, state, role_id=role.role_id)
         return CheckinResult(
             game_code=role.game_code,
             game_name=role.game_name,
@@ -986,9 +948,7 @@ def query_game_today(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinRes
             role_name=role.role_name,
             channel_name=channel,
             status="already",
-            message=(
-                f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
-            ),
+            message=(f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"),
             awards_text=awards_text,
             awards=awards_items or None,
         )
@@ -1050,9 +1010,7 @@ def query_today_all(
     return working, query_targets_today(working, targets)
 
 
-def _post_app_signin(
-    creds: TaygedoCredentials, community_id: int
-) -> tuple[str, dict[str, Any], str]:
+def _post_app_signin(creds: TaygedoCredentials, community_id: int) -> tuple[str, dict[str, Any], str]:
     status, data = _http(
         "POST",
         f"{TAYGEDO_BASE}/apihub/api/signin",
@@ -1070,9 +1028,7 @@ def _post_app_signin(
     return "error", data, msg
 
 
-def _community_signin_result(
-    creds: TaygedoCredentials, kind: str, data: dict[str, Any]
-) -> CheckinResult:
+def _community_signin_result(creds: TaygedoCredentials, kind: str, data: dict[str, Any]) -> CheckinResult:
     if kind == "ok":
         payload = data.get("data") or {}
         exp = payload.get("exp") if isinstance(payload, dict) else None
@@ -1081,16 +1037,10 @@ def _community_signin_result(
         awards_items: list[dict[str, Any]] = []
         if isinstance(exp, (int, float)) or isinstance(gold, (int, float)):
             if isinstance(exp, (int, float)):
-                awards_items.append(
-                    award_item(name="经验", count=int(exp), resource_type="exp")
-                )
+                awards_items.append(award_item(name="经验", count=int(exp), resource_type="exp"))
             if isinstance(gold, (int, float)):
-                awards_items.append(
-                    award_item(name="塔塔币", count=int(gold), resource_type="gold")
-                )
-            awards_text = "、".join(
-                f"{a['name']}+{a['count']}" for a in awards_items
-            )
+                awards_items.append(award_item(name="塔塔币", count=int(gold), resource_type="gold"))
+            awards_text = "、".join(f"{a['name']}+{a['count']}" for a in awards_items)
         result = CheckinResult(
             game_code=GAME_APP,
             game_name=GAME_APP_NAME,
@@ -1111,9 +1061,7 @@ def _community_signin_result(
         role_name="社区账号",
         channel_name="社区",
         status="already",
-        message=(
-            f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"
-        ),
+        message=(f"今日已签到，获得：{awards_text}" if awards_text else "今日已签到"),
         awards_text=awards_text,
         awards=awards_items or None,
     )
@@ -1181,9 +1129,7 @@ def game_signin(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinResult:
         # POST 成功后重读状态，用 days 对齐领取记录中的当日奖励
         awards_text, awards_items = _awards_from_sign_payload(data)
         if not awards_text:
-            awards_text, awards_items = _fetch_rewards(
-                creds, role.game_code, role_id=role.role_id
-            )
+            awards_text, awards_items = _fetch_rewards(creds, role.game_code, role_id=role.role_id)
         return CheckinResult(
             game_code=role.game_code,
             game_name=role.game_name,
@@ -1191,18 +1137,14 @@ def game_signin(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinResult:
             role_name=role.role_name,
             channel_name=channel,
             status="ok",
-            message=(
-                f"签到成功{('，获得：' + awards_text) if awards_text else ''}"
-            ),
+            message=(f"签到成功{('，获得：' + awards_text) if awards_text else ''}"),
             awards_text=awards_text,
             awards=awards_items or None,
             upstream_request=upstream_req,
             upstream_response=upstream_resp,
         )
     if _is_already(msg):
-        awards_text, awards_items = _fetch_rewards(
-            creds, role.game_code, role_id=role.role_id
-        )
+        awards_text, awards_items = _fetch_rewards(creds, role.game_code, role_id=role.role_id)
         return CheckinResult(
             game_code=role.game_code,
             game_name=role.game_name,
@@ -1210,9 +1152,7 @@ def game_signin(creds: TaygedoCredentials, role: TaygedoRole) -> CheckinResult:
             role_name=role.role_name,
             channel_name=channel,
             status="already",
-            message=(
-                f"今日已签到{('，获得：' + awards_text) if awards_text else ''}"
-            ),
+            message=(f"今日已签到{('，获得：' + awards_text) if awards_text else ''}"),
             awards_text=awards_text,
             awards=awards_items or None,
             upstream_request=upstream_req,
@@ -1340,29 +1280,15 @@ def _shop_game_id_from_row(row: dict[str, Any]) -> str:
 
 
 def _parse_shop_goods(row: dict[str, Any]) -> ShopGoods | None:
-    goods_id = str(
-        row.get("id")
-        or row.get("goodsId")
-        or row.get("goods_id")
-        or ""
-    ).strip()
-    name = str(
-        row.get("name")
-        or row.get("goodsName")
-        or row.get("goods_name")
-        or ""
-    ).strip()
+    goods_id = str(row.get("id") or row.get("goodsId") or row.get("goods_id") or "").strip()
+    name = str(row.get("name") or row.get("goodsName") or row.get("goods_name") or "").strip()
     if not goods_id or not name:
         return None
     stock_limited = _to_int(row.get("limit"), 0) > 0
     stock_raw = _to_int(
         row.get("stock")
         if row.get("stock") is not None
-        else (
-            row.get("remainStock")
-            if row.get("remainStock") is not None
-            else row.get("surplusStock")
-        ),
+        else (row.get("remainStock") if row.get("remainStock") is not None else row.get("surplusStock")),
         -1,
     )
     # 不限库存时上游常给 stock=0，归一成 -1，避免前端当成「已兑完」
@@ -1371,12 +1297,7 @@ def _parse_shop_goods(row: dict[str, Any]) -> ShopGoods | None:
         goods_id=goods_id,
         name=name,
         cover=str(
-            row.get("cover")
-            or row.get("icon")
-            or row.get("pic")
-            or row.get("picture")
-            or row.get("img")
-            or ""
+            row.get("cover") or row.get("icon") or row.get("pic") or row.get("picture") or row.get("img") or ""
         ).strip(),
         price=_to_int(row.get("price") or row.get("coin") or row.get("goldCoin"), 0),
         exchange_num=_to_int(
@@ -1385,22 +1306,14 @@ def _parse_shop_goods(row: dict[str, Any]) -> ShopGoods | None:
             else (
                 row.get("exchange_num")
                 if row.get("exchange_num") is not None
-                else (
-                    row.get("exchanged")
-                    if row.get("exchanged") is not None
-                    else row.get("userExchangeNum")
-                )
+                else (row.get("exchanged") if row.get("exchanged") is not None else row.get("userExchangeNum"))
             ),
             0,
         ),
         cycle_limit=_to_int(
             row.get("cycleLimit")
             if row.get("cycleLimit") is not None
-            else (
-                row.get("cycle_limit")
-                if row.get("cycle_limit") is not None
-                else 0
-            ),
+            else (row.get("cycle_limit") if row.get("cycle_limit") is not None else 0),
             0,
         ),
         cycle_type=_to_int(row.get("cycleType") or row.get("cycle_type"), 0),
@@ -1427,9 +1340,7 @@ def _parse_shop_tabs(raw: Any) -> list[dict[str, str]]:
         key = str(row.get("tab") or row.get("key") or row.get("id") or "").strip()
         if not key:
             continue
-        name = str(
-            row.get("name") or row.get("title") or row.get("label") or key
-        ).strip()
+        name = str(row.get("name") or row.get("title") or row.get("label") or key).strip()
         out.append({"tab": key, "name": name or key})
     return out
 

@@ -33,20 +33,17 @@ describe("objective type chips", () => {
   });
 
   it("dedupes, canonicalizes, and orders types for the table", () => {
-    expect(
-      orderObjectiveTypes(["visit", "shoot", "visit", "giveItem", ""]),
-    ).toEqual(["shoot", "giveItem", "visit"]);
+    expect(orderObjectiveTypes(["visit", "shoot", "visit", "giveItem", ""])).toEqual([
+      "shoot",
+      "giveItem",
+      "visit",
+    ]);
     expect(
       orderObjectiveTypes(["giveQuestItem", "giveItem", "plantQuestItem", "findQuestItem"]),
     ).toEqual(["findItem", "giveItem", "plantItem"]);
-    expect(orderObjectiveTypes(["zzz", "shoot", "aaa"])).toEqual([
-      "shoot",
-      "aaa",
-      "zzz",
-    ]);
+    expect(orderObjectiveTypes(["zzz", "shoot", "aaa"])).toEqual(["shoot", "aaa", "zzz"]);
   });
 });
-
 
 describe("formatTaskExtractLines", () => {
   it("matches tarkov.dev extract wording and ignores ExpBonus names", () => {
@@ -146,13 +143,7 @@ describe("task detail extras", () => {
           { name: "width", compare_method: "<=", value: 4 },
         ],
       }),
-    ).toEqual([
-      "耐久 ≥60%",
-      "瞄准距离 ≥800",
-      "弹匣容量 ≥60",
-      "重量 ≤4.8",
-      "格仓宽 ≤4",
-    ]);
+    ).toEqual(["耐久 ≥60%", "瞄准距离 ≥800", "弹匣容量 ≥60", "重量 ≤4.8", "格仓宽 ≤4"]);
   });
 });
 

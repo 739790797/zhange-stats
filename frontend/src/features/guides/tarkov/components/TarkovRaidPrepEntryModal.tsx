@@ -42,13 +42,7 @@ type Props = {
   onSoloMap?: (mapId: string) => void;
 };
 
-function MapThumb({
-  slug,
-  icon,
-}: {
-  slug: string;
-  icon: string;
-}) {
+function MapThumb({ slug, icon }: { slug: string; icon: string }) {
   const [broken, setBroken] = useState(false);
   const src = tarkovMapThumbUrl(slug);
   if (!src || broken) {
@@ -100,9 +94,7 @@ export function MapPickGrid({
               <MapThumb slug={option.id} icon={option.icon} />
             </div>
             <div className={mapStyles.body}>
-              <div className={`${mapStyles.name} ${styles.pickName}`}>
-                {option.label}
-              </div>
+              <div className={`${mapStyles.name} ${styles.pickName}`}>{option.label}</div>
               <div className={mapStyles.english}>{option.english}</div>
               {goon ? <TarkovGoonSightingHint mapId={option.id} /> : null}
             </div>
@@ -182,8 +174,7 @@ export function TarkovRaidPrepEntryModal({
   });
 
   const joinByCodeMut = useMutation({
-    mutationFn: (publicId: string) =>
-      joinTarkovRaidRoom(publicId, { gameMode }),
+    mutationFn: (publicId: string) => joinTarkovRaidRoom(publicId, { gameMode }),
     onSuccess: (room) => {
       void queryClient.invalidateQueries({
         queryKey: ["guides-tarkov-raid-rooms"],
@@ -199,8 +190,7 @@ export function TarkovRaidPrepEntryModal({
     },
   });
 
-  const createBlocked =
-    createMut.isPending || (!listed && !password.trim());
+  const createBlocked = createMut.isPending || (!listed && !password.trim());
 
   return (
     <Modal
@@ -214,82 +204,73 @@ export function TarkovRaidPrepEntryModal({
     >
       {step === "create" ? (
         loggedIn ? (
-        <form
-          className={styles.entryCreate}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (createBlocked) return;
-            createMut.mutate();
-          }}
-        >
-          <div>
-            <div className={styles.entryFieldLabel}>房间性质</div>
-            <div className={styles.entryKind}>
-              <label className={styles.entryKindLabel}>
-                <input
-                  type="radio"
-                  name="raid-room-listed"
-                  checked={listed}
-                  onChange={() => {
-                    setListed(true);
-                    setPassword("");
-                  }}
-                />
-                公开
-              </label>
-              <label className={styles.entryKindLabel}>
-                <input
-                  type="radio"
-                  name="raid-room-listed"
-                  checked={!listed}
-                  onChange={() => setListed(false)}
-                />
-                私密
-              </label>
+          <form
+            className={styles.entryCreate}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (createBlocked) return;
+              createMut.mutate();
+            }}
+          >
+            <div>
+              <div className={styles.entryFieldLabel}>房间性质</div>
+              <div className={styles.entryKind}>
+                <label className={styles.entryKindLabel}>
+                  <input
+                    type="radio"
+                    name="raid-room-listed"
+                    checked={listed}
+                    onChange={() => {
+                      setListed(true);
+                      setPassword("");
+                    }}
+                  />
+                  公开
+                </label>
+                <label className={styles.entryKindLabel}>
+                  <input
+                    type="radio"
+                    name="raid-room-listed"
+                    checked={!listed}
+                    onChange={() => setListed(false)}
+                  />
+                  私密
+                </label>
+              </div>
             </div>
-          </div>
-          <label>
-            <div className={styles.entryFieldLabel}>房间名称</div>
-            <input
-              className={styles.dockSearch}
-              value={title}
-              maxLength={RAID_ROOM_TITLE_MAX}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={defaultRaidRoomTitle(displayName)}
-              aria-label="房间名称"
-            />
-          </label>
-          {listed ? null : (
             <label>
-              <div className={styles.entryFieldLabel}>房间密码</div>
-              <Input.Password
-                value={password}
-                maxLength={32}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="加入时需要"
-                autoComplete="new-password"
+              <div className={styles.entryFieldLabel}>房间名称</div>
+              <input
+                className={styles.dockSearch}
+                value={title}
+                maxLength={RAID_ROOM_TITLE_MAX}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={defaultRaidRoomTitle(displayName)}
+                aria-label="房间名称"
               />
             </label>
-          )}
-          <p className={styles.entryHint}>
-            {RAID_ROOM_TITLE_POLICY}{" "}
-            若你已在其他房间，创建后会自动离开。地图进房后再选。
-          </p>
-          {createMut.isError ? (
-            <Alert
-              type="error"
-              showIcon
-              message={apiError(createMut.error, "创建房间失败")}
-            />
-          ) : null}
-          <button
-            type="submit"
-            className={styles.dockChip}
-            disabled={createBlocked}
-          >
-            {createMut.isPending ? "创建中…" : "创建房间"}
-          </button>
-        </form>
+            {listed ? null : (
+              <label>
+                <div className={styles.entryFieldLabel}>房间密码</div>
+                <Input.Password
+                  value={password}
+                  maxLength={32}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="加入时需要"
+                  autoComplete="new-password"
+                />
+              </label>
+            )}
+            <p className={styles.entryHint}>
+              {RAID_ROOM_TITLE_POLICY} 若你已在其他房间，创建后会自动离开。地图进房后再选。
+            </p>
+            {createMut.isError ? (
+              <Alert type="error" showIcon message={apiError(createMut.error, "创建房间失败")} />
+            ) : null}
+            <button type="submit" className={styles.dockChip} disabled={createBlocked}>
+              {createMut.isPending ? "创建中…" : "创建房间"}
+            </button>
+          </form>
         ) : (
           <TarkovLoginPrompt feature="创建联机房间" />
         )
@@ -307,46 +288,38 @@ export function TarkovRaidPrepEntryModal({
       {step === "join" ? (
         <div className={styles.lobby}>
           {loggedIn ? (
-          <form
-            className={styles.joinForm}
-            onSubmit={(event) => {
-              event.preventDefault();
-              const parsed = parseRaidRoomPublicId(joinText, gameMode);
-              if (!parsed) {
-                setJoinError("填写房间码或粘贴房间链接");
-                return;
-              }
-              setJoinError("");
-              joinByCodeMut.mutate(parsed);
-            }}
-          >
-            <input
-              className={styles.dockSearch}
-              value={joinText}
-              onChange={(event) => {
-                setJoinText(event.target.value);
-                if (joinError) setJoinError("");
+            <form
+              className={styles.joinForm}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const parsed = parseRaidRoomPublicId(joinText, gameMode);
+                if (!parsed) {
+                  setJoinError("填写房间码或粘贴房间链接");
+                  return;
+                }
+                setJoinError("");
+                joinByCodeMut.mutate(parsed);
               }}
-              placeholder="填写房间码"
-              aria-label="房间码"
-            />
-            <button
-              type="submit"
-              className={styles.dockChip}
-              disabled={joinByCodeMut.isPending}
             >
-              {joinByCodeMut.isPending ? "加入中…" : "加入"}
-            </button>
-          </form>
+              <input
+                className={styles.dockSearch}
+                value={joinText}
+                onChange={(event) => {
+                  setJoinText(event.target.value);
+                  if (joinError) setJoinError("");
+                }}
+                placeholder="填写房间码"
+                aria-label="房间码"
+              />
+              <button type="submit" className={styles.dockChip} disabled={joinByCodeMut.isPending}>
+                {joinByCodeMut.isPending ? "加入中…" : "加入"}
+              </button>
+            </form>
           ) : (
             <TarkovLoginPrompt feature="用房间码加入" />
           )}
-          {joinError ? (
-            <Alert type="error" showIcon message={joinError} />
-          ) : null}
-          <TarkovRaidSeatBoard
-            onEntered={onClose}
-          />
+          {joinError ? <Alert type="error" showIcon message={joinError} /> : null}
+          <TarkovRaidSeatBoard onEntered={onClose} />
         </div>
       ) : null}
     </Modal>

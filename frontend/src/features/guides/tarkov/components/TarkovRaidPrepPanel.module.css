@@ -954,8 +954,7 @@
   color: #eee9d6;
   font-weight: 600;
   font-size: 13px;
-  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC",
-    "IBM Plex Sans", sans-serif;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "IBM Plex Sans", sans-serif;
   text-align: left;
   text-decoration: none;
   text-overflow: ellipsis;
@@ -1328,8 +1327,7 @@
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC",
-    "IBM Plex Sans", sans-serif;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "IBM Plex Sans", sans-serif;
 }
 
 .summaryCount {

@@ -81,18 +81,14 @@ export async function uploadMyAvatar(file: File) {
 export async function uploadMemberAvatar(memberId: number, file: File) {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await client.post<MemberProfile>(
-    `/members/${memberId}/avatar`,
-    form,
-    { timeout: 30000 },
-  );
+  const { data } = await client.post<MemberProfile>(`/members/${memberId}/avatar`, form, {
+    timeout: 30000,
+  });
   return data;
 }
 
 export async function fetchMemberProfile(memberId: number) {
-  const { data } = await client.get<MemberProfile>(
-    `/members/${memberId}/profile`,
-  );
+  const { data } = await client.get<MemberProfile>(`/members/${memberId}/profile`);
   return data;
 }
 
@@ -103,9 +99,6 @@ export async function updateMemberProfile(
     steam_id?: string | null;
   },
 ) {
-  const { data } = await client.patch<MemberProfile>(
-    `/members/${memberId}/profile`,
-    payload,
-  );
+  const { data } = await client.patch<MemberProfile>(`/members/${memberId}/profile`, payload);
   return data;
 }

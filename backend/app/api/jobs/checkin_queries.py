@@ -48,6 +48,7 @@ def _game_code_sort_key(game_code: str | None) -> tuple[int, str]:
         return (0, code)
     return (1, code)
 
+
 @router.get("/jobs/checkin-logs", response_model=CheckinLogsPageOut)
 def list_checkin_logs(
     platform: str | None = Query(default=None),
@@ -78,9 +79,7 @@ def list_job_filter_members(
         model = _bind_model(p)
         if model is None:
             continue
-        bound_ids.update(
-            mid for (mid,) in db.query(model.member_id).all() if mid is not None
-        )
+        bound_ids.update(mid for (mid,) in db.query(model.member_id).all() if mid is not None)
     if not bound_ids:
         return []
 
@@ -136,9 +135,7 @@ def query_user_checkin_tasks(
         raise HTTPException(status_code=400, detail="不支持的平台")
 
     job_by_platform = {
-        str(m["platform"]): str(m["id"])
-        for m in JOB_CATALOG
-        if m.get("kind") == "user_schedule" and m.get("platform")
+        str(m["platform"]): str(m["id"]) for m in JOB_CATALOG if m.get("kind") == "user_schedule" and m.get("platform")
     }
     platforms = [platform] if platform else list(CHECKIN_PLATFORM_ORDER)
     platforms = [
@@ -168,13 +165,11 @@ def query_user_checkin_tasks(
     page_tasks = tasks[start : start + page_size]
 
     member_ids = {t.member_id for t in page_tasks}
-    members = {
-        m.id: m
-        for m in db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id.in_(member_ids))
-        .all()
-    } if member_ids else {}
+    members = (
+        {m.id: m for m in db.query(Member).options(joinedload(Member.user)).filter(Member.id.in_(member_ids)).all()}
+        if member_ids
+        else {}
+    )
     last_meta: dict[str, dict[int, dict[tuple[str, str], dict[str, Any]]]] = {}
     today_meta: dict[str, dict[int, dict[tuple[str, str], dict[str, Any]]]] = {}
     for p in {t.platform for t in page_tasks}:
@@ -193,17 +188,8 @@ def query_user_checkin_tasks(
             key = (t.game_code, t.role_uid or "")
             meta = log_meta.get(key) or {}
             tmeta = today_meta[t.platform].get(t.member_id, {}).get(key) or {}
-            game_name = str(
-                tmeta.get("game_name")
-                or meta.get("game_name")
-                or t.game_code
-            )
-            role_name = str(
-                tmeta.get("role_name")
-                or meta.get("role_name")
-                or t.role_uid
-                or t.game_code
-            )
+            game_name = str(tmeta.get("game_name") or meta.get("game_name") or t.game_code)
+            role_name = str(tmeta.get("role_name") or meta.get("role_name") or t.role_uid or t.game_code)
             items.append(
                 UserCheckinTaskOut(
                     task_key=f"{t.platform}:{t.member_id}:{t.game_code}:{t.role_uid}",
@@ -220,8 +206,7 @@ def query_user_checkin_tasks(
                     game_name=game_name,
                     role_uid=t.role_uid,
                     role_name=role_name,
-                    channel_name=tmeta.get("channel_name")
-                    or meta.get("channel_name"),
+                    channel_name=tmeta.get("channel_name") or meta.get("channel_name"),
                     today_status=tmeta.get("status"),
                     today_status_label=tmeta.get("status_label"),
                     today_awards_text=tmeta.get("awards_text"),
@@ -232,9 +217,7 @@ def query_user_checkin_tasks(
                     ],
                     last_checkin_at=_fmt_dt(meta.get("checked_at")),
                     last_checkin_date=(
-                        meta["checkin_date"].isoformat()
-                        if meta.get("checkin_date") is not None
-                        else None
+                        meta["checkin_date"].isoformat() if meta.get("checkin_date") is not None else None
                     ),
                     bound_at=_fmt_dt(t.bound_at),
                 )
@@ -263,9 +246,7 @@ def query_user_checkin_tasks(
                 checkin_minute=t.checkin_minute,
                 last_checkin_at=_fmt_dt(latest_meta.get("checked_at")),
                 last_checkin_date=(
-                    latest_meta["checkin_date"].isoformat()
-                    if latest_meta.get("checkin_date") is not None
-                    else None
+                    latest_meta["checkin_date"].isoformat() if latest_meta.get("checkin_date") is not None else None
                 ),
                 bound_at=_fmt_dt(t.bound_at),
             )
@@ -291,9 +272,7 @@ class _TaskRow(NamedTuple):
     bound_at: datetime | None
 
 
-def _task_rows(
-    db: Session, platforms: list[str], *, member_id: int | None
-) -> list[_TaskRow]:
+def _task_rows(db: Session, platforms: list[str], *, member_id: int | None) -> list[_TaskRow]:
     """有角色偏好的每个角色一行；尚未写出偏好的整平台一行（时间用 bind 种子）。"""
     if not platforms:
         return []
@@ -385,9 +364,7 @@ def _role_log_meta(
     if hasattr(log_model, "source"):
         q = q.filter(_action_only_filter(log_model))
     # logs 按角色+日唯一：最近一天那行就是该角色最近一次执行
-    latest = q.group_by(
-        log_model.member_id, log_model.game_code, log_model.role_uid
-    ).subquery()
+    latest = q.group_by(log_model.member_id, log_model.game_code, log_model.role_uid).subquery()
     rows = (
         db.query(
             log_model.member_id,
@@ -462,8 +439,7 @@ def _role_today_status_meta(
             "awards": loads_awards_json(getattr(row, "awards_json", None)) or [],
             "game_name": row.game_name,
             "role_name": row.role_name,
-            "channel_name": str(getattr(row, "channel_name", None) or "").strip()
-            or None,
+            "channel_name": str(getattr(row, "channel_name", None) or "").strip() or None,
         }
     return out
 
@@ -478,20 +454,14 @@ def attach_last_checkin_to_result_dicts(
     """把任务页同源的上次执行字段挂到 status today_results。"""
     if not results:
         return results
-    meta = _role_log_meta(
-        db, _checkin_log_model(platform), member_ids=[int(member_id)]
-    ).get(int(member_id), {})
+    meta = _role_log_meta(db, _checkin_log_model(platform), member_ids=[int(member_id)]).get(int(member_id), {})
     out: list[dict[str, Any]] = []
     for r in results:
         item = dict(r)
         key = (str(item.get("game_code") or ""), str(item.get("role_uid") or ""))
         m = meta.get(key) or {}
         item["last_checkin_at"] = _fmt_dt(m.get("checked_at"))
-        item["last_checkin_date"] = (
-            m["checkin_date"].isoformat()
-            if m.get("checkin_date") is not None
-            else None
-        )
+        item["last_checkin_date"] = m["checkin_date"].isoformat() if m.get("checkin_date") is not None else None
         out.append(item)
     return out
 
@@ -524,12 +494,7 @@ def query_checkin_logs(
         if hasattr(model, "source"):
             q = q.filter(model.source == LOG_SOURCE_ACTION)
         total = int(q.count() or 0)
-        rows = (
-            q.order_by(desc(model.checked_at), desc(model.id))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
+        rows = q.order_by(desc(model.checked_at), desc(model.id)).offset((page - 1) * page_size).limit(page_size).all()
         page_rows = [(p, row) for row in rows]
     else:
         total = 0
@@ -545,9 +510,7 @@ def query_checkin_logs(
             if hasattr(model, "source"):
                 q = q.filter(model.source == LOG_SOURCE_ACTION)
             total += int(q.count() or 0)
-            for row in q.order_by(desc(model.checked_at), desc(model.id)).limit(
-                fetch_n
-            ).all():
+            for row in q.order_by(desc(model.checked_at), desc(model.id)).limit(fetch_n).all():
                 merged.append((p, row))
         merged.sort(
             key=lambda pair: (
@@ -560,21 +523,17 @@ def query_checkin_logs(
         page_rows = merged[start : start + page_size]
 
     member_ids = {r.member_id for _, r in page_rows}
-    members = {
-        m.id: m
-        for m in db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id.in_(member_ids))
-        .all()
-    } if member_ids else {}
+    members = (
+        {m.id: m for m in db.query(Member).options(joinedload(Member.user)).filter(Member.id.in_(member_ids)).all()}
+        if member_ids
+        else {}
+    )
 
     items = []
     for p, row in page_rows:
         member = members.get(row.member_id)
         raw_awards = loads_awards_json(getattr(row, "awards_json", None)) or []
-        awards = [
-            CheckinAwardItem(**a) if isinstance(a, dict) else a for a in raw_awards
-        ]
+        awards = [CheckinAwardItem(**a) if isinstance(a, dict) else a for a in raw_awards]
         # 过滤非法条目：CheckinAwardItem 需要 name
         awards = [a for a in awards if getattr(a, "name", None)]
         awards_display = display_checkin_awards_summary(
@@ -599,9 +558,7 @@ def query_checkin_logs(
                 message=row.message,
                 awards_text=awards_display,
                 awards=awards,
-                checkin_date=row.checkin_date.isoformat()
-                if row.checkin_date
-                else "",
+                checkin_date=row.checkin_date.isoformat() if row.checkin_date else "",
                 checked_at=_fmt_dt(row.checked_at),
             )
         )

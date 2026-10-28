@@ -15,8 +15,14 @@ import {
   theme,
 } from "antd";
 import { useState, type ReactNode } from "react";
-import { fetchIntegrationsSettings, updateIntegrationsSettings } from "@/features/admin/api/integrationsApi";
-import type { IntegrationsSettings, IntegrationsUpdate } from "@/features/admin/api/integrationsApi";
+import {
+  fetchIntegrationsSettings,
+  updateIntegrationsSettings,
+} from "@/features/admin/api/integrationsApi";
+import type {
+  IntegrationsSettings,
+  IntegrationsUpdate,
+} from "@/features/admin/api/integrationsApi";
 import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
 import { PlatformIcon } from "@/features/platforms/shared/components/PlatformIcon";
 import { SecretFormItem } from "@/shared/ui/SecretFormItem";
@@ -152,8 +158,7 @@ export default function IntegrationsSettingsPage() {
   });
 
   const save = useMutation({
-    mutationFn: (payload: IntegrationsUpdate) =>
-      updateIntegrationsSettings(payload),
+    mutationFn: (payload: IntegrationsUpdate) => updateIntegrationsSettings(payload),
     onSuccess: (saved) => {
       message.success("集成密钥已保存");
       queryClient.setQueryData(["integrations-settings"], saved);
@@ -181,75 +186,67 @@ export default function IntegrationsSettingsPage() {
         onFinish={(values) => {
           save.mutate(toPayload(values, clearing));
         }}
-    >
-      <AdminPageHeader
-        title="集成密钥"
-        subtitle="第三方密钥与连接配置"
-        extra={saveButton}
-      />
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <PlatformIcon name="steam" size={22} />
-          </IntegrationMark>
-        }
-        title="Steam"
-        configured={data?.steam_configured}
       >
-        <SecretFormItem
-          name="steam_api_key"
-          label="Web API Key"
-          extra={
-            <Typography.Link
-              href="https://steamcommunity.com/dev/apikey"
-              target="_blank"
-              rel="noreferrer"
-            >
-              前往 Steam 申请 / 查看
-            </Typography.Link>
+        <AdminPageHeader title="集成密钥" subtitle="第三方密钥与连接配置" extra={saveButton} />
+        <IntegrationBlock
+          icon={
+            <IntegrationMark>
+              <PlatformIcon name="steam" size={22} />
+            </IntegrationMark>
           }
-          style={{ marginBottom: 0 }}
-          set={Boolean(data?.steam_api_key_set)}
-          hint={data?.steam_api_key_hint}
-          emptyPlaceholder="请输入 Steam Web API Key"
-          {...clearProps("steam_api_key")}
-        />
-      </IntegrationBlock>
+          title="Steam"
+          configured={data?.steam_configured}
+        >
+          <SecretFormItem
+            name="steam_api_key"
+            label="Web API Key"
+            extra={
+              <Typography.Link
+                href="https://steamcommunity.com/dev/apikey"
+                target="_blank"
+                rel="noreferrer"
+              >
+                前往 Steam 申请 / 查看
+              </Typography.Link>
+            }
+            style={{ marginBottom: 0 }}
+            set={Boolean(data?.steam_api_key_set)}
+            hint={data?.steam_api_key_hint}
+            emptyPlaceholder="请输入 Steam Web API Key"
+            {...clearProps("steam_api_key")}
+          />
+        </IntegrationBlock>
 
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <QqOutlined />
-          </IntegrationMark>
-        }
-        title="QQ 互联"
-        configured={data?.qq_configured}
-      >
-        <Row gutter={16}>
-          <Col xs={24} sm={12}>
-            <Form.Item
-              name="qq_app_id"
-              label="App ID"
-              style={{ marginBottom: 0 }}
-            >
-              <Input placeholder="应用 ID" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12}>
-            <SecretFormItem
-              name="qq_app_key"
-              label="App Key"
-              style={{ marginBottom: 0 }}
-              set={Boolean(data?.qq_app_key_set)}
-              hint={data?.qq_app_key_hint}
-              emptyPlaceholder="请输入 QQ App Key"
-              {...clearProps("qq_app_key")}
-            />
-          </Col>
-        </Row>
-      </IntegrationBlock>
+        <IntegrationBlock
+          icon={
+            <IntegrationMark>
+              <QqOutlined />
+            </IntegrationMark>
+          }
+          title="QQ 互联"
+          configured={data?.qq_configured}
+        >
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="qq_app_id" label="App ID" style={{ marginBottom: 0 }}>
+                <Input placeholder="应用 ID" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <SecretFormItem
+                name="qq_app_key"
+                label="App Key"
+                style={{ marginBottom: 0 }}
+                set={Boolean(data?.qq_app_key_set)}
+                hint={data?.qq_app_key_hint}
+                emptyPlaceholder="请输入 QQ App Key"
+                {...clearProps("qq_app_key")}
+              />
+            </Col>
+          </Row>
+        </IntegrationBlock>
 
-      {/* Minecraft 页面已停用：面板、公开地址、RCON。
+        {/* Minecraft 页面已停用：面板、公开地址、RCON。
       <IntegrationBlock
         icon={
           <IntegrationMark>
@@ -367,27 +364,27 @@ export default function IntegrationsSettingsPage() {
       </IntegrationBlock>
       */}
 
-      <IntegrationBlock
-        icon={
-          <IntegrationMark>
-            <GithubOutlined />
-          </IntegrationMark>
-        }
-        title="GitHub"
-        configured={data?.github_configured}
-        divider={false}
-      >
-        <SecretFormItem
-          name="github_token"
-          label="Personal Access Token"
-          style={{ marginBottom: 0 }}
-          set={Boolean(data?.github_token_set)}
-          hint={data?.github_token_hint}
-          emptyPlaceholder="github_pat_… 或 ghp_…"
-          {...clearProps("github_token")}
-        />
-      </IntegrationBlock>
-    </Form>
+        <IntegrationBlock
+          icon={
+            <IntegrationMark>
+              <GithubOutlined />
+            </IntegrationMark>
+          }
+          title="GitHub"
+          configured={data?.github_configured}
+          divider={false}
+        >
+          <SecretFormItem
+            name="github_token"
+            label="Personal Access Token"
+            style={{ marginBottom: 0 }}
+            set={Boolean(data?.github_token_set)}
+            hint={data?.github_token_hint}
+            emptyPlaceholder="github_pat_… 或 ghp_…"
+            {...clearProps("github_token")}
+          />
+        </IntegrationBlock>
+      </Form>
     </ConfigProvider>
   );
 }

@@ -70,9 +70,7 @@ function statusClass(status: string) {
   return styles.statusLobby;
 }
 
-export function TarkovRaidSeatBoard({
-  onEntered,
-}: Props) {
+export function TarkovRaidSeatBoard({ onEntered }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const gameMode = useTarkovGameMode();
@@ -101,8 +99,7 @@ export function TarkovRaidSeatBoard({
   });
 
   const joinMut = useMutation({
-    mutationFn: (args: { publicId: string }) =>
-      joinTarkovRaidRoom(args.publicId, { gameMode }),
+    mutationFn: (args: { publicId: string }) => joinTarkovRaidRoom(args.publicId, { gameMode }),
     onSuccess: (room) => {
       void queryClient.invalidateQueries({
         queryKey: ["guides-tarkov-raid-rooms"],
@@ -140,9 +137,7 @@ export function TarkovRaidSeatBoard({
         <p className={styles.error}>{apiError(joinMut.error, "加入失败")}</p>
       ) : null}
       {roomsQuery.isError ? (
-        <p className={styles.error}>
-          {apiError(roomsQuery.error, "房间列表加载失败")}
-        </p>
+        <p className={styles.error}>{apiError(roomsQuery.error, "房间列表加载失败")}</p>
       ) : null}
       {!roomsQuery.isLoading && items.length === 0 ? (
         <p className={styles.empty}>暂无公开房间，用房间码加入或自己创建一个</p>
@@ -161,8 +156,7 @@ export function TarkovRaidSeatBoard({
           </thead>
           {items.map((room) => {
             const full = raidRoomIsFull(room) && !room.is_member;
-            const joining =
-              joinMut.isPending && joinMut.variables?.publicId === room.public_id;
+            const joining = joinMut.isPending && joinMut.variables?.publicId === room.public_id;
             const mine = Boolean(room.is_member);
             const seats = seatsOf(room);
             const span = seats.length;
@@ -189,7 +183,11 @@ export function TarkovRaidSeatBoard({
                     ) : null}
                     <td>{seat.mapLabel}</td>
                     <td>
-                      {seat.host ? <span className={styles.host} aria-hidden>⭐</span> : null}
+                      {seat.host ? (
+                        <span className={styles.host} aria-hidden>
+                          ⭐
+                        </span>
+                      ) : null}
                       {seat.name}
                     </td>
                     <td className={statusClass(seat.status)}>{seat.status}</td>

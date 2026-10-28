@@ -1,6 +1,16 @@
 import { client } from "../../../../shared/api/http";
 import type { components } from "../../../../shared/api/generated/schema";
-import type { MihoyoBindPasswordResponse, MihoyoBindSmsSendResponse, MihoyoCheckinResponse, MihoyoExchangeResult, MihoyoExchangeShop, MihoyoAttendanceCalendar, MihoyoQrPoll, MihoyoQrStart, MihoyoStatus } from "@/features/platforms/mihoyo/api/types";
+import type {
+  MihoyoBindPasswordResponse,
+  MihoyoBindSmsSendResponse,
+  MihoyoCheckinResponse,
+  MihoyoExchangeResult,
+  MihoyoExchangeShop,
+  MihoyoAttendanceCalendar,
+  MihoyoQrPoll,
+  MihoyoQrStart,
+  MihoyoStatus,
+} from "@/features/platforms/mihoyo/api/types";
 
 /** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
 export async function fetchMihoyoStatus(includeRoles = true, force = true) {
@@ -19,14 +29,11 @@ export async function sendMihoyoSms(
   geetest?: string | null,
   mmtKey?: string | null,
 ) {
-  const { data } = await client.post<MihoyoBindSmsSendResponse>(
-    "/mihoyo/bind/sms/send",
-    {
-      phone,
-      geetest: geetest || null,
-      mmt_key: mmtKey || null,
-    },
-  );
+  const { data } = await client.post<MihoyoBindSmsSendResponse>("/mihoyo/bind/sms/send", {
+    phone,
+    geetest: geetest || null,
+    mmt_key: mmtKey || null,
+  });
   return data;
 }
 
@@ -44,15 +51,12 @@ export async function bindMihoyoPassword(
   geetest?: string | null,
   mmtKey?: string | null,
 ) {
-  const { data } = await client.post<MihoyoBindPasswordResponse>(
-    "/mihoyo/bind/password",
-    {
-      account,
-      password,
-      geetest: geetest || null,
-      mmt_key: mmtKey || null,
-    },
-  );
+  const { data } = await client.post<MihoyoBindPasswordResponse>("/mihoyo/bind/password", {
+    account,
+    password,
+    geetest: geetest || null,
+    mmt_key: mmtKey || null,
+  });
   return data;
 }
 
@@ -80,14 +84,10 @@ export async function updateMihoyoRolePref(
   return data;
 }
 
-export async function triggerMihoyoCheckin(
-  payload?: components["schemas"]["CheckinNowBody"],
-) {
-  const { data } = await client.post<MihoyoCheckinResponse>(
-    "/mihoyo/checkin",
-    payload ?? {},
-    { timeout: 120000 },
-  );
+export async function triggerMihoyoCheckin(payload?: components["schemas"]["CheckinNowBody"]) {
+  const { data } = await client.post<MihoyoCheckinResponse>("/mihoyo/checkin", payload ?? {}, {
+    timeout: 120000,
+  });
   return data;
 }
 
@@ -104,11 +104,9 @@ export async function exchangeMihoyoItem(payload: {
   region?: string;
   role_uid?: string;
 }) {
-  const { data } = await client.post<MihoyoExchangeResult>(
-    "/mihoyo/exchange",
-    payload,
-    { timeout: 60000 },
-  );
+  const { data } = await client.post<MihoyoExchangeResult>("/mihoyo/exchange", payload, {
+    timeout: 60000,
+  });
   return data;
 }
 
@@ -117,15 +115,12 @@ export async function fetchMihoyoAttendanceCalendar(
   roleUid?: string | null,
   force = false,
 ) {
-  const { data } = await client.get<MihoyoAttendanceCalendar>(
-    "/mihoyo/attendance-calendar",
-    {
-      params: {
-        game_code: gameCode,
-        ...(roleUid ? { role_uid: roleUid } : {}),
-        force,
-      },
+  const { data } = await client.get<MihoyoAttendanceCalendar>("/mihoyo/attendance-calendar", {
+    params: {
+      game_code: gameCode,
+      ...(roleUid ? { role_uid: roleUid } : {}),
+      force,
     },
-  );
+  });
   return data;
 }

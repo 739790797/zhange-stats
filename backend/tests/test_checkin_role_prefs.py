@@ -26,9 +26,7 @@ from app.services.checkin.role_prefs import (
 
 @pytest.fixture
 def db():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, autoflush=False)()
     session.add(Member(id=1, nickname="m1"))
@@ -85,9 +83,7 @@ def test_enrich_result_dicts_defaults_off() -> None:
 
 
 def test_enrich_result_dicts_from_pref() -> None:
-    pref = SimpleNamespace(
-        included=True, enabled=True, checkin_hour=8, checkin_minute=30
-    )
+    pref = SimpleNamespace(included=True, enabled=True, checkin_hour=8, checkin_minute=30)
     results = [{"game_code": "arknights", "role_uid": "u1", "status": "ok", "message": "x"}]
     out = enrich_result_dicts(results, {("arknights", "u1"): pref})  # type: ignore[arg-type]
     assert out[0]["included"] is True
@@ -288,9 +284,7 @@ def test_role_tree_retires_vanished_roles_before_rendering(db) -> None:
         platform="skland",
         member_id=1,
         bind=_bind(db),
-        preview_roles=lambda _db, _member: [
-            {"game_code": "arknights", "game_name": "明日方舟", "uid": "kept"}
-        ],
+        preview_roles=lambda _db, _member: [{"game_code": "arknights", "game_name": "明日方舟", "uid": "kept"}],
         member=member,
         api_error_cls=RuntimeError,
     )
@@ -481,9 +475,7 @@ def test_mihoyo_role_tree_community_key_matches_checkin_key(monkeypatch) -> None
 
     creds = MihoyoCredentials(cookie="account_id=42", account_id="42")
     monkeypatch.setattr(mihoyo_checkin, "get_bind_for_member", lambda _db, _mid: object())
-    monkeypatch.setattr(
-        mihoyo_checkin, "_session_for_bind", lambda _db, _bind: SimpleNamespace(creds=creds)
-    )
+    monkeypatch.setattr(mihoyo_checkin, "_session_for_bind", lambda _db, _bind: SimpleNamespace(creds=creds))
     monkeypatch.setattr(mihoyo_checkin, "list_game_roles", lambda _creds: [])
     monkeypatch.setattr(mihoyo_checkin, "_store_creds", lambda *_a: None)
 

@@ -22,20 +22,12 @@ from app.services.setup import (
 
 logger = logging.getLogger("zhange.security")
 
-_EMAIL_CODE_LOG_REFUSAL = (
-    "生产环境禁止 ALLOW_EMAIL_CODE_LOG=true（验证码会写入日志）。"
-    "请关闭该开关并配置 SMTP。"
-)
+_EMAIL_CODE_LOG_REFUSAL = "生产环境禁止 ALLOW_EMAIL_CODE_LOG=true（验证码会写入日志）。请关闭该开关并配置 SMTP。"
 
 
 def _weak_admin_message(weak_admins: list[User]) -> str:
-    names = ", ".join(
-        (u.display_name or u.username or str(u.id)) for u in weak_admins
-    )
-    return (
-        f"检测到管理员弱口令：{names}。"
-        "请在「安全设置」中修改密码，或到用户管理重置。"
-    )
+    names = ", ".join((u.display_name or u.username or str(u.id)) for u in weak_admins)
+    return f"检测到管理员弱口令：{names}。请在「安全设置」中修改密码，或到用户管理重置。"
 
 
 def check_email_code_log_policy() -> None:
@@ -48,9 +40,7 @@ def check_email_code_log_policy() -> None:
 def check_admin_password_health(db: Session) -> None:
     if needs_setup(db):
         if setup_marker_exists(db):
-            logger.warning(
-                "已完成过初始化但当前没有管理员；安装向导不会再开放，恢复步骤见 docs/security.md"
-            )
+            logger.warning("已完成过初始化但当前没有管理员；安装向导不会再开放，恢复步骤见 docs/security.md")
             return
         logger.info("尚未初始化管理员，请打开站点完成安装向导")
         try:

@@ -516,4 +516,3 @@ class ArknightsRogueOut(BaseModel):
     roles: list[SklandRoleOut] = Field(default_factory=list)
     synced_at: str | None = None
     stale: bool = False
-

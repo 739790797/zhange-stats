@@ -50,10 +50,7 @@ export function TarkovHideoutCalcModal({
     if (!open) return;
     setRows((prev) => (prev.length ? prev : [newRow()]));
   }, [open]);
-  const used = useMemo(
-    () => new Set(rows.map((row) => row.stationId).filter(Boolean)),
-    [rows],
-  );
+  const used = useMemo(() => new Set(rows.map((row) => row.stationId).filter(Boolean)), [rows]);
   const canAdd = stations.some((station) => {
     const ident = (station.id || "").trim();
     return ident && !used.has(ident);
@@ -69,17 +66,12 @@ export function TarkovHideoutCalcModal({
         })),
     [rows],
   );
-  const items = useMemo(
-    () => aggregateHideoutUpgradeRanges(stations, ranges),
-    [stations, ranges],
-  );
+  const items = useMemo(() => aggregateHideoutUpgradeRanges(stations, ranges), [stations, ranges]);
   const materials = useMemo(() => hideoutUpgradeMaterialItems(items), [items]);
   const fleaCost = hideoutUpgradeFleaCost(items);
 
   const updateRow = (key: string, patch: Partial<CalcRow>) => {
-    setRows((prev) =>
-      prev.map((row) => (row.key === key ? { ...row, ...patch } : row)),
-    );
+    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
 
   const pickStation = (key: string, stationId: string) => {
@@ -104,9 +96,7 @@ export function TarkovHideoutCalcModal({
     {
       title: "材料",
       key: "item",
-      render: (_: unknown, row) => (
-        <TarkovGuideItemCell item={row} showCount={false} />
-      ),
+      render: (_: unknown, row) => <TarkovGuideItemCell item={row} showCount={false} />,
     },
     {
       title: "数量",
@@ -167,85 +157,81 @@ export function TarkovHideoutCalcModal({
     >
       <div className={styles.rows}>
         {rows.map((row) => {
-            const station = stations.find((item) => item.id === row.stationId);
-            const choices = hideoutLevelChoices(station);
-            return (
-              <div key={row.key} className={styles.row}>
+          const station = stations.find((item) => item.id === row.stationId);
+          const choices = hideoutLevelChoices(station);
+          return (
+            <div key={row.key} className={styles.row}>
+              <Select
+                className={styles.station}
+                showSearch
+                allowClear
+                placeholder="选择设施"
+                optionFilterProp="label"
+                value={row.stationId || undefined}
+                listHeight={320}
+                popupMatchSelectWidth
+                onChange={(value) => {
+                  if (!value) updateRow(row.key, { stationId: "" });
+                  else pickStation(row.key, value);
+                }}
+                getPopupContainer={() => document.body}
+                options={stations
+                  .filter((item) => {
+                    const ident = (item.id || "").trim();
+                    if (!ident) return false;
+                    return ident === row.stationId || !used.has(ident);
+                  })
+                  .map((item) => ({
+                    value: item.id,
+                    label: item.name || item.slug || item.id,
+                  }))}
+                optionRender={(option) => {
+                  const picked = stations.find((item) => item.id === option.value);
+                  return (
+                    <span className={styles.option}>
+                      {picked?.image_link ? <img src={picked.image_link} alt="" /> : null}
+                      {option.label}
+                    </span>
+                  );
+                }}
+              />
+              <span className={styles.bound}>
+                从
                 <Select
-                  className={styles.station}
-                  showSearch
-                  allowClear
-                  placeholder="选择设施"
-                  optionFilterProp="label"
-                  value={row.stationId || undefined}
-                  listHeight={320}
-                  popupMatchSelectWidth
-                  onChange={(value) => {
-                    if (!value) updateRow(row.key, { stationId: "" });
-                    else pickStation(row.key, value);
-                  }}
+                  className={styles.level}
+                  disabled={!row.stationId}
+                  value={row.stationId ? row.from : undefined}
+                  placeholder="N"
                   getPopupContainer={() => document.body}
-                  options={stations
-                    .filter((item) => {
-                      const ident = (item.id || "").trim();
-                      if (!ident) return false;
-                      return ident === row.stationId || !used.has(ident);
-                    })
-                    .map((item) => ({
-                      value: item.id,
-                      label: item.name || item.slug || item.id,
-                    }))}
-                  optionRender={(option) => {
-                    const picked = stations.find((item) => item.id === option.value);
-                    return (
-                      <span className={styles.option}>
-                        {picked?.image_link ? (
-                          <img src={picked.image_link} alt="" />
-                        ) : null}
-                        {option.label}
-                      </span>
-                    );
-                  }}
+                  onChange={(value) => setBound(row, "from", Number(value))}
+                  options={choices.map((level) => ({
+                    value: level,
+                    label: `Lv.${level}`,
+                  }))}
                 />
-                <span className={styles.bound}>
-                  从
-                  <Select
-                    className={styles.level}
-                    disabled={!row.stationId}
-                    value={row.stationId ? row.from : undefined}
-                    placeholder="N"
-                    getPopupContainer={() => document.body}
-                    onChange={(value) => setBound(row, "from", Number(value))}
-                    options={choices.map((level) => ({
-                      value: level,
-                      label: `Lv.${level}`,
-                    }))}
-                  />
-                  升到
-                  <Select
-                    className={styles.level}
-                    disabled={!row.stationId}
-                    value={row.stationId ? row.to : undefined}
-                    placeholder="M"
-                    getPopupContainer={() => document.body}
-                    onChange={(value) => setBound(row, "to", Number(value))}
-                    options={choices.map((level) => ({
-                      value: level,
-                      label: `Lv.${level}`,
-                    }))}
-                  />
-                </span>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  aria-label="移除"
-                  onClick={() =>
-                    setRows((prev) => prev.filter((item) => item.key !== row.key))
-                  }
+                升到
+                <Select
+                  className={styles.level}
+                  disabled={!row.stationId}
+                  value={row.stationId ? row.to : undefined}
+                  placeholder="M"
+                  getPopupContainer={() => document.body}
+                  onChange={(value) => setBound(row, "to", Number(value))}
+                  options={choices.map((level) => ({
+                    value: level,
+                    label: `Lv.${level}`,
+                  }))}
                 />
-              </div>
-            );
+              </span>
+              <Button
+                type="text"
+                size="small"
+                icon={<DeleteOutlined />}
+                aria-label="移除"
+                onClick={() => setRows((prev) => prev.filter((item) => item.key !== row.key))}
+              />
+            </div>
+          );
         })}
         {canAdd ? (
           <div className={styles.addWrap}>
@@ -268,9 +254,7 @@ export function TarkovHideoutCalcModal({
             <span className={styles.needMeta}>
               {materials.length
                 ? ` · ${materials.length} 种${
-                    fleaCost != null
-                      ? ` · 跳蚤合计 ${formatMoney(fleaCost)}`
-                      : " · 部分无跳蚤价"
+                    fleaCost != null ? ` · 跳蚤合计 ${formatMoney(fleaCost)}` : " · 部分无跳蚤价"
                   }`
                 : " · 该区间无额外材料"}
             </span>

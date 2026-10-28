@@ -57,9 +57,7 @@ def sanitize_placements(raw: Any) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         try:
-            ident = owns.normalize_item_id(
-                str(item.get("item_id") or item.get("itemId") or "")
-            )
+            ident = owns.normalize_item_id(str(item.get("item_id") or item.get("itemId") or ""))
         except owns.TarkovCollectionOwnsError:
             continue
         if ident in seen:

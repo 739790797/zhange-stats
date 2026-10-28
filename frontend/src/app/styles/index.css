@@ -285,9 +285,7 @@ a {
 }
 
 /* 子项选中时，父级不显示选中底色 */
-.sider-menu.ant-menu-dark
-  .ant-menu-submenu-selected
-  > .ant-menu-submenu-title {
+.sider-menu.ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title {
   background: transparent !important;
   color: rgba(255, 255, 255, 0.75) !important;
 }
@@ -444,4 +442,3 @@ a {
     animation: none;
   }
 }
-

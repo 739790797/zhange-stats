@@ -274,9 +274,7 @@ class PatchrightImageBackend:
                 self._loop_ready.set()
                 loop.run_forever()
 
-            self._thread = threading.Thread(
-                target=_run, daemon=True, name="tarkov-image-pw"
-            )
+            self._thread = threading.Thread(target=_run, daemon=True, name="tarkov-image-pw")
             self._thread.start()
         if not self._loop_ready.wait(timeout=10):
             raise RuntimeError("出图浏览器事件循环未能启动")
@@ -305,9 +303,7 @@ class PatchrightImageBackend:
                 # 先体面关 context/driver（_reset_page 自带超时），再按 profile 补杀残留 Chrome。
                 # 不在这里把句柄置空：那样 driver 和 Chrome 都没人关，就漏了。
                 try:
-                    asyncio.run_coroutine_threadsafe(self._reset_page(), loop).result(
-                        timeout=_CLOSE_TIMEOUT * 3 + 2
-                    )
+                    asyncio.run_coroutine_threadsafe(self._reset_page(), loop).result(timeout=_CLOSE_TIMEOUT * 3 + 2)
                 except Exception as reset_exc:
                     logger.warning("image-gen reset after failure: %s", reset_exc)
                 _kill_profile_chrome()
@@ -387,29 +383,21 @@ class PatchrightImageBackend:
                     "x-content-security-policy",
                     "x-webkit-csp",
                 }
-                hdrs = {
-                    k: v
-                    for k, v in resp.headers.items()
-                    if k.lower() not in strip
-                }
+                hdrs = {k: v for k, v in resp.headers.items() if k.lower() not in strip}
                 await route.fulfill(status=resp.status, headers=hdrs, body=patched)
             except Exception as exc:
                 logger.warning("image-gen html patch failed: %s", exc)
                 await route.continue_()
 
         await self._pw_page.route(IMAGE_GEN_BUILD, _patch_html)
-        await self._pw_page.goto(
-            IMAGE_GEN_BUILD, wait_until="domcontentloaded", timeout=45000
-        )
+        await self._pw_page.goto(IMAGE_GEN_BUILD, wait_until="domcontentloaded", timeout=45000)
         await _dismiss_image_gen_overlays(self._pw_page)
         await self._pw_page.mouse.move(400, 300)
         await asyncio.sleep(0.4)
         await self._pw_page.mouse.move(700, 400)
         await _dismiss_image_gen_overlays(self._pw_page)
         try:
-            await self._pw_page.get_by_placeholder("Search for an item...").wait_for(
-                state="visible", timeout=20000
-            )
+            await self._pw_page.get_by_placeholder("Search for an item...").wait_for(state="visible", timeout=20000)
         except Exception as exc:
             raise RuntimeError("出图站搜索框未出现，可能被拦截") from exc
         await self._pw_page.evaluate(
@@ -472,9 +460,7 @@ class PatchrightImageBackend:
 
                 page.on("response", _on_response)
                 try:
-                    await page.evaluate(
-                        "() => { try { document.body.removeAttribute('data-zg-fired'); } catch(_) {} }"
-                    )
+                    await page.evaluate("() => { try { document.body.removeAttribute('data-zg-fired'); } catch(_) {} }")
                     await _dismiss_image_gen_overlays(page)
                     payload = {"data": {"id": gun_id, "items": items}}
                     await page.evaluate(

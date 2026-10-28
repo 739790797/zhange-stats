@@ -112,9 +112,9 @@ def placeholder_from_disk(disk: dict[str, Any], *, path: str, prev: dict[str, An
 def same_fingerprint(prev: dict[str, Any] | None, disk: dict[str, Any], *, force: bool) -> bool:
     if force or not prev:
         return False
-    return _int_size(prev.get("size")) == _int_size(disk.get("size")) and str(
-        prev.get("modified_at") or ""
-    ) == str(disk.get("modified_at") or "")
+    return _int_size(prev.get("size")) == _int_size(disk.get("size")) and str(prev.get("modified_at") or "") == str(
+        disk.get("modified_at") or ""
+    )
 
 
 def apply_fingerprint(
@@ -334,9 +334,7 @@ def _replace_entry(store: dict[str, Any], entry: dict[str, Any]) -> dict[str, An
 
 def _drop_paths_in_store(store: dict[str, Any], paths: set[str]) -> dict[str, Any]:
     jars = [
-        row
-        for row in (store.get("jars") or [])
-        if isinstance(row, dict) and str(row.get("path") or "") not in paths
+        row for row in (store.get("jars") or []) if isinstance(row, dict) and str(row.get("path") or "") not in paths
     ]
     return {**store, "jars": jars}
 
@@ -352,9 +350,7 @@ def _identify_one(
     base, token, uuid = get_pelican_credentials(db)
     path = str(entry.get("path") or "")
     try:
-        data = pelican.download_file(
-            base, token, uuid, path, max_bytes=MAX_JAR_BYTES
-        )
+        data = pelican.download_file(base, token, uuid, path, max_bytes=MAX_JAR_BYTES)
     except pelican.PelicanError as exc:
         entry["identify_error"] = exc.message
         entry["identified"] = False
@@ -413,11 +409,7 @@ def _identify_worker(paths: list[str]) -> None:
         store, persist = load_store(db)
         if not persist:
             return
-        by_path = {
-            str(row.get("path") or ""): row
-            for row in (store.get("jars") or [])
-            if isinstance(row, dict)
-        }
+        by_path = {str(row.get("path") or ""): row for row in (store.get("jars") or []) if isinstance(row, dict)}
         todo = [by_path[path] for path in paths if path in by_path]
         total = len(todo)
         icon_cache: dict[str, str] = {}

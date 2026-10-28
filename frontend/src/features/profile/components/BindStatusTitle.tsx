@@ -31,9 +31,7 @@ export function BindStatusTitle({
 
   return (
     <div>
-      <div
-        style={{ display: "flex", alignItems: "center", gap: BIND_ROW_ICON_GAP }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: BIND_ROW_ICON_GAP }}>
         <span
           style={{
             width: BIND_ROW_ICON_SIZE,
@@ -46,18 +44,13 @@ export function BindStatusTitle({
         >
           {leading}
         </span>
-        <Typography.Text
-          strong
-          style={{ width: "3.75em", flex: "0 0 3.75em", lineHeight: "22px" }}
-        >
+        <Typography.Text strong style={{ width: "3.75em", flex: "0 0 3.75em", lineHeight: "22px" }}>
           {name}
         </Typography.Text>
         {statusTag}
       </div>
       {Children.toArray(children).some(Boolean) ? (
-        <div style={{ marginLeft: BIND_ROW_ICON_SIZE + BIND_ROW_ICON_GAP }}>
-          {children}
-        </div>
+        <div style={{ marginLeft: BIND_ROW_ICON_SIZE + BIND_ROW_ICON_GAP }}>{children}</div>
       ) : null}
     </div>
   );

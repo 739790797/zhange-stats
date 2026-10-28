@@ -37,7 +37,6 @@ TASKS_LAYOUT_ALL = "all"
 DOWNLOAD_TIMEOUT = 180
 
 
-
 # BSG 商人 id → slug / 英文名
 TRADER_BY_ID: dict[str, tuple[str, str]] = {
     "54cb50c76803fa8b248b4571": ("prapor", "Prapor"),
@@ -87,9 +86,7 @@ MAP_SLUG_EQUIV_GROUPS: tuple[tuple[str, ...], ...] = (
 # (rows, locale)
 _parsed_cache: ModeCache[tuple[list[dict[str, Any]], dict[str, Any]]] = ModeCache()
 # canon_map → (map_name, rows, quest_items)；与 _parsed_cache 同次 sync 清空
-_raid_prep_cache: ModeKeyedCache[
-    tuple[str, list[dict[str, Any]], dict[str, dict[str, Any]]]
-] = ModeKeyedCache()
+_raid_prep_cache: ModeKeyedCache[tuple[str, list[dict[str, Any]], dict[str, dict[str, Any]]]] = ModeKeyedCache()
 # map_slug → {task_id: name}
 _raid_prep_index_cache: ModeCache[dict[str, dict[str, dict[str, str]]]] = ModeCache()
 # canon_map → 本图任务用得上的钥匙 id
@@ -509,9 +506,7 @@ def _locale_key_folded(locale: dict[str, Any] | None, raw: str) -> str:
     return ""
 
 
-def _exit_place_and_desc(
-    token: str, locales: tuple[dict[str, Any] | None, ...]
-) -> tuple[str, str]:
+def _exit_place_and_desc(token: str, locales: tuple[dict[str, Any] | None, ...]) -> tuple[str, str]:
     place = ""
     desc = ""
     for locale in locales:
@@ -562,12 +557,8 @@ def _localize_health_effect(
     if not effect:
         return effect
     out = dict(effect)
-    out["body_parts"] = _unique_texts(
-        [_localize_body_part(part, locale) for part in (effect.get("body_parts") or [])]
-    )
-    out["effects"] = _unique_texts(
-        [_localize_effect(item, locale) for item in (effect.get("effects") or [])]
-    )
+    out["body_parts"] = _unique_texts([_localize_body_part(part, locale) for part in (effect.get("body_parts") or [])])
+    out["effects"] = _unique_texts([_localize_effect(item, locale) for item in (effect.get("effects") or [])])
     return out
 
 
@@ -581,9 +572,7 @@ def _localize_categories(
         ident = str(ref.get("id") or "").strip()
         if not ident:
             continue
-        phrase = _locale_phrase(
-            items_locale, f"{ident} Name", f"{ident} name", ident
-        )
+        phrase = _locale_phrase(items_locale, f"{ident} Name", f"{ident} name", ident)
         if phrase:
             ref["name"] = phrase
 
@@ -621,9 +610,7 @@ def normalize_objective_exit(obj: dict[str, Any]) -> tuple[list[str], str]:
 def download_json_api_tasks(*, lang: str = "zh") -> TasksUpstreamBundle:
     from app.services.tarkov import upstream as upstream_svc
 
-    payload = upstream_svc.download_resource_with_locale(
-        "tasks", lang=lang, timeout=90, error_cls=TarkovTasksError
-    )
+    payload = upstream_svc.download_resource_with_locale("tasks", lang=lang, timeout=90, error_cls=TarkovTasksError)
     if not _tasks_map(payload):
         raise TarkovTasksError("json.tarkov.dev 未解析到任务")
     return TasksUpstreamBundle(
@@ -681,9 +668,7 @@ def project_task_summary(
         "name_en": str(raw.get("nameEnglish") or raw.get("name_en") or ""),
         "objective_count": len(objectives),
         "objective_types": unique_objective_types(objectives),
-        "objective_search_text": _task_objective_search_text(
-            objectives, locale, quest_items=quest_items
-        ),
+        "objective_search_text": _task_objective_search_text(objectives, locale, quest_items=quest_items),
         "restartable": _as_bool(raw.get("restartable")),
     }
 
@@ -781,12 +766,7 @@ def _named_ref(
     if isinstance(value, dict):
         name = str(value.get("name") or "").strip()
         slug = str(value.get("normalizedName") or "").strip()
-        icon = str(
-            value.get("iconLink")
-            or value.get("icon_link")
-            or value.get("baseImageLink")
-            or ""
-        ).strip()
+        icon = str(value.get("iconLink") or value.get("icon_link") or value.get("baseImageLink") or "").strip()
         raw_types = value.get("types")
         if isinstance(raw_types, list):
             types = [str(t) for t in raw_types if t is not None and str(t).strip()]
@@ -816,12 +796,7 @@ def _named_ref(
                 if qname and not _is_placeholder_name(ident, qname):
                     name = qname
                 if not icon:
-                    icon = str(
-                        qi.get("iconLink")
-                        or qi.get("icon_link")
-                        or qi.get("baseImageLink")
-                        or ""
-                    ).strip()
+                    icon = str(qi.get("iconLink") or qi.get("icon_link") or qi.get("baseImageLink") or "").strip()
     if kind == "category" and ident:
         if isinstance(value, dict) and not slug:
             slug = str(value.get("normalizedName") or "").strip()
@@ -873,9 +848,7 @@ def _named_refs(
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for raw in rows:
-        if not _id_of(raw) and not (
-            isinstance(raw, dict) and str(raw.get("name") or "").strip()
-        ):
+        if not _id_of(raw) and not (isinstance(raw, dict) and str(raw.get("name") or "").strip()):
             continue
         ref = _named_ref(raw, locale, kind=kind, quest_items=quest_items)
         ident = str(ref.get("id") or ref.get("name") or "").strip()
@@ -925,15 +898,9 @@ def _project_health_effect(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     body_parts = [
-        str(part).strip()
-        for part in (raw.get("bodyParts") or raw.get("body_parts") or [])
-        if str(part).strip()
+        str(part).strip() for part in (raw.get("bodyParts") or raw.get("body_parts") or []) if str(part).strip()
     ]
-    effects = [
-        str(item).strip()
-        for item in (raw.get("effects") or [])
-        if str(item).strip()
-    ]
+    effects = [str(item).strip() for item in (raw.get("effects") or []) if str(item).strip()]
     time = _project_number_compare(raw.get("time"))
     if not body_parts and not effects and time is None:
         return None
@@ -1035,11 +1002,7 @@ def _project_image_ref(raw: Any, locale: dict[str, Any]) -> dict[str, Any] | Non
         name = str(raw.get("name") or "").strip()
         slug = str(raw.get("normalizedName") or "").strip()
         icon = str(
-            raw.get("imageLink")
-            or raw.get("iconLink")
-            or raw.get("icon_link")
-            or raw.get("image_link")
-            or ""
+            raw.get("imageLink") or raw.get("iconLink") or raw.get("icon_link") or raw.get("image_link") or ""
         ).strip()
         extra_type = _localize_customization_type(
             str(raw.get("customizationType") or raw.get("customization_type") or "")
@@ -1125,9 +1088,7 @@ def _project_craft_unlock(
         station = _named_ref(row.get("station"), locale, kind="station")
         item_raw = _craft_reward_item(row)
         item = (
-            _named_ref(item_raw, locale, kind="item", quest_items=quest_items)
-            if item_raw not in (None, "")
-            else None
+            _named_ref(item_raw, locale, kind="item", quest_items=quest_items) if item_raw not in (None, "") else None
         )
         if item is not None and not item.get("id"):
             item = None
@@ -1284,16 +1245,10 @@ def _project_objective(
         items.append(ref)
     count = obj.get("count")
     exit_status, exit_name = normalize_objective_exit(obj)
-    exit_status = _unique_texts(
-        [_localize_exit_status(status, locale) for status in exit_status]
-    )
+    exit_status = _unique_texts([_localize_exit_status(status, locale) for status in exit_status])
     exit_name = _localize_exit_name(exit_name, locale, maps_locale)
     target_names = _unique_texts(
-        [
-            _localize_target(str(name), locale)
-            for name in (obj.get("targetNames") or [])
-            if str(name).strip()
-        ]
+        [_localize_target(str(name), locale) for name in (obj.get("targetNames") or []) if str(name).strip()]
     )
     target = str(obj.get("target") or "").strip()
     if target:
@@ -1301,21 +1256,15 @@ def _project_objective(
     skill_name, skill_level = _project_skill(obj.get("skillLevel") or obj.get("skill"))
     skill_name = _localize_skill(skill_name, locale)
     trader_raw = obj.get("trader")
-    trader = (
-        _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
-    )
+    trader = _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
     station_raw = obj.get("hideoutStation") or obj.get("station")
-    hideout_station = (
-        _named_ref(station_raw, locale, kind="station") if _id_of(station_raw) else None
-    )
+    hideout_station = _named_ref(station_raw, locale, kind="station") if _id_of(station_raw) else None
     related = _fail_task_ref(obj.get("task"), locale, tasks_by_id)
     obj_type = str(obj.get("type") or "")
     trader_level = _opt_int(obj.get("level")) if obj_type == "traderLevel" else None
     standing_cmp = None
     if obj_type == "traderStanding":
-        standing_cmp = _project_number_compare(
-            {"compareMethod": obj.get("compareMethod"), "value": obj.get("value")}
-        )
+        standing_cmp = _project_number_compare({"compareMethod": obj.get("compareMethod"), "value": obj.get("value")})
     categories = _named_refs(obj.get("containsCategory"), locale, kind="category")
     _localize_categories(categories, items_locale)
     return {
@@ -1327,55 +1276,31 @@ def _project_objective(
         "maps": maps,
         "items": items,
         "found_in_raid": _as_bool(obj.get("foundInRaid")) if "foundInRaid" in obj else None,
-        "required_keys": _project_required_key_groups(
-            obj.get("requiredKeys"), locale, quest_items=quest_items
-        ),
+        "required_keys": _project_required_key_groups(obj.get("requiredKeys"), locale, quest_items=quest_items),
         "exit_status": exit_status,
         "exit_name": exit_name,
         "zones": _project_zones(obj.get("zones"), locale),
-        "possible_locations": _project_possible_locations(
-            obj.get("possibleLocations"), locale
-        ),
+        "possible_locations": _project_possible_locations(obj.get("possibleLocations"), locale),
         "zone_names": _project_zone_names(obj.get("zoneNames")),
         "target_names": target_names,
         "body_parts": _unique_texts(
-            [
-                _localize_body_part(str(part), locale)
-                for part in (obj.get("bodyParts") or [])
-                if str(part).strip()
-            ]
+            [_localize_body_part(str(part), locale) for part in (obj.get("bodyParts") or []) if str(part).strip()]
         ),
         "shot_type": str(obj.get("shotType") or "").strip(),
         "distance": _project_number_compare(obj.get("distance")),
-        "using_weapon": _named_refs(
-            obj.get("usingWeapon"), locale, kind="item", quest_items=quest_items
-        ),
+        "using_weapon": _named_refs(obj.get("usingWeapon"), locale, kind="item", quest_items=quest_items),
         "using_weapon_mods": _named_ref_groups(
             obj.get("usingWeaponMods"), locale, kind="item", quest_items=quest_items
         ),
-        "wearing": _named_ref_groups(
-            obj.get("wearing"), locale, kind="item", quest_items=quest_items
-        ),
-        "not_wearing": _named_refs(
-            obj.get("notWearing"), locale, kind="item", quest_items=quest_items
-        ),
-        "use_any": _named_refs(
-            obj.get("useAny"), locale, kind="item", quest_items=quest_items
-        ),
-        "contains_all": _named_refs(
-            obj.get("containsAll"), locale, kind="item", quest_items=quest_items
-        ),
+        "wearing": _named_ref_groups(obj.get("wearing"), locale, kind="item", quest_items=quest_items),
+        "not_wearing": _named_refs(obj.get("notWearing"), locale, kind="item", quest_items=quest_items),
+        "use_any": _named_refs(obj.get("useAny"), locale, kind="item", quest_items=quest_items),
+        "contains_all": _named_refs(obj.get("containsAll"), locale, kind="item", quest_items=quest_items),
         "contains_category": categories,
         "attributes": _project_objective_attributes(obj),
-        "health_effect": _localize_health_effect(
-            _project_health_effect(obj.get("healthEffect")), locale
-        ),
-        "player_health_effect": _localize_health_effect(
-            _project_health_effect(obj.get("playerHealthEffect")), locale
-        ),
-        "enemy_health_effect": _localize_health_effect(
-            _project_health_effect(obj.get("enemyHealthEffect")), locale
-        ),
+        "health_effect": _localize_health_effect(_project_health_effect(obj.get("healthEffect")), locale),
+        "player_health_effect": _localize_health_effect(_project_health_effect(obj.get("playerHealthEffect")), locale),
+        "enemy_health_effect": _localize_health_effect(_project_health_effect(obj.get("enemyHealthEffect")), locale),
         "time_from_hour": _opt_int(obj.get("timeFromHour")),
         "time_until_hour": _opt_int(obj.get("timeUntilHour")),
         "dog_tag_level": _opt_int(obj.get("dogTagLevel")),
@@ -1390,11 +1315,7 @@ def _project_objective(
         "standing": standing_cmp,
         "player_level": _opt_int(obj.get("playerLevel")),
         "related_tasks": [related] if related else [],
-        "related_status": [
-            str(item).strip()
-            for item in (obj.get("status") or [])
-            if str(item).strip()
-        ],
+        "related_status": [str(item).strip() for item in (obj.get("status") or []) if str(item).strip()],
     }
 
 
@@ -1449,19 +1370,11 @@ def _project_fail_condition(
     tasks_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     exit_status, _exit_name = normalize_objective_exit(obj)
-    exit_status = _unique_texts(
-        [_localize_exit_status(status, locale) for status in exit_status]
-    )
+    exit_status = _unique_texts([_localize_exit_status(status, locale) for status in exit_status])
     task_ref = _fail_task_ref(obj.get("task"), locale, tasks_by_id)
     trader_raw = obj.get("trader")
-    trader = (
-        _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
-    )
-    statuses = [
-        str(item).strip()
-        for item in (obj.get("status") or [])
-        if str(item).strip()
-    ]
+    trader = _named_ref(trader_raw, locale, kind="trader") if _id_of(trader_raw) else None
+    statuses = [str(item).strip() for item in (obj.get("status") or []) if str(item).strip()]
     return {
         "id": str(obj.get("id") or ""),
         "type": str(obj.get("type") or ""),
@@ -1481,11 +1394,7 @@ def _project_fail_conditions(
 ) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
-    return [
-        _project_fail_condition(obj, locale, tasks_by_id=tasks_by_id)
-        for obj in raw
-        if isinstance(obj, dict)
-    ]
+    return [_project_fail_condition(obj, locale, tasks_by_id=tasks_by_id) for obj in raw if isinstance(obj, dict)]
 
 
 def _project_point(value: Any) -> dict[str, float] | None:
@@ -1524,11 +1433,7 @@ def _project_zones(raw: Any, locale: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         map_ref = _named_ref(row.get("map"), locale, kind="map")
         point = _project_point(row.get("position"))
-        outline = [
-            pt
-            for item in (row.get("outline") or [])
-            if (pt := _project_point(item)) is not None
-        ]
+        outline = [pt for item in (row.get("outline") or []) if (pt := _project_point(item)) is not None]
         if not point and not outline:
             continue
         zone_id = str(row.get("id") or "")
@@ -1564,11 +1469,7 @@ def _project_possible_locations(raw: Any, locale: dict[str, Any]) -> list[dict[s
         if not isinstance(row, dict):
             continue
         map_ref = _named_ref(row.get("map"), locale, kind="map")
-        positions = [
-            pt
-            for item in (row.get("positions") or [])
-            if (pt := _project_point(item)) is not None
-        ]
+        positions = [pt for item in (row.get("positions") or []) if (pt := _project_point(item)) is not None]
         if not positions:
             continue
         out.append(
@@ -1608,11 +1509,7 @@ def _project_required_key_groups(
     groups: list[list[dict[str, str]]] = []
     for group in raw:
         items = group if isinstance(group, list) else [group]
-        refs = [
-            _named_ref(i, locale, kind="item", quest_items=quest_items)
-            for i in items
-            if _id_of(i)
-        ]
+        refs = [_named_ref(i, locale, kind="item", quest_items=quest_items) for i in items if _id_of(i)]
         if refs:
             groups.append(refs)
     return groups
@@ -1634,11 +1531,7 @@ def _needed_keys_from_objectives(
                 if ident and ident not in seen:
                     seen.add(ident)
                     bucket["keys"].append(ref)
-    return [
-        {"map": row["map"], "keys": row["keys"]}
-        for row in by_map.values()
-        if row["keys"]
-    ]
+    return [{"map": row["map"], "keys": row["keys"]} for row in by_map.values() if row["keys"]]
 
 
 def _project_rewards(
@@ -1654,9 +1547,7 @@ def _project_rewards(
     for row in raw.get("items") or []:
         if not isinstance(row, dict):
             continue
-        item_ref = _named_ref(
-            row.get("item"), locale, kind="item", quest_items=quest_items
-        )
+        item_ref = _named_ref(row.get("item"), locale, kind="item", quest_items=quest_items)
         if not item_ref["id"]:
             continue
         items_out.append({**item_ref, "count": _as_int(row.get("count"), 1)})
@@ -1729,11 +1620,7 @@ def _project_task_requirements(
         if not ident or ident in seen:
             continue
         seen.add(ident)
-        statuses = [
-            str(item).strip()
-            for item in (row.get("status") or [])
-            if str(item).strip()
-        ]
+        statuses = [str(item).strip() for item in (row.get("status") or []) if str(item).strip()]
         out.append({**ref, "status": statuses})
     return out
 
@@ -1759,11 +1646,7 @@ def _collect_unlocks(
                 continue
             if _id_of(req.get("task")) != task_id:
                 continue
-            matched.extend(
-                str(item).strip()
-                for item in (req.get("status") or [])
-                if str(item).strip()
-            )
+            matched.extend(str(item).strip() for item in (req.get("status") or []) if str(item).strip())
         if not matched:
             continue
         if other_id in seen:
@@ -1867,9 +1750,7 @@ def project_task_detail(
             continue
         map_ref = _named_ref(row.get("map"), locale, kind="map")
         keys = [
-            _named_ref(k, locale, kind="item", quest_items=quest_items)
-            for k in (row.get("keys") or [])
-            if _id_of(k)
+            _named_ref(k, locale, kind="item", quest_items=quest_items) for k in (row.get("keys") or []) if _id_of(k)
         ]
         if keys:
             keys_out.append({"map": map_ref, "keys": keys})
@@ -1889,15 +1770,9 @@ def project_task_detail(
                 locale,
                 tasks_by_id=tasks_by_id,
             ),
-            "unlocks": _collect_unlocks(summary["id"], locale, tasks_by_id)
-            if include_unlocks
-            else [],
-            "start_rewards": _project_rewards(
-                raw.get("startRewards"), locale, quest_items=quest_items
-            ),
-            "finish_rewards": _project_rewards(
-                raw.get("finishRewards"), locale, quest_items=quest_items
-            ),
+            "unlocks": _collect_unlocks(summary["id"], locale, tasks_by_id) if include_unlocks else [],
+            "start_rewards": _project_rewards(raw.get("startRewards"), locale, quest_items=quest_items),
+            "finish_rewards": _project_rewards(raw.get("finishRewards"), locale, quest_items=quest_items),
             "fail_rewards": _project_rewards(
                 raw.get("failureOutcome") or raw.get("failRewards"),
                 locale,
@@ -2119,9 +1994,7 @@ def task_detail_base(
     source, payload, synced_at, note = _load_payload(db)
     tasks = _tasks_map(payload)
     payload_base = (tasks, _quest_items_map(payload), _locale_map(payload))
-    _detail_base_cache.put(
-        parsed_cache_key(db, synced_at, resource="tasks"), payload_base
-    )
+    _detail_base_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), payload_base)
     return source, synced_at, note, payload_base[0], payload_base[1], payload_base[2]
 
 
@@ -2228,11 +2101,7 @@ def catalog_task_id_set(db: Session) -> set[str] | None:
         _source, rows, _locale, _synced, _note = load_parsed_tasks(db)
     except TarkovTasksError:
         return None
-    return {
-        str(row.get("id") or "").strip()
-        for row in rows
-        if str(row.get("id") or "").strip()
-    }
+    return {str(row.get("id") or "").strip() for row in rows if str(row.get("id") or "").strip()}
 
 
 def load_parsed_tasks(
@@ -2338,9 +2207,7 @@ def _named_map_from_location(row: dict[str, Any]) -> dict[str, Any] | None:
         "slug": slug,
         "name": name,
         "icon_link": str(row.get("icon_link") or ""),
-        "types": [str(t) for t in types if t is not None and str(t).strip()]
-        if isinstance(types, list)
-        else [],
+        "types": [str(t) for t in types if t is not None and str(t).strip()] if isinstance(types, list) else [],
     }
 
 
@@ -2377,9 +2244,7 @@ def crop_raid_prep_detail_for_map(
             continue
         raw_maps = [m for m in (obj.get("maps") or []) if isinstance(m, dict)]
         raw_zones = [z for z in (obj.get("zones") or []) if isinstance(z, dict)]
-        raw_locs = [
-            loc for loc in (obj.get("possible_locations") or []) if isinstance(loc, dict)
-        ]
+        raw_locs = [loc for loc in (obj.get("possible_locations") or []) if isinstance(loc, dict)]
         maps = [m for m in raw_maps if _map_ref_hits(m, keys, ids)]
         zones = [z for z in raw_zones if _map_ref_hits(z, keys, ids)]
         locs = [loc for loc in raw_locs if _map_ref_hits(loc, keys, ids)]
@@ -2431,9 +2296,7 @@ def crop_raid_prep_detail_for_map(
         "objectives": objectives_out,
         "needed_keys": needed,
         "objective_count": len(this_map),
-        "objective_types": type_list
-        if type_list
-        else list(detail.get("objective_types") or []),
+        "objective_types": type_list if type_list else list(detail.get("objective_types") or []),
     }
 
 
@@ -2537,9 +2400,7 @@ def collect_raid_prep_rows(
                 "objectives": list(detail.get("objectives") or []),
                 "needed_keys": list(detail.get("needed_keys") or []),
                 "fail_conditions": list(detail.get("fail_conditions") or []),
-                "has_map_markers": (
-                    task_has_map_markers(detail, map_slug) if on_this_map else False
-                ),
+                "has_map_markers": (task_has_map_markers(detail, map_slug) if on_this_map else False),
                 "on_this_map": on_this_map,
             }
         )
@@ -2628,9 +2489,7 @@ def load_raid_prep_rows(
     map_slug: str,
     *,
     ensure: bool = True,
-) -> tuple[
-    str, str, list[dict[str, Any]], str | None, str | None, dict[str, dict[str, Any]]
-]:
+) -> tuple[str, str, list[dict[str, Any]], str | None, str | None, dict[str, dict[str, Any]]]:
     """带按图缓存的联机大厅投影；返回 source, map_name, rows, synced_at, note, quest_items。
 
     表头键未变则整份走缓存：认领 / 房间快照每次都要查本图目录，不能每次解码任务 raw。
@@ -2654,9 +2513,7 @@ def load_raid_prep_rows(
     source, payload, synced_at, note = _load_payload(db)
     map_name, rows = collect_raid_prep_rows(payload, canon)
     quest_items = _quest_items_map(payload)
-    _raid_prep_cache.put(
-        parsed_cache_key(db, synced_at, resource="tasks"), canon, (map_name, rows, quest_items)
-    )
+    _raid_prep_cache.put(parsed_cache_key(db, synced_at, resource="tasks"), canon, (map_name, rows, quest_items))
     return source, map_name, rows, synced_at, note, quest_items
 
 
@@ -2668,16 +2525,10 @@ def raid_prep_task_ids_for_map(db: Session, map_slug: str) -> set[str] | None:
     if get_tasks_raw(db) is None:
         return None
     try:
-        _source, _name, rows, _synced, _note, _quest_items = load_raid_prep_rows(
-            db, map_slug, ensure=False
-        )
+        _source, _name, rows, _synced, _note, _quest_items = load_raid_prep_rows(db, map_slug, ensure=False)
     except TarkovTasksError:
         return None
-    return {
-        str(row.get("id") or "").strip()
-        for row in rows
-        if str(row.get("id") or "").strip()
-    }
+    return {str(row.get("id") or "").strip() for row in rows if str(row.get("id") or "").strip()}
 
 
 def _ref_ids(refs: Any) -> set[str]:
@@ -2717,9 +2568,7 @@ def raid_prep_key_ids_for_map(db: Session, map_slug: str) -> frozenset[str] | No
     if hit is not None:
         return hit
     try:
-        _source, _name, rows, synced, _note, _quest_items = load_raid_prep_rows(
-            db, map_slug, ensure=False
-        )
+        _source, _name, rows, synced, _note, _quest_items = load_raid_prep_rows(db, map_slug, ensure=False)
     except TarkovTasksError:
         return None
     keys, ids = map_match_keys(canon)
@@ -2738,9 +2587,7 @@ def raid_prep_key_ids_for_map(db: Session, map_slug: str) -> frozenset[str] | No
     return out
 
 
-def raid_prep_task_belongs_to_map(
-    db: Session, map_slug: str, task_id: str
-) -> bool | None:
+def raid_prep_task_belongs_to_map(db: Session, map_slug: str, task_id: str) -> bool | None:
     """任务是否出现在本地图联机大厅目录。
 
     房间没有 game_mode，认领时 ContextVar 也可能和列表请求不一致，
@@ -2780,24 +2627,14 @@ def list_raid_prep(
     map_slug = (map_slug or "").strip()
     if not map_slug:
         raise TarkovTasksError("地图无效")
-    source, map_name, base_rows, synced_at, note, quest_items = load_raid_prep_rows(
-        db, map_slug
-    )
+    source, map_name, base_rows, synced_at, note, quest_items = load_raid_prep_rows(db, map_slug)
     # 缓存行是共享的；注解进度前浅拷贝，避免污染缓存
-    wanted = {
-        str(item).strip()
-        for item in (task_ids or [])
-        if str(item).strip()
-    }
+    wanted = {str(item).strip() for item in (task_ids or []) if str(item).strip()}
     if geometry:
         if not wanted:
             rows = []
         else:
-            rows = [
-                dict(row)
-                for row in base_rows
-                if str(row.get("id") or "").strip() in wanted
-            ]
+            rows = [dict(row) for row in base_rows if str(row.get("id") or "").strip() in wanted]
     else:
         rows = [strip_raid_prep_catalog(dict(row)) for row in base_rows]
     filtered = filter_task_rows(
@@ -2806,21 +2643,11 @@ def list_raid_prep(
         q=q,
         faction=faction,
     )
-    wanted_types = {
-        str(t).strip()
-        for t in (types or [])
-        if str(t).strip()
-    }
+    wanted_types = {str(t).strip() for t in (types or []) if str(t).strip()}
     if wanted_types:
-        filtered = [
-            row
-            for row in filtered
-            if wanted_types.intersection(row.get("objective_types") or [])
-        ]
+        filtered = [row for row in filtered if wanted_types.intersection(row.get("objective_types") or [])]
     ordered = sort_task_rows(filtered)
-    ordered.sort(
-        key=lambda r: (not r.get("has_map_markers"), not r.get("on_this_map"))
-    )
+    ordered.sort(key=lambda r: (not r.get("has_map_markers"), not r.get("on_this_map")))
     if geometry:
         _enrich_items_from_catalog(db, ordered, quest_items=quest_items)
     return {
@@ -2842,9 +2669,7 @@ def task_detail_cache_parts(db: Session) -> tuple[str, ...]:
     from app.services.tarkov.guides import guides_cache_token
     from app.services.tarkov.overlay import overlay_cache_token
 
-    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(
-        get_tasks_raw(db)
-    )
+    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(get_tasks_raw(db))
     _items_source, items_synced, _note = items_svc.items_raw_header(db)
     return (
         tasks_synced or "",
@@ -2949,12 +2774,7 @@ def _quest_item_hits(
         name = str(raw.get("name") or "").strip()
         if _is_placeholder_name(ident, name):
             name = ""
-        icon = str(
-            raw.get("iconLink")
-            or raw.get("icon_link")
-            or raw.get("baseImageLink")
-            or ""
-        ).strip()
+        icon = str(raw.get("iconLink") or raw.get("icon_link") or raw.get("baseImageLink") or "").strip()
         types = raw.get("types") if isinstance(raw.get("types"), list) else []
         if not name and not icon:
             continue
@@ -2979,14 +2799,10 @@ def _apply_item_hits(
             continue
         name = str(hit.get("name") or "").strip()
         if name and not _is_placeholder_name(ident, name):
-            if prefer_hit_name or _is_placeholder_name(
-                ident, str(ref.get("name") or "")
-            ):
+            if prefer_hit_name or _is_placeholder_name(ident, str(ref.get("name") or "")):
                 ref["name"] = name
         icon = str(hit.get("icon_link") or "").strip()
-        if icon and (
-            prefer_hit_name or not str(ref.get("icon_link") or "").strip()
-        ):
+        if icon and (prefer_hit_name or not str(ref.get("icon_link") or "").strip()):
             ref["icon_link"] = icon
         types = hit.get("types") if isinstance(hit.get("types"), list) else []
         if types and (prefer_hit_name or not ref.get("types")):
@@ -3004,9 +2820,7 @@ def apply_item_hits_to_details(
     _apply_item_hits(refs, found, prefer_hit_name=prefer_hit_name)
 
 
-def _lookup_item_hits_from_catalog(
-    db: Session, wanted: set[str]
-) -> dict[str, dict[str, Any]]:
+def _lookup_item_hits_from_catalog(db: Session, wanted: set[str]) -> dict[str, dict[str, Any]]:
     if not wanted:
         return {}
     try:
@@ -3043,11 +2857,7 @@ def _enrich_items_from_catalog(
     """补物品中文名 / 图标 / types，供钥匙与奖励展示。"""
     rows = detail if isinstance(detail, list) else [detail]
     refs = [r for r in _iter_named_item_refs(*rows) if isinstance(r, dict)]
-    wanted = {
-        str(r.get("id") or "").strip()
-        for r in refs
-        if str(r.get("id") or "").strip()
-    }
+    wanted = {str(r.get("id") or "").strip() for r in refs if str(r.get("id") or "").strip()}
     if not wanted:
         return
     catalog_hits = _lookup_item_hits_from_catalog(db, wanted)
@@ -3107,11 +2917,7 @@ def _apply_station_hit(ref: dict[str, Any], hit: dict[str, Any]) -> None:
 
 def _enrich_stations_from_hideout(db: Session, detail: dict[str, Any]) -> None:
     refs = [r for r in _iter_station_refs(detail) if isinstance(r, dict)]
-    wanted = {
-        str(r.get("id") or "").strip()
-        for r in refs
-        if str(r.get("id") or "").strip()
-    }
+    wanted = {str(r.get("id") or "").strip() for r in refs if str(r.get("id") or "").strip()}
     if not wanted:
         return
     try:
@@ -3178,9 +2984,7 @@ def _enrich_crafts_from_guides(db: Session, detail: dict[str, Any]) -> None:
                 "icon_link": str(station.get("icon_link") or ""),
                 "types": list(station.get("types") or []),
             }
-        if not isinstance(craft.get("item"), dict) or not str(
-            (craft.get("item") or {}).get("id") or ""
-        ).strip():
+        if not isinstance(craft.get("item"), dict) or not str((craft.get("item") or {}).get("id") or "").strip():
             offered = hit.get("product_item") or {}
             ident = str(offered.get("id") or "").strip()
             if ident:
@@ -3241,9 +3045,7 @@ def _enrich_image_refs_from_tasks(db: Session, detail: dict[str, Any]) -> None:
     catalogs = {
         "achievements": _id_map(_dump_field(payload, "achievements")),
         "prestige": _id_map(_dump_field(payload, "prestige")),
-        "customization": _id_map(
-            _dump_field(payload, "customization", "customizations")
-        ),
+        "customization": _id_map(_dump_field(payload, "customization", "customizations")),
     }
     for kind, ref in refs:
         ident = str(ref.get("id") or "").strip()
@@ -3251,20 +3053,11 @@ def _enrich_image_refs_from_tasks(db: Session, detail: dict[str, Any]) -> None:
         if not isinstance(hit, dict):
             continue
         name = str(hit.get("name") or "").strip()
-        icon = str(
-            hit.get("imageLink")
-            or hit.get("iconLink")
-            or hit.get("image_link")
-            or ""
-        ).strip()
-        if name and (
-            not str(ref.get("name") or "").strip()
-            or _is_placeholder_name(ident, str(ref.get("name") or ""))
-        ):
+        icon = str(hit.get("imageLink") or hit.get("iconLink") or hit.get("image_link") or "").strip()
+        if name and (not str(ref.get("name") or "").strip() or _is_placeholder_name(ident, str(ref.get("name") or ""))):
             ref["name"] = name
         if icon and not str(ref.get("image_link") or "").strip():
             ref["image_link"] = icon
         level = hit.get("prestigeLevel")
         if level is not None and kind == "prestige" and not ref.get("prestige_level"):
             ref["prestige_level"] = _as_int(level)
-

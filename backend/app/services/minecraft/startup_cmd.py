@@ -270,11 +270,7 @@ def detect_install(root_names: list[str], unix_paths: list[str]) -> dict[str, An
     """从根目录文件名和 unix_args 路径认出整合包自带的核心。"""
     jars = _jar_names(root_names)
     neo = [path for path in unix_paths if "/neoforge/" in path.replace("\\", "/").lower()]
-    forge = [
-        path
-        for path in unix_paths
-        if "/minecraftforge/forge/" in path.replace("\\", "/").lower()
-    ]
+    forge = [path for path in unix_paths if "/minecraftforge/forge/" in path.replace("\\", "/").lower()]
     if neo:
         path = sorted(neo)[-1]
         version = _version_from_unix(path)
@@ -416,9 +412,7 @@ def core_choices(detected: dict[str, Any], loader: str) -> list[dict[str, Any]]:
     choices: list[dict[str, Any]] = []
     jars: list[str] = list(detected.get("jars") or [])
     family = str(detected.get("family") or "")
-    if detected.get("loader") and (
-        detected.get("unix_args") or detected.get("jar") or family
-    ):
+    if detected.get("loader") and (detected.get("unix_args") or detected.get("jar") or family):
         version = str(detected.get("loader_version") or "")
         label = LOADER_LABELS.get(str(detected.get("loader") or ""), "整合包")
         if family in {"arclight", "youer", "mohist", "banner", "paper", "purpur"}:

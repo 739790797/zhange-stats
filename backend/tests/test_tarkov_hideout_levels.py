@@ -106,21 +106,12 @@ def test_pve_separate_and_cascade() -> None:
         levels_svc.set_level(db, user, stations, "gen", 1)
     finally:
         reset_game_mode(pve)
-    pvp_rows = {
-        r["station_id"]: r["level"]
-        for r in levels_svc.list_levels(db, user.id, stations, game_mode="pvp")
-    }
+    pvp_rows = {r["station_id"]: r["level"] for r in levels_svc.list_levels(db, user.id, stations, game_mode="pvp")}
     assert pvp_rows["gen"] == 2
     assert pvp_rows["bench"] == 1
-    mid = {
-        r["station_id"]: r["level"]
-        for r in levels_svc.set_level(db, user, stations, "gen", 1, game_mode="pvp")
-    }
+    mid = {r["station_id"]: r["level"] for r in levels_svc.set_level(db, user, stations, "gen", 1, game_mode="pvp")}
     assert mid["gen"] == 1
-    dropped = {
-        r["station_id"]: r["level"]
-        for r in levels_svc.set_level(db, user, stations, "gen", 0, game_mode="pvp")
-    }
+    dropped = {r["station_id"]: r["level"] for r in levels_svc.set_level(db, user, stations, "gen", 0, game_mode="pvp")}
     assert dropped["bench"] == 0
     assert dropped["stash"] == 1
 

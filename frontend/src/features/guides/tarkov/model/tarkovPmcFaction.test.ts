@@ -59,15 +59,8 @@ describe("taskVisibleForFaction", () => {
       { id: "u", faction_name: "USEC" },
       { id: "b", faction_name: "BEAR" },
     ];
-    expect(filterTasksByFaction(rows, "").map((row) => row.id)).toEqual([
-      "a",
-      "u",
-      "b",
-    ]);
-    expect(filterTasksByFaction(rows, "usec").map((row) => row.id)).toEqual([
-      "a",
-      "u",
-    ]);
+    expect(filterTasksByFaction(rows, "").map((row) => row.id)).toEqual(["a", "u", "b"]);
+    expect(filterTasksByFaction(rows, "usec").map((row) => row.id)).toEqual(["a", "u"]);
     expect(rows).toHaveLength(3);
   });
 });

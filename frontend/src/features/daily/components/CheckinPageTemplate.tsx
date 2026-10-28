@@ -14,13 +14,7 @@ import {
   Typography,
   message,
 } from "antd";
-import {
-  Fragment,
-  useEffect,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import dayjs, { type Dayjs } from "dayjs";
 import type { components } from "@/shared/api/generated/schema";
@@ -33,7 +27,10 @@ import {
   isCheckinSuccess,
   type CheckinDialogKind,
 } from "@/features/daily/model/checkinStatus";
-import { CheckinAwardsLine, TodayCheckinAwards } from "@/features/daily/components/CheckinAwardsLine";
+import {
+  CheckinAwardsLine,
+  TodayCheckinAwards,
+} from "@/features/daily/components/CheckinAwardsLine";
 import { CheckinStatusTag } from "@/features/daily/components/CheckinStatusTag";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { PlatformIcon } from "@/features/platforms/shared/components/PlatformIcon";
@@ -78,10 +75,7 @@ export interface CheckinPageTemplateProps {
   bindPanel?: ReactNode;
   statusQueryKey: string[];
   /** 打开页应 force=true；模板内固定 fetchStatus(true, true)。*Api 须显式传 force，见 frontend-conventions。 */
-  fetchStatus: (
-    includeRoles?: boolean,
-    force?: boolean,
-  ) => Promise<CheckinPageStatus>;
+  fetchStatus: (includeRoles?: boolean, force?: boolean) => Promise<CheckinPageStatus>;
   triggerCheckin: (payload: CheckinNowPayload) => Promise<CheckinPageResponse>;
   updateRolePref: (payload: CheckinRolePrefPayload) => Promise<CheckinPageStatus>;
   /** 是否展示 phone_mask（塔吉多） */
@@ -148,8 +142,7 @@ function rowKey(row: CheckinPageResultItem) {
 const ROWS_GRID_STYLE: CSSProperties = {
   display: "grid",
   /* 角色 | 区服 | 状态 | 附加(日历等，吸剩余宽) | 自动签到 | 签到 */
-  gridTemplateColumns:
-    "14rem max-content max-content minmax(0, 1fr) max-content max-content",
+  gridTemplateColumns: "14rem max-content max-content minmax(0, 1fr) max-content max-content",
   columnGap: 12,
   rowGap: 10,
   alignItems: "center",
@@ -199,10 +192,7 @@ function groupTodayResults(rows: CheckinPageResultItem[]): GameGroup[] {
   }
   return order
     .map((c) => map.get(c)!)
-    .sort(
-      (a, b) =>
-        communityGameRank(a.game_code) - communityGameRank(b.game_code),
-    );
+    .sort((a, b) => communityGameRank(a.game_code) - communityGameRank(b.game_code));
 }
 
 function RoleAutoCheckinControls({
@@ -383,9 +373,7 @@ export function CheckinPageTemplate({
       const results = data.results ?? [];
       const primary =
         results.find(
-          (row) =>
-            row.game_code === payload.game_code &&
-            row.role_uid === payload.role_uid,
+          (row) => row.game_code === payload.game_code && row.role_uid === payload.role_uid,
         ) ??
         results.find((row) => row.game_code === payload.game_code) ??
         results[0];
@@ -397,15 +385,10 @@ export function CheckinPageTemplate({
         message: primary?.message || data.summary,
       });
       const body =
-        (primary?.message || "").trim() ||
-        (data.summary || "").trim() ||
-        checkinDialogTitle(kind);
+        (primary?.message || "").trim() || (data.summary || "").trim() || checkinDialogTitle(kind);
       setDialog({
         kind,
-        message:
-          kind === "credential"
-            ? `${body}\n请重新绑定${bindName}后再试。`
-            : body,
+        message: kind === "credential" ? `${body}\n请重新绑定${bindName}后再试。` : body,
         awards: primary?.awards,
         awardsText: primary?.awards_text,
       });
@@ -420,10 +403,7 @@ export function CheckinPageTemplate({
       });
       setDialog({
         kind,
-        message:
-          kind === "credential"
-            ? `${msg}\n请重新绑定${bindName}后再试。`
-            : msg,
+        message: kind === "credential" ? `${msg}\n请重新绑定${bindName}后再试。` : msg,
       });
     },
     onSettled: () => setCheckingKey(null),
@@ -448,9 +428,7 @@ export function CheckinPageTemplate({
   const tokenBroken = isBindTokenBroken(statusQuery.data);
   const credentialRowError = hasCredentialRowError(statusQuery.data);
   const needsBind =
-    (!bound || tokenBroken) &&
-    Boolean(bindPanel) &&
-    !isInitialQueryPending(statusQuery);
+    (!bound || tokenBroken) && Boolean(bindPanel) && !isInitialQueryPending(statusQuery);
 
   const dismissDialog = () => setDialog(null);
 
@@ -482,9 +460,7 @@ export function CheckinPageTemplate({
           showIcon
           message={apiError(statusQuery.error, "加载签到状态失败")}
           description={
-            statusQuery.data
-              ? "下方为最近一次成功结果。可点右上角刷新重试。"
-              : undefined
+            statusQuery.data ? "下方为最近一次成功结果。可点右上角刷新重试。" : undefined
           }
           style={{ marginBottom: 16 }}
         />
@@ -508,10 +484,7 @@ export function CheckinPageTemplate({
           {todayResults.length ? (
             <Space direction="vertical" size={20} style={{ width: "100%" }}>
               {groupTodayResults(todayResults).map((group) => {
-                const iconName = checkinGameIcon(
-                  group.game_code,
-                  platformIcon,
-                );
+                const iconName = checkinGameIcon(group.game_code, platformIcon);
                 return (
                   <div key={group.game_code}>
                     <div
@@ -522,21 +495,14 @@ export function CheckinPageTemplate({
                         marginBottom: 8,
                       }}
                     >
-                      {iconName ? (
-                        <PlatformIcon name={iconName} size={22} />
-                      ) : null}
-                      <Typography.Text strong>
-                        {group.game_name}
-                      </Typography.Text>
+                      {iconName ? <PlatformIcon name={iconName} size={22} /> : null}
+                      <Typography.Text strong>{group.game_name}</Typography.Text>
                     </div>
                     <div style={stackRows ? ROWS_STACK_STYLE : ROWS_GRID_STYLE}>
                       {group.items.map((row, index) => {
                         const signed = isCheckinSuccess(row.status);
-                        const canCheckin =
-                          Boolean(row.game_code && row.role_uid) && !signed;
-                        const channelLabel = displayCheckinChannelName(
-                          row.channel_name,
-                        );
+                        const canCheckin = Boolean(row.game_code && row.role_uid) && !signed;
+                        const channelLabel = displayCheckinChannelName(row.channel_name);
                         const extra = renderResultExtra?.(row) ?? null;
                         return (
                           <div
@@ -553,15 +519,8 @@ export function CheckinPageTemplate({
                             >
                               {row.role_name || row.role_uid}
                             </span>
-                            {channelLabel ? (
-                              <Tag>{channelLabel}</Tag>
-                            ) : stackRows ? null : (
-                              <span />
-                            )}
-                            <CheckinStatusTag
-                              status={row.status}
-                              statusLabel={row.status_label}
-                            />
+                            {channelLabel ? <Tag>{channelLabel}</Tag> : stackRows ? null : <span />}
+                            <CheckinStatusTag status={row.status} statusLabel={row.status_label} />
                             {extra != null || !stackRows ? (
                               <span style={{ minWidth: 0 }}>{extra}</span>
                             ) : null}
@@ -579,10 +538,7 @@ export function CheckinPageTemplate({
                                     type="primary"
                                     size="small"
                                     loading={checkingKey === rowKey(row)}
-                                    disabled={
-                                      Boolean(checkingKey) &&
-                                      checkingKey !== rowKey(row)
-                                    }
+                                    disabled={Boolean(checkingKey) && checkingKey !== rowKey(row)}
                                     onClick={() =>
                                       checkin.mutate({
                                         game_code: row.game_code!,
@@ -612,9 +568,7 @@ export function CheckinPageTemplate({
                               }}
                             >
                               <TodayAwardsBlock row={row} />
-                              {row.extra_text ? (
-                                <ExtraTextRows text={row.extra_text} />
-                              ) : null}
+                              {row.extra_text ? <ExtraTextRows text={row.extra_text} /> : null}
                             </div>
                           </div>
                         );
@@ -631,9 +585,7 @@ export function CheckinPageTemplate({
                 tokenBroken ? (
                   "无法查询今日状态"
                 ) : (
-                  <span>
-                    暂无已加入本站的角色。请选择要加入签到的角色。
-                  </span>
+                  <span>暂无已加入本站的角色。请选择要加入签到的角色。</span>
                 )
               }
             >
@@ -682,11 +634,7 @@ export function CheckinPageTemplate({
             ) : null
           ) : null}
           {dialog.kind === "credential" ? (
-            <Alert
-              type="warning"
-              showIcon
-              message={`请重新绑定${bindName}`}
-            />
+            <Alert type="warning" showIcon message={`请重新绑定${bindName}`} />
           ) : null}
         </Space>
       ) : null}
@@ -714,11 +662,7 @@ export function CheckinPageTemplate({
         type={tokenBroken ? "warning" : "info"}
         showIcon
         style={{ marginBottom: 16 }}
-        message={
-          tokenBroken
-            ? `${bindName}凭证可能已失效`
-            : `尚未绑定${bindName}`
-        }
+        message={tokenBroken ? `${bindName}凭证可能已失效` : `尚未绑定${bindName}`}
         description={
           tokenBroken
             ? bindTokenErrorMessage(statusQuery.data) ||

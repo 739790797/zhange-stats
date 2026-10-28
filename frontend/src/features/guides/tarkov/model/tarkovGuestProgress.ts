@@ -6,7 +6,10 @@ import {
   collectionLayoutFromStorage,
 } from "@/features/guides/tarkov/model/tarkovCollection";
 import { TARKOV_GAME_MODES } from "@/features/guides/tarkov/model/tarkovGameMode";
-import { TARKOV_KEY_PACKS_STORAGE_KEY, parseOwnedState } from "@/features/guides/tarkov/model/tarkovKeyPacks";
+import {
+  TARKOV_KEY_PACKS_STORAGE_KEY,
+  parseOwnedState,
+} from "@/features/guides/tarkov/model/tarkovKeyPacks";
 import {
   TARKOV_PMC_FACTION_STORAGE_KEY,
   parseTarkovPmcFactionMap,
@@ -35,9 +38,7 @@ export function summarizeTarkovGuestProgress(
   stash: TarkovGuestProgress,
 ): TarkovGuestProgressSummary {
   const taskState = parseTaskDonesStateRaw(stash[TARKOV_TASK_DONES_STORAGE_KEY]);
-  const factions = parseTarkovPmcFactionMap(
-    stash[TARKOV_PMC_FACTION_STORAGE_KEY] ?? null,
-  );
+  const factions = parseTarkovPmcFactionMap(stash[TARKOV_PMC_FACTION_STORAGE_KEY] ?? null);
   const steps = new Set<string>();
   let tasks = 0;
   let collected = 0;
@@ -80,9 +81,7 @@ export function summarizeTarkovGuestProgress(
 }
 
 /** 提示里列出的几类进度；空数组表示没有可导入的。 */
-export function tarkovGuestProgressParts(
-  summary: TarkovGuestProgressSummary,
-): string[] {
+export function tarkovGuestProgressParts(summary: TarkovGuestProgressSummary): string[] {
   const parts: string[] = [];
   if (summary.tasks) parts.push(`${summary.tasks} 个任务`);
   if (summary.steps) parts.push(`${summary.steps} 条任务步骤`);

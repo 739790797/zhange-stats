@@ -12,7 +12,10 @@ import {
   type TarkovItemKeyLock,
 } from "@/features/guides/tarkov/model/tarkovItemLocks";
 import { findInteractiveMap, floorLabel } from "@/features/guides/tarkov/model/tarkovMapImages";
-import { tarkovLockIconUrl, tarkovMarkerHeightSpan } from "@/features/guides/tarkov/model/tarkovMapMarkers";
+import {
+  tarkovLockIconUrl,
+  tarkovMarkerHeightSpan,
+} from "@/features/guides/tarkov/model/tarkovMapMarkers";
 import { mapLayerFloorBands } from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import type { TarkovMapFocusRequest } from "@/features/guides/tarkov/components/TarkovMapViewer";
 import { PanelFallback } from "@/shared/ui/PanelFallback";
@@ -44,20 +47,14 @@ export function TarkovItemKeyLocks({ detail }: Props) {
   const floorBands = useMemo(
     () =>
       mapLayerFloorBands(
-        findInteractiveMap(
-          selected?.slug || "",
-          selected?.parent_slug || undefined,
-        ),
+        findInteractiveMap(selected?.slug || "", selected?.parent_slug || undefined),
       ),
     [selected?.slug, selected?.parent_slug],
   );
 
-  const firstLock = (selected?.locks || []).find(
-    (lock) => lock.x != null && lock.z != null,
-  );
+  const firstLock = (selected?.locks || []).find((lock) => lock.x != null && lock.z != null);
   const viewerLocks = useMemo(
-    () =>
-      selected ? itemKeyLocksAsMapLocks(selected, detail.id, detail.name) : [],
+    () => (selected ? itemKeyLocksAsMapLocks(selected, detail.id, detail.name) : []),
     [selected, detail.id, detail.name],
   );
 
@@ -136,12 +133,7 @@ export function TarkovItemKeyLocks({ detail }: Props) {
                   width={16}
                   height={16}
                 />
-                {lockPointLabel(
-                  lock,
-                  index,
-                  locks,
-                  lockFloorCaption(lock, floorBands),
-                )}
+                {lockPointLabel(lock, index, locks, lockFloorCaption(lock, floorBands))}
               </button>
             );
           })}

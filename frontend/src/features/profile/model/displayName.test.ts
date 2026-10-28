@@ -9,7 +9,7 @@ describe("displayNameError", () => {
   });
 
   it("accepts ordinary names, including other punctuation", () => {
-    expect(displayNameError("战鸽 & 朋友 \"测试\"")).toBeNull();
+    expect(displayNameError('战鸽 & 朋友 "测试"')).toBeNull();
     expect(displayNameError("")).toBeNull();
     expect(displayNameError(undefined)).toBeNull();
   });

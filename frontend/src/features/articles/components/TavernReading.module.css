@@ -45,8 +45,7 @@
 
 .articleTitle {
   margin: 0;
-  font-family:
-    "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
   font-size: var(--tavern-article-title-size, clamp(1.8rem, 4vw, 2.6rem));
   font-weight: 600;
   line-height: 1.3;

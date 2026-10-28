@@ -9,8 +9,7 @@ export function pickTavernHighlights(
 ): ArticleListItem[] {
   const out: ArticleListItem[] = [];
   const seen = new Set<number>();
-  const pin =
-    welcome && welcome.slug === TAVERN_WELCOME_SLUG ? welcome : undefined;
+  const pin = welcome && welcome.slug === TAVERN_WELCOME_SLUG ? welcome : undefined;
   if (pin) {
     out.push(pin);
     seen.add(pin.id);

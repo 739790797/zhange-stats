@@ -15,18 +15,18 @@
 
 ## 总览
 
-| 期 | 主题 | 体量 | 依赖 | 状态 |
-|----|------|------|------|------|
-| 0 | 页面壳：动效、标题、换页回顶、antd `App`、路由错误边界 | 已做 | — | **已落地**（2026-09） |
-| 1 | 反代安全头、备份、去掉 Google 字体 | S～M | — | **已落地**（2026-09-08） |
-| 2 | 收敛 401 整站登出 | S | — | **已落地**（2026-09-08） |
-| 3 | 无障碍：跳到正文、`main`、换页焦点 | S | 0（换页回顶） | **已落地**（2026-09-08） |
-| 4 | 删号入口与隐私条款对齐 | M | 邮件可用 | **已落地**（2026-09-08） |
-| 5 | 管理员高危操作二次确认（邮箱验证码） | M | SMTP | **已落地**（2026-09-08） |
-| 6 | 请求 ID + 前端错误上报（脱敏） | M | 1 的日志习惯 | **已落地**（2026-09-08） |
-| 7 | CSP：先 Report-Only 再收紧 | L | 1 字体自托管 | **已落地**（Report-Only；enforce 由运营打开） |
-| 8 | JWT → httpOnly Cookie + CSRF | L | 7 稳定、同域部署 | **已落地**（2026-09-08） |
-| 附 | 酒馆检索策略、依赖审计（非门禁） | S | 产品二选一 | **已落地**（A：全站 noindex；CI audit warning） |
+| 期  | 主题                                                   | 体量 | 依赖             | 状态                                            |
+| --- | ------------------------------------------------------ | ---- | ---------------- | ----------------------------------------------- |
+| 0   | 页面壳：动效、标题、换页回顶、antd `App`、路由错误边界 | 已做 | —                | **已落地**（2026-09）                           |
+| 1   | 反代安全头、备份、去掉 Google 字体                     | S～M | —                | **已落地**（2026-09-08）                        |
+| 2   | 收敛 401 整站登出                                      | S    | —                | **已落地**（2026-09-08）                        |
+| 3   | 无障碍：跳到正文、`main`、换页焦点                     | S    | 0（换页回顶）    | **已落地**（2026-09-08）                        |
+| 4   | 删号入口与隐私条款对齐                                 | M    | 邮件可用         | **已落地**（2026-09-08）                        |
+| 5   | 管理员高危操作二次确认（邮箱验证码）                   | M    | SMTP             | **已落地**（2026-09-08）                        |
+| 6   | 请求 ID + 前端错误上报（脱敏）                         | M    | 1 的日志习惯     | **已落地**（2026-09-08）                        |
+| 7   | CSP：先 Report-Only 再收紧                             | L    | 1 字体自托管     | **已落地**（Report-Only；enforce 由运营打开）   |
+| 8   | JWT → httpOnly Cookie + CSRF                           | L    | 7 稳定、同域部署 | **已落地**（2026-09-08）                        |
+| 附  | 酒馆检索策略、依赖审计（非门禁）                       | S    | 产品二选一       | **已落地**（A：全站 noindex；CI audit warning） |
 
 **明确不做（本路线结束也不做）：** 主应用暗色、i18n、PWA、水平扩展 / Redis pub/sub 联机（另立项）、Lighthouse/axe 进 CI 门禁（3 期完成前）、完整 TOTP/WebAuthn（5 期邮箱码足够）。
 
@@ -72,12 +72,12 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 单机 LXC，备份对象：
 
-| 对象 | 路径 / 命令 |
-|------|----------------|
-| MySQL | `mysqldump`（含例行 `--single-transaction`）；库名来自 `config/database.json` 或环境变量 `DATABASE_URL` |
-| SQLite | 打包 `data/runtime/zhange.sqlite`（随 `data/runtime/`） |
-| 运行时 | `data/runtime/`（含 `.secret_key`、日志）、`data/uploads/`、`data/models/`（TexTeller 权重） |
-| 配置 | 安装根 `config/`（**不要**进 Git；旧备份里的 `.env` 若仍在会打包装上以便迁入） |
+| 对象   | 路径 / 命令                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------- |
+| MySQL  | `mysqldump`（含例行 `--single-transaction`）；库名来自 `config/database.json` 或环境变量 `DATABASE_URL` |
+| SQLite | 打包 `data/runtime/zhange.sqlite`（随 `data/runtime/`）                                                 |
+| 运行时 | `data/runtime/`（含 `.secret_key`、日志）、`data/uploads/`、`data/models/`（TexTeller 权重）            |
+| 配置   | 安装根 `config/`（**不要**进 Git；旧备份里的 `.env` 若仍在会打包装上以便迁入）                          |
 
 建议：
 
@@ -93,18 +93,18 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 ### 1.3 字体不再走 Google
 
-现状：[`frontend/index.html`](../frontend/index.html) 已不加载 Google Fonts；主应用使用系统黑体（`antdAppTheme`）。塔科夫壳使用 `frontend/src/features/guides/tarkov/assets/fonts/` 中自托管的 IBM Plex / Rajdhani 字体，CJK 由 `tarkovFonts.css` 回退到本机字体。
+现状：[`frontend/index.html`](../frontend/index.html) 已不加载 Google Fonts；主应用使用系统黑体（`antdAppTheme`）。塔科夫主题从 `frontend/vendor/zhange-base/design-system/` 加载共享令牌、IBM Plex / Rajdhani 与 Noto Sans SC Variable 字体，字体许可保存在 base 仓库。
 
 已落实：
 
 1. `index.html` 不加载 Google Fonts 的 `preconnect` 或 stylesheet，主应用无外部字体依赖。
-2. Tarkov 仅由 `TarkovGuideShell` 引入本 feature 的拉丁子集 woff2；许可文件与字体并置，保留 SIL OFL。
+2. Tarkov 由 `TarkovThemed` 导入 base 设计系统 CSS；Fontsource 字体依赖由 Stats 前端直接声明，许可文件由 base 仓库保留。
 3. 生产构建后攻略页不请求 `fonts.googleapis.com` 或 `fonts.gstatic.com`。
 
 验收：
 
 - [x] 生产首页与塔科夫首页无 `fonts.googleapis.com` / `fonts.gstatic.com`
-- [x] 主应用字形仍为黑体；塔科夫汉字不出现 `???`（`tarkovFonts.css` 的 CJK `@font-face` 保留）
+- [x] 主应用字形仍为黑体；塔科夫汉字不出现 `???`（由 base 设计系统的 Noto Sans SC Variable 字体提供）
 
 ---
 
@@ -266,10 +266,10 @@ form-action 'self';
 
 开工前运营选一个，写进本段并改代码。**已选 A**（2026-09-08）：全站 `noindex,nofollow`，`GET /robots.txt` 为 `Disallow: /`。
 
-| 选项 | 做法 |
-|------|------|
-| **A. 不希望被搜到**（默认建议） | `index.html` 与酒馆公开页 `meta name="robots" content="noindex,nofollow"`；`/robots.txt` Disallow 按需 |
-| **B. 希望文章被索引** | 仅 `/tavern/:slug` 输出 `description`（摘要消毒后截断）、`og:title`；列表页仍 noindex；不要给后台/签到页做 SEO |
+| 选项                            | 做法                                                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **A. 不希望被搜到**（默认建议） | `index.html` 与酒馆公开页 `meta name="robots" content="noindex,nofollow"`；`/robots.txt` Disallow 按需         |
+| **B. 希望文章被索引**           | 仅 `/tavern/:slug` 输出 `description`（摘要消毒后截断）、`og:title`；列表页仍 noindex；不要给后台/签到页做 SEO |
 
 验收：选 A 则搜索预览抓不到后台路由；选 B 则文章源码有 description，登录页仍 noindex。
 
@@ -284,17 +284,17 @@ form-action 'self';
 
 ## 落地后改哪些文档
 
-| 期 | 必须同步 |
-|----|----------|
-| 1 | `deploy.md` 反代示例、公开运营检查、备份/恢复 |
-| 2 | 可选：前端 API 错误约定中的「401 登出规则」 |
-| 3 | 前端 UI 约定跳转正文 / `main` |
-| 4 | `legalDocs.ts`、`database.md`、`security.md` 一句删号 |
-| 5 | `security.md` 管理员步进 |
-| 6 | `deploy.md` 或 `security.md` 请求 ID |
-| 7 | `deploy.md` CSP |
-| 8 | `security.md` Cookie/CSRF（改写现 JWT 条）；`AGENTS.md` 禁止清单去掉「未做 CSRF 前…」并改为新禁令 |
-| 附 A | `frontend/index.html` 或文章页；本路线状态表 |
+| 期   | 必须同步                                                                                          |
+| ---- | ------------------------------------------------------------------------------------------------- |
+| 1    | `deploy.md` 反代示例、公开运营检查、备份/恢复                                                     |
+| 2    | 可选：前端 API 错误约定中的「401 登出规则」                                                       |
+| 3    | 前端 UI 约定跳转正文 / `main`                                                                     |
+| 4    | `legalDocs.ts`、`database.md`、`security.md` 一句删号                                             |
+| 5    | `security.md` 管理员步进                                                                          |
+| 6    | `deploy.md` 或 `security.md` 请求 ID                                                              |
+| 7    | `deploy.md` CSP                                                                                   |
+| 8    | `security.md` Cookie/CSRF（改写现 JWT 条）；`AGENTS.md` 禁止清单去掉「未做 CSRF 前…」并改为新禁令 |
+| 附 A | `frontend/index.html` 或文章页；本路线状态表                                                      |
 
 全部 1～8 完成后：把本文状态改为 **已落地（日期）**，总览表打勾。不要另写第二份「规范」。
 

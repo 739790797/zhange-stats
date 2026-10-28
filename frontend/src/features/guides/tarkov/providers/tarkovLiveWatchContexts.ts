@@ -1,5 +1,9 @@
 import { createContext } from "react";
-import type { TarkovLogPhasePayload, TarkovLogPreviewRaid, TarkovLogSessionStub } from "@/features/guides/tarkov/model/tarkovGameLogs";
+import type {
+  TarkovLogPhasePayload,
+  TarkovLogPreviewRaid,
+  TarkovLogSessionStub,
+} from "@/features/guides/tarkov/model/tarkovGameLogs";
 import type { QuestLogSyncReview } from "@/features/guides/tarkov/model/tarkovTaskLogSync";
 import type { TarkovLogSyncOpts } from "@/features/guides/tarkov/model/tarkovLogSyncRange";
 import type { TarkovScreenshotPos } from "@/features/guides/tarkov/model/tarkovScreenshotPos";
@@ -124,15 +128,9 @@ export const EMPTY_SHOT_META: TarkovLiveShotMeta = {
   enable: async () => undefined,
 };
 
-export const TarkovLiveWatchContext =
-  createContext<TarkovLiveWatchValue>(EMPTY_LIVE_WATCH);
-export const TarkovLiveFixContext = createContext<TarkovScreenshotFix | null>(
-  null,
-);
+export const TarkovLiveWatchContext = createContext<TarkovLiveWatchValue>(EMPTY_LIVE_WATCH);
+export const TarkovLiveFixContext = createContext<TarkovScreenshotFix | null>(null);
 export const TarkovLiveLogMapContext = createContext("");
-export const TarkovLiveLogPhaseContext =
-  createContext<TarkovLogPhasePayload | null>(null);
-export const TarkovLiveShotMetaContext =
-  createContext<TarkovLiveShotMeta>(EMPTY_SHOT_META);
-export const TarkovLogSyncContext =
-  createContext<TarkovLogSyncValue>(EMPTY_LOG_SYNC);
+export const TarkovLiveLogPhaseContext = createContext<TarkovLogPhasePayload | null>(null);
+export const TarkovLiveShotMetaContext = createContext<TarkovLiveShotMeta>(EMPTY_SHOT_META);
+export const TarkovLogSyncContext = createContext<TarkovLogSyncValue>(EMPTY_LOG_SYNC);

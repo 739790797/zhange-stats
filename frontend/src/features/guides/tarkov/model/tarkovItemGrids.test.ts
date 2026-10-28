@@ -75,9 +75,7 @@ describe("extractGridPockets", () => {
     });
     expect(layout.kind).toBe("stacked");
     expect(layout.pockets[0]).toMatchObject({ col: 0, row: 0 });
-    const occupied = new Set(
-      layout.pockets.map((pocket) => `${pocket.col},${pocket.row}`),
-    );
+    const occupied = new Set(layout.pockets.map((pocket) => `${pocket.col},${pocket.row}`));
     expect(occupied.size).toBe(layout.pockets.length);
   });
 });
@@ -95,9 +93,7 @@ describe("composeGridOccupancy", () => {
   });
 
   it("places half-column pockets without overlapping neighbors", () => {
-    const occupancy = composeGridOccupancy(
-      extractGridPockets({}, HALF_COL_ID),
-    );
+    const occupancy = composeGridOccupancy(extractGridPockets({}, HALF_COL_ID));
     expect(occupancy).not.toBeNull();
     const filled = occupancy!.cells.filter(Boolean).length;
     const expected = extractGridPockets({}, HALF_COL_ID).reduce(
@@ -120,13 +116,11 @@ describe("gridOccupancyCaption", () => {
       ),
     ).toBe("39 格 · 容量 45 · 5×7 · 2×2");
     expect(
-      gridOccupancyCaption(
-        [
-          { width: 1, height: 2, col: 0, row: 0 },
-          { width: 1, height: 2, col: 1, row: 0 },
-          { width: 1, height: 1, col: 2, row: 0 },
-        ],
-      ),
+      gridOccupancyCaption([
+        { width: 1, height: 2, col: 0, row: 0 },
+        { width: 1, height: 2, col: 1, row: 0 },
+        { width: 1, height: 1, col: 2, row: 0 },
+      ]),
     ).toBe("5 格 · 1×2 ×2 · 1×1");
   });
 });

@@ -28,19 +28,14 @@ describe("tarkov map loot loose kinds", () => {
   });
 
   it("falls back to other when handbook is missing", () => {
-    expect(lootLooseKindFromItem({ handbook_ids: [] })).toBe(
-      LOOT_LOOSE_OTHER_KIND,
-    );
+    expect(lootLooseKindFromItem({ handbook_ids: [] })).toBe(LOOT_LOOSE_OTHER_KIND);
     expect(lootLooseKindLabel("unknown")).toBe("其他");
   });
 
   it("lists a pile on every item category it contains", () => {
     expect(
       lootLooseKindsOfRow({
-        items: [
-          { handbook_ids: [VALUABLES] },
-          { handbook_ids: [MECHANICAL_KEYS] },
-        ],
+        items: [{ handbook_ids: [VALUABLES] }, { handbook_ids: [MECHANICAL_KEYS] }],
       }).sort(),
     ).toEqual([MECHANICAL_KEYS, VALUABLES].sort());
   });
@@ -56,10 +51,7 @@ describe("tarkov map loot loose kinds", () => {
 
   it("shows a mixed pile if any of its categories is on", () => {
     const row = {
-      items: [
-        { handbook_ids: [VALUABLES] },
-        { handbook_ids: [MECHANICAL_KEYS] },
-      ],
+      items: [{ handbook_ids: [VALUABLES] }, { handbook_ids: [MECHANICAL_KEYS] }],
     };
     expect(lootLooseRowVisible(row, { [VALUABLES]: true })).toBe(true);
     expect(lootLooseRowVisible(row, { [MECHANICAL_KEYS]: false })).toBe(false);
@@ -75,9 +67,7 @@ describe("tarkov map loot loose kinds", () => {
     expect(tarkovLooseLootKindIconUrl(LOOT_LOOSE_OTHER_KIND)).toBe(
       "https://assets.tarkov.dev/handbook-category-5b47574386f77428ca22b2f4-icon.webp",
     );
-    expect(tarkovLooseLootKindIconUrl("unknown")).toBe(
-      "/tarkov/map-icons/loose_loot.png",
-    );
+    expect(tarkovLooseLootKindIconUrl("unknown")).toBe("/tarkov/map-icons/loose_loot.png");
   });
 
   it("uses handbook category icons on the map, including single items", () => {
@@ -91,25 +81,15 @@ describe("tarkov map loot loose kinds", () => {
           },
         ],
       }),
-    ).toBe(
-      "https://assets.tarkov.dev/handbook-category-5b47574386f77428ca22b2f1-icon.webp",
-    );
+    ).toBe("https://assets.tarkov.dev/handbook-category-5b47574386f77428ca22b2f1-icon.webp");
     expect(
       lootLooseMarkerIconUrl({
-        items: [
-          { handbook_ids: [VALUABLES] },
-          { handbook_ids: [VALUABLES] },
-        ],
+        items: [{ handbook_ids: [VALUABLES] }, { handbook_ids: [VALUABLES] }],
       }),
-    ).toBe(
-      "https://assets.tarkov.dev/handbook-category-5b47574386f77428ca22b2f1-icon.webp",
-    );
+    ).toBe("https://assets.tarkov.dev/handbook-category-5b47574386f77428ca22b2f1-icon.webp");
     expect(
       lootLooseMarkerIconUrl({
-        items: [
-          { handbook_ids: [VALUABLES] },
-          { handbook_ids: [MECHANICAL_KEYS] },
-        ],
+        items: [{ handbook_ids: [VALUABLES] }, { handbook_ids: [MECHANICAL_KEYS] }],
       }),
     ).toBe("/tarkov/map-icons/loose_loot.png");
   });
@@ -137,9 +117,7 @@ describe("tarkov loot loose tooltip html", () => {
     );
     expect(html).toContain('class="lootTip"');
     expect(html).toContain("https://assets.tarkov.dev/fuel-icon.webp");
-    expect(html).toContain(
-      "https://assets.tarkov.dev/57347c5b245977448d35f6e1-icon.webp",
-    );
+    expect(html).toContain("https://assets.tarkov.dev/57347c5b245977448d35f6e1-icon.webp");
     expect(html).toContain('data-tarkov-loot-item="544fb62a4bdc2dfb738b4568"');
     expect(html).toContain('data-tarkov-loot-chip="1"');
     expect(html).toContain('data-tarkov-loot-types="barter"');

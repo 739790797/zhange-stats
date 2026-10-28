@@ -1,8 +1,4 @@
-import type {
-  AxiosInstance,
-  AxiosResponse,
-  InternalAxiosRequestConfig,
-} from "axios";
+import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import {
   CATALOG_HTTP_CACHE_MAX,
   catalogBodyKeysToEvict,
@@ -25,10 +21,7 @@ let mapFileHydrate: Promise<void> | null = null;
 function rememberCatalogBody(key: string, body: unknown) {
   catalogBodies.delete(key);
   catalogBodies.set(key, body);
-  for (const evict of catalogBodyKeysToEvict(
-    [...catalogBodies.keys()],
-    CATALOG_HTTP_CACHE_MAX,
-  )) {
+  for (const evict of catalogBodyKeysToEvict([...catalogBodies.keys()], CATALOG_HTTP_CACHE_MAX)) {
     catalogBodies.delete(evict);
     if (!catalogCacheKeyIsMapFile(evict)) catalogEtags.delete(evict);
   }
@@ -61,8 +54,7 @@ export async function prepareTarkovRequest(
     if (etag && (catalogBodies.has(key) || isTarkovMapFileUrl(url))) {
       config.headers["If-None-Match"] = etag;
     }
-    config.validateStatus = (status) =>
-      (status >= 200 && status < 300) || status === 304;
+    config.validateStatus = (status) => (status >= 200 && status < 300) || status === 304;
   }
   return config;
 }

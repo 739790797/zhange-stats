@@ -125,9 +125,7 @@ ByteProgress = Callable[[int, int | None], None]
 
 def site_dump_specs(*, lang: str = "zh") -> list[tuple[str, str | None, str]]:
     """下载/落库顺序：(resource, lang 或 None, dump 域 id)。"""
-    rows: list[tuple[str, str | None, str]] = [
-        (resource, None, f"dump:{resource}") for resource in JSON_RESOURCES
-    ]
+    rows: list[tuple[str, str | None, str]] = [(resource, None, f"dump:{resource}") for resource in JSON_RESOURCES]
     for resource in JSON_LOCALES:
         key = resource_key(resource, lang=lang)
         rows.append((resource, lang, f"dump:{key}"))
@@ -223,9 +221,7 @@ def download_json_object(
     timeout: int = 180,
     on_bytes: ByteProgress | None = None,
 ) -> tuple[dict[str, Any], str | None]:
-    raw, upstream_at = download_dump(
-        url, timeout=timeout, error_cls=TarkovUpstreamError, on_bytes=on_bytes
-    )
+    raw, upstream_at = download_dump(url, timeout=timeout, error_cls=TarkovUpstreamError, on_bytes=on_bytes)
     return _decode_json(raw, label=url), upstream_at
 
 
@@ -500,7 +496,7 @@ def notes_upstream_at(note: str | None) -> str | None:
     idx = text.rfind(marker)
     if idx < 0:
         return None
-    value = text[idx + len(marker):].strip()
+    value = text[idx + len(marker) :].strip()
     if not value:
         return None
     try:
@@ -616,9 +612,7 @@ def download_site_json(
                 upstream_at = http_last_modified_iso(getattr(resp, "headers", None))
                 changed.add(key)
             else:
-                payload, upstream_at = download_json_resource(
-                    resource, lang=res_lang, on_bytes=on_bytes
-                )
+                payload, upstream_at = download_json_resource(resource, lang=res_lang, on_bytes=on_bytes)
             out[key] = payload
             if upstream_at:
                 upstream_times[key] = upstream_at
@@ -632,11 +626,7 @@ def download_site_json(
             else:
                 errors.append(f"{resource}: {exc}")
                 logger.warning("tarkov dump %s/%s failed: %s", prefix, resource, exc)
-    downloaded = [
-        name
-        for name in JSON_RESOURCES
-        if name in out and _raw_is_complete(name, out[name])
-    ]
+    downloaded = [name for name in JSON_RESOURCES if name in out and _raw_is_complete(name, out[name])]
     if not downloaded and not unchanged:
         # 一份完整资源都没下到、也没有 304 短路 → 整站不可用；有 304 说明旧 raw 还在用。
         detail = "；".join(errors) if errors else "无文件"
@@ -729,9 +719,7 @@ def persist_site_json(
                 )
                 continue
         elif not _raw_is_complete(resource, payload):
-            logger.warning(
-                "tarkov dump %s/%s 形状不完整，跳过落库保留旧 raw", prefix, key
-            )
+            logger.warning("tarkov dump %s/%s 形状不完整，跳过落库保留旧 raw", prefix, key)
             rows.append(
                 {
                     "id": domain_id,
@@ -844,4 +832,3 @@ def locale_data(dump: dict[str, dict[str, Any]], resource: str, *, lang: str = "
         return {}
     data = unwrap_json_blob(blob)
     return data if isinstance(data, dict) else {}
-

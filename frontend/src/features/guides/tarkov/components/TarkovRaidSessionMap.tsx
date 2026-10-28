@@ -33,12 +33,7 @@ type Props = Omit<
   error?: unknown;
 };
 
-export function TarkovRaidSessionMap({
-  detail,
-  loading,
-  error,
-  ...live
-}: Props) {
+export function TarkovRaidSessionMap({ detail, loading, error, ...live }: Props) {
   if (loading) {
     return (
       <div className={catalogCss.status}>
@@ -58,10 +53,7 @@ export function TarkovRaidSessionMap({
   }
   return (
     <Suspense fallback={<PanelFallback tip="加载地图…" />}>
-      <TarkovRaidRoomLiveMap
-        {...live}
-        {...tarkovMapViewerLayerProps(detail)}
-      />
+      <TarkovRaidRoomLiveMap {...live} {...tarkovMapViewerLayerProps(detail)} />
     </Suspense>
   );
 }

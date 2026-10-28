@@ -33,9 +33,7 @@ export function objectivePinKey(taskId: string, objectiveId: string): string {
   return `${task}\0${objective}`;
 }
 
-function copySkipMap(
-  current: RaidPrepSkipMap | null | undefined,
-): Map<string, Set<string>> {
+function copySkipMap(current: RaidPrepSkipMap | null | undefined): Map<string, Set<string>> {
   const next = new Map<string, Set<string>>();
   for (const [taskId, ids] of current || []) {
     const task = String(taskId || "").trim();

@@ -40,9 +40,7 @@ export function buildCheckinTaskScheduleColumns<T>(options: {
       render: (_, row) =>
         leaf(row, (t) =>
           t.auto_checkin ? (
-            <Typography.Text>
-              {formatCheckinTime(t.checkin_hour, t.checkin_minute)}
-            </Typography.Text>
+            <Typography.Text>{formatCheckinTime(t.checkin_hour, t.checkin_minute)}</Typography.Text>
           ) : (
             <Typography.Text type="secondary">-</Typography.Text>
           ),
@@ -55,10 +53,7 @@ export function buildCheckinTaskScheduleColumns<T>(options: {
       align: "center",
       render: (_, row) =>
         leaf(row, (t) => (
-          <CheckinStatusTag
-            status={t.today_status}
-            statusLabel={t.today_status_label}
-          />
+          <CheckinStatusTag status={t.today_status} statusLabel={t.today_status_label} />
         )),
     },
     {

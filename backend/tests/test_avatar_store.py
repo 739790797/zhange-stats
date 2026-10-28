@@ -26,9 +26,7 @@ from app.services.user_files.store import STATUS_DELETED, get_by_rel_path
 
 def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(
-        bind=engine, tables=[User.__table__, Member.__table__, UserFile.__table__]
-    )
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, Member.__table__, UserFile.__table__])
     return sessionmaker(bind=engine)()
 
 
@@ -45,9 +43,7 @@ def test_encode_avatar_jpeg_is_square() -> None:
     assert img.size == (AVATAR_SIZE, AVATAR_SIZE)
 
 
-def test_save_avatar_bytes_registers_and_overwrites(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_save_avatar_bytes_registers_and_overwrites(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     db = _session()
     user = User(

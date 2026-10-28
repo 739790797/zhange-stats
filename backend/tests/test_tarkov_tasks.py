@@ -158,6 +158,7 @@ def test_garbled_graphql_name_uses_normalized():
     assert row is not None
     assert row["name"] == "checking"
 
+
 def test_task_min_trader_level_uses_own_trader():
     assert (
         tasks.task_min_trader_level(
@@ -518,13 +519,7 @@ def test_apply_item_hits_fills_placeholder_key_names():
                     ],
                 }
             ],
-            "objectives": [
-                {
-                    "items": [
-                        {"id": "gold", "name": "gold", "icon_link": "", "types": []}
-                    ]
-                }
-            ],
+            "objectives": [{"items": [{"id": "gold", "name": "gold", "icon_link": "", "types": []}]}],
         }
     ]
     tasks.apply_item_hits_to_details(
@@ -626,9 +621,7 @@ def test_project_localizes_objective_tokens_from_locale():
                     ],
                     "exitStatus": ["ExpBonusmarathon Name", "Survived"],
                     "exitName": "WOO_TRANSIT_17",
-                    "healthEffect": {
-                        "effects": ["Dehydration", "5448f3a64bdc2d60728b456a Name"]
-                    },
+                    "healthEffect": {"effects": ["Dehydration", "5448f3a64bdc2d60728b456a Name"]},
                     "containsCategory": [{"id": "550aa4cd4bdc2dd8348b456c"}],
                 }
             ],
@@ -637,9 +630,7 @@ def test_project_localizes_objective_tokens_from_locale():
                     {"name": "StressResistance", "level": 1},
                     {"name": "TroubleShooting", "level": 1},
                 ],
-                "customization": [
-                    {"id": "c1", "name": "标", "customizationType": "Floor"}
-                ],
+                "customization": [{"id": "c1", "name": "标", "customizationType": "Floor"}],
             },
         },
         locale,
@@ -1400,9 +1391,7 @@ def test_project_objective_structured_fields():
                     "type": "buildWeapon",
                     "description": "build",
                     "containsAll": ["grip1"],
-                    "containsCategory": [
-                        {"id": "cat1", "name": "Sights", "normalizedName": "sights"}
-                    ],
+                    "containsCategory": [{"id": "cat1", "name": "Sights", "normalizedName": "sights"}],
                     "attributes": [
                         {
                             "name": "ergonomics",
@@ -1623,5 +1612,3 @@ def test_task_detail_fills_images_from_tasks_dump(tmp_path) -> None:
     customization = detail["finish_rewards"]["customization"][0]
     assert customization["name"] == "帽子"
     assert customization["image_link"] == "https://img/c.png"
-
-

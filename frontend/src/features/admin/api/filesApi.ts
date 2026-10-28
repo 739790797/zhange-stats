@@ -78,11 +78,7 @@ export async function fetchManagedFileContents(rootId: string, path: string) {
   return data;
 }
 
-export async function writeManagedFile(
-  rootId: string,
-  path: string,
-  content: string,
-) {
+export async function writeManagedFile(rootId: string, path: string, content: string) {
   const { data } = await client.put<FileOk>(
     `${FILES}/contents`,
     { root_id: rootId, path, content },
@@ -115,11 +111,7 @@ export async function uploadManagedFile(
   return data;
 }
 
-export async function createManagedFolder(
-  rootId: string,
-  path: string,
-  name: string,
-) {
+export async function createManagedFolder(rootId: string, path: string, name: string) {
   const { data } = await client.post<FileOk>(`${FILES}/create-folder`, {
     root_id: rootId,
     path,
@@ -128,12 +120,7 @@ export async function createManagedFolder(
   return data;
 }
 
-export async function createManagedFile(
-  rootId: string,
-  path: string,
-  name: string,
-  content = "",
-) {
+export async function createManagedFile(rootId: string, path: string, name: string, content = "") {
   const { data } = await client.post<FileOk>(
     `${FILES}/create-file`,
     { root_id: rootId, path, name, content },
@@ -142,12 +129,7 @@ export async function createManagedFile(
   return data;
 }
 
-export async function renameManagedFile(
-  rootId: string,
-  path: string,
-  src: string,
-  dest: string,
-) {
+export async function renameManagedFile(rootId: string, path: string, src: string, dest: string) {
   const { data } = await client.post<FileOk>(`${FILES}/rename`, {
     root_id: rootId,
     path,
@@ -157,11 +139,7 @@ export async function renameManagedFile(
   return data;
 }
 
-export async function deleteManagedFiles(
-  rootId: string,
-  path: string,
-  names: string[],
-) {
+export async function deleteManagedFiles(rootId: string, path: string, names: string[]) {
   const { data } = await client.post<FileOk>(`${FILES}/delete`, {
     root_id: rootId,
     path,

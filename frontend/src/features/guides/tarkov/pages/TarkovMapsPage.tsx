@@ -11,11 +11,7 @@ export default function TarkovMapsPage() {
       title={maintain ? "地图信息" : "地图"}
       crumbs={[]}
       sectionLabel="地图"
-      subtitle={
-        maintain
-          ? "选一张图，改地名。"
-          : "点进地图看图上的撤离点和 BOSS。"
-      }
+      subtitle={maintain ? "选一张图，改地名。" : "点进地图看图上的撤离点和 BOSS。"}
     >
       <TarkovMapsPanel />
     </TarkovItemsPageShell>

@@ -181,11 +181,7 @@ def test_prestige_id_hydrated_added_task_keeps_overlay_name() -> None:
                 "requiredPrestige": {"name": "Prestige 4", "prestigeLevel": 4},
             }
         },
-        "modes": {
-            "regular": {
-                "prestige": {"p1": {"name": "Prestige 1", "prestigeLevel": 1}}
-            }
-        },
+        "modes": {"regular": {"prestige": {"p1": {"name": "Prestige 1", "prestigeLevel": 1}}}},
     }
     out = apply_overlay("tasks", payload, overlay)
     assert out["tasks"]["nb2"]["requiredPrestige"]["prestigeLevel"] == 1
@@ -218,10 +214,7 @@ def test_overlay_locales_do_not_rewrite_dump_wiki_or_name() -> None:
                 "tasks": {
                     "nb2": {
                         "name": "New Beginning",
-                        "wikiLink": (
-                            "https://escapefromtarkov.fandom.com/wiki/"
-                            "New_Beginning_(Prestige_2)"
-                        ),
+                        "wikiLink": ("https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_2)"),
                     }
                 }
             }
@@ -310,9 +303,7 @@ def test_items_add_skips_existing() -> None:
 
 def test_crafts_add_appends_missing_and_parse_sees_it() -> None:
     payload = {
-        "hideout": {
-            "st1": {"id": "st1", "normalizedName": "workbench", "name": "Workbench", "levels": []}
-        },
+        "hideout": {"st1": {"id": "st1", "normalizedName": "workbench", "name": "Workbench", "levels": []}},
         "barters": [],
         "crafts": [
             {
@@ -421,9 +412,7 @@ def test_download_overlay_reads_local_clone(monkeypatch) -> None:
         return b'{"tasks": {"t1": {"disabled": true}}}'
 
     monkeypatch.setattr(overlay_svc, "read_repo_bytes", fake_read)
-    payload, upstream_at = overlay_svc.download_overlay(
-        on_bytes=lambda n, total: progress.append((n, total))
-    )
+    payload, upstream_at = overlay_svc.download_overlay(on_bytes=lambda n, total: progress.append((n, total)))
     assert payload["tasks"]["t1"]["disabled"] is True
     assert upstream_at is None
     assert seen == [

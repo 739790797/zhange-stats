@@ -252,9 +252,7 @@ EQUIPMENT_SLOTS: tuple[EquipmentSlotDef, ...] = (
     ),
 )
 
-EQUIPMENT_SLOT_INDEX: dict[str, int] = {
-    slot.key: index for index, slot in enumerate(EQUIPMENT_SLOTS)
-}
+EQUIPMENT_SLOT_INDEX: dict[str, int] = {slot.key: index for index, slot in enumerate(EQUIPMENT_SLOTS)}
 EQUIPMENT_SLOT_INDEX[EQUIPMENT_SLOT_OTHER] = len(EQUIPMENT_SLOTS)
 
 BOSS_STATIC: dict[str, dict[str, str]] = {
@@ -529,9 +527,7 @@ def copy_missing_map_locks(
         if not isinstance(prev, dict):
             continue
         locks = prev.get("locks") if isinstance(prev.get("locks"), list) else None
-        access = (
-            prev.get("accessKeys") if isinstance(prev.get("accessKeys"), list) else None
-        )
+        access = prev.get("accessKeys") if isinstance(prev.get("accessKeys"), list) else None
         if not locks and not access:
             continue
         if locks:
@@ -795,9 +791,7 @@ def _slim_equipment(raw: Any) -> list[dict[str, Any]]:
         packed: dict[str, Any] = {
             "item": item_id,
             "count": max(int(count), 1),
-            "contains": _contains_entries(
-                row.get("contains") or row.get("containsItems")
-            ),
+            "contains": _contains_entries(row.get("contains") or row.get("containsItems")),
         }
         slot = equipment_slot_name(row)
         if slot:
@@ -842,11 +836,7 @@ _WEAPON_PART_PROPS = frozenset(
 
 def _item_types(item: dict[str, Any] | None) -> set[str]:
     row = item if isinstance(item, dict) else {}
-    return {
-        str(t).strip().lower()
-        for t in (row.get("types") or [])
-        if t is not None and str(t).strip()
-    }
+    return {str(t).strip().lower() for t in (row.get("types") or []) if t is not None and str(t).strip()}
 
 
 def _item_props(item: dict[str, Any] | None) -> str:
@@ -934,11 +924,7 @@ def equipment_slot_for_item(item: dict[str, Any] | None) -> tuple[str, str]:
         return "melee", "近战武器"
     if pt == "itempropertiesgrenade":
         return "grenade", "投掷物"
-    handbook = {
-        str(x).strip()
-        for x in (row.get("handbook_ids") or [])
-        if x is not None and str(x).strip()
-    }
+    handbook = {str(x).strip() for x in (row.get("handbook_ids") or []) if x is not None and str(x).strip()}
     for slot in EQUIPMENT_SLOTS:
         if slot.handbook_ids and handbook & slot.handbook_ids:
             return slot.key, slot.label
@@ -1058,9 +1044,7 @@ def build_equipment_slots(
             child_row = items.get(cid)
             if not is_stowed_content(child_row):
                 continue
-            nested.append(
-                _contained_ref(items, cid, count=int(child.get("count") or 1))
-            )
+            nested.append(_contained_ref(items, cid, count=int(child.get("count") or 1)))
         packed["contains"] = _merge_contained([], nested)
         bucket = buckets.get(slot_key)
         if bucket is None:
@@ -1123,13 +1107,9 @@ def slim_maps_payload(
                     "spawnTime": _as_int(spawn.get("spawnTime"), -1),
                     "spawnTimeRandom": bool(spawn.get("spawnTimeRandom")),
                     "spawnTrigger": (
-                        str(spawn.get("spawnTrigger")).strip()
-                        if spawn.get("spawnTrigger") not in (None, "")
-                        else ""
+                        str(spawn.get("spawnTrigger")).strip() if spawn.get("spawnTrigger") not in (None, "") else ""
                     ),
-                    "spawnLocations": _slim_locations(
-                        spawn.get("spawnLocations"), locale
-                    ),
+                    "spawnLocations": _slim_locations(spawn.get("spawnLocations"), locale),
                     "escorts": _slim_escorts(spawn.get("escorts")),
                 }
             )
@@ -1194,9 +1174,7 @@ def slim_maps_payload(
 def download_json_api_maps(*, lang: str = "zh") -> BossesUpstreamBundle:
     from app.services.tarkov import upstream as upstream_svc
 
-    payload = upstream_svc.download_resource_with_locale(
-        "maps", lang=lang, timeout=180, error_cls=TarkovBossesError
-    )
+    payload = upstream_svc.download_resource_with_locale("maps", lang=lang, timeout=180, error_cls=TarkovBossesError)
     if not _maps_blob(payload) or not _mobs_blob(payload):
         raise TarkovBossesError("json.tarkov.dev 未解析到地图 / BOSS")
     return BossesUpstreamBundle(
@@ -1368,11 +1346,7 @@ def _escorts_label(escorts: list[dict[str, Any]]) -> str:
         by_map.setdefault(key, []).append(row)
     totals: list[int] = []
     for group in by_map.values():
-        sure = [
-            int(e.get("count") or 0)
-            for e in group
-            if float(e.get("chance") or 0) >= 0.99
-        ]
+        sure = [int(e.get("count") or 0) for e in group if float(e.get("chance") or 0) >= 0.99]
         if sure:
             totals.append(sum(sure))
         else:
@@ -1477,9 +1451,7 @@ def _wave_escorts(
         esc_mob_id = str(esc.get("mob") or "").strip()
         esc_mob = mobs.get(esc_mob_id) if isinstance(mobs.get(esc_mob_id), dict) else {}
         esc_slug = _escort_slug(esc_mob_id, esc_mob, slugs)
-        esc_name = (
-            _mob_name(esc_mob_id, esc_mob, locale) if esc_mob else esc_mob_id
-        )
+        esc_name = _mob_name(esc_mob_id, esc_mob, locale) if esc_mob else esc_mob_id
         for amt in esc.get("amount") or [{"chance": 1, "count": 1}]:
             if not isinstance(amt, dict):
                 continue
@@ -1547,10 +1519,7 @@ def _build_spawn_groups(row: dict[str, Any]) -> list[dict[str, Any]]:
             chance_text = _spawn_percent([spawn_chance])
             map_id = str(m.get("id") or "")
             map_slug = str(m.get("slug") or "")
-            if not any(
-                item.get("id") == map_id or item.get("slug") == map_slug
-                for item in bucket["maps"]
-            ):
+            if not any(item.get("id") == map_id or item.get("slug") == map_slug for item in bucket["maps"]):
                 bucket["maps"].append(
                     {
                         "id": map_id,
@@ -1585,10 +1554,7 @@ def _build_spawn_groups(row: dict[str, Any]) -> list[dict[str, Any]]:
             if chances and len(chances) == len(bucket["maps"]) and all(c == chances[0] for c in chances)
             else ""
         )
-        loc_keys = {
-            round(float(loc.get("chance") or 0) * 1000)
-            for loc in bucket["locations"]
-        }
+        loc_keys = {round(float(loc.get("chance") or 0) * 1000) for loc in bucket["locations"]}
         groups.append(
             {
                 "maps": bucket["maps"],
@@ -1707,10 +1673,7 @@ _FOLD_GROUPS: tuple[tuple[str, tuple[str, ...], str], ...] = (
 
 
 def _absorb_boss_maps(primary: dict[str, Any], extra: dict[str, Any]) -> None:
-    by_key = {
-        str(row.get("slug") or row.get("id") or ""): row
-        for row in primary.get("maps") or []
-    }
+    by_key = {str(row.get("slug") or row.get("id") or ""): row for row in primary.get("maps") or []}
     for incoming in extra.get("maps") or []:
         if not isinstance(incoming, dict):
             continue
@@ -1766,11 +1729,7 @@ def collapse_folded_bosses(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         ident = str(row.get("id") or "")
         if ident in drop:
             continue
-        row["parent_ids"] = [
-            parent
-            for parent in (row.get("parent_ids") or [])
-            if parent and parent != ident
-        ]
+        row["parent_ids"] = [parent for parent in (row.get("parent_ids") or []) if parent and parent != ident]
         if ident in touched:
             _finish_boss_row(row)
         kept.append(row)
@@ -1785,8 +1744,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     spawn_mobs = _spawn_mobs(maps, mobs)
     slugs = assign_boss_slugs(spawn_mobs)
     by_id: dict[str, dict[str, Any]] = {
-        mob_id: _project_mob(mob_id, raw, locale, slug=slugs[mob_id])
-        for mob_id, raw in spawn_mobs.items()
+        mob_id: _project_mob(mob_id, raw, locale, slug=slugs[mob_id]) for mob_id, raw in spawn_mobs.items()
     }
 
     for map_raw in maps.values():
@@ -1860,9 +1818,7 @@ def parse_boss_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     map_name=map_name,
                     raid_duration=int(raid_duration),
                 )
-                esc_map["spawns"].append(
-                    {"chance": spawn_chance, "locations": []}
-                )
+                esc_map["spawns"].append({"chance": spawn_chance, "locations": []})
 
     rows: list[dict[str, Any]] = []
     for row in by_id.values():
@@ -2084,9 +2040,7 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
                 "id": m.get("id") or "",
                 "slug": m.get("slug") or "",
                 "name": m.get("name") or "",
-                "spawn_chance": _spawn_percent(
-                    [float(s.get("chance") or 0) for s in m.get("spawns") or []]
-                ),
+                "spawn_chance": _spawn_percent([float(s.get("chance") or 0) for s in m.get("spawns") or []]),
             }
             for m in row.get("maps") or []
         ],
@@ -2097,4 +2051,3 @@ def get_boss_detail(db: Session, slug: str) -> dict[str, Any]:
         "synced_at": synced_at,
         "note": note,
     }
-

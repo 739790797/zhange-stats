@@ -1,4 +1,5 @@
 """管理员定时任务 API 包（URL 路径不变）。"""
+
 from fastapi import APIRouter
 
 from app.api.jobs import checkin_queries, list_update, trigger_runs

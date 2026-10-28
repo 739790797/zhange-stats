@@ -11,9 +11,7 @@ from app.services.tarkov import tasks as tasks_svc
 
 COLLECTOR_NORMALIZED = "collector"
 COLLECTOR_NAMES = frozenset({"收集者", "collector"})
-COLLECT_OBJECTIVE_TYPES = frozenset(
-    {"giveItem", "findItem", "giveQuestItem", "findQuestItem"}
-)
+COLLECT_OBJECTIVE_TYPES = frozenset({"giveItem", "findItem", "giveQuestItem", "findQuestItem"})
 GRID_WIDTH = 3
 GRID_HEIGHT = 4
 
@@ -32,9 +30,7 @@ def _norm_name(raw: str | None) -> str:
 def is_collector_task(row: dict[str, Any] | None) -> bool:
     if not isinstance(row, dict):
         return False
-    slug = _norm_name(
-        row.get("normalized_name") or row.get("normalizedName")
-    )
+    slug = _norm_name(row.get("normalized_name") or row.get("normalizedName"))
     if slug == COLLECTOR_NORMALIZED:
         return True
     return _norm_name(row.get("name")) in COLLECTOR_NAMES
@@ -99,11 +95,7 @@ def extract_collection_items(detail: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             seen.add(ident)
             types = ref.get("types") if isinstance(ref.get("types"), list) else []
-            handbook_ids = (
-                ref.get("handbook_ids")
-                if isinstance(ref.get("handbook_ids"), list)
-                else []
-            )
+            handbook_ids = ref.get("handbook_ids") if isinstance(ref.get("handbook_ids"), list) else []
             out.append(
                 {
                     "id": ident,
@@ -111,11 +103,7 @@ def extract_collection_items(detail: dict[str, Any]) -> list[dict[str, Any]]:
                     "short_name": str(ref.get("short_name") or "").strip(),
                     "icon_link": str(ref.get("icon_link") or "").strip(),
                     "types": [str(t) for t in types if t is not None and str(t).strip()],
-                    "handbook_ids": [
-                        str(t).strip()
-                        for t in handbook_ids
-                        if t is not None and str(t).strip()
-                    ],
+                    "handbook_ids": [str(t).strip() for t in handbook_ids if t is not None and str(t).strip()],
                     "width": _as_size(ref.get("width"), 1),
                     "height": _as_size(ref.get("height"), 1),
                     "found_in_raid": bool(fir) if fir is not None else None,
@@ -146,17 +134,9 @@ def apply_catalog_hits(
         types = hit.get("types") if isinstance(hit.get("types"), list) else []
         if types:
             item["types"] = [str(t) for t in types if t is not None and str(t).strip()]
-        handbook_ids = (
-            hit.get("handbook_ids")
-            if isinstance(hit.get("handbook_ids"), list)
-            else []
-        )
+        handbook_ids = hit.get("handbook_ids") if isinstance(hit.get("handbook_ids"), list) else []
         if handbook_ids:
-            item["handbook_ids"] = [
-                str(t).strip()
-                for t in handbook_ids
-                if t is not None and str(t).strip()
-            ]
+            item["handbook_ids"] = [str(t).strip() for t in handbook_ids if t is not None and str(t).strip()]
         if hit.get("width") is not None:
             item["width"] = _as_size(hit.get("width"), 1)
         if hit.get("height") is not None:

@@ -7,12 +7,7 @@
  * @see https://escapefromtarkov.fandom.com/wiki/Ballistics
  */
 
-export type AmmoCategoryId =
-  | "pistol"
-  | "pdw"
-  | "rifle"
-  | "shotgun"
-  | "other";
+export type AmmoCategoryId = "pistol" | "pdw" | "rifle" | "shotgun" | "other";
 
 export type AmmoCategory = {
   id: AmmoCategoryId;
@@ -31,12 +26,7 @@ export const AMMO_CATEGORIES: AmmoCategory[] = [
 export const DEFAULT_AMMO_CATEGORY: AmmoCategoryId = "rifle";
 
 /** 上游 ammoType 展示顺序与中文标签 */
-export const AMMO_TYPE_ORDER = [
-  "bullet",
-  "buckshot",
-  "grenade",
-  "flashbang",
-] as const;
+export const AMMO_TYPE_ORDER = ["bullet", "buckshot", "grenade", "flashbang"] as const;
 
 export const AMMO_TYPE_LABELS: Record<string, string> = {
   bullet: "子弹",
@@ -189,9 +179,6 @@ export function classifyCaliber(caliber: string): AmmoCategoryId {
   return "other";
 }
 
-export function calibersInCategory(
-  allCalibers: string[],
-  category: AmmoCategoryId,
-): string[] {
+export function calibersInCategory(allCalibers: string[], category: AmmoCategoryId): string[] {
   return allCalibers.filter((c) => classifyCaliber(c) === category);
 }

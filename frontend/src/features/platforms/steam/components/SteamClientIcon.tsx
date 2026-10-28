@@ -63,10 +63,7 @@ export function SteamClientIcon({
   size: number;
   imgStyle?: CSSProperties;
 }) {
-  const known = useMemo(
-    () => resolveSteamIcon(appId, iconUrl),
-    [appId, iconUrl],
-  );
+  const known = useMemo(() => resolveSteamIcon(appId, iconUrl), [appId, iconUrl]);
   const [src, setSrc] = useState<string | null>(known);
   const [phase, setPhase] = useState<"loading" | "ready" | "failed">(() =>
     known ? "ready" : appId ? "loading" : "failed",

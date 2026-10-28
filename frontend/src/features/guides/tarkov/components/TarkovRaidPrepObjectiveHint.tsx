@@ -1,12 +1,5 @@
 import { Popover } from "antd";
-import {
-  Fragment,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTarkovMapOverlayContainer } from "@/features/guides/tarkov/model/tarkovMapFullscreen";
 import {
@@ -115,9 +108,7 @@ function markFailText(text: string): ReactNode {
   return parts.map((part, index) => (
     <Fragment key={index}>
       {part}
-      {index < parts.length - 1 ? (
-        <span className={styles.taskObjFailMark}>失败</span>
-      ) : null}
+      {index < parts.length - 1 ? <span className={styles.taskObjFailMark}>失败</span> : null}
     </Fragment>
   ));
 }
@@ -161,12 +152,7 @@ function ObjectiveHintItem({ item }: { item: RaidPrepHintItem }) {
   return (
     <span className={styles.taskObjItem}>
       {src ? (
-        <img
-          className={styles.taskObjItemIcon}
-          src={src}
-          alt=""
-          onError={() => setSrc("")}
-        />
+        <img className={styles.taskObjItemIcon} src={src} alt="" onError={() => setSrc("")} />
       ) : null}
       <span>
         {item.name}
@@ -218,40 +204,29 @@ export function TarkovRaidPrepObjectiveProgress({
   taskDone,
 }: TarkovRaidPrepObjectiveProgressProps) {
   const doneIds = skipped || new Set<string>();
-  const seqGroups =
-    sequenceGroups?.length
-      ? sequenceGroups
-      : objectives.length
-        ? [
-            {
-              mapSlug: "",
-              mapLabel: "",
-              onThisMap: true,
-              objectives: [...objectives],
-              altMaps: [],
-            },
-          ]
-        : [];
+  const seqGroups = sequenceGroups?.length
+    ? sequenceGroups
+    : objectives.length
+      ? [
+          {
+            mapSlug: "",
+            mapLabel: "",
+            onThisMap: true,
+            objectives: [...objectives],
+            altMaps: [],
+          },
+        ]
+      : [];
   const hasOtherMaps = seqGroups.some((group) => !group.onThisMap);
   const title = (taskName || "").trim();
   const slug = (traderSlug || "").trim();
-  const renderAltLead = (
-    maps: RaidPrepSequenceGroup["altMaps"] | undefined,
-  ) => {
+  const renderAltLead = (maps: RaidPrepSequenceGroup["altMaps"] | undefined) => {
     const text = formatRaidPrepAltMapsLead(maps, "step");
     if (!text) return null;
     return <div className={styles.taskObjOtherMapsLead}>{text}</div>;
   };
-  const renderObjective = (
-    obj: RaidPrepObjectiveHint,
-    sharedAlts: boolean,
-    onThisMap: boolean,
-  ) => {
-    const mineDone = raidPrepObjectiveCheckedForViewer(
-      obj.id,
-      doneIds,
-      taskDone,
-    );
+  const renderObjective = (obj: RaidPrepObjectiveHint, sharedAlts: boolean, onThisMap: boolean) => {
+    const mineDone = raidPrepObjectiveCheckedForViewer(obj.id, doneIds, taskDone);
     const keyLine = formatRaidPrepKeyNeedLine(obj.keyNames);
     const lineClass = mineDone
       ? styles.taskObjLineDone
@@ -324,9 +299,7 @@ export function TarkovRaidPrepObjectiveProgress({
                     {mapTitle}
                   </div>
                 ) : null}
-                {group.objectives.map((obj) =>
-                  renderObjective(obj, sharedAlts, group.onThisMap),
-                )}
+                {group.objectives.map((obj) => renderObjective(obj, sharedAlts, group.onThisMap))}
               </div>
             );
           })}
@@ -476,15 +449,23 @@ export function TarkovRaidPrepObjectiveHint({
     update();
     const raf = window.requestAnimationFrame(update);
     window.addEventListener("resize", update);
-    const ro =
-      typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
     ro?.observe(box);
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", update);
       ro?.disconnect();
     };
-  }, [renderFloat, preferLeft, objectives, otherMapGroups, sequenceGroups, failChips, taskName, traderSlug]);
+  }, [
+    renderFloat,
+    preferLeft,
+    objectives,
+    otherMapGroups,
+    sequenceGroups,
+    failChips,
+    taskName,
+    traderSlug,
+  ]);
 
   useEffect(() => {
     if (!open || !boxStyle) return undefined;

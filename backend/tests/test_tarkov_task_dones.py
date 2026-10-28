@@ -259,11 +259,7 @@ def test_completing_task_fills_catalog_objectives(monkeypatch: pytest.MonkeyPatc
     user = _user(db, "a", "甲")
 
     def fake_catalog(_db, task_ids):
-        return {
-            ident: [f"{ident}-a", f"{ident}-b"]
-            for ident in task_ids
-            if ident
-        }
+        return {ident: [f"{ident}-a", f"{ident}-b"] for ident in task_ids if ident}
 
     monkeypatch.setattr(
         "app.services.tarkov.tasks.catalog_objective_ids",
@@ -289,10 +285,7 @@ def test_completing_task_fills_catalog_objectives(monkeypatch: pytest.MonkeyPatc
         game_mode="pvp",
         objective_dones=None,
     )
-    pairs = {
-        (row["task_id"], row["objective_id"])
-        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
-    }
+    pairs = {(row["task_id"], row["objective_id"]) for row in dones.list_objective_dones(db, user.id, game_mode="pvp")}
     assert ("quest-1", "quest-1-a") in pairs
     assert ("quest-2", "manual") in pairs
     assert ("quest-2", "quest-2-a") in pairs
@@ -306,10 +299,7 @@ def test_completing_task_fills_catalog_objectives(monkeypatch: pytest.MonkeyPatc
         game_mode="pvp",
         objective_dones=[{"task_id": "keep", "objective_id": "step"}],
     )
-    later = {
-        (row["task_id"], row["objective_id"])
-        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
-    }
+    later = {(row["task_id"], row["objective_id"]) for row in dones.list_objective_dones(db, user.id, game_mode="pvp")}
     assert ("keep", "step") in later
     assert ("quest-2", "manual") in later
 
@@ -340,10 +330,7 @@ def test_write_progress_fill_only_new_done_tasks(monkeypatch: pytest.MonkeyPatch
         objective_dones=None,
     )
     assert calls == [["quest-1"], ["quest-2"]]
-    pairs = {
-        (row["task_id"], row["objective_id"])
-        for row in dones.list_objective_dones(db, user.id, game_mode="pvp")
-    }
+    pairs = {(row["task_id"], row["objective_id"]) for row in dones.list_objective_dones(db, user.id, game_mode="pvp")}
     assert ("quest-1", "quest-1-x") in pairs
     assert ("quest-2", "quest-2-x") in pairs
 

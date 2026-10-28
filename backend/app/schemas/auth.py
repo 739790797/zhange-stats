@@ -26,4 +26,3 @@ class UserOut(OrmModel):
     avatar_url: str | None = None
     steam_id: str | None = None
     created_at: datetime
-

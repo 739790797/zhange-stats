@@ -49,12 +49,7 @@ describe("catalogColumnsForSlug", () => {
       "weight",
       "price",
     ]);
-    expect(catalogColumnsForSlug("unknown-cat")).toEqual([
-      "name",
-      "grid",
-      "weight",
-      "price",
-    ]);
+    expect(catalogColumnsForSlug("unknown-cat")).toEqual(["name", "grid", "weight", "price"]);
   });
 });
 
@@ -87,9 +82,7 @@ describe("catalogColumnLabel / compareCatalogRows", () => {
       "turnPenalty",
       "price",
     ]);
-    expect(catalogSortableColumnIds("backpacks", catalogColumnsForSlug("backpacks"))).toEqual(
-      [],
-    );
+    expect(catalogSortableColumnIds("backpacks", catalogColumnsForSlug("backpacks"))).toEqual([]);
   });
 
   it("filters plain vs armored rigs", () => {
@@ -156,9 +149,7 @@ describe("cheapestPrice", () => {
         base_price: 30,
       }),
     ).toBe(10);
-    expect(
-      cheapestPrice({ last_low_price: null, avg24h_price: 0, base_price: 30 }),
-    ).toBe(30);
+    expect(cheapestPrice({ last_low_price: null, avg24h_price: 0, base_price: 30 })).toBe(30);
   });
 });
 
@@ -180,14 +171,9 @@ describe("formatPropertyList", () => {
 
 describe("formatPropValue", () => {
   it("joins armor zones", () => {
-    expect(formatPropValue("zones", ["Chest", "Stomach"])).toBe(
-      "胸部 · 腹部",
-    );
+    expect(formatPropValue("zones", ["Chest", "Stomach"])).toBe("胸部 · 腹部");
     expect(
-      formatPropValue("zones", [
-        "Collider Type RibcageUp",
-        "Armor Zone Plate_Granit_SAPI_chest",
-      ]),
+      formatPropValue("zones", ["Collider Type RibcageUp", "Armor Zone Plate_Granit_SAPI_chest"]),
     ).toBe("上胸 · 前胸插板");
     expect(formatPropValue("material", "Aramid")).toBe("芳纶");
     expect(formatPropValue("armorType", "Light")).toBe("轻型");
@@ -279,16 +265,10 @@ describe("formatPropertyList links", () => {
         types: ["preset"],
       },
     ]);
-    expect(rows.find((r) => r.key === "conflictingItems")?.links?.[0]?.label).toBe(
-      "瞄具",
-    );
+    expect(rows.find((r) => r.key === "conflictingItems")?.links?.[0]?.label).toBe("瞄具");
     expect(
       extractContentLines({
-        content: [
-          "录音正文",
-          "5fbe3ffdf8b6a877a729ea82",
-          "abc_Note_Page1_Text1",
-        ],
+        content: ["录音正文", "5fbe3ffdf8b6a877a729ea82", "abc_Note_Page1_Text1"],
       }),
     ).toEqual(["录音正文"]);
   });

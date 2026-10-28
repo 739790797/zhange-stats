@@ -37,9 +37,7 @@ describe("parseBeijing validity", () => {
 
 describe("compareBeijingClock", () => {
   it("orders naive Beijing clocks and keeps the later one", () => {
-    expect(compareBeijingClock("2026-08-30 20:11:02", "2026-08-30 20:11:02.100")).toBeLessThan(
-      0,
-    );
+    expect(compareBeijingClock("2026-08-30 20:11:02", "2026-08-30 20:11:02.100")).toBeLessThan(0);
     expect(laterBeijingClock("2026-08-30 20:11:02", "2026-08-30 19:00:00")).toBe(
       "2026-08-30 20:11:02",
     );

@@ -26,10 +26,7 @@ const PROP_VALUE_LABELS: Record<string, Record<string, string>> = {
 export const DEFAULT_SERVER_ICON = "/platform-icons/minecraft.png";
 
 /** 总览展示用主机名，去掉端口；优先 public_host。 */
-export function displayJoinHost(opts: {
-  publicHost?: string | null;
-  address?: string | null;
-}) {
+export function displayJoinHost(opts: { publicHost?: string | null; address?: string | null }) {
   const host = (opts.publicHost || "").trim();
   if (host) return host;
   const address = (opts.address || "").trim();
@@ -48,10 +45,7 @@ export function formatPropertyValue(key: string, value: string) {
   return mapped || value;
 }
 
-export function minecraftHeadUrl(player: {
-  name: string;
-  id?: string | null;
-}) {
+export function minecraftHeadUrl(player: { name: string; id?: string | null }) {
   const id = (player.id || "").replace(/-/g, "").toLowerCase();
   if (/^[0-9a-f]{32}$/.test(id)) {
     return `https://mc-heads.net/avatar/${id}/32`;
@@ -61,10 +55,7 @@ export function minecraftHeadUrl(player: {
   return `https://mc-heads.net/avatar/${encodeURIComponent(name)}/32`;
 }
 
-export function displayModName(mod: {
-  project_title?: string | null;
-  filename: string;
-}) {
+export function displayModName(mod: { project_title?: string | null; filename: string }) {
   const title = (mod.project_title || "").trim();
   if (title) return title;
   const name = mod.filename || "";
@@ -100,7 +91,6 @@ export function overviewModTitle(mod: {
   if (official) return official;
   return displayModName(mod);
 }
-
 
 export function occupancyPercent(online: number, max: number) {
   if (!max || max <= 0) return 0;
@@ -167,10 +157,7 @@ export function formatUptime(ms: number) {
 
 export type MinecraftUploadPhase = "uploading" | "writing" | "done" | "error";
 
-export function minecraftUploadJobLabel(
-  phase: MinecraftUploadPhase,
-  percent: number | null,
-) {
+export function minecraftUploadJobLabel(phase: MinecraftUploadPhase, percent: number | null) {
   if (phase === "writing") return "正在写入服务器…";
   if (phase === "done") return "已上传";
   if (phase === "error") return "上传失败";
@@ -234,16 +221,7 @@ const TEXT_EXTS = new Set([
   "lock",
 ]);
 
-const ARCHIVE_SUFFIXES = [
-  ".zip",
-  ".tar.gz",
-  ".tgz",
-  ".tar.xz",
-  ".txz",
-  ".tar.bz2",
-  ".tbz2",
-  ".7z",
-];
+const ARCHIVE_SUFFIXES = [".zip", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".7z"];
 
 export function joinMinecraftPath(directory: string, name: string) {
   const root = (directory || "/").replace(/\/+$/, "");
@@ -286,15 +264,7 @@ export function isMinecraftPinnableFile(name: string) {
   return PINNABLE_EXTS.has(lower.slice(dot + 1));
 }
 
-const PINNABLE_EXTS = new Set([
-  "properties",
-  "cfg",
-  "json",
-  "yml",
-  "yaml",
-  "conf",
-  "config",
-]);
+const PINNABLE_EXTS = new Set(["properties", "cfg", "json", "yml", "yaml", "conf", "config"]);
 
 export function modPresetStatusMessage(opts: {
   status?: string;

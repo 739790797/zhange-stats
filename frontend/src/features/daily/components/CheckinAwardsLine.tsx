@@ -31,17 +31,13 @@ export function CheckinAwardsLine({
 }) {
   const list = awardsForDisplay(awards, awardsText);
   if (!list.length) {
-    return (
-      <Typography.Text type="secondary">{fallback}</Typography.Text>
-    );
+    return <Typography.Text type="secondary">{fallback}</Typography.Text>;
   }
   const withIcons = list.filter((item) => resolveAwardIconUrl(item));
   const withoutIcons = list.filter((item) => !resolveAwardIconUrl(item));
   if (!withIcons.length) {
     return (
-      <Typography.Text type="secondary">
-        {formatAwardsPlainText(withoutIcons)}
-      </Typography.Text>
+      <Typography.Text type="secondary">{formatAwardsPlainText(withoutIcons)}</Typography.Text>
     );
   }
   return (
@@ -74,9 +70,7 @@ export function CheckinAwardsLine({
         );
       })}
       {withoutIcons.length ? (
-        <Typography.Text type="secondary">
-          {formatAwardsPlainText(withoutIcons)}
-        </Typography.Text>
+        <Typography.Text type="secondary">{formatAwardsPlainText(withoutIcons)}</Typography.Text>
       ) : null}
     </span>
   );
@@ -101,11 +95,7 @@ export function TodayCheckinAwards({
   if (hint === "") return null;
   const body =
     hint === null ? (
-      <CheckinAwardsLine
-        awards={awards}
-        awardsText={awardsText}
-        fallback=""
-      />
+      <CheckinAwardsLine awards={awards} awardsText={awardsText} fallback="" />
     ) : (
       <Typography.Text type="secondary">{hint}</Typography.Text>
     );

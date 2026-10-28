@@ -11,7 +11,10 @@ import {
   TarkovItemRefGrid,
   type TarkovGuideItemRef,
 } from "@/features/guides/tarkov/components/TarkovGuideItemCell";
-import { ammoScatterAxisMax, filterAmmoByIds } from "@/features/guides/tarkov/model/tarkovAmmoScatter";
+import {
+  ammoScatterAxisMax,
+  filterAmmoByIds,
+} from "@/features/guides/tarkov/model/tarkovAmmoScatter";
 import styles from "./TarkovAmmoScatterPanel.module.css";
 
 const EMPTY_ITEMS: TarkovAmmoItem[] = [];
@@ -24,12 +27,7 @@ type Props = {
   note?: string;
 };
 
-export function TarkovAllowedAmmoScatter({
-  ammoIds,
-  defaultAmmoId,
-  fallbackItems,
-  note,
-}: Props) {
+export function TarkovAllowedAmmoScatter({ ammoIds, defaultAmmoId, fallbackItems, note }: Props) {
   const gameMode = useTarkovGameMode();
   const navigate = useNavigate();
   const ammoQuery = useQuery({
@@ -39,20 +37,14 @@ export function TarkovAllowedAmmoScatter({
     retry: 1,
   });
 
-  const idSet = useMemo(
-    () => new Set(ammoIds.map((id) => id.trim()).filter(Boolean)),
-    [ammoIds],
-  );
+  const idSet = useMemo(() => new Set(ammoIds.map((id) => id.trim()).filter(Boolean)), [ammoIds]);
 
   const data = useMemo(
     () => filterAmmoByIds(ammoQuery.data?.items ?? EMPTY_ITEMS, idSet),
     [ammoQuery.data?.items, idSet],
   );
 
-  const calibers = useMemo(
-    () => Array.from(new Set(data.map((row) => row.caliber))),
-    [data],
-  );
+  const calibers = useMemo(() => Array.from(new Set(data.map((row) => row.caliber))), [data]);
 
   const axisMax = useMemo(() => ammoScatterAxisMax(data), [data]);
 
@@ -73,10 +65,7 @@ export function TarkovAllowedAmmoScatter({
     }, 80);
   }, []);
 
-  useEffect(
-    () => () => window.clearTimeout(leaveTimer.current),
-    [],
-  );
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
 
   const onAmmoClick = (ammo: TarkovAmmoItem) => {
     const id = (ammo.id || "").trim();

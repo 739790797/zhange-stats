@@ -33,9 +33,7 @@ def test_keeps_per_map_floor_and_tile_style() -> None:
 
 
 def test_collapsed_groups_keep_only_known_closed_ones() -> None:
-    prefs = normalize_map_filters(
-        {"filterGroupsCollapsed": {"lootable": True, "extracts": False, "nope": True}}
-    )
+    prefs = normalize_map_filters({"filterGroupsCollapsed": {"lootable": True, "extracts": False, "nope": True}})
     assert prefs["filterGroupsCollapsed"] == {"lootable": True}
 
 

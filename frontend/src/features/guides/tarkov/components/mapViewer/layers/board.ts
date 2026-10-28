@@ -3,7 +3,6 @@
 import { escapeHtml } from "@/shared/lib/escapeHtml";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import { pos } from "@/features/guides/tarkov/model/tarkovMapCrs";
 import { colorForUserId } from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import {
@@ -56,20 +55,13 @@ export function addStrokeLayer(
   tooltipHtml?: string,
 ): L.Layer | null {
   if (!points.length) return null;
-  const layer = L.polyline(
-    strokeLatLngs(points),
-    strokePathOptions(color, current, interactive),
-  );
+  const layer = L.polyline(strokeLatLngs(points), strokePathOptions(color, current, interactive));
   if (tooltipHtml) layer.bindTooltip(tooltipHtml, { direction: "top" });
   layer.addTo(group);
   return layer;
 }
 
-export function renderLocalDraft(
-  runtime: MapRuntime,
-  points: StrokePoint[],
-  color: string,
-) {
+export function renderLocalDraft(runtime: MapRuntime, points: StrokePoint[], color: string) {
   if (!points.length) {
     runtime.localStroke?.remove();
     runtime.localStroke = undefined;
@@ -81,10 +73,9 @@ export function renderLocalDraft(
     runtime.localStroke.setStyle(strokePathOptions(color, true, false));
     return;
   }
-  runtime.localStroke = L.polyline(
-    latlngs,
-    strokePathOptions(color, true, false),
-  ).addTo(runtime.live);
+  runtime.localStroke = L.polyline(latlngs, strokePathOptions(color, true, false)).addTo(
+    runtime.live,
+  );
 }
 
 export function strokeToMark(
@@ -156,13 +147,13 @@ function addTextLayer(
       iconSize: [box.w, box.h],
       iconAnchor: [box.w / 2, box.h / 2],
     }),
-      interactive,
-      draggable,
-      autoPan: false,
-      keyboard: false,
-      pane: BOARD_PANE,
-      opacity: current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY,
-    });
+    interactive,
+    draggable,
+    autoPan: false,
+    keyboard: false,
+    pane: BOARD_PANE,
+    opacity: current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY,
+  });
   const tooltipHtml = markAuthorTooltipHtml(mark);
   if (tooltipHtml) layer.bindTooltip(tooltipHtml, { direction: "top" });
   layer.addTo(group);

@@ -21,9 +21,7 @@ class _FakeClient:
 
     def ping(self) -> bool:
         if self._module.fail:
-            raise ConnectionError(
-                f"Error 111 connecting to {self.url}. Connection refused."
-            )
+            raise ConnectionError(f"Error 111 connecting to {self.url}. Connection refused.")
         return True
 
     def close(self) -> None:
@@ -72,11 +70,7 @@ def redis_url(monkeypatch):
 
 
 def _warnings(caplog) -> list[logging.LogRecord]:
-    return [
-        r
-        for r in caplog.records
-        if r.name == "app.core.redis_client" and r.levelno == logging.WARNING
-    ]
+    return [r for r in caplog.records if r.name == "app.core.redis_client" and r.levelno == logging.WARNING]
 
 
 def test_unconfigured_returns_none_without_import(monkeypatch, fake_redis) -> None:
@@ -121,10 +115,7 @@ def test_failure_backs_off_then_recovers(fake_redis, redis_url, clock, caplog) -
         clock["t"] += redis_client.RETRY_AFTER_SEC + 1
         client = redis_client.get_redis()
         assert client is fake_redis.created[-1]
-        assert any(
-            r.levelno == logging.INFO and "connected" in r.getMessage()
-            for r in caplog.records
-        )
+        assert any(r.levelno == logging.INFO and "connected" in r.getMessage() for r in caplog.records)
 
         caplog.clear()
         client_count = len(fake_redis.created)

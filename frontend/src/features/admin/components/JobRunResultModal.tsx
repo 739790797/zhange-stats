@@ -168,11 +168,7 @@ export function JobRunResultModal({
     enabled: open && Boolean(watch?.jobId) && watch?.runId == null,
     refetchOnWindowFocus: false,
     refetchInterval: (q) => {
-      const run = pickWatchedJobRun(
-        q.state.data?.items,
-        watch?.sinceRunId ?? 0,
-        watch?.acceptedAt,
-      );
+      const run = pickWatchedJobRun(q.state.data?.items, watch?.sinceRunId ?? 0, watch?.acceptedAt);
       return jobRunWatchPollMs({ run });
     },
   });
@@ -191,11 +187,7 @@ export function JobRunResultModal({
       if (cursorRef.current.key !== key) {
         cursorRef.current = { key, afterId: 0 };
       }
-      return fetchJobRunEvents(
-        watch!.jobId,
-        activeRunId!,
-        cursorRef.current.afterId,
-      );
+      return fetchJobRunEvents(watch!.jobId, activeRunId!, cursorRef.current.afterId);
     },
     enabled: open && Boolean(watch?.jobId) && activeRunId != null,
     refetchOnMount: "always",
@@ -251,9 +243,7 @@ export function JobRunResultModal({
   const running = run?.status === "running";
   const waiting = open && !finished && !running;
   const stalled = timedOut && !finished;
-  const phaseLabel = jobRunPhaseLabel(
-    run?.stats?.phase == null ? "" : String(run.stats.phase),
-  );
+  const phaseLabel = jobRunPhaseLabel(run?.stats?.phase == null ? "" : String(run.stats.phase));
   const progressStatus = useMemo(() => {
     if (run?.status === "error") return "exception" as const;
     if (finished && run?.status !== "warning") return "success" as const;
@@ -336,9 +326,7 @@ export function JobRunResultModal({
                 {jobRunStatusLabel(run?.status || "queued")}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="耗时">
-              {jobRunDurationText(run)}
-            </Descriptions.Item>
+            <Descriptions.Item label="耗时">{jobRunDurationText(run)}</Descriptions.Item>
             <Descriptions.Item label="当前阶段" span={2}>
               {displayedSteps.find((step) => step.status === "running")?.label ||
                 phaseLabel ||
@@ -354,7 +342,10 @@ export function JobRunResultModal({
               <Steps
                 responsive
                 size="small"
-                current={Math.max(0, displayedSteps.findIndex((step) => step.status === "running"))}
+                current={Math.max(
+                  0,
+                  displayedSteps.findIndex((step) => step.status === "running"),
+                )}
                 items={displayedSteps.map((step) => ({
                   title: step.label,
                   status: statusForStep(step.status),
@@ -494,9 +485,18 @@ export function JobRunResultModal({
           {!category ? (
             <Descriptions title={detailTitle} column={2} size="small">
               {Object.entries(run?.stats || {})
-                .filter(([key, value]) =>
-                  !["schema_version", "category", "steps", "progress", "result", "domains"].includes(key) &&
-                  value != null && typeof value !== "object",
+                .filter(
+                  ([key, value]) =>
+                    ![
+                      "schema_version",
+                      "category",
+                      "steps",
+                      "progress",
+                      "result",
+                      "domains",
+                    ].includes(key) &&
+                    value != null &&
+                    typeof value !== "object",
                 )
                 .map(([key, value]) => (
                   <Descriptions.Item key={key} label={key}>

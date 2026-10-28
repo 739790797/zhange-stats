@@ -36,9 +36,7 @@ describe("tarkov map extract styles", () => {
     expect(tarkovExtractStyle("转图").color).toBe("#e53500");
     expect(tarkovExtractIconUrl("pmc")).toBe("/tarkov/map-icons/extract_pmc.png");
     expect(tarkovExtractStyle("pmc").iconUrl).toContain("extract_pmc.png");
-    expect(tarkovExtractStyle("PMC").zIndex).toBeGreaterThan(
-      tarkovExtractStyle("Scav").zIndex,
-    );
+    expect(tarkovExtractStyle("PMC").zIndex).toBeGreaterThan(tarkovExtractStyle("Scav").zIndex);
     expect(TARKOV_EXTRACT_KIND_LABELS.shared).toBe("共享");
     expect(TARKOV_EXTRACT_KIND_LABELS.transit).toBe("转移点");
   });

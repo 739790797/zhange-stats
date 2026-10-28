@@ -5,16 +5,7 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Input,
-  Select,
-  Space,
-  Switch,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Button, Input, Select, Space, Switch, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { clearRuntimeLogs, fetchRuntimeLogs } from "@/features/admin/api/runtimeLogsApi";
@@ -239,9 +230,7 @@ export default function PlatformLogsPage() {
               borderBottom: "1px solid rgba(255,255,255,0.04)",
             }}
           >
-            <span style={{ color: "rgba(214,222,235,0.55)", whiteSpace: "nowrap" }}>
-              {line.ts}
-            </span>
+            <span style={{ color: "rgba(214,222,235,0.55)", whiteSpace: "nowrap" }}>{line.ts}</span>
             <span>
               <Tag
                 color={LEVEL_COLOR[line.level] || "default"}
@@ -283,13 +272,10 @@ export default function PlatformLogsPage() {
             >
               {line.context || "—"}
             </span>
-            <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-              {line.message}
-            </span>
+            <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{line.message}</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
-

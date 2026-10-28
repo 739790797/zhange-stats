@@ -1,17 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
-import {
-  Alert,
-  Modal,
-  Select,
-  Space,
-  Tabs,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Modal, Select, Space, Tabs, Typography, message } from "antd";
 import { useEffect, useState } from "react";
-import { exchangeTaygedoItem, fetchTaygedoExchange, fetchTaygedoStatus } from "@/features/platforms/taygedo/api/taygedoApi";
-import type { TaygedoExchangeItem, TaygedoExchangeRole } from "@/features/platforms/taygedo/api/types";
+import {
+  exchangeTaygedoItem,
+  fetchTaygedoExchange,
+  fetchTaygedoStatus,
+} from "@/features/platforms/taygedo/api/taygedoApi";
+import type {
+  TaygedoExchangeItem,
+  TaygedoExchangeRole,
+} from "@/features/platforms/taygedo/api/types";
 import { ExchangeGoodsCard } from "@/features/platforms/shared/components/ExchangeGoodsCard";
 import { ExchangePageTemplate } from "@/features/platforms/shared/components/ExchangePageTemplate";
 import { TaygedoBindPanel } from "@/features/platforms/taygedo/components/TaygedoBindPanel";
@@ -45,21 +44,14 @@ export function TaygedoExchangePanel() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [tab, setTab] = useState<string>("all");
   /** 各游戏上次选过的接收角色，仅作弹窗默认值 */
-  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>(
-    {},
-  );
-  const [exchangeItem, setExchangeItem] = useState<TaygedoExchangeItem | null>(
-    null,
-  );
+  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>({});
+  const [exchangeItem, setExchangeItem] = useState<TaygedoExchangeItem | null>(null);
   const [pickedRoleId, setPickedRoleId] = useState<string>("");
   const rolePicker = useRoleMembershipPicker("taygedo");
 
   const exchangeMut = useMutation({
-    mutationFn: (payload: {
-      goods_id: string;
-      game_id: string;
-      role_id: string;
-    }) => exchangeTaygedoItem(payload),
+    mutationFn: (payload: { goods_id: string; game_id: string; role_id: string }) =>
+      exchangeTaygedoItem(payload),
     onMutate: (payload) => setPendingId(payload.goods_id),
     onSettled: () => setPendingId(null),
     onSuccess: (data) => {
@@ -71,18 +63,12 @@ export function TaygedoExchangePanel() {
     onError: (e: unknown) => message.error(apiError(e, "兑换失败")),
   });
 
-  const rolesForItem = (
-    item: TaygedoExchangeItem,
-    roles: TaygedoExchangeRole[],
-  ) => {
+  const rolesForItem = (item: TaygedoExchangeItem, roles: TaygedoExchangeRole[]) => {
     const gameId = String(item.game_id || "").trim();
     return gameId ? roles.filter((r) => r.game_id === gameId) : roles;
   };
 
-  const missingRoleHint = (
-    item: TaygedoExchangeItem,
-    roles: TaygedoExchangeRole[],
-  ) => {
+  const missingRoleHint = (item: TaygedoExchangeItem, roles: TaygedoExchangeRole[]) => {
     if (!roles.length) {
       return "未找到游戏角色，请先在塔吉多绑定异环或幻塔后再兑换";
     }
@@ -92,10 +78,7 @@ export function TaygedoExchangePanel() {
     return `该商品属于${gameName}，当前账号未绑定${gameName}角色`;
   };
 
-  const openExchange = (
-    item: TaygedoExchangeItem,
-    roles: TaygedoExchangeRole[],
-  ) => {
+  const openExchange = (item: TaygedoExchangeItem, roles: TaygedoExchangeRole[]) => {
     const hint = missingRoleHint(item, roles);
     if (hint) {
       message.error(hint);
@@ -121,8 +104,7 @@ export function TaygedoExchangePanel() {
     }
     const picked = roles.find((r) => r.role_id === pickedRoleId);
     const gameId =
-      String(exchangeItem.game_id || "").trim() ||
-      String(picked?.game_id || "").trim();
+      String(exchangeItem.game_id || "").trim() || String(picked?.game_id || "").trim();
     if (!gameId) {
       message.error("请选择接收角色所属游戏");
       return;
@@ -183,12 +165,7 @@ export function TaygedoExchangePanel() {
                 description="请先在塔吉多绑定异环或幻塔角色后再兑换。"
               />
             ) : null}
-            <Tabs
-              activeKey={tab}
-              onChange={setTab}
-              items={tabItems}
-              size="small"
-            />
+            <Tabs activeKey={tab} onChange={setTab} items={tabItems} size="small" />
           </>
         );
       }}
@@ -280,9 +257,7 @@ export function TaygedoExchangePanel() {
               imageUrl={item.cover}
               title={item.name}
               subtitle={`${gameName}${
-                item.stock_limited && item.stock > 0
-                  ? ` · 库存 ${item.stock}`
-                  : ""
+                item.stock_limited && item.stock > 0 ? ` · 库存 ${item.stock}` : ""
               }`}
               badge={
                 item.cycle_limit > 0

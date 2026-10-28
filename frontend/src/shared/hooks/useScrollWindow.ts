@@ -38,16 +38,14 @@ export function useScrollWindow<T extends HTMLElement>() {
       setWin((prev) => {
         const scrollTop = found.scrollTop;
         const viewportHeight = found.clientHeight;
-        return prev.scrollTop === scrollTop &&
-          prev.viewportHeight === viewportHeight
+        return prev.scrollTop === scrollTop && prev.viewportHeight === viewportHeight
           ? prev
           : { scrollTop, viewportHeight };
       });
     };
     sync();
     found.addEventListener("scroll", sync, { passive: true });
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
     observer?.observe(found);
     return () => {
       found.removeEventListener("scroll", sync);

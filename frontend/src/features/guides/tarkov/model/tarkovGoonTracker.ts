@@ -1,34 +1,34 @@
 import { parseBeijing } from "@/shared/lib/time";
 
-export const GOON_MAP_SLUGS = [
-  "woods",
-  "shoreline",
-  "customs",
-  "lighthouse",
-] as const;
+export const GOON_MAP_SLUGS = ["woods", "shoreline", "customs", "lighthouse"] as const;
 
 export type GoonMapSlug = (typeof GOON_MAP_SLUGS)[number];
 
 const GOON_MAP_SET = new Set<string>(GOON_MAP_SLUGS);
 
 export function isGoonMapSlug(slug: string | null | undefined): boolean {
-  return GOON_MAP_SET.has(String(slug || "").trim().toLowerCase());
+  return GOON_MAP_SET.has(
+    String(slug || "")
+      .trim()
+      .toLowerCase(),
+  );
 }
 
 export function sameGoonMap(
   mapSlug: string | null | undefined,
   goonSlug: string | null | undefined,
 ): boolean {
-  const left = String(mapSlug || "").trim().toLowerCase();
-  const right = String(goonSlug || "").trim().toLowerCase();
+  const left = String(mapSlug || "")
+    .trim()
+    .toLowerCase();
+  const right = String(goonSlug || "")
+    .trim()
+    .toLowerCase();
   return Boolean(left && right && left === right);
 }
 
 /** 「12分钟前」这类相对时间，给选图提示用。 */
-export function formatGoonElapsed(
-  seenAt: string | null | undefined,
-  nowMs = Date.now(),
-): string {
+export function formatGoonElapsed(seenAt: string | null | undefined, nowMs = Date.now()): string {
   const seen = parseBeijing(seenAt || "");
   if (!seen.isValid()) return "";
   const delta = Math.max(0, nowMs - seen.valueOf());
@@ -45,10 +45,7 @@ export function formatGoonElapsed(
   return `${day}天前`;
 }
 
-export function goonSightingHint(
-  seenAt: string | null | undefined,
-  nowMs = Date.now(),
-): string {
+export function goonSightingHint(seenAt: string | null | undefined, nowMs = Date.now()): string {
   const elapsed = formatGoonElapsed(seenAt, nowMs);
   if (!elapsed) return "";
   if (elapsed === "刚刚") return "三狗出没（刚刚上报）";

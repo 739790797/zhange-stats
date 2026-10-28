@@ -48,9 +48,7 @@ def get_cached_skland_session(member_id: int, hg_token: str) -> SklandSession | 
     return SklandSession(cred=cred, sign_token=sign_token, user_id=user_id)
 
 
-def put_cached_skland_session(
-    member_id: int, hg_token: str, session: SklandSession
-) -> None:
+def put_cached_skland_session(member_id: int, hg_token: str, session: SklandSession) -> None:
     payload = {
         "fp": _token_fp(hg_token),
         "cred": session.cred,

@@ -12,9 +12,7 @@ def apply_steam_persona_name(
     persona_name: str | None = None,
     avatar_url: str | None = None,
 ) -> bool:
-    return apply_steam_profile(
-        member, persona_name=persona_name, avatar_url=avatar_url
-    )
+    return apply_steam_profile(member, persona_name=persona_name, avatar_url=avatar_url)
 
 
 __all__ = [

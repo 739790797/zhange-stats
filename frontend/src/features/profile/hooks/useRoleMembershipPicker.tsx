@@ -28,15 +28,10 @@ export function useRoleMembershipPicker(platform: CheckinPlatformKey) {
   const openPicker = useCallback(() => setOpen(true), []);
   const closePicker = useCallback(() => setOpen(false), []);
 
-  const loadTree = useCallback(
-    () => fetchRoleMembershipTree(platform),
-    [platform],
-  );
+  const loadTree = useCallback(() => fetchRoleMembershipTree(platform), [platform]);
 
   const saveMemberships = useCallback(
-    async (
-      roles: Array<{ game_code: string; role_uid: string; included: boolean }>,
-    ) => {
+    async (roles: Array<{ game_code: string; role_uid: string; included: boolean }>) => {
       await replaceRoleMemberships(platform, roles);
       await queryClient.invalidateQueries({
         queryKey: STATUS_QUERY_KEY[platform],

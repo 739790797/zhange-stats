@@ -89,9 +89,7 @@ def _seed_utc_job_run(engine) -> None:
 
 def _job_started(engine) -> datetime:
     with engine.connect() as conn:
-        return conn.exec_driver_sql(
-            "SELECT started_at FROM job_runs WHERE job_key = 'probe'"
-        ).scalar_one()
+        return conn.exec_driver_sql("SELECT started_at FROM job_runs WHERE job_key = 'probe'").scalar_one()
 
 
 def _ensure_twice(engine) -> None:
@@ -220,16 +218,13 @@ def test_0119_repairs_legacy_shapes_back_to_the_models(mariadb) -> None:
             "CREATE TABLE register_challenges (email VARCHAR(128) NOT NULL PRIMARY KEY, "
             "code VARCHAR(16) NOT NULL, expires_at DATETIME NOT NULL)"
         )
-        conn.exec_driver_sql(
-            "INSERT INTO register_challenges VALUES ('a@example.com', '123456', NOW())"
-        )
+        conn.exec_driver_sql("INSERT INTO register_challenges VALUES ('a@example.com', '123456', NOW())")
         conn.exec_driver_sql(
             "ALTER TABLE minecraft_server_profiles "
             "ADD COLUMN public_host VARCHAR(255) NULL, ADD COLUMN public_port INT NULL"
         )
         conn.exec_driver_sql(
-            "UPDATE minecraft_server_profiles "
-            "SET public_host = 'mc.example.com', public_port = 25566 WHERE id = 1"
+            "UPDATE minecraft_server_profiles SET public_host = 'mc.example.com', public_port = 25566 WHERE id = 1"
         )
         conn.exec_driver_sql("DROP INDEX ix_arknights_operators_rarity ON arknights_operators")
 
@@ -239,9 +234,7 @@ def test_0119_repairs_legacy_shapes_back_to_the_models(mariadb) -> None:
 
     assert _schema_diffs(mariadb) == []
     with mariadb.connect() as conn:
-        rows = conn.exec_driver_sql(
-            "SELECT email, purpose, code, attempts FROM register_challenges"
-        ).fetchall()
+        rows = conn.exec_driver_sql("SELECT email, purpose, code, attempts FROM register_challenges").fetchall()
     assert [tuple(r) for r in rows] == [("a@example.com", "register", "123456", 0)]
     with Session(mariadb) as db:
         stored = json.loads(db.get(SystemConfig, "integrations").value)

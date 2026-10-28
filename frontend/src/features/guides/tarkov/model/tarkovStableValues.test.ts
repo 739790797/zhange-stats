@@ -11,9 +11,7 @@ import {
 import type { TarkovLogPhasePayload } from "@/features/guides/tarkov/model/tarkovGameLogs";
 import type { TarkovMapPlayerMark } from "@/features/guides/tarkov/model/tarkovRaidRooms";
 
-const phase = (
-  over: Partial<TarkovLogPhasePayload> = {},
-): TarkovLogPhasePayload => ({
+const phase = (over: Partial<TarkovLogPhasePayload> = {}): TarkovLogPhasePayload => ({
   kind: "raid_started",
   mapId: "customs",
   mapLabel: "海关",
@@ -45,12 +43,10 @@ describe("sameMemberPhases", () => {
     const b = new Map([[1, { kind: "raid_started", online: true }]]);
     expect(sameMemberPhases(a, b)).toBe(true);
     expect(sameMemberPhases(a, a)).toBe(true);
-    expect(
-      sameMemberPhases(a, new Map([[1, { kind: "matching", online: true }]])),
-    ).toBe(false);
-    expect(
-      sameMemberPhases(a, new Map([[1, { kind: "raid_started", online: false }]])),
-    ).toBe(false);
+    expect(sameMemberPhases(a, new Map([[1, { kind: "matching", online: true }]]))).toBe(false);
+    expect(sameMemberPhases(a, new Map([[1, { kind: "raid_started", online: false }]]))).toBe(
+      false,
+    );
     expect(sameMemberPhases(a, new Map([[2, { kind: "raid_started", online: true }]]))).toBe(false);
   });
 });
@@ -63,16 +59,10 @@ describe("sameRaidRoomPhases", () => {
     const b = new Map(a);
     expect(sameRaidRoomPhases(a, b)).toBe(true);
     expect(
-      sameRaidRoomPhases(
-        a,
-        new Map([[1, { kind: "matching", mapId: "woods", raidId: "" }]]),
-      ),
+      sameRaidRoomPhases(a, new Map([[1, { kind: "matching", mapId: "woods", raidId: "" }]])),
     ).toBe(false);
     expect(
-      sameRaidRoomPhases(
-        a,
-        new Map([[1, { kind: "matching", mapId: "customs", raidId: "r9" }]]),
-      ),
+      sameRaidRoomPhases(a, new Map([[1, { kind: "matching", mapId: "customs", raidId: "r9" }]])),
     ).toBe(false);
   });
 
@@ -88,14 +78,10 @@ describe("sameRaidRoomPhases", () => {
 
 describe("sameRaidRoomPhaseList", () => {
   it("compares each row including our own", () => {
-    const a = [
-      { userId: 1, kind: "raid_started", mapId: "customs", raidId: "r1", at: "t" },
-    ];
+    const a = [{ userId: 1, kind: "raid_started", mapId: "customs", raidId: "r1", at: "t" }];
     const b = [...a];
     expect(sameRaidRoomPhaseList(a, b)).toBe(true);
-    expect(sameRaidRoomPhaseList(a, [...a, { userId: 2, kind: "matching" }])).toBe(
-      false,
-    );
+    expect(sameRaidRoomPhaseList(a, [...a, { userId: 2, kind: "matching" }])).toBe(false);
     expect(sameRaidRoomPhaseList(a, [{ ...a[0]!, at: "t2" }])).toBe(false);
   });
 });

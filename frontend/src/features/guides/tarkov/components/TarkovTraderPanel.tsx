@@ -51,9 +51,7 @@ function RestockCountdown({ resetTime }: { resetTime: string | undefined }) {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
-  return (
-    <span className={styles.restockTime}>{restockLabel(resetTime, nowMs)}</span>
-  );
+  return <span className={styles.restockTime}>{restockLabel(resetTime, nowMs)}</span>;
 }
 
 export function TarkovTraderPanel({ slug }: Props) {
@@ -61,9 +59,7 @@ export function TarkovTraderPanel({ slug }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const levelRaw = Number(searchParams.get("level") || "");
   const level =
-    levelRaw === 1 || levelRaw === 2 || levelRaw === 3 || levelRaw === 4
-      ? levelRaw
-      : undefined;
+    levelRaw === 1 || levelRaw === 2 || levelRaw === 3 || levelRaw === 4 ? levelRaw : undefined;
   const q = (searchParams.get("q") || "").trim();
   const pageNo = readPositiveInt(searchParams.get("page"), 1);
   const pageSize = readAllowedInt(
@@ -127,72 +123,69 @@ export function TarkovTraderPanel({ slug }: Props) {
   };
 
   const traderLabel = detail?.english || slug;
-  const columns = useMemo<ColumnsType<TarkovTraderOffer>>(() => [
-    {
-      title: "名称",
-      dataIndex: "name",
-      key: "name",
-      ellipsis: true,
-      render: (_: unknown, row) => {
-        const label = row.name || row.short_name || row.item_id;
-        const thumb = transparentThumbUrl(row.icon_link);
-        const hd = hdPreviewUrl(row.icon_link) || thumb;
-        return (
-          <span className={catalogStyles.nameCell}>
-            {thumb ? (
-              <Image
-                src={thumb}
-                alt=""
-                width={36}
-                height={36}
-                preview={{ src: hd, mask: false }}
-                style={{ objectFit: "contain", flex: "0 0 36px" }}
-              />
-            ) : (
-              <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
-            )}
-            <Link
-              className={catalogStyles.nameLink}
-              to={itemHrefFromTypes(row.item_id, row.types)}
-            >
-              {label}
-            </Link>
-          </span>
-        );
+  const columns = useMemo<ColumnsType<TarkovTraderOffer>>(
+    () => [
+      {
+        title: "名称",
+        dataIndex: "name",
+        key: "name",
+        ellipsis: true,
+        render: (_: unknown, row) => {
+          const label = row.name || row.short_name || row.item_id;
+          const thumb = transparentThumbUrl(row.icon_link);
+          const hd = hdPreviewUrl(row.icon_link) || thumb;
+          return (
+            <span className={catalogStyles.nameCell}>
+              {thumb ? (
+                <Image
+                  src={thumb}
+                  alt=""
+                  width={36}
+                  height={36}
+                  preview={{ src: hd, mask: false }}
+                  style={{ objectFit: "contain", flex: "0 0 36px" }}
+                />
+              ) : (
+                <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
+              )}
+              <Link
+                className={catalogStyles.nameLink}
+                to={itemHrefFromTypes(row.item_id, row.types)}
+              >
+                {label}
+              </Link>
+            </span>
+          );
+        },
       },
-    },
-    {
-      title: "在跳蚤市场购买",
-      key: "flea",
-      width: 160,
-      align: "right",
-      render: (_: unknown, row) =>
-        formatMoney(row.last_low_price ?? row.avg24h_price, "RUB"),
-    },
-    {
-      title: "商人报价",
-      key: "offer",
-      width: 220,
-      render: (_: unknown, row) => (
-        <div>
-          <span className={styles.offerPrice}>
-            {formatMoney(row.price, row.currency)}
-          </span>
-          <span className={styles.offerMeta}>
-            {traderLabel} LL{row.min_trader_level}
-          </span>
-          {row.task_unlock_id ? (
-            <Link
-              className={styles.unlock}
-              to={tarkovTaskHref(row.task_unlock_id)}
-            >
-              {row.task_unlock_name || "任务解锁"}
-            </Link>
-          ) : null}
-        </div>
-      ),
-    },
-  ], [traderLabel]);
+      {
+        title: "在跳蚤市场购买",
+        key: "flea",
+        width: 160,
+        align: "right",
+        render: (_: unknown, row) => formatMoney(row.last_low_price ?? row.avg24h_price, "RUB"),
+      },
+      {
+        title: "商人报价",
+        key: "offer",
+        width: 220,
+        render: (_: unknown, row) => (
+          <div>
+            <span className={styles.offerPrice}>{formatMoney(row.price, row.currency)}</span>
+            <span className={styles.offerMeta}>
+              {traderLabel} LL{row.min_trader_level}
+            </span>
+            {row.task_unlock_id ? (
+              <Link className={styles.unlock} to={tarkovTaskHref(row.task_unlock_id)}>
+                {row.task_unlock_name || "任务解锁"}
+              </Link>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [traderLabel],
+  );
 
   if (detailQuery.isLoading && !detail) {
     return (
@@ -236,19 +229,12 @@ export function TarkovTraderPanel({ slug }: Props) {
           <div className={styles.nameRow}>
             <h2 className={styles.name}>{title}</h2>
             {detail.wiki_link ? (
-              <a
-                className={styles.wiki}
-                href={detail.wiki_link}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className={styles.wiki} href={detail.wiki_link} target="_blank" rel="noreferrer">
                 Wiki
               </a>
             ) : null}
           </div>
-          {detail.description ? (
-            <p className={styles.desc}>{detail.description}</p>
-          ) : null}
+          {detail.description ? <p className={styles.desc}>{detail.description}</p> : null}
         </div>
         <div className={styles.portraitWrap}>
           {portraitSrc ? (
@@ -277,9 +263,7 @@ export function TarkovTraderPanel({ slug }: Props) {
               key={item.value}
               type="button"
               className={`${styles.levelBtn} ${level === item.value ? styles.levelOn : ""}`}
-              onClick={() =>
-                setLevel(level === item.value ? undefined : item.value)
-              }
+              onClick={() => setLevel(level === item.value ? undefined : item.value)}
             >
               {item.label}
             </button>

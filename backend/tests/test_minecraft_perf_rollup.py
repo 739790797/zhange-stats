@@ -126,11 +126,7 @@ def test_maintain_writes_minute_and_hour() -> None:
 def test_prune_keeps_recent_raw_and_drops_old() -> None:
     db = _session()
     now = now_naive()
-    db.add(
-        MinecraftPerfSample(
-            sampled_at=now - timedelta(hours=50), tps=19.0, mspt=6.0
-        )
-    )
+    db.add(MinecraftPerfSample(sampled_at=now - timedelta(hours=50), tps=19.0, mspt=6.0))
     db.add(MinecraftPerfSample(sampled_at=now - timedelta(minutes=5), tps=20.0, mspt=5.0))
     db.commit()
     deleted = prune_raw_and_minutes(db, now)
@@ -154,9 +150,7 @@ def test_backfill_and_all_window_uses_rollup() -> None:
     assert start <= first
     assert end == now
     assert earliest_archive_at(db) is not None
-    day_rows = fetch_rollup_tuples(
-        db, grain=GRAIN_1D, start=first.replace(hour=0, minute=0, second=0), end=now
-    )
+    day_rows = fetch_rollup_tuples(db, grain=GRAIN_1D, start=first.replace(hour=0, minute=0, second=0), end=now)
     assert day_rows
 
 

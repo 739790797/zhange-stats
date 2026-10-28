@@ -67,10 +67,7 @@ describe("tarkovWorkbenchGunsmith", () => {
 
   it("collects category ids and keys groups", () => {
     expect(
-      collectInstalledCategoryIds([
-        { category_ids: ["a", ""] },
-        { category_ids: ["b"] },
-      ]),
+      collectInstalledCategoryIds([{ category_ids: ["a", ""] }, { category_ids: ["b"] }]),
     ).toEqual(["a", "b"]);
     expect(categoryGroupKey([{ id: "a" }, { id: "b" }])).toBe("a\0b");
   });
@@ -89,11 +86,7 @@ describe("tarkovWorkbenchGunsmith", () => {
     );
     expect(fail?.ok).toBe(false);
     expect(fail?.missingItemIds).toEqual(["grip1"]);
-    expect(fail?.unmetConstraints).toEqual([
-      "min_ergonomics",
-      "max_recoil_sum",
-      "max_weight",
-    ]);
+    expect(fail?.unmetConstraints).toEqual(["min_ergonomics", "max_recoil_sum", "max_weight"]);
     expect(fail?.missingCategoryGroups).toHaveLength(1);
 
     const ok = gunsmithLiveCheck(

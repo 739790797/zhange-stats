@@ -1,7 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Input, Space, message } from "antd";
 import { useState } from "react";
-import { bindExiliumPassword, bindExiliumSms, sendExiliumSms } from "@/features/platforms/exilium/api/exiliumApi";
+import {
+  bindExiliumPassword,
+  bindExiliumSms,
+  sendExiliumSms,
+} from "@/features/platforms/exilium/api/exiliumApi";
 import { PhoneAuthBindTemplate } from "@/features/auth/components/PhoneAuthBindTemplate";
 import { useRoleMembershipPicker } from "@/features/profile/hooks/useRoleMembershipPicker";
 

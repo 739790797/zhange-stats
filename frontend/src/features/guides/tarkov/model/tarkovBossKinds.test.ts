@@ -49,10 +49,7 @@ describe("tarkovBossKinds", () => {
         { id: "usec", kind: "soldier" },
       ],
     });
-    expect(filterCatalogBosses(rows).map((row) => row.id)).toEqual([
-      "killa",
-      "raider",
-    ]);
+    expect(filterCatalogBosses(rows).map((row) => row.id)).toEqual(["killa", "raider"]);
     expect(isCatalogBossKind("soldier")).toBe(false);
   });
 
@@ -67,9 +64,7 @@ describe("tarkovBossKinds", () => {
     expect(isTopLevelNamedBoss("bossBullyBlackDiv", [])).toBe(false);
     expect(isTopLevelNamedBoss("bossBoarSniper", ["bossBoar"])).toBe(false);
     expect(isHangableUnderNamedBoss("bossBoarSniper", ["bossBoar"])).toBe(true);
-    expect(isHangableUnderNamedBoss("followerGluharAssault", ["bossGluhar"])).toBe(
-      true,
-    );
+    expect(isHangableUnderNamedBoss("followerGluharAssault", ["bossGluhar"])).toBe(true);
     expect(isHangableUnderNamedBoss("ExUsec", ["bossKnight"])).toBe(false);
     expect(isFollowerMobId("followerGluharAssault")).toBe(true);
     expect(
@@ -97,30 +92,16 @@ describe("tarkovBossKinds", () => {
       { id: "bossBoarSniper", parent_ids: ["bossBoar"] },
     ];
     const tree = groupBossCatalogTree(rows);
-    expect(tree.bosses.map((row) => row.id)).toEqual([
-      "bossGluhar",
-      "bossKnight",
-      "bossBoar",
-    ]);
+    expect(tree.bosses.map((row) => row.id)).toEqual(["bossGluhar", "bossKnight", "bossBoar"]);
     expect(selectTopLevelNamedBosses(rows).map((row) => row.id)).toEqual([
       "bossGluhar",
       "bossKnight",
       "bossBoar",
     ]);
-    expect(tree.bosses[0].children?.map((row) => row.id)).toEqual([
-      "followerGluharAssault",
-    ]);
-    expect(tree.bosses[1].children?.map((row) => row.id)).toEqual([
-      "followerBigPipe",
-    ]);
-    expect(tree.bosses[2].children?.map((row) => row.id)).toEqual([
-      "bossBoarSniper",
-    ]);
-    expect(tree.others.map((row) => row.id)).toEqual([
-      "ExUsec",
-      "blackDivision",
-      "PmcBot",
-    ]);
+    expect(tree.bosses[0].children?.map((row) => row.id)).toEqual(["followerGluharAssault"]);
+    expect(tree.bosses[1].children?.map((row) => row.id)).toEqual(["followerBigPipe"]);
+    expect(tree.bosses[2].children?.map((row) => row.id)).toEqual(["bossBoarSniper"]);
+    expect(tree.others.map((row) => row.id)).toEqual(["ExUsec", "blackDivision", "PmcBot"]);
   });
 
   it("puts exUsecFree on the 非 Boss crumb even if kind is still missing", () => {

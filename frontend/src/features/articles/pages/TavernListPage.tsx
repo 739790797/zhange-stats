@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageOutlined } from "@ant-design/icons";
-import {
-  Button,
-  Input,
-  Pagination,
-  Popconfirm,
-  Space,
-  Spin,
-  Tag,
-  message,
-} from "antd";
+import { Button, Input, Pagination, Popconfirm, Space, Spin, Tag, message } from "antd";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   deleteArticle,
@@ -27,11 +18,9 @@ import {
   articleCategoryChipColor,
   articleCategoryChipHex,
 } from "@/features/articles/model/articleCategory";
+import { articleStatusColor, articleStatusLabel } from "@/features/articles/model/articleStatus";
 import {
-  articleStatusColor,
-  articleStatusLabel,
-} from "@/features/articles/model/articleStatus";
-import {  TAVERN_WRITE_PATH,
+  TAVERN_WRITE_PATH,
   tavernArticlePath,
   tavernEditPath,
 } from "@/features/articles/model/tavernNav";
@@ -98,12 +87,7 @@ export default function TavernListPage() {
   });
 
   if (isApiForbidden(listQuery.error) || isApiForbidden(catsQuery.error)) {
-    return (
-      <FeatureUnavailableResult
-        featureName="战鸽酒馆"
-        loadError={false}
-      />
-    );
+    return <FeatureUnavailableResult featureName="战鸽酒馆" loadError={false} />;
   }
 
   const patchParams = (mutate: (next: URLSearchParams) => void) => {
@@ -179,26 +163,17 @@ export default function TavernListPage() {
                     <Tag color={articleStatusColor(row.status)}>
                       {articleStatusLabel(row.status)}
                     </Tag>
-                    {formatBeijing(
-                      row.updated_at || row.created_at,
-                      "YYYY-MM-DD HH:mm",
-                    )}
+                    {formatBeijing(row.updated_at || row.created_at, "YYYY-MM-DD HH:mm")}
                   </div>
                 </div>
                 <Space>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => navigate(tavernEditPath(row.id))}
-                  >
+                  <Button type="link" size="small" onClick={() => navigate(tavernEditPath(row.id))}>
                     编辑
                   </Button>
                   <Button
                     type="link"
                     size="small"
-                    onClick={() =>
-                      setVersionRow({ id: row.id, title: row.title })
-                    }
+                    onClick={() => setVersionRow({ id: row.id, title: row.title })}
                   >
                     版本
                   </Button>
@@ -248,16 +223,12 @@ export default function TavernListPage() {
                 </div>
               ) : listQuery.isError ? (
                 <div className={styles.emptyCard}>
-                  <p className={styles.empty}>
-                    {apiError(listQuery.error, "无法加载文章")}
-                  </p>
+                  <p className={styles.empty}>{apiError(listQuery.error, "无法加载文章")}</p>
                 </div>
               ) : !items.length ? (
                 <div className={styles.emptyCard}>
                   <p className={styles.empty}>
-                    {qParam || category
-                      ? "没有符合筛选的文章。"
-                      : "大厅里暂时还没有已发布的文章。"}
+                    {qParam || category ? "没有符合筛选的文章。" : "大厅里暂时还没有已发布的文章。"}
                   </p>
                 </div>
               ) : (
@@ -285,17 +256,12 @@ export default function TavernListPage() {
                           </Tag>
                         ) : null}
                         <h2 className={styles.cardTitle}>
-                          <Link
-                            className={styles.cardLink}
-                            to={tavernArticlePath(item.slug)}
-                          >
+                          <Link className={styles.cardLink} to={tavernArticlePath(item.slug)}>
                             {item.title}
                           </Link>
                         </h2>
                       </div>
-                      {item.summary ? (
-                        <p className={styles.excerpt}>{item.summary}</p>
-                      ) : null}
+                      {item.summary ? <p className={styles.excerpt}>{item.summary}</p> : null}
                       <div className={styles.stats}>
                         <span className={styles.stat}>
                           <MessageOutlined />

@@ -27,11 +27,7 @@ def test_taygedo_sign_payload_structured() -> None:
     text, items = _awards_from_sign_payload(
         {
             "code": 0,
-            "data": {
-                "rewards": [
-                    {"name": "异方结晶", "num": 100, "id": "r1", "type": "crystal"}
-                ]
-            },
+            "data": {"rewards": [{"name": "异方结晶", "num": 100, "id": "r1", "type": "crystal"}]},
         }
     )
     assert text == "异方结晶 x100"

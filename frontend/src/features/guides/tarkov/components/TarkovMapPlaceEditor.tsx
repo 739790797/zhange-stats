@@ -40,12 +40,7 @@ type Args = {
   onEditingChange?: (on: boolean) => void;
 };
 
-export function useTarkovMapPlaceEditor({
-  slug,
-  places,
-  floor,
-  onEditingChange,
-}: Args): {
+export function useTarkovMapPlaceEditor({ slug, places, floor, onEditingChange }: Args): {
   isAdmin: boolean;
   editing: boolean;
   setEditing: (on: boolean) => void;
@@ -110,11 +105,8 @@ export function useTarkovMapPlaceEditor({
   });
 
   const patchMut = useMutation({
-    mutationFn: (body: {
-      id: number;
-      patch: TarkovMapPlacePatch;
-      keepDraft?: boolean;
-    }) => patchTarkovMapPlace(slug, body.id, body.patch),
+    mutationFn: (body: { id: number; patch: TarkovMapPlacePatch; keepDraft?: boolean }) =>
+      patchTarkovMapPlace(slug, body.id, body.patch),
     onSuccess: (updated, vars) => {
       mergePlace(updated);
       if (!vars.keepDraft) setDraft(null);
@@ -223,10 +215,7 @@ export function useTarkovMapPlaceEditor({
     };
   }
 
-  const busy =
-    createMut.isPending ||
-    patchMut.isPending ||
-    deleteMut.isPending;
+  const busy = createMut.isPending || patchMut.isPending || deleteMut.isPending;
 
   const bar = (
     <div className={styles.bar}>
@@ -278,14 +267,10 @@ export function useTarkovMapPlaceEditor({
         placeholder={"社区叫法，可换行居中，如\n真别墅"}
         value={draft?.name || ""}
         onChange={(event) =>
-          setDraft((prev) =>
-            prev ? { ...prev, name: event.target.value } : prev,
-          )
+          setDraft((prev) => (prev ? { ...prev, name: event.target.value } : prev))
         }
       />
-      <p className={`${styles.hint} ${styles.modalExtra}`}>
-        回车换行，保存后各行都居中。
-      </p>
+      <p className={`${styles.hint} ${styles.modalExtra}`}>回车换行，保存后各行都居中。</p>
       {draft?.id ? (
         <div className={styles.modalExtra}>
           <Popconfirm

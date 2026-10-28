@@ -104,9 +104,10 @@ describe("filterSessionStubsByRange", () => {
       stub("log_2026.09.06_00-10-00", "2026-09-06 00:10:00"),
       stub("log_unknown", null),
     ];
-    expect(
-      filterSessionStubsByRange(stubs, range).map((row) => row.folder),
-    ).toEqual(["log_2025.11.15_17-00-00", "log_2026.08.30_23-50-00"]);
+    expect(filterSessionStubsByRange(stubs, range).map((row) => row.folder)).toEqual([
+      "log_2025.11.15_17-00-00",
+      "log_2026.08.30_23-50-00",
+    ]);
   });
 
   it("keeps undated folders when the range is all", () => {
@@ -166,26 +167,26 @@ describe("rangeStartsBeforeCurrentWipe", () => {
 describe("formatLogSyncSessionCount", () => {
   it("prints the folder count the modal shows", () => {
     expect(formatLogSyncSessionCount(18)).toBe("约 18 次启动");
-    expect(formatLogSyncRangeDays({
-      from: "2025-11-15 17:00:00",
-      to: "2026-09-05 23:59:59",
-    })).toBe("2025-11-15 ～ 2026-09-05");
-    expect(formatLogSyncRangeDays({
-      all: true,
-      from: "2017-01-01 00:00:00",
-      to: "2026-09-05 23:59:59",
-    })).toBe("全部");
+    expect(
+      formatLogSyncRangeDays({
+        from: "2025-11-15 17:00:00",
+        to: "2026-09-05 23:59:59",
+      }),
+    ).toBe("2025-11-15 ～ 2026-09-05");
+    expect(
+      formatLogSyncRangeDays({
+        all: true,
+        from: "2017-01-01 00:00:00",
+        to: "2026-09-05 23:59:59",
+      }),
+    ).toBe("全部");
   });
 });
 
 describe("wipesTouchedBySessions", () => {
   it("names every wipe that has a dated session", () => {
     const wipes = wipesTouchedBySessions(
-      [
-        stub("old", "2025-07-10 12:00:00"),
-        stub("now", "2026-01-02 08:00:00"),
-        stub("skip", null),
-      ],
+      [stub("old", "2025-07-10 12:00:00"), stub("now", "2026-01-02 08:00:00"), stub("skip", null)],
       WIPES,
     );
     expect(wipes.map((row) => row.name)).toEqual(["0.16.8.0", "1.0.0.0"]);

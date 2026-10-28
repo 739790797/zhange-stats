@@ -37,6 +37,7 @@ _WEAPON_CLASS_IDS: dict[str, str] = {
     "67446d4f04141c10630604e7": "rocket-launcher",
 }
 
+
 class TarkovGunError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
@@ -77,9 +78,7 @@ def _localized_item_names(
         or raw.get("shortName")
         or ""
     ).strip()
-    short_name = str(
-        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
-    ).strip()
+    short_name = str(locale.get(f"{item_id} ShortName") or raw.get("shortName") or "").strip()
     # json.tarkov.dev 无 locale 时 name 常为 "<id> Name" 占位，不可当真名
     if name.endswith(" Name") and item_id in name:
         name = short_name
@@ -170,9 +169,7 @@ def _overlay_default_preset(
     icon = str(preset.get("baseImageLink") or preset.get("iconLink") or "").strip()
     if icon:
         row["icon_link"] = icon[:512]
-    preset_props = (
-        preset.get("properties") if isinstance(preset.get("properties"), dict) else {}
-    )
+    preset_props = preset.get("properties") if isinstance(preset.get("properties"), dict) else {}
     ergo = preset_props.get("ergonomics")
     if ergo is None:
         ergo = props.get("defaultErgonomics")
@@ -229,9 +226,7 @@ def _row_from_weapon_item(
         "item_id": item_id[:64],
         "name": name[:128],
         "short_name": short_name[:64],
-        "caliber": normalize_caliber(
-            None if props.get("caliber") is None else str(props.get("caliber") or "")
-        )[:64],
+        "caliber": normalize_caliber(None if props.get("caliber") is None else str(props.get("caliber") or ""))[:64],
         "weapon_class": _weapon_class_from_categories(
             raw.get("categories"),
             category_index=category_index,
@@ -244,13 +239,9 @@ def _row_from_weapon_item(
         "fire_modes": fire_modes,
         "default_ammo_id": default_ammo_id[:64],
         "allowed_ammo_ids": _item_id_list(props.get("allowedAmmo")),
-        "icon_link": str(
-            raw.get("baseImageLink") or raw.get("iconLink") or ""
-        )[:512],
+        "icon_link": str(raw.get("baseImageLink") or raw.get("iconLink") or "")[:512],
     }
-    return _overlay_default_preset(
-        row, props, locale=locale, items_by_id=items_by_id
-    )
+    return _overlay_default_preset(row, props, locale=locale, items_by_id=items_by_id)
 
 
 def _as_int(value: Any) -> int:
@@ -427,9 +418,7 @@ def replace_derived_gun_rows(
                 effective_distance=row["effective_distance"],
                 fire_modes_json=json.dumps(row["fire_modes"], ensure_ascii=False),
                 default_ammo_id=row["default_ammo_id"],
-                allowed_ammo_json=json.dumps(
-                    row["allowed_ammo_ids"], ensure_ascii=False
-                ),
+                allowed_ammo_json=json.dumps(row["allowed_ammo_ids"], ensure_ascii=False),
                 icon_link=row["icon_link"],
                 updated_at=synced_at,
             )

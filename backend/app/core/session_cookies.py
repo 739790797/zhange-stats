@@ -93,9 +93,7 @@ def clear_session_cookies(response: Response, request: Request) -> None:
     )
 
 
-def _set_nonce_cookie(
-    response: Response, request: Request, name: str, path: str, nonce: str, max_age: int
-) -> None:
+def _set_nonce_cookie(response: Response, request: Request, name: str, path: str, nonce: str, max_age: int) -> None:
     response.set_cookie(
         name,
         nonce,
@@ -117,24 +115,16 @@ def _clear_nonce_cookie(response: Response, request: Request, name: str, path: s
     )
 
 
-def set_qq_oauth_nonce_cookie(
-    response: Response, request: Request, nonce: str, *, max_age: int
-) -> None:
-    _set_nonce_cookie(
-        response, request, QQ_OAUTH_NONCE_COOKIE, QQ_OAUTH_NONCE_PATH, nonce, max_age
-    )
+def set_qq_oauth_nonce_cookie(response: Response, request: Request, nonce: str, *, max_age: int) -> None:
+    _set_nonce_cookie(response, request, QQ_OAUTH_NONCE_COOKIE, QQ_OAUTH_NONCE_PATH, nonce, max_age)
 
 
 def clear_qq_oauth_nonce_cookie(response: Response, request: Request) -> None:
     _clear_nonce_cookie(response, request, QQ_OAUTH_NONCE_COOKIE, QQ_OAUTH_NONCE_PATH)
 
 
-def set_steam_openid_nonce_cookie(
-    response: Response, request: Request, nonce: str, *, max_age: int
-) -> None:
-    _set_nonce_cookie(
-        response, request, STEAM_OPENID_NONCE_COOKIE, STEAM_OPENID_NONCE_PATH, nonce, max_age
-    )
+def set_steam_openid_nonce_cookie(response: Response, request: Request, nonce: str, *, max_age: int) -> None:
+    _set_nonce_cookie(response, request, STEAM_OPENID_NONCE_COOKIE, STEAM_OPENID_NONCE_PATH, nonce, max_age)
 
 
 def clear_steam_openid_nonce_cookie(response: Response, request: Request) -> None:

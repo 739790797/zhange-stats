@@ -23,13 +23,7 @@ describe("applyMutexLedger", () => {
   });
 
   it("prefers the later log completion in a mutex group", () => {
-    const next = applyMutexLedger(
-      ["chem", "curio", "big"],
-      [],
-      [],
-      chem,
-      ["chem", "big"],
-    );
+    const next = applyMutexLedger(["chem", "curio", "big"], [], [], chem, ["chem", "big"]);
     expect(next.done).toEqual(["big"]);
     expect(next.failed.sort()).toEqual(["chem", "curio"]);
   });

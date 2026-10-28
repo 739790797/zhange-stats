@@ -26,13 +26,8 @@ def _task(
         "normalizedName": ident,
         "factionName": faction,
         "trader": BTR if trader is None else trader,
-        "taskRequirements": [
-            {"task": item, "status": ["complete"]} for item in (prereqs or [])
-        ],
-        "failConditions": [
-            {"type": "taskStatus", "task": item, "status": ["complete"]}
-            for item in (fail or [])
-        ],
+        "taskRequirements": [{"task": item, "status": ["complete"]} for item in (prereqs or [])],
+        "failConditions": [{"type": "taskStatus", "task": item, "status": ["complete"]} for item in (fail or [])],
     }
     if prestige:
         raw["requiredPrestige"] = {"prestigeLevel": prestige}

@@ -15,24 +15,12 @@ import { tarkovMapThumbUrl } from "@/features/guides/tarkov/model/tarkovMapThumb
 import { TarkovDataFreshness } from "@/features/guides/tarkov/components/TarkovDataFreshness";
 import styles from "./TarkovMapsPanel.module.css";
 
-function MapThumb({
-  slug,
-  apiThumb,
-  icon,
-}: {
-  slug: string;
-  apiThumb?: string;
-  icon?: string;
-}) {
+function MapThumb({ slug, apiThumb, icon }: { slug: string; apiThumb?: string; icon?: string }) {
   const [broken, setBroken] = useState(false);
   const src = tarkovMapThumbUrl(slug, apiThumb);
   if (!src || broken) {
     return icon ? (
-      <svg
-        className={styles.thumbFallback}
-        viewBox="0 0 24 24"
-        aria-hidden
-      >
+      <svg className={styles.thumbFallback} viewBox="0 0 24 24" aria-hidden>
         <path fill="currentColor" d={icon} />
       </svg>
     ) : null;
@@ -83,17 +71,12 @@ export function TarkovMapsPanel() {
   const apiItems = catalogQuery.data?.items ?? [];
   const cards = TARKOV_MAPS.map((home) => {
     const slug = tarkovMapSlug(home.id);
-    const api = apiItems.find(
-      (row) => row.slug === slug || row.slug === home.id,
-    );
+    const api = apiItems.find((row) => row.slug === slug || row.slug === home.id);
     return { home, api, slug };
   });
   const extras = apiItems.filter(
     (row) =>
-      !TARKOV_MAPS.some(
-        (home) =>
-          home.id === row.slug || tarkovMapSlug(home.id) === row.slug,
-      ),
+      !TARKOV_MAPS.some((home) => home.id === row.slug || tarkovMapSlug(home.id) === row.slug),
   );
 
   return (
@@ -111,13 +94,7 @@ export function TarkovMapsPanel() {
           const body = (
             <>
               <div className={styles.thumbWrap}>
-                {soon ? null : (
-                  <MapThumb
-                    slug={slug}
-                    apiThumb={api?.thumb_link}
-                    icon={home.icon}
-                  />
-                )}
+                {soon ? null : <MapThumb slug={slug} apiThumb={api?.thumb_link} icon={home.icon} />}
               </div>
               <div className={styles.body}>
                 <span className={styles.name}>{api?.name || home.label}</span>
@@ -126,9 +103,7 @@ export function TarkovMapsPanel() {
                   {soon
                     ? "即将推出"
                     : [
-                        api?.raid_duration
-                          ? `${api.raid_duration} 分钟`
-                          : null,
+                        api?.raid_duration ? `${api.raid_duration} 分钟` : null,
                         api?.players ? `${api.players} 人` : null,
                       ]
                         .filter(Boolean)

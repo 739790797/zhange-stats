@@ -1,4 +1,6 @@
-import { generateHTML, generateJSON } from "@tiptap/html/server";
+/** @vitest-environment jsdom */
+import { getSchema } from "@tiptap/core";
+import { DOMParser, DOMSerializer } from "@tiptap/pm/model";
 import {
   articleSchemaExtensions,
   articleSlashItems,
@@ -7,10 +9,17 @@ import {
 import { describe, expect, it } from "vitest";
 
 const extensions = articleSchemaExtensions();
+const schema = getSchema(extensions);
 
 function roundtrip(html: string): string {
-  const json = generateJSON(html, extensions);
-  return generateHTML(json, extensions);
+  const source = new window.DOMParser().parseFromString(html, "text/html");
+  const parsed = DOMParser.fromSchema(schema).parse(source.body);
+  const document = window.document.implementation.createHTMLDocument("");
+  const wrapper = document.createElement("div");
+  wrapper.appendChild(
+    DOMSerializer.fromSchema(schema).serializeFragment(parsed.content, { document }),
+  );
+  return wrapper.innerHTML;
 }
 
 describe("articleTiptap", () => {
@@ -61,9 +70,7 @@ describe("articleTiptap", () => {
   });
 
   it("keeps uploaded attachment links", () => {
-    const html = roundtrip(
-      '<p><a href="/uploads/articles/2026/09/a.pdf">说明.pdf</a></p>',
-    );
+    const html = roundtrip('<p><a href="/uploads/articles/2026/09/a.pdf">说明.pdf</a></p>');
     expect(html).toContain("/uploads/articles/2026/09/a.pdf");
     expect(html).toMatch(/<a\b/);
     expect(html).toContain("说明.pdf");
@@ -91,9 +98,7 @@ describe("articleTiptap", () => {
 
   it("filters slash items by query", () => {
     const items = articleSlashItems();
-    expect(filterArticleSlashItems(items, "表").map((row) => row.id)).toContain(
-      "table",
-    );
+    expect(filterArticleSlashItems(items, "表").map((row) => row.id)).toContain("table");
     expect(items.map((row) => row.id)).toEqual(
       expect.arrayContaining(["h2", "h4", "quote", "table", "hr"]),
     );

@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useMemo, type ReactNode } from "react";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
-import { fetchSklandStatus, triggerSklandCheckin, updateSklandRolePref } from "@/features/platforms/skland/api/sklandApi";
+import {
+  fetchSklandStatus,
+  triggerSklandCheckin,
+  updateSklandRolePref,
+} from "@/features/platforms/skland/api/sklandApi";
 import { ArknightsAttendanceCalendarButton } from "@/features/platforms/skland/components/arknights/ArknightsAttendanceCalendar";
 import { EndfieldAttendanceCalendarButton } from "@/features/platforms/skland/components/endfield/EndfieldAttendanceCalendar";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
@@ -43,14 +47,10 @@ export default function SklandPage() {
     staleTime: 30_000,
   });
 
-  const featuresReady =
-    featuresQuery.isSuccess && Boolean(featuresQuery.data);
-  const showCheckin =
-    featuresReady && isFeatureOn(featuresQuery.data, "skland.checkin");
-  const showArknights =
-    featuresReady && isFeatureOn(featuresQuery.data, "skland.arknights");
-  const showEndfield =
-    featuresReady && isFeatureOn(featuresQuery.data, "skland.endfield");
+  const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
+  const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "skland.checkin");
+  const showArknights = featuresReady && isFeatureOn(featuresQuery.data, "skland.arknights");
+  const showEndfield = featuresReady && isFeatureOn(featuresQuery.data, "skland.endfield");
 
   const tabItems = useMemo(() => {
     const items: { key: TabKey; label: string; children: ReactNode }[] = [];
@@ -60,36 +60,36 @@ export default function SklandPage() {
         label: "签到",
         children: (
           <CheckinPageTemplate
-              contentOnly
-              title="森空岛"
-              bindName="森空岛"
-              statusQueryKey={["skland-status"]}
-              fetchStatus={fetchSklandStatus}
-              triggerCheckin={triggerSklandCheckin}
-              updateRolePref={updateSklandRolePref}
-              platformIcon="skland"
-              onSelectRoles={() => openPicker()}
-              renderResultExtra={(row) => {
-                if (!row.role_uid) return null;
-                if (row.game_code === "arknights") {
-                  return (
-                    <ArknightsAttendanceCalendarButton
-                      uid={row.role_uid}
-                      roleName={row.role_name}
-                      channelName={row.channel_name}
-                    />
-                  );
-                }
-                if (row.game_code === "endfield") {
-                  return (
-                    <EndfieldAttendanceCalendarButton
-                      uid={row.role_uid}
-                      roleName={row.role_name}
-                      channelName={row.channel_name}
-                    />
-                  );
-                }
-                return null;
+            contentOnly
+            title="森空岛"
+            bindName="森空岛"
+            statusQueryKey={["skland-status"]}
+            fetchStatus={fetchSklandStatus}
+            triggerCheckin={triggerSklandCheckin}
+            updateRolePref={updateSklandRolePref}
+            platformIcon="skland"
+            onSelectRoles={() => openPicker()}
+            renderResultExtra={(row) => {
+              if (!row.role_uid) return null;
+              if (row.game_code === "arknights") {
+                return (
+                  <ArknightsAttendanceCalendarButton
+                    uid={row.role_uid}
+                    roleName={row.role_name}
+                    channelName={row.channel_name}
+                  />
+                );
+              }
+              if (row.game_code === "endfield") {
+                return (
+                  <EndfieldAttendanceCalendarButton
+                    uid={row.role_uid}
+                    roleName={row.role_name}
+                    channelName={row.channel_name}
+                  />
+                );
+              }
+              return null;
             }}
           />
         ),
@@ -101,9 +101,7 @@ export default function SklandPage() {
         label: "明日方舟",
         children: (
           <ArknightsTabPanel
-            rogueEnabled={Boolean(
-              statusQuery.data?.bound && statusQuery.data?.token_ok !== false,
-            )}
+            rogueEnabled={Boolean(statusQuery.data?.bound && statusQuery.data?.token_ok !== false)}
           />
         ),
       });
@@ -114,9 +112,7 @@ export default function SklandPage() {
         label: "明日方舟：终末地",
         children: (
           <EndfieldBoxPanel
-            enabled={Boolean(
-              statusQuery.data?.bound && statusQuery.data?.token_ok !== false,
-            )}
+            enabled={Boolean(statusQuery.data?.bound && statusQuery.data?.token_ok !== false)}
           />
         ),
       });

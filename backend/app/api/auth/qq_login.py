@@ -59,9 +59,7 @@ def qq_oauth_login_start(
         url = build_qq_authorize_url(state=state, backend=backend)
     except QqOAuthError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    set_qq_oauth_nonce_cookie(
-        response, request, nonce, max_age=STATE_TTL_MINUTES * 60
-    )
+    set_qq_oauth_nonce_cookie(response, request, nonce, max_age=STATE_TTL_MINUTES * 60)
     return QqOAuthStartResponse(url=url)
 
 

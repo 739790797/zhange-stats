@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resetLogoutOnce,
-  shouldLogoutOn401,
-  takeLogoutOnce,
-} from "./shouldLogoutOn401";
+import { resetLogoutOnce, shouldLogoutOn401, takeLogoutOnce } from "./shouldLogoutOn401";
 
 describe("shouldLogoutOn401", () => {
   it("does not logout on 403", () => {

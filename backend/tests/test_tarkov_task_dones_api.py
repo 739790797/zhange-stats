@@ -22,9 +22,7 @@ BASE = "/api/guides/tarkov/task-dones"
 
 @pytest.fixture
 def ctx(monkeypatch):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
 
@@ -94,9 +92,7 @@ def test_stale_bulk_write_leaves_no_partial_state(ctx) -> None:
     client, SessionLocal = ctx
     pvp = {"game_mode": "pvp"}
     assert client.post(f"{BASE}/clear", params=pvp).status_code == 200
-    res = client.put(
-        BASE, params=pvp, json={"task_ids": ["old"], "replace": False, "expect_epoch": 0}
-    )
+    res = client.put(BASE, params=pvp, json={"task_ids": ["old"], "replace": False, "expect_epoch": 0})
     assert res.status_code == 409
     with SessionLocal() as db:
         assert db.query(TarkovUserTaskDone).count() == 0

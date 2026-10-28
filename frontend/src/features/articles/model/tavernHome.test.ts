@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { pickTavernHighlights } from "./tavernHome";
 import type { ArticleListItem } from "@/features/articles/api/articlesApi";
 
-function item(partial: Partial<ArticleListItem> & Pick<ArticleListItem, "id" | "slug" | "title">): ArticleListItem {
+function item(
+  partial: Partial<ArticleListItem> & Pick<ArticleListItem, "id" | "slug" | "title">,
+): ArticleListItem {
   return {
     summary: "",
     cover_url: null,

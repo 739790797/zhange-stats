@@ -9,39 +9,31 @@ export type EndfieldBox = components["schemas"]["EndfieldBoxOut"];
 
 export type EndfieldBoxCompare = components["schemas"]["EndfieldBoxCompareOut"];
 
-export type EndfieldCompareCandidate =
-  components["schemas"]["EndfieldCompareCandidateOut"];
+export type EndfieldCompareCandidate = components["schemas"]["EndfieldCompareCandidateOut"];
 
-export type EndfieldCompareRow =
-  components["schemas"]["EndfieldCompareRowOut"];
+export type EndfieldCompareRow = components["schemas"]["EndfieldCompareRowOut"];
 
 export type EndfieldOperator = components["schemas"]["EndfieldOperatorOut"];
 
 export type ArknightsRogue = components["schemas"]["ArknightsRogueOut"];
 
-export type ArknightsRogueRecord =
-  components["schemas"]["ArknightsRogueRecordOut"];
+export type ArknightsRogueRecord = components["schemas"]["ArknightsRogueRecordOut"];
 
 export type ArknightsBoxCompare = components["schemas"]["ArknightsBoxCompareOut"];
 
-export type ArknightsAttendanceCalendar =
-  components["schemas"]["ArknightsAttendanceCalendarOut"];
+export type ArknightsAttendanceCalendar = components["schemas"]["ArknightsAttendanceCalendarOut"];
 
-export type EndfieldAttendanceCalendar =
-  components["schemas"]["EndfieldAttendanceCalendarOut"];
+export type EndfieldAttendanceCalendar = components["schemas"]["EndfieldAttendanceCalendarOut"];
 
-export type GameScheduleEvent =
-  components["schemas"]["GameScheduleEventOut"];
+export type GameScheduleEvent = components["schemas"]["GameScheduleEventOut"];
 
-export type GameScheduleCalendar =
-  components["schemas"]["GameScheduleCalendarOut"];
+export type GameScheduleCalendar = components["schemas"]["GameScheduleCalendarOut"];
 
 export type ArknightsOperator = components["schemas"]["ArknightsOperatorOut"];
 
 export type ArknightsOwnedChar = components["schemas"]["ArknightsOwnedCharOut"];
 
-export type ArknightsCompareCandidate =
-  components["schemas"]["ArknightsCompareCandidateOut"];
+export type ArknightsCompareCandidate = components["schemas"]["ArknightsCompareCandidateOut"];
 
 export type ArknightsCompareRow = components["schemas"]["ArknightsCompareRowOut"];
 

@@ -21,6 +21,7 @@ zhange-stats/
     models/                 # TexTeller（公式识别）
     repos/ run/ cache/ backups/ mariadb/ tmp/
   scripts/config.example/   # 站点配置模板（_version；启动/脚本补键）
+  frontend/vendor/zhange-base/ # App 与 Stats 共用设计系统子模块
   frontend/src/
     app/                    # 启动、路由组合、全局壳与应用级样式
     features/               # 按业务所有权分组；platforms/ 与 guides/ 再按域分包
@@ -72,31 +73,31 @@ zhange-stats/
 
 ### checkin/
 
-| 旧文件 | 新模块 |
-|--------|--------|
-| `checkin_adapter.py` | `checkin.adapter` |
-| `checkin_common.py` | `checkin.common` |
+| 旧文件                    | 新模块                 |
+| ------------------------- | ---------------------- |
+| `checkin_adapter.py`      | `checkin.adapter`      |
+| `checkin_common.py`       | `checkin.common`       |
 | `checkin_orchestrator.py` | `checkin.orchestrator` |
-| `checkin_registry.py` | `checkin.registry` |
-| `checkin_role_prefs.py` | `checkin.role_prefs` |
-| `checkin_schedule.py` | `checkin.schedule` |
+| `checkin_registry.py`     | `checkin.registry`     |
+| `checkin_role_prefs.py`   | `checkin.role_prefs`   |
+| `checkin_schedule.py`     | `checkin.schedule`     |
 
 ### skland/
 
-| 旧文件 | 新模块 |
-|--------|--------|
-| `skland_client.py` | `skland.client` |
-| `skland_attendance.py` | `skland.attendance` |
-| `skland_checkin.py` | `skland.checkin` |
-| `skland_boxes.py` | `skland.boxes` |
-| `skland_calendar.py` | `skland.calendar` |
-| `skland_qr.py` | `skland.qr` |
-| `skland_awards.py` | `skland.awards` |
-| `skland_rogue.py` | `skland.rogue` |
-| `skland_session_cache.py` | `skland.session_cache` |
-| `endfield_calendar.py` | `skland.endfield_calendar` |
+| 旧文件                     | 新模块                         |
+| -------------------------- | ------------------------------ |
+| `skland_client.py`         | `skland.client`                |
+| `skland_attendance.py`     | `skland.attendance`            |
+| `skland_checkin.py`        | `skland.checkin`               |
+| `skland_boxes.py`          | `skland.boxes`                 |
+| `skland_calendar.py`       | `skland.calendar`              |
+| `skland_qr.py`             | `skland.qr`                    |
+| `skland_awards.py`         | `skland.awards`                |
+| `skland_rogue.py`          | `skland.rogue`                 |
+| `skland_session_cache.py`  | `skland.session_cache`         |
+| `endfield_calendar.py`     | `skland.endfield_calendar`     |
 | `arknights_box_compare.py` | `skland.arknights_box_compare` |
-| `arknights_catalog.py` | `skland.arknights_catalog` |
+| `arknights_catalog.py`     | `skland.arknights_catalog`     |
 
 ### 其它域
 

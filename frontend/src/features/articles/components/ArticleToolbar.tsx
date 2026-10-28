@@ -24,15 +24,7 @@ import {
 } from "@ant-design/icons";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
-import {
-  Button,
-  Dropdown,
-  Input,
-  Modal,
-  Popover,
-  Space,
-  Tooltip,
-} from "antd";
+import { Button, Dropdown, Input, Modal, Popover, Space, Tooltip } from "antd";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import {
   ARTICLE_COLORS,
@@ -148,14 +140,9 @@ export function ArticleToolbar({
         current.getAttributes("heading").articleAlign ||
         current.getAttributes("blockquote").articleAlign ||
         null) as ArticleAlign | null,
-      color: (current.getAttributes("articleColor").color || null) as
-        | string
-        | null,
-      mark: (current.getAttributes("articleHighlight").mark || null) as
-        | string
-        | null,
-      math:
-        current.isActive("articleMath") || current.isActive("articleMathBlock"),
+      color: (current.getAttributes("articleColor").color || null) as string | null,
+      mark: (current.getAttributes("articleHighlight").mark || null) as string | null,
+      math: current.isActive("articleMath") || current.isActive("articleMathBlock"),
     }),
   });
 
@@ -177,9 +164,8 @@ export function ArticleToolbar({
     };
   }, [editor, onFindRef, onLinkRef]);
 
-  const headingValue = state.heading === 2 || state.heading === 3 || state.heading === 4
-    ? String(state.heading)
-    : "p";
+  const headingValue =
+    state.heading === 2 || state.heading === 3 || state.heading === 4 ? String(state.heading) : "p";
 
   const applyLink = () => {
     const next = href.trim();
@@ -189,11 +175,7 @@ export function ArticleToolbar({
       return;
     }
     if (!isSafeArticleHref(next)) return;
-    editor
-      .chain()
-      .focus()
-      .setLink({ href: next, rel: "noopener noreferrer" })
-      .run();
+    editor.chain().focus().setLink({ href: next, rel: "noopener noreferrer" }).run();
     setLinkOpen(false);
   };
 
@@ -271,20 +253,17 @@ export function ArticleToolbar({
             {
               key: "2",
               label: "标题 2",
-              onClick: () =>
-                editor.chain().focus().setHeading({ level: 2 }).run(),
+              onClick: () => editor.chain().focus().setHeading({ level: 2 }).run(),
             },
             {
               key: "3",
               label: "标题 3",
-              onClick: () =>
-                editor.chain().focus().setHeading({ level: 3 }).run(),
+              onClick: () => editor.chain().focus().setHeading({ level: 3 }).run(),
             },
             {
               key: "4",
               label: "标题 4",
-              onClick: () =>
-                editor.chain().focus().setHeading({ level: 4 }).run(),
+              onClick: () => editor.chain().focus().setHeading({ level: 4 }).run(),
             },
           ],
         }}
@@ -359,10 +338,7 @@ export function ArticleToolbar({
               key: row.key,
               label: (
                 <span className={styles.swatchRow}>
-                  <span
-                    className={styles.swatch}
-                    style={{ background: row.value }}
-                  />
+                  <span className={styles.swatch} style={{ background: row.value }} />
                   {row.label}
                 </span>
               ),
@@ -391,15 +367,11 @@ export function ArticleToolbar({
               key: row.key,
               label: (
                 <span className={styles.swatchRow}>
-                  <span
-                    className={styles.swatchMark}
-                    style={{ background: row.value }}
-                  />
+                  <span className={styles.swatchMark} style={{ background: row.value }} />
                   {row.label}
                 </span>
               ),
-              onClick: () =>
-                editor.chain().focus().setArticleHighlight(row.key).run(),
+              onClick: () => editor.chain().focus().setArticleHighlight(row.key).run(),
             })),
           ],
         }}
@@ -520,18 +492,10 @@ export function ArticleToolbar({
           </Tool>
         </span>
       </Popover>
-      <Tool
-        title="图片"
-        disabled={locked}
-        onClick={() => fileRef.current?.click()}
-      >
+      <Tool title="图片" disabled={locked} onClick={() => fileRef.current?.click()}>
         <PictureOutlined />
       </Tool>
-      <Tool
-        title="附件"
-        disabled={locked}
-        onClick={() => attachRef.current?.click()}
-      >
+      <Tool title="附件" disabled={locked} onClick={() => attachRef.current?.click()}>
         <PaperClipOutlined />
       </Tool>
       <Tool
@@ -601,11 +565,7 @@ export function ArticleToolbar({
               key: "insert",
               label: "插入表格",
               onClick: () =>
-                editor
-                  .chain()
-                  .focus()
-                  .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                  .run(),
+                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
             },
             {
               key: "addRow",

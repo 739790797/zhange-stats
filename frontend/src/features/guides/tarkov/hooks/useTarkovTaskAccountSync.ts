@@ -15,7 +15,10 @@ import {
   writeTaskProgressLedger,
   type TarkovTaskDones,
 } from "@/features/guides/tarkov/api/guidesApi";
-import { useTarkovGameMode, type TarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import {
+  useTarkovGameMode,
+  type TarkovGameMode,
+} from "@/features/guides/tarkov/model/tarkovGameMode";
 import {
   TARKOV_TASK_PROGRESS_EVENT,
   notifyTarkovTaskProgress,
@@ -208,9 +211,7 @@ export function useTarkovTaskAccountSync() {
           loadTaskClearedDone(mode),
           clearedMapFromServer(data.cleared),
         ),
-        mutexById: catalog?.items?.length
-          ? mutexIndexFromTasks(catalog.items)
-          : undefined,
+        mutexById: catalog?.items?.length ? mutexIndexFromTasks(catalog.items) : undefined,
         authoritativeLocal: pendingReset,
       });
       const prevDone = loadTaskDoneIds(mode);

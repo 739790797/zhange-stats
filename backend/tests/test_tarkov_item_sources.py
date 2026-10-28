@@ -116,13 +116,13 @@ def _task_rows() -> list[dict]:
             "name": "Find Bolts",
             "trader": PRAPOR,
             "objectives": [
-                    {
-                        "id": "o1",
-                        "description": "上交螺栓",
-                        "item": "bolt",
-                        "count": 8,
-                        "foundInRaid": True,
-                    }
+                {
+                    "id": "o1",
+                    "description": "上交螺栓",
+                    "item": "bolt",
+                    "count": 8,
+                    "foundInRaid": True,
+                }
             ],
             "neededKeys": [{"map": "factory", "keys": ["target"]}],
         },
@@ -130,9 +130,7 @@ def _task_rows() -> list[dict]:
             "id": "t-wear",
             "name": "Wear It",
             "trader": PRAPOR,
-            "objectives": [
-                {"id": "o2", "description": "穿上目标", "wearing": [[{"id": "target"}]]}
-            ],
+            "objectives": [{"id": "o2", "description": "穿上目标", "wearing": [[{"id": "target"}]]}],
         },
     ]
 
@@ -497,9 +495,7 @@ def test_collect_item_drops_boss_and_non_boss() -> None:
             "maps_label": "实验室",
             "portrait_link": "",
             "parent_ids": [],
-            "equipment": [
-                {"item": "other", "contains": [{"item": "target", "count": 1}]}
-            ],
+            "equipment": [{"item": "other", "contains": [{"item": "target", "count": 1}]}],
         },
         {
             "id": "assault",

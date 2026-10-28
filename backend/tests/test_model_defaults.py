@@ -47,9 +47,7 @@ def _datetime_columns() -> dict[str, sa.Column]:
 def test_not_null_timestamps_have_a_python_default() -> None:
     columns = _datetime_columns()
     missing = sorted(
-        name
-        for name, col in columns.items()
-        if not col.nullable and col.default is None and name not in _APP_SET
+        name for name, col in columns.items() if not col.nullable and col.default is None and name not in _APP_SET
     )
     assert missing == []
     assert _APP_SET <= set(columns)

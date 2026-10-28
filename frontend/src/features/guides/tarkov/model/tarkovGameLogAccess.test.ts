@@ -100,7 +100,8 @@ const NEXT_SESSION = "log_2024.02.05_21-00-00_0.14.0.0.28375";
 function appLines(from: number, count: number): string {
   return Array.from(
     { length: count },
-    (_, i) => `2024-02-05 19:${String(from + i).padStart(2, "0")}:00.000|x|Info|application|LocationLoaded:1.00\n`,
+    (_, i) =>
+      `2024-02-05 19:${String(from + i).padStart(2, "0")}:00.000|x|Info|application|LocationLoaded:1.00\n`,
   ).join("");
 }
 
@@ -246,10 +247,7 @@ describe("assistant-bound directories", () => {
 
     const first = await readStattedSessionLogs(stat, cache);
     expect(fixture.counters.readText).toBe(2);
-    expect(first.files.map((file) => file.name)).toEqual([
-      "notifications.log",
-      "application.log",
-    ]);
+    expect(first.files.map((file) => file.name)).toEqual(["notifications.log", "application.log"]);
     expect(first).toEqual(await readSessionLogs(fixture.dir, SESSION));
     expect(first.fingerprint).toBe(stat.fingerprint);
     const textReads = fixture.counters.readText;
@@ -336,7 +334,11 @@ describe("assistant-bound directories", () => {
     const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
     const shot = "2026-10-13[21-35]_19.91 (0).png";
     const dir = memoryDir("Screenshots", dirNode({ [shot]: fileNode("png", 700) }), counters);
-    expect(await readScreenshotByName(dir, shot)).toEqual({ name: shot, size: 3, lastModified: 700 });
+    expect(await readScreenshotByName(dir, shot)).toEqual({
+      name: shot,
+      size: 3,
+      lastModified: 700,
+    });
     expect(counters.wholeReads).toBe(0);
     expect(counters.lists).toBe(0);
     expect(await readScreenshotByName(dir, "missing.png")).toBeNull();

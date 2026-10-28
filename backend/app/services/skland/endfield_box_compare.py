@@ -51,21 +51,14 @@ def _member_nickname(member: Member) -> str:
 
 def _candidate_member_ids(db: Session, self_id: int) -> set[int]:
     ids = {
-        int(member_id)
-        for (member_id,) in db.query(EndfieldBoxRaw.member_id).distinct().all()
-        if member_id is not None
+        int(member_id) for (member_id,) in db.query(EndfieldBoxRaw.member_id).distinct().all() if member_id is not None
     }
     for model in (EndfieldAttendanceRaw,):
         ids.update(
-            int(member_id)
-            for (member_id,) in db.query(model.member_id).distinct().all()
-            if member_id is not None
+            int(member_id) for (member_id,) in db.query(model.member_id).distinct().all() if member_id is not None
         )
     for (member_id,) in (
-        db.query(SklandCheckinLog.member_id)
-        .filter(SklandCheckinLog.game_code == GAME_ENDFIELD)
-        .distinct()
-        .all()
+        db.query(SklandCheckinLog.member_id).filter(SklandCheckinLog.game_code == GAME_ENDFIELD).distinct().all()
     ):
         if member_id is not None:
             ids.add(int(member_id))
@@ -165,9 +158,7 @@ def list_compare_candidates(db: Session, viewer: User) -> list[dict[str, Any]]:
                 "skland_bound": member.skland_bind is not None,
             }
         )
-    candidates.sort(
-        key=lambda row: (not row["is_self"], row["nickname"] or "", row["member_id"])
-    )
+    candidates.sort(key=lambda row: (not row["is_self"], row["nickname"] or "", row["member_id"]))
     return candidates
 
 
@@ -179,17 +170,12 @@ def _role_out(role: SklandRole) -> dict[str, str]:
     }
 
 
-def _enrich_roles_from_cached_boxes(
-    db: Session, member_id: int, roles: list[SklandRole]
-) -> list[SklandRole]:
+def _enrich_roles_from_cached_boxes(db: Session, member_id: int, roles: list[SklandRole]) -> list[SklandRole]:
     by_role_id = {str(role.role_id): role for role in roles if role.role_id}
     if not by_role_id:
         return roles
     snapshots = (
-        db.query(EndfieldBoxRaw)
-        .filter(EndfieldBoxRaw.member_id == member_id)
-        .order_by(EndfieldBoxRaw.role_id)
-        .all()
+        db.query(EndfieldBoxRaw).filter(EndfieldBoxRaw.member_id == member_id).order_by(EndfieldBoxRaw.role_id).all()
     )
     for snapshot in snapshots:
         role = by_role_id.get(str(snapshot.role_id))
@@ -345,13 +331,7 @@ def _cached_box(
     roles: list[SklandRole],
 ) -> tuple[Any | None, SklandRole | None, str | None, str | None]:
     role = next(
-        (
-            item
-            for item in roles
-            if not requested_uid
-            or item.uid == requested_uid
-            or item.role_id == requested_uid
-        ),
+        (item for item in roles if not requested_uid or item.uid == requested_uid or item.role_id == requested_uid),
         None,
     )
     if role is None:
@@ -437,9 +417,7 @@ def build_box_compare(
         if member is None:
             continue
         if member_id != self_id and member.skland_bind is None:
-            rows.append(
-                _empty_row(member, status="unbound", message="该成员已解除森空岛绑定")
-            )
+            rows.append(_empty_row(member, status="unbound", message="该成员已解除森空岛绑定"))
             continue
 
         requested_uid = str(uid_map.get(member_id) or "").strip() or None
@@ -452,9 +430,7 @@ def build_box_compare(
                 roles = _enrich_roles_from_cached_boxes(db, member_id, roles)
                 _align_box_char_ids(box, catalog)
             except SklandApiError as exc:
-                rows.append(
-                    _empty_row(member, status="error", message=exc.message, roles=roles)
-                )
+                rows.append(_empty_row(member, status="error", message=exc.message, roles=roles))
                 continue
             rows.append(
                 _box_row(

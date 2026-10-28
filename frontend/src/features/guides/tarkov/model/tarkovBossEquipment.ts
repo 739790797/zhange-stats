@@ -2,15 +2,7 @@ export const TARKOV_BOSS_GEAR_GROUPS = [
   {
     id: "wear",
     label: "穿着",
-    keys: [
-      "headwear",
-      "face",
-      "eyewear",
-      "earpiece",
-      "armor",
-      "rig",
-      "backpack",
-    ],
+    keys: ["headwear", "face", "eyewear", "earpiece", "armor", "rig", "backpack"],
   },
   {
     id: "arms",
@@ -20,15 +12,7 @@ export const TARKOV_BOSS_GEAR_GROUPS = [
   {
     id: "carry",
     label: "携带",
-    keys: [
-      "ammo",
-      "meds",
-      "provisions",
-      "keys",
-      "special",
-      "container",
-      "other",
-    ],
+    keys: ["ammo", "meds", "provisions", "keys", "special", "container", "other"],
   },
 ] as const;
 
@@ -96,17 +80,13 @@ export function groupBossGearSlots<T extends { key?: string | null }>(
   return groups;
 }
 
-export function bossGearArmorClass(item: {
-  armor_class?: number | null;
-}): number | null {
+export function bossGearArmorClass(item: { armor_class?: number | null }): number | null {
   const n = Number(item.armor_class);
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.round(n);
 }
 
-export function bossGearArmorClassLabel(item: {
-  armor_class?: number | null;
-}): string {
+export function bossGearArmorClassLabel(item: { armor_class?: number | null }): string {
   const cls = bossGearArmorClass(item);
   return cls == null ? "" : `${cls}级`;
 }
@@ -137,9 +117,7 @@ export function bossGearContainedKind(item: {
     .trim()
     .toLowerCase();
   if (kind === "magazine" || kind === "ammo" || kind === "plate") return kind;
-  const types = new Set(
-    (item.types || []).map((row) => String(row).trim().toLowerCase()),
-  );
+  const types = new Set((item.types || []).map((row) => String(row).trim().toLowerCase()));
   if (types.has("ammo") || types.has("ammobox")) return "ammo";
   if (types.has("armorplate")) return "plate";
   return "other";
@@ -147,7 +125,9 @@ export function bossGearContainedKind(item: {
 
 export function splitBossGearContains<
   T extends { kind?: string | null; types?: readonly string[] | null },
->(items: readonly T[]): {
+>(
+  items: readonly T[],
+): {
   magazines: T[];
   ammo: T[];
   plates: T[];

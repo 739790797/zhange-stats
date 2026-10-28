@@ -86,11 +86,7 @@ def anonymize_user_account(
         if not others:
             raise AccountAnonymizeError("系统至少保留一名管理员")
 
-    drafts = (
-        db.query(Article)
-        .filter(Article.author_user_id == user.id, Article.status == "draft")
-        .all()
-    )
+    drafts = db.query(Article).filter(Article.author_user_id == user.id, Article.status == "draft").all()
     for row in drafts:
         db.delete(row)
 
@@ -105,9 +101,7 @@ def anonymize_user_account(
         delete_member_cascade(db, member)
 
     for model in PERSONAL_TARKOV_MODELS:
-        db.query(model).filter(model.user_id == user.id).delete(
-            synchronize_session=False
-        )
+        db.query(model).filter(model.user_id == user.id).delete(synchronize_session=False)
     # 房间行入座时抄了一份显示名，历史留着但名字换掉
     db.query(TarkovRaidRoomMember).filter(TarkovRaidRoomMember.user_id == user.id).update(
         {TarkovRaidRoomMember.display_name: ANONYMIZED_DISPLAY_NAME},
@@ -121,11 +115,7 @@ def anonymize_user_account(
     now = now_naive()
     email = (user.email or "").strip().lower()
     if email:
-        (
-            db.query(RegisterChallenge)
-            .filter(RegisterChallenge.email == email)
-            .delete(synchronize_session=False)
-        )
+        (db.query(RegisterChallenge).filter(RegisterChallenge.email == email).delete(synchronize_session=False))
     user.email = None
     user.email_verified = False
     user.display_name = ANONYMIZED_DISPLAY_NAME

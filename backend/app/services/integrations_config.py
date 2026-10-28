@@ -80,9 +80,7 @@ def _normalize(stored: dict[str, Any] | None) -> dict[str, str]:
     if stored.get("pelican_base_url") is not None:
         from app.services.minecraft.pelican import normalize_pelican_base_url
 
-        merged["pelican_base_url"] = normalize_pelican_base_url(
-            str(stored.get("pelican_base_url") or "")
-        )
+        merged["pelican_base_url"] = normalize_pelican_base_url(str(stored.get("pelican_base_url") or ""))
     if stored.get("pelican_server_uuid") is not None:
         merged["pelican_server_uuid"] = str(stored.get("pelican_server_uuid") or "").strip()
     if stored.get("minecraft_rcon_host") is not None:
@@ -145,9 +143,7 @@ def save_integrations(_db: Session | None, payload: dict[str, Any]) -> dict[str,
     if "pelican_base_url" in payload and payload.get("pelican_base_url") is not None:
         from app.services.minecraft.pelican import normalize_pelican_base_url
 
-        stored["pelican_base_url"] = normalize_pelican_base_url(
-            str(payload.get("pelican_base_url") or "")
-        )
+        stored["pelican_base_url"] = normalize_pelican_base_url(str(payload.get("pelican_base_url") or ""))
     if "pelican_server_uuid" in payload and payload.get("pelican_server_uuid") is not None:
         stored["pelican_server_uuid"] = str(payload.get("pelican_server_uuid") or "").strip()
 

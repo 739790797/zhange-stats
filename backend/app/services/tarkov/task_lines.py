@@ -92,11 +92,7 @@ def prestige_cycle_hint(required_level: int) -> str:
 
 
 def _requirement_statuses(row: dict[str, Any]) -> set[str]:
-    return {
-        str(item).strip().lower()
-        for item in (row.get("status") or [])
-        if str(item).strip()
-    }
+    return {str(item).strip().lower() for item in (row.get("status") or []) if str(item).strip()}
 
 
 def _requirement_kind(row: dict[str, Any]) -> str:
@@ -158,11 +154,7 @@ def _fail_complete_ids(raw: dict[str, Any]) -> list[str]:
             continue
         if str(row.get("type") or "").strip() != "taskStatus":
             continue
-        statuses = [
-            str(item).strip().lower()
-            for item in (row.get("status") or [])
-            if str(item).strip()
-        ]
+        statuses = [str(item).strip().lower() for item in (row.get("status") or []) if str(item).strip()]
         if "complete" not in statuses:
             continue
         ident = _id_of(row.get("task"))
@@ -278,10 +270,7 @@ def _stem_clusters(specs: dict[str, dict[str, Any]]) -> list[list[str]]:
 
 
 def _faction_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dict[str, str] | None:
-    factions = {
-        ident: str(specs[ident].get("faction_name") or "Any").strip() or "Any"
-        for ident in cluster
-    }
+    factions = {ident: str(specs[ident].get("faction_name") or "Any").strip() or "Any" for ident in cluster}
     distinct = {value for value in factions.values() if value != "Any"}
     if len(distinct) < 2:
         return None
@@ -292,10 +281,7 @@ def _prestige_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dic
     levels = {ident: _as_int(specs[ident].get("prestige_level")) for ident in cluster}
     if len(set(levels.values())) < 2:
         return None
-    return {
-        ident: prestige_cycle_hint(level)
-        for ident, level in levels.items()
-    }
+    return {ident: prestige_cycle_hint(level) for ident, level in levels.items()}
 
 
 def _prestige_cycles(specs: dict[str, dict[str, Any]]) -> dict[str, int]:
@@ -309,10 +295,7 @@ def _prestige_cycles(specs: dict[str, dict[str, Any]]) -> dict[str, int]:
     for cluster in (*_name_clusters(specs), *_stem_clusters(specs)):
         if any(ident in gated for ident in cluster):
             family.update(cluster)
-    return {
-        ident: (_as_int(specs[ident].get("prestige_level")) + 1) if ident in family else 0
-        for ident in specs
-    }
+    return {ident: (_as_int(specs[ident].get("prestige_level")) + 1) if ident in family else 0 for ident in specs}
 
 
 def _prereq_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dict[str, str]:
@@ -337,10 +320,7 @@ def _prereq_hints(cluster: list[str], specs: dict[str, dict[str, Any]]) -> dict[
             continue
         if len(unique_union) == 1:
             continue
-        return {
-            ident: f"经「{sorted(names)[0]}」" if names else ""
-            for ident, names in unique.items()
-        }
+        return {ident: f"经「{sorted(names)[0]}」" if names else "" for ident, names in unique.items()}
     return empty
 
 

@@ -55,17 +55,14 @@ def seed_data(db: Session) -> None:
         cfg = load_auth_config(db)
         if effective_reject_weak_admin_password(cfg):
             raise RuntimeError(
-                f"无法创建种子管理员：{exc}。"
-                "请设置更强的 ADMIN_PASSWORD，或关闭 ALLOW_ENV_ADMIN_SEED 改用安装向导。"
+                f"无法创建种子管理员：{exc}。请设置更强的 ADMIN_PASSWORD，或关闭 ALLOW_ENV_ADMIN_SEED 改用安装向导。"
             ) from exc
         password = env_password or "123456"
 
     admin = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
     if not admin:
         desired_email = settings.ADMIN_EMAIL.lower()
-        email_taken = (
-            db.query(User).filter(User.email == desired_email).first() is not None
-        )
+        email_taken = db.query(User).filter(User.email == desired_email).first() is not None
         admin = User(
             username=settings.ADMIN_USERNAME,
             email=None if email_taken else desired_email,

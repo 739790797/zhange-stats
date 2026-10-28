@@ -103,9 +103,7 @@ def normalize_topic_id(raw: str | None) -> str:
     return DEFAULT_TOPIC_ID
 
 
-def fetch_arknights_rogue(
-    session: SklandSession, *, uid: str, topic_id: str
-) -> dict[str, Any]:
+def fetch_arknights_rogue(session: SklandSession, *, uid: str, topic_id: str) -> dict[str, Any]:
     uid = str(uid or "").strip()
     topic_id = normalize_topic_id(topic_id)
     if not uid:
@@ -175,11 +173,7 @@ def _parse_record(row: Any) -> RogueRecord | None:
     if not rid:
         return None
     band = _as_dict(row.get("band"))
-    squad_src = (
-        _as_list(row.get("lastChars"))
-        or _as_list(row.get("troopChars"))
-        or _as_list(row.get("initChars"))
-    )
+    squad_src = _as_list(row.get("lastChars")) or _as_list(row.get("troopChars")) or _as_list(row.get("initChars"))
     squad: list[RogueCharBrief] = []
     for item in squad_src:
         ch = _parse_char(item)
@@ -192,10 +186,15 @@ def _parse_record(row: Any) -> RogueRecord | None:
         elif isinstance(t, str) and t.strip():
             tags.append(t.strip())
     success_raw = row.get("success")
-    success = bool(success_raw) if not isinstance(success_raw, str) else success_raw in (
-        "1",
-        "true",
-        "True",
+    success = (
+        bool(success_raw)
+        if not isinstance(success_raw, str)
+        else success_raw
+        in (
+            "1",
+            "true",
+            "True",
+        )
     )
     return RogueRecord(
         record_id=rid,
@@ -217,9 +216,7 @@ def _parse_record(row: Any) -> RogueRecord | None:
     )
 
 
-def parse_arknights_rogue(
-    raw: dict[str, Any], *, topic_id: str
-) -> RogueBox:
+def parse_arknights_rogue(raw: dict[str, Any], *, topic_id: str) -> RogueBox:
     """从上游整包或 data 节点解析肉鸽概览。"""
     data = raw.get("data") if isinstance(raw.get("data"), dict) else raw
     if not isinstance(data, dict):

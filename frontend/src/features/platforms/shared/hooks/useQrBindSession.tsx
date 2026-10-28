@@ -133,11 +133,7 @@ export function useQrBindSession({
       </div>
       <Typography.Text type="secondary">{qrHint}</Typography.Text>
       <div style={{ marginTop: 12 }}>
-        <Button
-          size="small"
-          loading={qrLoading}
-          onClick={() => void startQrSession()}
-        >
+        <Button size="small" loading={qrLoading} onClick={() => void startQrSession()}>
           刷新二维码
         </Button>
       </div>

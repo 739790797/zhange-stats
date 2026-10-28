@@ -213,7 +213,6 @@ def test_gunsmith_tasks_reuse_cached_projection(monkeypatch):
     """GET 与求解共用一份投影：任务 raw 表头没变就不再解析任务 dump。"""
     from datetime import datetime
 
-
     class _Row:
         source = "json.tarkov.dev"
         note = "note"

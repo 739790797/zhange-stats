@@ -40,7 +40,10 @@ describe("jobRunResult", () => {
     ).toBeNull();
     expect(
       pickWatchedJobRun(
-        [{ id: 8, status: "running" }, { id: 7, status: "ok" }],
+        [
+          { id: 8, status: "running" },
+          { id: 7, status: "ok" },
+        ],
         0,
         undefined,
         7,
@@ -117,9 +120,7 @@ describe("jobRunResult", () => {
 
   it("summarizes waiting and finished runs", () => {
     expect(jobRunSummaryText(null, "已提交执行")).toBe("已提交执行");
-    expect(
-      jobRunSummaryText({ id: 1, status: "running" }, "已提交执行"),
-    ).toBe("已提交执行");
+    expect(jobRunSummaryText({ id: 1, status: "running" }, "已提交执行")).toBe("已提交执行");
     expect(
       jobRunSummaryText(
         { id: 1, status: "running", message: "正在下载 encoder_model.onnx（2/8）" },
@@ -174,9 +175,7 @@ describe("jobRunResult", () => {
         now,
       ),
     ).toContain("上游");
-    expect(jobRunSyncedText({ syncedAt: "2026-08-30T14:00:00+00:00" })).toContain(
-      "2026-08-30",
-    );
+    expect(jobRunSyncedText({ syncedAt: "2026-08-30T14:00:00+00:00" })).toContain("2026-08-30");
     expect(
       jobRunDomainProgressText(
         {
@@ -321,9 +320,9 @@ describe("jobRunResult", () => {
       result: { repository: "endfield-data", commit: "abc123" },
     };
     expect(jobRunCategory(stats)).toBe("repository");
-    expect(jobRunSteps(stats)).toEqual([
-      { id: "sync", label: "同步仓库", status: "running" },
-    ]);
-    expect(jobRunDurationText({ started_at: "2026-08-30 14:00:00", finished_at: "2026-08-30 14:01:05" })).toBe("1 分 5 秒");
+    expect(jobRunSteps(stats)).toEqual([{ id: "sync", label: "同步仓库", status: "running" }]);
+    expect(
+      jobRunDurationText({ started_at: "2026-08-30 14:00:00", finished_at: "2026-08-30 14:01:05" }),
+    ).toBe("1 分 5 秒");
   });
 });

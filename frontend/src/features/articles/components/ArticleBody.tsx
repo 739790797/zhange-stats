@@ -41,30 +41,16 @@ function ensureArticlePurify() {
       if (next) node.setAttribute("class", next);
       else node.removeAttribute("class");
     }
-    if (
-      node.tagName === "IMG" &&
-      !isSafeArticleImageSrc(node.getAttribute("src") || "")
-    ) {
+    if (node.tagName === "IMG" && !isSafeArticleImageSrc(node.getAttribute("src") || "")) {
       node.removeAttribute("src");
     }
-    if (
-      node.tagName === "A" &&
-      !isSafeArticleHref(node.getAttribute("href") || "")
-    ) {
+    if (node.tagName === "A" && !isSafeArticleHref(node.getAttribute("href") || "")) {
       node.removeAttribute("href");
     }
   });
 }
 
-function ArticleImage({
-  src,
-  alt,
-  title,
-}: {
-  src?: string;
-  alt?: string;
-  title?: string;
-}) {
+function ArticleImage({ src, alt, title }: { src?: string; alt?: string; title?: string }) {
   if (!src || !isSafeArticleImageSrc(src)) return null;
   return <img src={src} alt={alt || ""} title={title} loading="lazy" />;
 }
@@ -88,9 +74,7 @@ export function ArticleBody({
       <div
         className={rootClass}
         dangerouslySetInnerHTML={{
-          __html: renderArticleMathInHtml(
-            DOMPurify.sanitize(body, htmlSanitize),
-          ),
+          __html: renderArticleMathInHtml(DOMPurify.sanitize(body, htmlSanitize)),
         }}
       />
     );
@@ -101,9 +85,7 @@ export function ArticleBody({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeSanitize, markdownSchema]]}
         components={{
-          img: ({ src, alt, title }) => (
-            <ArticleImage src={src} alt={alt} title={title} />
-          ),
+          img: ({ src, alt, title }) => <ArticleImage src={src} alt={alt} title={title} />,
         }}
       >
         {body}

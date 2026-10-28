@@ -13,9 +13,7 @@ def test_format_goods_skips_generic_reward_name() -> None:
 
 
 def test_format_goods_uses_real_name() -> None:
-    text, items = _format_goods_rows(
-        [{"goodsName": "中级能源核心", "goodsNum": 2, "goodsId": "g1"}]
-    )
+    text, items = _format_goods_rows([{"goodsName": "中级能源核心", "goodsNum": 2, "goodsId": "g1"}])
     assert text == "中级能源核心×2"
     assert len(items) == 1
     assert items[0]["name"] == "中级能源核心"

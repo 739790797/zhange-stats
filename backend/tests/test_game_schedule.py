@@ -247,9 +247,7 @@ def _wiki_payload_new_shape() -> dict:
                                     "name": "于此启程",
                                     "tags": ["新手活动"],
                                     "activityId": "activity_gacha_beginner",
-                                    "timeRanges": [
-                                        {"open": "2025/12/9 4:00:00", "close": ""}
-                                    ],
+                                    "timeRanges": [{"open": "2025/12/9 4:00:00", "close": ""}],
                                 },
                             },
                             {
@@ -286,7 +284,9 @@ def test_wiki_activities_new_shape() -> None:
     assert limited["end_time"] == "2026-10-15 06:00"
     assert limited["type"] == "叙事活动"
     assert limited["banner"] == "https://assets.fz.wiki/banner.png"
-    assert limited["linkUrl"].endswith("/%E6%B4%BB%E5%8A%A8/%E9%9B%BE%E9%9A%90%E5%86%AC%E6%A2%A6%E6%B7%B1%E6%9E%97%E4%B8%AD")
+    assert limited["linkUrl"].endswith(
+        "/%E6%B4%BB%E5%8A%A8/%E9%9B%BE%E9%9A%90%E5%86%AC%E6%A2%A6%E6%B7%B1%E6%9E%97%E4%B8%AD"
+    )
     beginner = data[1]
     start = gs._parse_schedule_time(beginner["start_time"])
     end = gs._parse_schedule_time(beginner["end_time"])

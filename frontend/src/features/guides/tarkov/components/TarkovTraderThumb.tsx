@@ -15,10 +15,8 @@ export const TarkovTraderThumb = memo(function TarkovTraderThumb({
   title,
   variant = "icon",
 }: Props) {
-  const primary =
-    variant === "portrait" ? traderPortraitUrl(slug) : traderIconUrl(slug);
-  const fallbackSrc =
-    variant === "portrait" ? traderIconUrl(slug) : traderPortraitUrl(slug);
+  const primary = variant === "portrait" ? traderPortraitUrl(slug) : traderIconUrl(slug);
+  const fallbackSrc = variant === "portrait" ? traderIconUrl(slug) : traderPortraitUrl(slug);
   return (
     <span className={styles.wrap} style={{ width: size, height: size }} title={title}>
       <img

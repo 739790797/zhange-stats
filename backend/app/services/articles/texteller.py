@@ -94,9 +94,7 @@ def models_ready(root: Path | None = None) -> bool:
         return False
     if not (folder / "config.json").is_file():
         return False
-    return (folder / "encoder_model.onnx").is_file() or (
-        folder / "model.safetensors"
-    ).is_file()
+    return (folder / "encoder_model.onnx").is_file() or (folder / "model.safetensors").is_file()
 
 
 def parse_texteller_latex(raw: str) -> str:

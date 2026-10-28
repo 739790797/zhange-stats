@@ -68,8 +68,8 @@ def test_profile_rejects_markup(db, name: str) -> None:
 
 def test_profile_keeps_other_punctuation(db) -> None:
     user, member = _user_with_member(db)
-    _apply_profile_fields(db, user, member, {"display_name": "  Tom & Jerry's \"队\"  "})
-    assert user.display_name == "Tom & Jerry's \"队\""
+    _apply_profile_fields(db, user, member, {"display_name": '  Tom & Jerry\'s "队"  '})
+    assert user.display_name == 'Tom & Jerry\'s "队"'
     assert member.nickname == user.display_name
 
 

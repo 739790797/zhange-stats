@@ -72,9 +72,7 @@ def arm_stamina_seconds(
     safe_weight = weight if weight > 0 else 0.0
     bonus = 1 + equip_ergo / 2
     return round(
-        ((85.5 / (safe_weight + 0.65)) + 9.15 + 0.06477 * ergo * bonus)
-        / 1.04
-        * (1 + strength_level * 0.004),
+        ((85.5 / (safe_weight + 0.65)) + 9.15 + 0.06477 * ergo * bonus) / 1.04 * (1 + strength_level * 0.004),
         1,
     )
 
@@ -277,9 +275,7 @@ def _parse_slots(
         out.append(
             WbSlot(
                 id=slot_id,
-                name=_locale_text(
-                    locale, slot.get("name"), str(slot.get("nameId") or slot_id)
-                ),
+                name=_locale_text(locale, slot.get("name"), str(slot.get("nameId") or slot_id)),
                 name_id=str(slot.get("nameId") or "").strip(),
                 required=bool(slot.get("required")),
                 parent_item_id=parent_id,
@@ -321,11 +317,7 @@ def build_index(source: str, payload: dict[str, Any]) -> WorkbenchIndex:
             preset = raw_by_id.get(preset_id)
             if isinstance(preset, dict):
                 preset_image = str(preset.get("image512pxLink") or "")
-                preset_props = (
-                    preset.get("properties")
-                    if isinstance(preset.get("properties"), dict)
-                    else {}
-                )
+                preset_props = preset.get("properties") if isinstance(preset.get("properties"), dict) else {}
                 factory_ids = _contains_item_ids(preset, preset_props)
         conflicting = set(_id_list(raw.get("conflictingItems")))
         item_slots = _parse_slots(item_id, props, locale, by_category, set())
@@ -509,9 +501,7 @@ def build_slot_tree(
     return walk(item_id, {item_id})
 
 
-def _collect_installed_ids(
-    index: WorkbenchIndex, gun_id: str, installed: dict[str, str]
-) -> list[str]:
+def _collect_installed_ids(index: WorkbenchIndex, gun_id: str, installed: dict[str, str]) -> list[str]:
     ids: list[str] = []
     path: set[str] = {gun_id}
 
@@ -672,9 +662,7 @@ def get_gun(db: Session, gun_id: str) -> dict[str, Any]:
         "preset_image_link": gun.preset_image_link,
         "caliber": gun.caliber,
         "slots": build_slot_tree(index, gun.id, installed),
-        "factory_pairs": [
-            {"slot_id": slot_id, "item_id": item_id} for slot_id, item_id in factory
-        ],
+        "factory_pairs": [{"slot_id": slot_id, "item_id": item_id} for slot_id, item_id in factory],
         "ammo": ammo_summaries(index, gun),
         "default_ammo_id": gun.default_ammo_id,
         "stats": stats,

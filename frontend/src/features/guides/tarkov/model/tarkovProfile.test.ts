@@ -53,12 +53,8 @@ describe("tarkovProfile", () => {
     expect(nextTraderLoyaltySpec(bySlug.get("prapor"), 0)?.level).toBe(2);
     expect(nextTraderLoyaltySpec(levels, 2)?.level).toBe(3);
     expect(nextTraderLoyaltySpec(levels, 3)).toBeUndefined();
-    expect(remainingTraderLoyaltySpecs(levels, 0).map((row) => row.level)).toEqual([
-      2, 3,
-    ]);
-    expect(remainingTraderLoyaltySpecs(levels, 2).map((row) => row.level)).toEqual([
-      3,
-    ]);
+    expect(remainingTraderLoyaltySpecs(levels, 0).map((row) => row.level)).toEqual([2, 3]);
+    expect(remainingTraderLoyaltySpecs(levels, 2).map((row) => row.level)).toEqual([3]);
     expect(traderLoyaltyReqParts(levels[1], 10)).toEqual([
       { key: "level", text: "等级 15", met: false },
       { key: "standing", text: "好感度 0.20", met: null },
@@ -69,9 +65,7 @@ describe("tarkovProfile", () => {
       { key: "level", text: "等级 1", met: true },
       { key: "standing", text: "好感度 0", met: null },
     ]);
-    expect(traderLoyaltyReqTitle(traderLoyaltySpec(levels, 1))).toBe(
-      "LL1：无额外等级/好感度要求",
-    );
+    expect(traderLoyaltyReqTitle(traderLoyaltySpec(levels, 1))).toBe("LL1：无额外等级/好感度要求");
     expect(traderLoyaltyReqTitle(levels[1])).toBe("LL2：等级 15 · 好感度 0.20");
   });
 });

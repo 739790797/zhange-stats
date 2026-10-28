@@ -49,9 +49,7 @@ def _seat(
     game_mode: str = "pvp",
 ) -> dict:
     stamp = now or now_naive()
-    created, _joined, _vacated = rooms.create_room(
-        db, user, game_mode=game_mode, now=stamp
-    )
+    created, _joined, _vacated = rooms.create_room(db, user, game_mode=game_mode, now=stamp)
     return rooms.set_room_map(db, created["public_id"], user, map_slug, now=stamp)
 
 
@@ -322,11 +320,14 @@ def test_same_raid_id_lets_member_set_map() -> None:
         guest.id,
         {"kind": "raid_started", "map_id": "woods", "raid_id": "PQXKR6"},
     )
-    assert rooms.note_view_map_from_phase(
-        pid,
-        guest.id,
-        {"kind": "raid_exited", "map_id": "woods"},
-    ) is False
+    assert (
+        rooms.note_view_map_from_phase(
+            pid,
+            guest.id,
+            {"kind": "raid_exited", "map_id": "woods"},
+        )
+        is False
+    )
     from app.services.tarkov.raid_room_hub import hub
 
     assert hub.view_map_of(pid, guest.id) == "woods"
@@ -345,9 +346,7 @@ def test_repeat_raid_phase_keeps_manual_view_map() -> None:
 
     hub.set_log_phase(pid, guest.id, phase)
     rooms.set_room_map(db, pid, guest, "factory", now=now)
-    assert (
-        rooms.note_view_map_from_phase(pid, guest.id, phase, previous=phase) is False
-    )
+    assert rooms.note_view_map_from_phase(pid, guest.id, phase, previous=phase) is False
     assert hub.view_map_of(pid, guest.id) == "factory"
     assert rooms.note_view_map_from_phase(
         pid,
@@ -538,13 +537,16 @@ def test_claim_task_second_time_not_added() -> None:
     _, second = rooms.claim_task(db, public_id, host, "t1", now=now)
     assert first is True
     assert second is False
-    assert rooms._insert_claim(
-        db,
-        db.query(TarkovRaidRoom).filter_by(public_id=public_id).one(),
-        host.id,
-        "t1",
-        now,
-    ) is False
+    assert (
+        rooms._insert_claim(
+            db,
+            db.query(TarkovRaidRoom).filter_by(public_id=public_id).one(),
+            host.id,
+            "t1",
+            now,
+        )
+        is False
+    )
 
 
 def test_marks_undo_and_host_clear() -> None:
@@ -555,9 +557,7 @@ def test_marks_undo_and_host_clear() -> None:
     public_id = _seat(db, host, map_slug="factory", now=now)["public_id"]
     rooms.join_room(db, public_id, guest, now=now)
     rooms.set_room_map(db, public_id, guest, "factory", now=now)
-    _, pin = rooms.add_mark(
-        db, public_id, guest, kind="pin", floor="", x=1, z=2, now=now
-    )
+    _, pin = rooms.add_mark(db, public_id, guest, kind="pin", floor="", x=1, z=2, now=now)
     assert pin["kind"] == "pin"
     rooms.add_mark(
         db,
@@ -674,9 +674,7 @@ def test_move_text_mark() -> None:
         label="集合",
         now=now,
     )
-    snap, moved = rooms.move_text_mark(
-        db, public_id, host, mark["id"], x=8, z=9, now=now
-    )
+    snap, moved = rooms.move_text_mark(db, public_id, host, mark["id"], x=8, z=9, now=now)
     assert moved is not None
     assert moved["x"] == 8
     assert moved["z"] == 9
@@ -684,9 +682,7 @@ def test_move_text_mark() -> None:
     assert snap["marks"][0]["x"] == 8
     _, missing = rooms.move_text_mark(db, public_id, host, 99999, x=1, z=1, now=now)
     assert missing is None
-    _, pin = rooms.add_mark(
-        db, public_id, host, kind="pin", floor="", x=1, z=1, now=now
-    )
+    _, pin = rooms.add_mark(db, public_id, host, kind="pin", floor="", x=1, z=1, now=now)
     try:
         rooms.move_text_mark(db, public_id, host, pin["id"], x=3, z=4, now=now)
         moved_pin = True
@@ -736,9 +732,7 @@ def test_stroke_marks_and_draft_parse() -> None:
     assert not oversized
 
     try:
-        rooms.add_mark(
-            db, public_id, host, kind="arrow", floor="", x=1, z=1, now=now
-        )
+        rooms.add_mark(db, public_id, host, kind="arrow", floor="", x=1, z=1, now=now)
         bad_kind = True
     except rooms.RaidRoomError:
         bad_kind = False
@@ -773,7 +767,15 @@ def test_stroke_marks_and_draft_parse() -> None:
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3}) is None
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": "nope"}) is None
     assert rooms.parse_player_fix({"x": 1, "y": 2, "z": 3, "yaw": "bad"}) is None
-    assert rooms.parse_log_phase({"kind": "raid_started", "map_id": "bigmap", "raid_id": "ab12cd", "at": "2026-08-31 13:00:00.000", "map_label": "海关"}) == {
+    assert rooms.parse_log_phase(
+        {
+            "kind": "raid_started",
+            "map_id": "bigmap",
+            "raid_id": "ab12cd",
+            "at": "2026-08-31 13:00:00.000",
+            "map_label": "海关",
+        }
+    ) == {
         "kind": "raid_started",
         "map_id": "customs",
         "map_label": "海关",
@@ -838,9 +840,7 @@ def test_mark_objective_done_shared_and_toggle() -> None:
     rooms.join_room(db, public_id, guest, now=now)
     rooms.set_room_map(db, public_id, guest, "customs", now=now)
 
-    snap, added = rooms.mark_objective_done(
-        db, public_id, host, "wet-2", "o-1", now=now
-    )
+    snap, added = rooms.mark_objective_done(db, public_id, host, "wet-2", "o-1", now=now)
     assert added is True
     assert snap["objective_dones"] == [
         {
@@ -851,15 +851,11 @@ def test_mark_objective_done_shared_and_toggle() -> None:
             "created_at": snap["objective_dones"][0]["created_at"],
         }
     ]
-    again, added_again = rooms.mark_objective_done(
-        db, public_id, host, "wet-2", "o-1", now=now
-    )
+    again, added_again = rooms.mark_objective_done(db, public_id, host, "wet-2", "o-1", now=now)
     assert added_again is False
     assert len(again["objective_dones"]) == 1
 
-    both, guest_added = rooms.mark_objective_done(
-        db, public_id, guest, "wet-2", "o-1", now=now
-    )
+    both, guest_added = rooms.mark_objective_done(db, public_id, guest, "wet-2", "o-1", now=now)
     assert guest_added is True
     names = [
         row["display_name"]
@@ -868,9 +864,7 @@ def test_mark_objective_done_shared_and_toggle() -> None:
     ]
     assert names == ["甲", "乙"]
 
-    after, removed = rooms.unmark_objective_done(
-        db, public_id, host, "wet-2", "o-1", now=now
-    )
+    after, removed = rooms.unmark_objective_done(db, public_id, host, "wet-2", "o-1", now=now)
     assert removed is True
     assert [row["display_name"] for row in after["objective_dones"]] == ["乙"]
 
@@ -896,9 +890,10 @@ def test_mark_objectives_done_batch() -> None:
         now=now,
     )
     assert added == [("wet-2", "o-1"), ("wet-2", "o-2")]
-    assert {
-        (row["task_id"], row["objective_id"]) for row in snap["objective_dones"]
-    } == {("wet-2", "o-1"), ("wet-2", "o-2")}
+    assert {(row["task_id"], row["objective_id"]) for row in snap["objective_dones"]} == {
+        ("wet-2", "o-1"),
+        ("wet-2", "o-2"),
+    }
 
 
 def test_host_can_remove_member_and_their_claims() -> None:
@@ -1019,9 +1014,7 @@ def test_room_password_gates_join_and_clears_when_empty() -> None:
     guest = _user(db, "guest", "乙")
     other = _user(db, "other", "丙")
     now = now_naive()
-    created, _joined, _vacated = rooms.create_room(
-        db, host, now=now, listed=False, password="secret"
-    )
+    created, _joined, _vacated = rooms.create_room(db, host, now=now, listed=False, password="secret")
     pid = created["public_id"]
     assert created["has_password"] is True
     assert created["listed"] is False
@@ -1052,9 +1045,7 @@ def test_room_password_gates_join_and_clears_when_empty() -> None:
     assert not wrong
     still_two = rooms.get_room(db, other_pid, guest, now=now)
     assert still_two["is_member"] is True
-    joined, added, vacated = rooms.join_room(
-        db, pid, guest, now=now, password="secret"
-    )
+    joined, added, vacated = rooms.join_room(db, pid, guest, now=now, password="secret")
     assert added is True
     assert joined["is_member"] is True
     assert vacated
@@ -1080,16 +1071,13 @@ def test_reset_deletes_room() -> None:
 
 
 def test_create_room_uses_requested_mode() -> None:
-    """模式在建房时定死；没有「房主改模式」这条路径（改模式会清掉画板）。"""
+    """模式在建房时定死；切换模式会清空画板。"""
     db = _session()
     host = _user(db, "host", "甲")
     now = now_naive()
-    snap, joined, _vacated = rooms.create_room(
-        db, host, now=now, game_mode="pve"
-    )
+    snap, joined, _vacated = rooms.create_room(db, host, now=now, game_mode="pve")
     assert joined is True
     assert snap["game_mode"] == "pve"
-    assert not hasattr(rooms, "set_room_game_mode")
 
 
 def test_lobby_occupant_map_follows_live_phase_then_view() -> None:
@@ -1190,9 +1178,7 @@ def test_lobby_prunes_idle_public_room() -> None:
     now = now_naive()
     rooms.create_room(db, host, now=now)
     later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60)
-    lobby = rooms.list_live_rooms(
-        db, viewer=host, now=later, online_by_public_id={}
-    )
+    lobby = rooms.list_live_rooms(db, viewer=host, now=later, online_by_public_id={})
     assert lobby["items"] == []
     assert lobby["total"] == 0
     assert lobby["mine"] is None
@@ -1203,19 +1189,13 @@ def test_lobby_paginates_public_rooms() -> None:
     now = now_naive()
     hosts = [_user(db, f"h{i}", f"主{i}") for i in range(3)]
     for i, host in enumerate(hosts):
-        rooms.create_room(
-            db, host, now=now + timedelta(seconds=i), title=f"房{i}"
-        )
-    page1 = rooms.list_live_rooms(
-        db, viewer=hosts[0], now=now, page=1, page_size=2
-    )
+        rooms.create_room(db, host, now=now + timedelta(seconds=i), title=f"房{i}")
+    page1 = rooms.list_live_rooms(db, viewer=hosts[0], now=now, page=1, page_size=2)
     assert page1["page"] == 1
     assert page1["page_size"] == 2
     assert page1["total"] == 3
     assert [row["title"] for row in page1["items"]] == ["房2", "房1"]
-    page2 = rooms.list_live_rooms(
-        db, viewer=hosts[0], now=now, page=2, page_size=2
-    )
+    page2 = rooms.list_live_rooms(db, viewer=hosts[0], now=now, page=2, page_size=2)
     assert [row["title"] for row in page2["items"]] == ["房0"]
 
 
@@ -1230,11 +1210,7 @@ def test_room_claims_allow_multiple_members() -> None:
     rooms.claim_task(db, pid, host, "t1", now=now)
     snap, added = rooms.claim_task(db, pid, guest, "t1", now=now)
     assert added is True
-    owners = [
-        row["user_id"]
-        for row in snap["claims"]
-        if row["task_id"] == "t1"
-    ]
+    owners = [row["user_id"] for row in snap["claims"] if row["task_id"] == "t1"]
     assert set(owners) == {host.id, guest.id}
 
 
@@ -1247,14 +1223,10 @@ def test_stale_member_pruned_when_offline() -> None:
     rooms.join_room(db, pid, guest, now=now)
     almost = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS - 1)
     assert rooms.MEMBER_IDLE_SECONDS == 120
-    still = rooms.get_room(
-        db, pid, host, now=almost, online_user_ids={host.id}
-    )
+    still = rooms.get_room(db, pid, host, now=almost, online_user_ids={host.id})
     assert guest.id in [row["user_id"] for row in still["occupants"]]
     later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60)
-    snap = rooms.get_room(
-        db, pid, host, now=later, online_user_ids={host.id}
-    )
+    snap = rooms.get_room(db, pid, host, now=later, online_user_ids={host.id})
     assert snap["member_count"] == 1
     assert [row["user_id"] for row in snap["occupants"]] == [host.id]
     rooms.join_room(db, pid, guest, now=later)
@@ -1288,9 +1260,7 @@ def test_ws_online_keeps_member_even_if_last_seen_is_old() -> None:
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
     later = now + timedelta(hours=5)
-    snap = rooms.get_room(
-        db, pid, host, now=later, online_user_ids={host.id, guest.id}
-    )
+    snap = rooms.get_room(db, pid, host, now=later, online_user_ids={host.id, guest.id})
     assert {row["user_id"] for row in snap["occupants"]} == {host.id, guest.id}
 
 
@@ -1305,13 +1275,9 @@ def test_get_room_is_not_a_heartbeat() -> None:
     mid_snap = rooms.get_room(db, pid, guest, now=mid, online_user_ids=set())
     assert mid_snap["is_member"] is True
     later = now + timedelta(seconds=rooms.MEMBER_IDLE_SECONDS + 60)
-    kicked = rooms.get_room(
-        db, pid, guest, now=later, online_user_ids={host.id}
-    )
+    kicked = rooms.get_room(db, pid, guest, now=later, online_user_ids={host.id})
     assert kicked["is_member"] is False
-    host_snap = rooms.get_room(
-        db, pid, host, now=later, online_user_ids={host.id}
-    )
+    host_snap = rooms.get_room(db, pid, host, now=later, online_user_ids={host.id})
     assert host_snap["is_member"] is True
     assert guest.id not in [row["user_id"] for row in host_snap["occupants"]]
 
@@ -1335,9 +1301,7 @@ def test_build_raid_room_map_overlap_ranks_coverage() -> None:
         {"user_id": 2, "uploaded": True, "started_ids": ["t1", "t9"]},
         {"user_id": 3, "uploaded": False, "started_ids": ["t1"]},
     ]
-    rows = rooms.build_raid_room_map_overlap(
-        occupants, catalogs, ["customs", "woods"]
-    )
+    rows = rooms.build_raid_room_map_overlap(occupants, catalogs, ["customs", "woods"])
     by_slug = {row["map_slug"]: row for row in rows}
     customs = by_slug["customs"]
     woods = by_slug["woods"]
@@ -1365,17 +1329,13 @@ def test_set_member_task_progress_marks_uploaded() -> None:
     rooms.join_room(db, pid, guest, now=now)
     empty = rooms.get_room(db, pid, host, now=now)
     assert all(not row["uploaded"] for row in empty["task_progress"])
-    snap = rooms.set_member_task_progress(
-        db, pid, host, ["t1", "t2"], ["t2"], now=now
-    )
+    snap = rooms.set_member_task_progress(db, pid, host, ["t1", "t2"], ["t2"], now=now)
     mine = next(row for row in snap["task_progress"] if row["user_id"] == host.id)
     other = next(row for row in snap["task_progress"] if row["user_id"] == guest.id)
     assert mine["uploaded"] is True
     assert mine["started_count"] == 1
     assert other["uploaded"] is False
-    guest_snap = rooms.set_member_task_progress(
-        db, pid, guest, ["t1"], [], now=now
-    )
+    guest_snap = rooms.set_member_task_progress(db, pid, guest, ["t1"], [], now=now)
     assert isinstance(guest_snap["map_overlap"], list)
 
 
@@ -1446,9 +1406,7 @@ def test_private_room_get_hides_board_until_join() -> None:
     host = _user(db, "host", "甲")
     guest = _user(db, "guest", "乙")
     now = now_naive()
-    created, _joined, _vacated = rooms.create_room(
-        db, host, now=now, listed=False, password="secret", title="密"
-    )
+    created, _joined, _vacated = rooms.create_room(db, host, now=now, listed=False, password="secret", title="密")
     pid = created["public_id"]
     rooms.set_room_map(db, pid, host, "factory", now=now)
     rooms.claim_task(db, pid, host, "t-priv", now=now)
@@ -1457,9 +1415,7 @@ def test_private_room_get_hides_board_until_join() -> None:
     assert preview["listed"] is False
     assert preview["claims"] == []
     assert preview["title"] == "密"
-    joined, added, _vacated2 = rooms.join_room(
-        db, pid, guest, now=now, password="secret"
-    )
+    joined, added, _vacated2 = rooms.join_room(db, pid, guest, now=now, password="secret")
     assert added is True
     assert joined["is_member"] is True
     assert joined["claims"][0]["task_id"] == "t-priv"
@@ -1643,9 +1599,7 @@ def test_private_room_password_needs_four_chars() -> None:
         rooms.create_room(db, host, now=now, listed=False, password="abc")
     assert caught.value.status_code == 400
     assert "至少 4" in caught.value.message
-    created, _joined, _vacated = rooms.create_room(
-        db, host, now=now, listed=False, password="abcd"
-    )
+    created, _joined, _vacated = rooms.create_room(db, host, now=now, listed=False, password="abcd")
     assert created["has_password"] is True
 
 
@@ -1772,9 +1726,7 @@ def test_room_prune_due_is_throttled() -> None:
     try:
         assert rooms.room_prune_due(now=100.0) is True
         assert rooms.room_prune_due(now=100.0 + rooms.ROOM_PRUNE_MIN_INTERVAL_SEC - 1) is False
-        assert (
-            rooms.room_prune_due(now=100.0 + rooms.ROOM_PRUNE_MIN_INTERVAL_SEC + 1) is True
-        )
+        assert rooms.room_prune_due(now=100.0 + rooms.ROOM_PRUNE_MIN_INTERVAL_SEC + 1) is True
     finally:
         rooms._ROOM_PRUNE_LAST = 0.0
 
@@ -1873,9 +1825,7 @@ def test_record_changed_error_detected_by_errno_only() -> None:
         Exception(1020, "Record has changed since last read in table 'x'"),
     )
     assert rooms._is_record_changed_error(changed) is True
-    deadlock = OperationalError(
-        "UPDATE x SET y=%s", {}, Exception(1213, "Deadlock found when trying to get lock")
-    )
+    deadlock = OperationalError("UPDATE x SET y=%s", {}, Exception(1213, "Deadlock found when trying to get lock"))
     assert rooms._is_record_changed_error(deadlock) is False
     assert rooms._is_record_changed_error(RuntimeError("boom")) is False
 
@@ -1904,9 +1854,7 @@ def test_run_in_room_tx_retries_record_changed_once() -> None:
 
     def always_dead() -> None:
         failing.append(1)
-        raise OperationalError(
-            "SELECT 1", {}, Exception(2013, "Lost connection to MySQL server")
-        )
+        raise OperationalError("SELECT 1", {}, Exception(2013, "Lost connection to MySQL server"))
 
     with pytest.raises(OperationalError):
         rooms.run_in_room_tx(db, always_dead)
@@ -2150,9 +2098,7 @@ def test_move_text_mark_needs_author_or_host() -> None:
     pid = _seat(db, host, now=now)["public_id"]
     rooms.join_room(db, pid, guest, now=now)
     rooms.set_room_map(db, pid, guest, "customs", now=now)
-    _, mark = rooms.add_mark(
-        db, pid, host, kind="text", floor="", x=1, z=2, label="集合", now=now
-    )
+    _, mark = rooms.add_mark(db, pid, host, kind="text", floor="", x=1, z=2, label="集合", now=now)
     with pytest.raises(rooms.RaidRoomError) as caught:
         rooms.move_text_mark(db, pid, guest, mark["id"], x=5, z=5, now=now)
     assert caught.value.status_code == 403
@@ -2191,10 +2137,5 @@ def test_run_in_room_tx_retries_deadlock_once() -> None:
 
     rooms.run_in_room_tx(db, flaky, key="ab12cd34")
     assert len(calls) == 2
-    assert rooms._is_deadlock_error(
-        OperationalError("x", {}, Exception(1213, "Deadlock"))
-    )
-    assert rooms._is_deadlock_error(
-        OperationalError("x", {}, Exception(1020, "Record has changed"))
-    ) is False
-
+    assert rooms._is_deadlock_error(OperationalError("x", {}, Exception(1213, "Deadlock")))
+    assert rooms._is_deadlock_error(OperationalError("x", {}, Exception(1020, "Record has changed"))) is False

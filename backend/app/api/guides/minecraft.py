@@ -573,9 +573,7 @@ def minecraft_status(
 @router.get("/presence", response_model=MinecraftPresenceOut, dependencies=[_FEATURE])
 def minecraft_presence(
     date_str: str = Query(..., alias="date", description="起始日期 YYYY-MM-DD"),
-    end_str: str | None = Query(
-        None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"
-    ),
+    end_str: str | None = Query(None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> MinecraftPresenceOut:
@@ -911,9 +909,7 @@ def minecraft_mod_tool_preset_put(
         data = mod_tools_svc.save_tool_preset(
             db,
             tool_id,
-            pins=[row.model_dump() for row in body.pins]
-            if body.pins is not None
-            else None,
+            pins=[row.model_dump() for row in body.pins] if body.pins is not None else None,
             directories=body.directories,
         )
     except mod_tools_svc.MinecraftModToolsError as exc:

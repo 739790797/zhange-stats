@@ -141,9 +141,7 @@ export function planLatestProfileReplay(
   identities: readonly TarkovLogIdentity[],
   gameMode: TarkovGameMode,
 ): { profileId: string; at: string } | null {
-  const profileId = (
-    latestIdentityForMode(identities, gameMode)?.profileId || ""
-  ).trim();
+  const profileId = (latestIdentityForMode(identities, gameMode)?.profileId || "").trim();
   if (!profileId) return null;
   return {
     profileId,
@@ -291,9 +289,7 @@ const DROP_REASON_LABEL: Record<TarkovLogQuestDrop["reason"], string> = {
   profile: "其他角色",
 };
 
-export function formatQuestLogDropHint(
-  drops: readonly TarkovLogQuestDrop[],
-): string {
+export function formatQuestLogDropHint(drops: readonly TarkovLogQuestDrop[]): string {
   if (!drops.length) return "";
   const counts = new Map<TarkovLogQuestDrop["reason"], number>();
   for (const drop of drops) {
@@ -343,10 +339,7 @@ export function accountHasQuestState(
   return started.has(id);
 }
 
-function shouldKeepLogQuestId(
-  id: string,
-  knownIds?: ReadonlySet<string>,
-): boolean {
+function shouldKeepLogQuestId(id: string, knownIds?: ReadonlySet<string>): boolean {
   if (!knownIds) return true;
   if (knownIds.has(id)) return true;
   return HEX_QUEST_ID_RE.test(id);
@@ -393,16 +386,7 @@ function markDone(
   if (walking.size > PREREQ_WALK_MAX) return;
   for (const prereq of catalog?.prereqById.get(id) || []) {
     if (!prereq || nextDone.has(prereq)) continue;
-    markDone(
-      prereq,
-      nextDone,
-      nextStarted,
-      nextFailed,
-      catalog,
-      walking,
-      clearedDone,
-      logAt,
-    );
+    markDone(prereq, nextDone, nextStarted, nextFailed, catalog, walking, clearedDone, logAt);
   }
 }
 
@@ -474,16 +458,7 @@ export function applyQuestLogState(
         continue;
       }
     }
-    if (
-      accountHasQuestState(
-        nextDone,
-        nextStarted,
-        taskId,
-        folded.kind,
-        nextFailed,
-        restartable,
-      )
-    ) {
+    if (accountHasQuestState(nextDone, nextStarted, taskId, folded.kind, nextFailed, restartable)) {
       continue;
     }
     if (folded.kind === "failed") {
@@ -507,21 +482,14 @@ export function applyQuestLogState(
     for (const [id, at] of clearedDone) {
       if (!id) continue;
       const folded = logState.get(id);
-      const eventAt =
-        folded == null || typeof folded === "string" ? "" : folded.at || "";
+      const eventAt = folded == null || typeof folded === "string" ? "" : folded.at || "";
       const completionAt =
-        folded == null
-          ? ""
-          : logCompletedAt(typeof folded === "string" ? folded : folded);
+        folded == null ? "" : logCompletedAt(typeof folded === "string" ? folded : folded);
       const ever =
         typeof folded === "object"
           ? Boolean(folded.everCompleted) || folded.kind === "completed"
           : folded === "completed";
-      const clearWins = shouldHonorClearedDone(
-        id,
-        completionAt || eventAt,
-        new Map([[id, at]]),
-      );
+      const clearWins = shouldHonorClearedDone(id, completionAt || eventAt, new Map([[id, at]]));
       if (nextDone.has(id) && (!ever || clearWins)) nextDone.delete(id);
       if (clearWins && shouldHonorClearedDone(id, eventAt, new Map([[id, at]]))) {
         nextStarted.delete(id);
@@ -556,12 +524,7 @@ export function applyQuestLogState(
     );
   }
   if (catalog?.blockedById.size) {
-    next = dropBlockedProgress(
-      next.done,
-      next.started,
-      next.failed,
-      catalog.blockedById,
-    );
+    next = dropBlockedProgress(next.done, next.started, next.failed, catalog.blockedById);
   }
   return next;
 }
@@ -584,9 +547,7 @@ export function collectQuestEventsFromSessions(
   gameModeOrFilter: TarkovGameMode | QuestReplayFilter,
 ): TarkovLogQuestEvent[] {
   const filter =
-    typeof gameModeOrFilter === "string"
-      ? { gameMode: gameModeOrFilter }
-      : gameModeOrFilter;
+    typeof gameModeOrFilter === "string" ? { gameMode: gameModeOrFilter } : gameModeOrFilter;
   const out: TarkovLogQuestEvent[] = [];
   for (const session of sessions) {
     out.push(...questsMatchingReplay(session.parsed, filter));
@@ -595,9 +556,7 @@ export function collectQuestEventsFromSessions(
   return out;
 }
 
-export function latestQuestEventAt(
-  events: readonly TarkovLogQuestEvent[],
-): string {
+export function latestQuestEventAt(events: readonly TarkovLogQuestEvent[]): string {
   let latest = "";
   for (const event of events) {
     latest = laterBeijingClock(latest, event.at || "");
@@ -605,9 +564,7 @@ export function latestQuestEventAt(
   return latest;
 }
 
-export function formatLastQuestSyncLine(
-  at: string | null | undefined,
-): string {
+export function formatLastQuestSyncLine(at: string | null | undefined): string {
   return `上次同步时间：${at ? formatBeijing(at) : "—"}`;
 }
 
@@ -718,9 +675,7 @@ export function foldQuestEvents(
   events: readonly TarkovLogQuestEvent[],
 ): Map<string, FoldedQuestEntry> {
   const next = new Map(prev);
-  const ordered = [...events].sort((a, b) =>
-    (a.at || "").localeCompare(b.at || ""),
-  );
+  const ordered = [...events].sort((a, b) => (a.at || "").localeCompare(b.at || ""));
   for (const event of ordered) {
     const id = normalizeQuestId(event.taskId);
     if (!id) continue;
@@ -736,8 +691,7 @@ export function foldQuestEvents(
       }
       continue;
     }
-    const everCompleted =
-      event.kind === "completed" || Boolean(existing?.everCompleted);
+    const everCompleted = event.kind === "completed" || Boolean(existing?.everCompleted);
     const completedAt =
       event.kind === "completed"
         ? laterBeijingClock(existing?.completedAt || "", at)
@@ -753,9 +707,7 @@ export function foldSessionQuests(
   gameModeOrFilter: TarkovGameMode | QuestReplayFilter,
 ): { next: Map<string, FoldedQuestEntry>; eventCount: number } {
   const filter =
-    typeof gameModeOrFilter === "string"
-      ? { gameMode: gameModeOrFilter }
-      : gameModeOrFilter;
+    typeof gameModeOrFilter === "string" ? { gameMode: gameModeOrFilter } : gameModeOrFilter;
   const events = questsMatchingReplay(parsed, filter);
   if (!events.length) {
     return { next: new Map(prev), eventCount: 0 };
@@ -778,14 +730,7 @@ export function mergeQuestProgressFromFolded(
       : catalog instanceof Set
         ? { ...emptyQuestLogCatalog(), knownIds: catalog }
         : undefined;
-  const applied = applyQuestLogState(
-    doneIds,
-    startedIds,
-    folded,
-    rules,
-    failedIds,
-    clearedDone,
-  );
+  const applied = applyQuestLogState(doneIds, startedIds, folded, rules, failedIds, clearedDone);
   let latestEventAt = "";
   for (const row of folded.values()) {
     latestEventAt = laterBeijingClock(latestEventAt, row.at || "");
@@ -833,10 +778,7 @@ export function formatQuestLogEventLine(event: TarkovLogQuestEvent): string {
   return kind ? `ChatMessageReceived ${kind}` : "";
 }
 
-export function formatQuestLogStatusChange(
-  from: TaskStatusKind,
-  to: TaskStatusKind,
-): string {
+export function formatQuestLogStatusChange(from: TaskStatusKind, to: TaskStatusKind): string {
   return `${TASK_STATUS_LABELS[from]}→${TASK_STATUS_LABELS[to]}`;
 }
 
@@ -858,9 +800,7 @@ export function buildQuestLogSyncReview(
     const id = normalizeQuestId(String(item.id || ""));
     if (id) byId.set(id, item);
   }
-  const ordered = [...events].sort((a, b) =>
-    (a.at || "").localeCompare(b.at || ""),
-  );
+  const ordered = [...events].sort((a, b) => (a.at || "").localeCompare(b.at || ""));
   let done = [...(base.done || [])];
   let started = [...(base.started || [])];
   let failed = [...(base.failed || [])];
@@ -869,13 +809,7 @@ export function buildQuestLogSyncReview(
     const taskId = normalizeQuestId(event.taskId);
     if (!taskId) continue;
     const item = byId.get(taskId);
-    const from = resolveTaskStatus(
-      taskId,
-      new Set(done),
-      new Set(started),
-      item,
-      new Set(failed),
-    );
+    const from = resolveTaskStatus(taskId, new Set(done), new Set(started), item, new Set(failed));
     const next = applyQuestLogStateFromEvents(
       done,
       started,
@@ -887,13 +821,7 @@ export function buildQuestLogSyncReview(
     done = next.done;
     started = next.started;
     failed = next.failed;
-    const to = resolveTaskStatus(
-      taskId,
-      new Set(done),
-      new Set(started),
-      item,
-      new Set(failed),
-    );
+    const to = resolveTaskStatus(taskId, new Set(done), new Set(started), item, new Set(failed));
     rows.push({
       at: event.at || "",
       line: formatQuestLogEventLine(event),

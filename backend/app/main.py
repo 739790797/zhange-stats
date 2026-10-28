@@ -12,7 +12,21 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
-from app.api import articles, auth, exilium, guides, jobs, kujiequ, members, mihoyo, profile, setup, skland, steam, taygedo
+from app.api import (
+    articles,
+    auth,
+    exilium,
+    guides,
+    jobs,
+    kujiequ,
+    members,
+    mihoyo,
+    profile,
+    setup,
+    skland,
+    steam,
+    taygedo,
+)
 from app.api import app_update as app_update_api
 from app.api import client_errors as client_errors_api
 from app.api import rum as rum_api
@@ -85,19 +99,14 @@ class ImmutableStaticFiles(StaticFiles):
 
 
 _ACTIVE_UPLOAD_TYPES = frozenset({"text/xml", "text/xsl", "application/xml"})
+_UPLOAD_MEDIA_TYPES = {".webp": "image/webp"}
 # 只在上传文件被当作顶层文档打开时生效（<img> 引用不受影响）；浏览器图片 / PDF / 纯文本查看器靠 img-src 与内联样式照常显示
 UPLOAD_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
 
 
 def _is_active_media_type(media_type: str) -> bool:
     mt = media_type.lower()
-    return (
-        mt in _ACTIVE_UPLOAD_TYPES
-        or mt.endswith("+xml")
-        or "html" in mt
-        or "javascript" in mt
-        or "ecmascript" in mt
-    )
+    return mt in _ACTIVE_UPLOAD_TYPES or mt.endswith("+xml") or "html" in mt or "javascript" in mt or "ecmascript" in mt
 
 
 class UploadStaticFiles(StaticFiles):
@@ -112,10 +121,15 @@ class UploadStaticFiles(StaticFiles):
         return None
 
     def file_response(self, full_path, stat_result, scope, status_code=200):  # type: ignore[override]
-        media_type = guess_type(str(full_path))[0] or "application/octet-stream"
+        media_type = (
+            _UPLOAD_MEDIA_TYPES.get(Path(full_path).suffix.lower())
+            or guess_type(str(full_path))[0]
+            or "application/octet-stream"
+        )
         if _is_active_media_type(media_type):
             raise HTTPException(status_code=404, detail="Not Found")
         response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["content-type"] = media_type
         response.headers["Cache-Control"] = self._cache_control
         response.headers["Content-Security-Policy"] = UPLOAD_CSP
         return response
@@ -411,9 +425,7 @@ if _static_dir and _static_dir.is_dir():
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str) -> FileResponse:
         # API / uploads / health / docs 已由上方路由处理；其余走前端 SPA
-        if full_path.startswith(
-            ("api/", "uploads/", "health", "docs", "redoc", "openapi.json", "robots.txt")
-        ):
+        if full_path.startswith(("api/", "uploads/", "health", "docs", "redoc", "openapi.json", "robots.txt")):
             raise HTTPException(status_code=404, detail="Not Found")
         candidate = (_static_dir / full_path).resolve()
         try:

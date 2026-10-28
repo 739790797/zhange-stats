@@ -74,9 +74,7 @@ def preview_steam_bind(
     info = steam_profile_public_dict(profile)
     message = None
     if not profile.is_public:
-        message = (
-            "该账号个人资料未公开，绑定后无法获取游戏与在线信息。" + PRIVACY_HINT
-        )
+        message = "该账号个人资料未公开，绑定后无法获取游戏与在线信息。" + PRIVACY_HINT
     return SteamBindPreviewResponse(
         steam_id=info["steam_id"],
         persona_name=info["persona_name"],
@@ -92,9 +90,7 @@ def preview_steam_bind(
 def steam_openid_start(
     request: Request,
     response: Response,
-    member_id: int | None = Query(
-        default=None, description="管理员可为指定成员发起绑定"
-    ),
+    member_id: int | None = Query(default=None, description="管理员可为指定成员发起绑定"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SteamOpenIdStartResponse:
@@ -118,12 +114,7 @@ def steam_openid_start(
     if member_id is not None:
         if not _is_admin_user(user):
             raise HTTPException(status_code=403, detail="仅管理员可为其他成员绑定")
-        member = (
-            db.query(Member)
-            .options(joinedload(Member.user))
-            .filter(Member.id == member_id)
-            .first()
-        )
+        member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == member_id).first()
         if not member or not member.user:
             raise HTTPException(status_code=404, detail="成员不存在")
         target_member_id = member.id
@@ -142,12 +133,8 @@ def steam_openid_start(
     )
     return_to = _steam_return_to(backend, state)
     realm = f"{backend}/"
-    set_steam_openid_nonce_cookie(
-        response, request, nonce, max_age=STATE_TTL_MINUTES * 60
-    )
-    return SteamOpenIdStartResponse(
-        url=build_steam_login_url(return_to=return_to, realm=realm)
-    )
+    set_steam_openid_nonce_cookie(response, request, nonce, max_age=STATE_TTL_MINUTES * 60)
+    return SteamOpenIdStartResponse(url=build_steam_login_url(return_to=return_to, realm=realm))
 
 
 @router.get("/profile/steam/openid/callback")
@@ -160,9 +147,7 @@ def steam_openid_callback(
 
     def _redirect(frontend: str, path: str, reason: str | None = None) -> RedirectResponse:
         params = {"steam_bind": "error", "reason": reason} if reason else {"steam_bind": "ok"}
-        resp = RedirectResponse(
-            url=f"{frontend}{path}?{urllib.parse.urlencode(params)}", status_code=302
-        )
+        resp = RedirectResponse(url=f"{frontend}{path}?{urllib.parse.urlencode(params)}", status_code=302)
         # nonce 一次性：成败都清掉
         clear_steam_openid_nonce_cookie(resp, request)
         return resp
@@ -194,9 +179,7 @@ def steam_openid_callback(
 
     query = {k: v for k, v in request.query_params.multi_items()}
     try:
-        steam_id = verify_steam_openid_assertion(
-            query, return_to=_steam_return_to(backend, state)
-        )
+        steam_id = verify_steam_openid_assertion(query, return_to=_steam_return_to(backend, state))
     except SteamOpenIdError as exc:
         if exc.reason == "cancelled":
             return _redirect(frontend, "/profile", "cancelled")
@@ -208,12 +191,7 @@ def steam_openid_callback(
     if not actor:
         return _reject(frontend, "/profile", "user_not_found", f"uid={actor_id}")
 
-    member = (
-        db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id == target_member_id)
-        .first()
-    )
+    member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == target_member_id).first()
     if not member:
         return _reject(frontend, "/profile", "member_not_found", f"mid={target_member_id}")
 
@@ -222,11 +200,7 @@ def steam_openid_callback(
         return _reject(frontend, "/profile", "forbidden", f"uid={actor_id} mid={member.id}")
 
     # 本人回个人中心；管理员代绑他人回成员个人中心
-    path = (
-        "/profile"
-        if member.user_id == actor.id
-        else f"/members/{member.id}/profile"
-    )
+    path = "/profile" if member.user_id == actor.id else f"/members/{member.id}/profile"
 
     try:
         _require_steam_feature(db)
@@ -242,5 +216,3 @@ def steam_openid_callback(
         return _redirect(frontend, path, "server_error")
 
     return _redirect(frontend, path)
-
-

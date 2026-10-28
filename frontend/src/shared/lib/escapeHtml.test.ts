@@ -3,9 +3,7 @@ import { escapeHtml } from "./escapeHtml";
 
 describe("escapeHtml", () => {
   it("neutralizes tags, attribute quotes and entities", () => {
-    expect(escapeHtml(`<img src=x onerror=alert(1)>`)).toBe(
-      "&lt;img src=x onerror=alert(1)&gt;",
-    );
+    expect(escapeHtml(`<img src=x onerror=alert(1)>`)).toBe("&lt;img src=x onerror=alert(1)&gt;");
     expect(escapeHtml(`a"b'c&d`)).toBe("a&quot;b&#39;c&amp;d");
     expect(escapeHtml("&lt;")).toBe("&amp;lt;");
   });

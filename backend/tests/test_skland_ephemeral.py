@@ -57,17 +57,13 @@ def test_skland_session_cache_roundtrip():
 
 
 def test_skland_session_cache_token_mismatch_invalidates():
-    put_cached_skland_session(
-        7, "hg-token-aaa", SklandSession(cred="c1", sign_token="s1")
-    )
+    put_cached_skland_session(7, "hg-token-aaa", SklandSession(cred="c1", sign_token="s1"))
     assert get_cached_skland_session(7, "hg-token-bbb") is None
     assert get_cached_skland_session(7, "hg-token-aaa") is None
 
 
 def test_skland_session_invalidate():
-    put_cached_skland_session(
-        3, "tok", SklandSession(cred="c", sign_token="s")
-    )
+    put_cached_skland_session(3, "tok", SklandSession(cred="c", sign_token="s"))
     invalidate_skland_session(3)
     assert get_cached_skland_session(3, "tok") is None
 

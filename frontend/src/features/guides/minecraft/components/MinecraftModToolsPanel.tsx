@@ -12,9 +12,7 @@ import styles from "./MinecraftModToolsPanel.module.css";
 
 function extraJars(data: MinecraftModTools) {
   const known = new Set((data.tools || []).map((row) => row.id));
-  return (data.inventory?.jars || []).filter(
-    (row) => !row.tool_id || !known.has(row.tool_id),
-  );
+  return (data.inventory?.jars || []).filter((row) => !row.tool_id || !known.has(row.tool_id));
 }
 
 function ExtraJarRow({ row }: { row: MinecraftModInventoryJar }) {
@@ -23,9 +21,7 @@ function ExtraJarRow({ row }: { row: MinecraftModInventoryJar }) {
     <Card size="small" className={styles.extraCard}>
       <div className={styles.extraHead}>
         <Space align="center" wrap>
-          {row.icon_url ? (
-            <img className={styles.extraIcon} src={row.icon_url} alt="" />
-          ) : null}
+          {row.icon_url ? <img className={styles.extraIcon} src={row.icon_url} alt="" /> : null}
           <Typography.Text strong>{title}</Typography.Text>
           {row.mod_version ? <Tag>{row.mod_version}</Tag> : null}
           {!row.identified && !row.identify_error ? <Tag>识别中</Tag> : null}
@@ -55,13 +51,7 @@ export function MinecraftModToolsPanel() {
   });
 
   if (query.isError) {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message={apiError(query.error, "无法探测模组")}
-      />
-    );
+    return <Alert type="error" showIcon message={apiError(query.error, "无法探测模组")} />;
   }
 
   if (query.isLoading && !query.data) {
@@ -79,16 +69,11 @@ export function MinecraftModToolsPanel() {
         <Alert
           type="info"
           showIcon
-          message={
-            reconcile.message ||
-            `磁盘有变化，正在更新 ${reconcile.pending || 0} 个`
-          }
+          message={reconcile.message || `磁盘有变化，正在更新 ${reconcile.pending || 0} 个`}
         />
       ) : null}
 
-      {data?.message ? (
-        <Alert type="info" showIcon message={data.message} />
-      ) : null}
+      {data?.message ? <Alert type="info" showIcon message={data.message} /> : null}
 
       {!data?.pelican_configured && !data?.rcon_configured ? (
         <Card>
@@ -106,9 +91,7 @@ export function MinecraftModToolsPanel() {
       ) : null}
 
       {data
-        ? tools.map((tool) => (
-            <MinecraftModToolCard key={tool.id} tool={tool} data={data} />
-          ))
+        ? tools.map((tool) => <MinecraftModToolCard key={tool.id} tool={tool} data={data} />)
         : null}
 
       {extras.length ? (

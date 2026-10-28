@@ -68,11 +68,7 @@ class RateLimiter:
         if now - self._last_sweep < _SWEEP_INTERVAL_SEC:
             return
         self._last_sweep = now
-        dead = [
-            k
-            for k, bucket in self._hits.items()
-            if not bucket or bucket[-1] <= now - self._windows.get(k, 0.0)
-        ]
+        dead = [k for k, bucket in self._hits.items() if not bucket or bucket[-1] <= now - self._windows.get(k, 0.0)]
         for k in dead:
             self._hits.pop(k, None)
             self._windows.pop(k, None)
@@ -112,9 +108,7 @@ class RateLimiter:
         try:
             _removed, count, *_rest = pipe.execute()
         except Exception as exc:  # noqa: BLE001
-            log_until_change(
-                logger, "rate_limit.redis", "rate_limit: Redis error (%s), fallback memory", exc
-            )
+            log_until_change(logger, "rate_limit.redis", "rate_limit: Redis error (%s), fallback memory", exc)
             self._hit_memory(key, limit=limit, window_sec=window_sec)
             return
         clear_log_until_change("rate_limit.redis")
@@ -223,15 +217,11 @@ def ensure_login_not_locked(account: str, ip: str) -> None:
 def record_login_failure(account: str, ip: str) -> None:
     from app.core.ephemeral_kv import ephemeral_delete, ephemeral_incr
 
-    failures = ephemeral_incr(
-        _login_failure_key(account, ip), ttl_sec=LOGIN_FAILURE_MEMORY_SEC
-    )
+    failures = ephemeral_incr(_login_failure_key(account, ip), ttl_sec=LOGIN_FAILURE_MEMORY_SEC)
     lock = login_lock_seconds(failures)
     if lock:
         _set_lock(_login_lock_key(account, ip), lock)
-    account_failures = ephemeral_incr(
-        _account_failure_key(account), ttl_sec=LOGIN_FAILURE_MEMORY_SEC
-    )
+    account_failures = ephemeral_incr(_account_failure_key(account), ttl_sec=LOGIN_FAILURE_MEMORY_SEC)
     if account_failures >= LOGIN_ACCOUNT_FAILURES_BEFORE_LOCK:
         _set_lock(_account_lock_key(account), LOGIN_ACCOUNT_LOCK_SEC)
         ephemeral_delete(_account_failure_key(account))

@@ -101,9 +101,7 @@ def _close_open_sessions(
         stats["closed"] += 1
 
 
-def _same_presence(
-    seg: PresenceSegment, status: str, app_id: str | None
-) -> bool:
+def _same_presence(seg: PresenceSegment, status: str, app_id: str | None) -> bool:
     if seg.status != status:
         return False
     if status == "playing":
@@ -324,11 +322,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
         # 商店名可能要回源，放在逐成员写库之前，循环里不再打 HTTP
         names = resolve_app_names(
             db,
-            [
-                p.game_id
-                for p in presence_map.values()
-                if p.status == "playing" and p.game_id
-            ],
+            [p.game_id for p in presence_map.values() if p.status == "playing" and p.game_id],
         )
         member_ids = [m.id for m in by_steam.values()]
         open_segs = _open_rows_by_member(db, PresenceSegment, member_ids)
@@ -381,8 +375,7 @@ def _run_steam_presence_poll_locked(db: Session) -> dict:
             f"轮询 {stats['members']} 人，"
             f"玩 {stats['playing']} / 在线 {stats['online']} / 离线 {stats['offline']}，"
             f"会话开 {stats['opened']} / 续 {stats['continued']} / 关 {stats['closed']}；"
-            f"昵称跟随 {stats['persona_updated']}"
-            + (f"；失败 {failed} 人" if failed else "")
+            f"昵称跟随 {stats['persona_updated']}" + (f"；失败 {failed} 人" if failed else "")
         )
         job.stats = stats
         job.finished_at = _now()

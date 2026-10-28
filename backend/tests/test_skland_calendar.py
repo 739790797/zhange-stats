@@ -53,9 +53,7 @@ def test_parse_calendar_list_with_records() -> None:
     assert out["days"][0]["awards"][0]["name"] == "合成玉"
     assert out["days"][0]["awards"][0]["icon_url"].endswith("/DIAMOND_SHD.png")
     assert out["days"][1]["awards"][0]["name"] == "初级作战记录"
-    assert out["days"][1]["awards"][0]["icon_url"].endswith(
-        "/sprite_exp_card_t2.png"
-    )
+    assert out["days"][1]["awards"][0]["icon_url"].endswith("/sprite_exp_card_t2.png")
     assert out["days"][1]["awards"][0]["count"] == 3
 
 
@@ -142,9 +140,7 @@ def test_parse_unreliable_does_not_fake_claimed_from_day_count() -> None:
             },
         },
     }
-    out = parse_arknights_attendance_calendar(
-        resp, now=now, fallback_has_today=True
-    )
+    out = parse_arknights_attendance_calendar(resp, now=now, fallback_has_today=True)
     assert out["progress_reliable"] is False
     assert out["claimed_days"] == 0
     assert out["has_today_claim"] is True

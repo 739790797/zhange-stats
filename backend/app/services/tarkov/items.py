@@ -75,9 +75,7 @@ def _items_store_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in payload.items() if k != "locale"}
 
 
-def parse_items_payload(
-    source: str, payload: dict[str, Any]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_items_payload(source: str, payload: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """从共享 raw 解析弹药行与枪械行。"""
     payload = _items_parse_payload(source, payload)
     src = (source or "").strip()
@@ -391,11 +389,7 @@ def _extract_ammo_item_detail(
             item = raw.get("item") if isinstance(raw.get("item"), dict) else {}
             if str(item.get("id") or "").strip() != item_id:
                 continue
-            props = {
-                k: v
-                for k, v in raw.items()
-                if k != "item" and v is not None
-            }
+            props = {k: v for k, v in raw.items() if k != "item" and v is not None}
             item_out = {k: v for k, v in item.items() if v is not None}
             return {
                 "id": item_id,
@@ -431,12 +425,8 @@ def _ammo_detail_from_json(
         or raw.get("shortName")
         or item_id
     )
-    short_name = str(
-        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
-    )
-    description = str(
-        locale.get(f"{item_id} Description") or raw.get("description") or ""
-    )
+    short_name = str(locale.get(f"{item_id} ShortName") or raw.get("shortName") or "")
+    description = str(locale.get(f"{item_id} Description") or raw.get("description") or "")
     if description.endswith(" Description") and item_id in description:
         description = ""
     item_out = {k: v for k, v in raw.items() if k != "properties"}
@@ -444,9 +434,7 @@ def _ammo_detail_from_json(
     item_out["shortName"] = short_name
     if description:
         item_out["description"] = description
-    elif "description" in item_out and str(item_out["description"]).endswith(
-        " Description"
-    ):
+    elif "description" in item_out and str(item_out["description"]).endswith(" Description"):
         item_out.pop("description", None)
     return {
         "id": item_id,
@@ -456,4 +444,3 @@ def _ammo_detail_from_json(
         "item": item_out,
         "properties": dict(props) if isinstance(props, dict) else {},
     }
-

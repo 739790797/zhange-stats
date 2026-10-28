@@ -99,12 +99,8 @@ def test_point_drops_label_and_box_needs_pair() -> None:
 
 def test_update_move_and_delete() -> None:
     db = _session()
-    row = svc.create_place(
-        db, "woods", {"kind": "point", "name": "锯木厂", "x": 0, "z": 0}
-    )
-    moved = svc.update_place(
-        db, "woods", row["id"], {"x": 12.5, "z": -3}
-    )
+    row = svc.create_place(db, "woods", {"kind": "point", "name": "锯木厂", "x": 0, "z": 0})
+    moved = svc.update_place(db, "woods", row["id"], {"x": 12.5, "z": -3})
     assert moved["name"] == "锯木厂"
     assert moved["x"] == 12.5
     assert moved["z"] == -3
@@ -128,9 +124,7 @@ def test_import_once_and_reject_second() -> None:
     assert [row["name"] for row in items] == ["大红房", "宿舍"]
     assert items[0]["size"] == 90
     with pytest.raises(svc.TarkovMapPlacesError) as exc:
-        svc.import_places(
-            db, "customs", [{"kind": "point", "name": "再来", "x": 0, "z": 0}]
-        )
+        svc.import_places(db, "customs", [{"kind": "point", "name": "再来", "x": 0, "z": 0}])
     assert exc.value.status_code == 409
 
 

@@ -35,9 +35,7 @@ export function SegmentHoverTip({
             minWidth: 0,
           }}
         >
-          {appId ? (
-            <TimelineSegmentLogo appId={appId} iconUrl={iconUrl} size={28} />
-          ) : null}
+          {appId ? <TimelineSegmentLogo appId={appId} iconUrl={iconUrl} size={28} /> : null}
           <span
             style={{
               fontWeight: 600,
@@ -50,9 +48,7 @@ export function SegmentHoverTip({
             {gameName || "游戏中"}
           </span>
         </div>
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-          {timeLine}
-        </div>
+        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>{timeLine}</div>
       </div>
     );
   }
@@ -60,9 +56,7 @@ export function SegmentHoverTip({
   return (
     <div style={{ lineHeight: 1.35 }}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
-      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-        {timeLine}
-      </div>
+      <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>{timeLine}</div>
     </div>
   );
 }

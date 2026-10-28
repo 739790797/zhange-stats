@@ -129,10 +129,7 @@ function NetSpark({
   data: Point[];
   current: number;
 }) {
-  const yMax = useMemo(
-    () => niceMax(Math.max(0, ...data.map((p) => p.v)), 1024),
-    [data],
-  );
+  const yMax = useMemo(() => niceMax(Math.max(0, ...data.map((p) => p.v)), 1024), [data]);
   return (
     <div style={{ marginBottom: 4 }}>
       <div
@@ -208,16 +205,10 @@ export function MinecraftResourceCharts({
     [history],
   );
 
-  const cpuMax = cpuDomain(
-    Math.max(cpu, ...cpuData.map((p) => p.v), 0),
-    cpuLimit,
-  );
+  const cpuMax = cpuDomain(Math.max(cpu, ...cpuData.map((p) => p.v), 0), cpuLimit);
   const memGb = memory / 1024 ** 3;
   const memLimitGb = memoryLimit > 0 ? memoryLimit / 1024 ** 3 : 0;
-  const memMax = memDomainGb(
-    Math.max(memGb, ...memData.map((p) => p.v), 0),
-    memLimitGb,
-  );
+  const memMax = memDomainGb(Math.max(memGb, ...memData.map((p) => p.v), 0), memLimitGb);
   const lastRx = rxData[rxData.length - 1]?.v ?? 0;
   const lastTx = txData[txData.length - 1]?.v ?? 0;
 
@@ -284,18 +275,8 @@ export function MinecraftResourceCharts({
         >
           {history.length ? (
             <>
-              <NetSpark
-                label="入站"
-                color="#1677ff"
-                data={rxData}
-                current={lastRx}
-              />
-              <NetSpark
-                label="出站"
-                color="#52c41a"
-                data={txData}
-                current={lastTx}
-              />
+              <NetSpark label="入站" color="#1677ff" data={rxData} current={lastRx} />
+              <NetSpark label="出站" color="#52c41a" data={txData} current={lastTx} />
             </>
           ) : (
             <Typography.Text type="secondary">等待统计…</Typography.Text>

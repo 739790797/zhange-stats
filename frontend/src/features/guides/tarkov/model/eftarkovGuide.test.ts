@@ -27,9 +27,7 @@ describe("eftarkovGuide", () => {
   });
 
   it("keeps the clicked task even if it is not selected", () => {
-    expect(resolveRaidPrepGuideId(["big-customer"], "shooter-born")).toBe(
-      "shooter-born",
-    );
+    expect(resolveRaidPrepGuideId(["big-customer"], "shooter-born")).toBe("shooter-born");
     expect(resolveRaidPrepGuideId([], "shooter-born")).toBe("shooter-born");
   });
 
@@ -39,15 +37,11 @@ describe("eftarkovGuide", () => {
       { id: "big-customer", name: "大客户" },
       { id: "shooter-born", name: "天神射手" },
     ];
-    expect(
-      mergeRaidPrepGuideTasks(selected, catalog, "shooter-born").map(
-        (row) => row.id,
-      ),
-    ).toEqual(["shooter-born", "big-customer"]);
-    expect(
-      mergeRaidPrepGuideTasks(selected, catalog, "big-customer").map(
-        (row) => row.id,
-      ),
-    ).toEqual(["big-customer"]);
+    expect(mergeRaidPrepGuideTasks(selected, catalog, "shooter-born").map((row) => row.id)).toEqual(
+      ["shooter-born", "big-customer"],
+    );
+    expect(mergeRaidPrepGuideTasks(selected, catalog, "big-customer").map((row) => row.id)).toEqual(
+      ["big-customer"],
+    );
   });
 });

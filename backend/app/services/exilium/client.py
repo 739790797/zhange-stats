@@ -168,9 +168,7 @@ def _http(
     body: dict[str, Any] | None = None,
     timeout: int = REQUEST_TIMEOUT,
 ) -> dict[str, Any]:
-    data_out, _full = _http_full(
-        method, path, token=token, body=body, timeout=timeout
-    )
+    data_out, _full = _http_full(method, path, token=token, body=body, timeout=timeout)
     return data_out
 
 
@@ -188,9 +186,7 @@ def _http_full(
     data = None
     if method.upper() == "POST":
         headers["Content-Type"] = "application/json"
-        data = json.dumps(body if body is not None else {}, ensure_ascii=False).encode(
-            "utf-8"
-        )
+        data = json.dumps(body if body is not None else {}, ensure_ascii=False).encode("utf-8")
     if token:
         headers["Authorization"] = token
 

@@ -1,15 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tabs,
-  Tag,
-  Transfer,
-  message,
-} from "antd";
+import { Button, Popconfirm, Select, Space, Table, Tabs, Tag, Transfer, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -24,10 +14,7 @@ import { fetchUsers } from "@/features/profile/api/usersApi";
 import { PageHeader } from "@/shared/ui/PageHeader";
 import { TavernCategoryPanel } from "@/features/articles/components/TavernCategoryPanel";
 import { apiError } from "@/shared/api/apiError";
-import {
-  articleStatusColor,
-  articleStatusLabel,
-} from "@/features/articles/model/articleStatus";
+import { articleStatusColor, articleStatusLabel } from "@/features/articles/model/articleStatus";
 import { tavernArticlePath, tavernEditPath } from "@/features/articles/model/tavernNav";
 import { formatBeijing } from "@/shared/lib/time";
 
@@ -72,8 +59,7 @@ export default function TavernAdminPage() {
     {
       title: "更新",
       width: 160,
-      render: (_, row) =>
-        formatBeijing(row.updated_at || row.created_at, "YYYY-MM-DD HH:mm"),
+      render: (_, row) => formatBeijing(row.updated_at || row.created_at, "YYYY-MM-DD HH:mm"),
     },
     {
       title: "操作",
@@ -105,10 +91,7 @@ export default function TavernAdminPage() {
 
   return (
     <div>
-      <PageHeader
-        title="酒馆管理"
-        subtitle="分类、作者名单，以及全部文章。"
-      />
+      <PageHeader title="酒馆管理" subtitle="分类、作者名单，以及全部文章。" />
       <Tabs
         items={[
           {
@@ -186,8 +169,7 @@ function AuthorPicker() {
   );
 
   const saveMut = useMutation({
-    mutationFn: () =>
-      putArticleAuthors({ user_ids: targetKeys.map((key) => Number(key)) }),
+    mutationFn: () => putArticleAuthors({ user_ids: targetKeys.map((key) => Number(key)) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["article-authors"] });
       queryClient.invalidateQueries({ queryKey: ["article-capabilities"] });
@@ -206,9 +188,7 @@ function AuthorPicker() {
         render={(item) => item.title}
         showSearch
         filterOption={(input, item) =>
-          `${item.title} ${item.description || ""}`
-            .toLowerCase()
-            .includes(input.toLowerCase())
+          `${item.title} ${item.description || ""}`.toLowerCase().includes(input.toLowerCase())
         }
         listStyle={{ width: 280, height: 420 }}
       />

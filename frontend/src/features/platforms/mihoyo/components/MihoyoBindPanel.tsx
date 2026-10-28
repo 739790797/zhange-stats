@@ -1,6 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { message } from "antd";
-import { bindMihoyoPassword, bindMihoyoSms, fetchMihoyoStatus, pollMihoyoQrBind, sendMihoyoSms, startMihoyoQrBind } from "@/features/platforms/mihoyo/api/mihoyoApi";
+import {
+  bindMihoyoPassword,
+  bindMihoyoSms,
+  fetchMihoyoStatus,
+  pollMihoyoQrBind,
+  sendMihoyoSms,
+  startMihoyoQrBind,
+} from "@/features/platforms/mihoyo/api/mihoyoApi";
 import type { MihoyoStatus } from "@/features/platforms/mihoyo/api/types";
 import { PhoneAuthBindTemplate } from "@/features/auth/components/PhoneAuthBindTemplate";
 import { useQrBindSession } from "@/features/platforms/shared/hooks/useQrBindSession";
@@ -26,17 +33,12 @@ export function MihoyoBindPanel({
   const resolvedDefault = preferredPhoneAuthMode(MIHOYO_MODES);
   const smsMmtKey = useRef<string | null>(null);
 
-  const finishOk = async (
-    _status?: MihoyoStatus | null,
-    msg = "米游社绑定成功",
-  ) => {
+  const finishOk = async (_status?: MihoyoStatus | null, msg = "米游社绑定成功") => {
     await queryClient.cancelQueries({ queryKey: STATUS_KEY });
     const next = await fetchMihoyoStatus(true, true);
     queryClient.setQueryData(STATUS_KEY, next);
     if (next?.bound && next.token_ok === false) {
-      message.warning(
-        next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试",
-      );
+      message.warning(next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试");
     } else {
       message.success(msg);
     }
@@ -78,11 +80,7 @@ export function MihoyoBindPanel({
             }
             void prefetchGeetest4(captchaId);
             const validate = await runGeetest4(captchaId);
-            data = await sendMihoyoSms(
-              phone,
-              JSON.stringify(validate),
-              data.mmt_key || undefined,
-            );
+            data = await sendMihoyoSms(phone, JSON.stringify(validate), data.mmt_key || undefined);
             if (data.need_geetest) {
               throw new Error(data.message || "人机验证未通过，请重试");
             }

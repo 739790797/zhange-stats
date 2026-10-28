@@ -13,9 +13,7 @@ from app.models.user import UserRole
 from app.services.setup import complete_initial_admin, needs_setup
 
 
-def test_setup_status_without_database(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_setup_status_without_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DATA_DIR", raising=False)
     monkeypatch.setenv("APP_INSTALL_DIR", str(tmp_path))
@@ -50,12 +48,8 @@ def test_sqlite_create_all_then_admin(tmp_path: Path, monkeypatch: pytest.Monkey
     db = Session()
     try:
         assert needs_setup(db) is True
-        monkeypatch.setattr(
-            "app.services.setup.get_min_password_length", lambda _db: 8
-        )
-        monkeypatch.setattr(
-            "app.services.setup.create_user_access_token", lambda _u: "tok"
-        )
+        monkeypatch.setattr("app.services.setup.get_min_password_length", lambda _db: 8)
+        monkeypatch.setattr("app.services.setup.create_user_access_token", lambda _u: "tok")
         user, token = complete_initial_admin(
             db,
             email="admin@example.com",

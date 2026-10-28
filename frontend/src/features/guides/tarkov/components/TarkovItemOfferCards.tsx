@@ -30,9 +30,7 @@ export function TarkovItemBlock({
       <div className={styles.blockHead}>
         <h3 className={styles.blockTitle}>
           {title}
-          {count != null ? (
-            <span className={styles.blockCount}>{count}</span>
-          ) : null}
+          {count != null ? <span className={styles.blockCount}>{count}</span> : null}
         </h3>
         {extra ? <div className={styles.blockExtra}>{extra}</div> : null}
       </div>
@@ -47,13 +45,7 @@ function vendorHref(offer: VendorOffer): string | null {
   return tarkovTraderHref(key);
 }
 
-function OfferCard({
-  offer,
-  best,
-}: {
-  offer: VendorOffer;
-  best?: boolean;
-}) {
+function OfferCard({ offer, best }: { offer: VendorOffer; best?: boolean }) {
   const href = vendorHref(offer);
   const icon = isFleaVendor(offer.vendor) ? "" : traderPortraitUrl(offer.vendor);
   const label = traderDisplayName(offer.vendor, offer.vendorName);
@@ -65,9 +57,7 @@ function OfferCard({
         ) : (
           <span className={styles.offerFlea}>跳蚤</span>
         )}
-        {offer.minLevel ? (
-          <span className={styles.offerLevel}>{offer.minLevel}</span>
-        ) : null}
+        {offer.minLevel ? <span className={styles.offerLevel}>{offer.minLevel}</span> : null}
       </span>
       <span className={styles.offerName}>{label}</span>
       <span className={styles.offerPrice}>{formatOfferPrice(offer)}</span>
@@ -103,11 +93,7 @@ export function TarkovItemOfferRow({
           <OfferCard
             key={`${offer.vendor}-${index}`}
             offer={offer}
-            best={
-              best != null &&
-              offer.vendor === best.vendor &&
-              offer.priceRub === best.priceRub
-            }
+            best={best != null && offer.vendor === best.vendor && offer.priceRub === best.priceRub}
           />
         ))}
       </div>
@@ -115,11 +101,7 @@ export function TarkovItemOfferRow({
   );
 }
 
-export function TarkovItemFleaQuote({
-  flea,
-}: {
-  flea: ItemFleaQuote | null | undefined;
-}) {
+export function TarkovItemFleaQuote({ flea }: { flea: ItemFleaQuote | null | undefined }) {
   if (!hasFleaQuote(flea) || !flea) return null;
   const change = flea.change48;
   const changeClass =

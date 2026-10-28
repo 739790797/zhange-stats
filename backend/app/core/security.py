@@ -98,11 +98,7 @@ def create_access_token(
     from app.services.auth_config import get_access_token_expire_minutes
 
     settings = get_settings()
-    minutes = (
-        expires_minutes
-        if expires_minutes is not None
-        else get_access_token_expire_minutes()
-    )
+    minutes = expires_minutes if expires_minutes is not None else get_access_token_expire_minutes()
     minutes = max(1, min(int(minutes), MAX_ACCESS_TOKEN_MINUTES))
     issued = utc_now()
     payload: dict = {
@@ -112,9 +108,7 @@ def create_access_token(
         "username": subject,
         "ver": int(token_version or 0),
     }
-    return jwt.encode(
-        payload, derive_key(settings.SECRET_KEY, PURPOSE_JWT), algorithm=ALGORITHM
-    )
+    return jwt.encode(payload, derive_key(settings.SECRET_KEY, PURPOSE_JWT), algorithm=ALGORITHM)
 
 
 def create_user_access_token(user: Any) -> str:

@@ -16,8 +16,14 @@ import {
   type RaidPrepTaskProgressStatus,
 } from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import { TarkovTraderThumb } from "@/features/guides/tarkov/components/TarkovTraderThumb";
-import { tarkovWorkbenchHref, traderDisplayName } from "@/features/guides/tarkov/model/tarkovHomeNav";
-import { isGunsmithObjectiveType, isGunsmithTask } from "@/features/guides/tarkov/model/tarkovWorkbenchGunsmith";
+import {
+  tarkovWorkbenchHref,
+  traderDisplayName,
+} from "@/features/guides/tarkov/model/tarkovHomeNav";
+import {
+  isGunsmithObjectiveType,
+  isGunsmithTask,
+} from "@/features/guides/tarkov/model/tarkovWorkbenchGunsmith";
 import { TarkovRaidPrepObjectiveHint } from "@/features/guides/tarkov/components/TarkovRaidPrepObjectiveHint";
 import styles from "./TarkovRaidPrepPanel.module.css";
 
@@ -70,30 +76,13 @@ function TarkovRaidPrepTaskCardInner({
 }: Props) {
   const isDone = Boolean(done);
   const title = displayRaidPrepTaskName(row);
-  const objectives = useMemo(
-    () => collectRaidPrepTaskObjectives(row, mapSlug),
-    [row, mapSlug],
-  );
-  const otherMapGroups = useMemo(
-    () => collectRaidPrepOtherMapGroups(row, mapSlug),
-    [row, mapSlug],
-  );
-  const sequenceGroups = useMemo(
-    () => collectRaidPrepSequenceGroups(row, mapSlug),
-    [row, mapSlug],
-  );
-  const failChips = useMemo(
-    () => collectRaidPrepFailChips(row.fail_conditions),
-    [row],
-  );
-  const mapDone =
-    isDone || raidPrepMapObjectivesComplete(row, mapSlug, skipped);
+  const objectives = useMemo(() => collectRaidPrepTaskObjectives(row, mapSlug), [row, mapSlug]);
+  const otherMapGroups = useMemo(() => collectRaidPrepOtherMapGroups(row, mapSlug), [row, mapSlug]);
+  const sequenceGroups = useMemo(() => collectRaidPrepSequenceGroups(row, mapSlug), [row, mapSlug]);
+  const failChips = useMemo(() => collectRaidPrepFailChips(row.fail_conditions), [row]);
+  const mapDone = isDone || raidPrepMapObjectivesComplete(row, mapSlug, skipped);
   const offMapLabel =
-    row.on_this_map === false
-      ? row.map_name
-        ? `其他地图：${row.map_name}`
-        : "无地图标点"
-      : "";
+    row.on_this_map === false ? (row.map_name ? `其他地图：${row.map_name}` : "无地图标点") : "";
   const meta = compact
     ? []
     : [
@@ -102,9 +91,7 @@ function TarkovRaidPrepTaskCardInner({
         offMapLabel,
       ].filter(Boolean);
   const swatch = color || colorForTaskId(row.id);
-  const gunsmithObjective = (row.objectives || []).find((obj) =>
-    isGunsmithObjectiveType(obj.type),
-  );
+  const gunsmithObjective = (row.objectives || []).find((obj) => isGunsmithObjectiveType(obj.type));
   const gunsmithHref = isGunsmithTask(row.objective_types)
     ? tarkovWorkbenchHref(undefined, {
         taskId: row.id,
@@ -139,10 +126,7 @@ function TarkovRaidPrepTaskCardInner({
       data-raid-prep-task={row.id}
     >
       {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 只拦冒泡：勾选别清列表高亮；键盘由原生复选框处理 */}
-      <label
-        className={styles.checkWrap}
-        onClick={(event) => event.stopPropagation()}
-      >
+      <label className={styles.checkWrap} onClick={(event) => event.stopPropagation()}>
         <input
           className={styles.check}
           type="checkbox"

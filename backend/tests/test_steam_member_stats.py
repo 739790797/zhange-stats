@@ -79,10 +79,7 @@ def _play(
 
 
 def _icon(app_id: str) -> str:
-    return (
-        "https://cdn.example/steamcommunity/public/images/apps/"
-        f"{app_id}/icon.jpg"
-    )
+    return f"https://cdn.example/steamcommunity/public/images/apps/{app_id}/icon.jpg"
 
 
 def _cache_app(db: Session, app_id: str, name: str) -> None:
@@ -143,9 +140,7 @@ def test_day_timeline_member_filter() -> None:
     assert only["total_seconds"] == 2 * 3600
     assert {item["steam_app_id"] for item in only["games_legend"]} == {"730"}
 
-    quiet = stats.build_range_detail(
-        db, date(2026, 9, 2), date(2026, 9, 2), viewer, member_id=alice.id
-    )
+    quiet = stats.build_range_detail(db, date(2026, 9, 2), date(2026, 9, 2), viewer, member_id=alice.id)
     assert quiet is not None
     assert quiet["sessions"] == []
     assert quiet["total_seconds"] == 0

@@ -56,15 +56,10 @@ export function TarkovRaidMemberStrip({ members, phaseByUser }: Props) {
               {row.is_host ? "⭐" : ""}
               {row.display_name}
             </span>
-            <span
-              className={styles.memberOnline}
-              data-on={row.online ? "true" : "false"}
-            >
+            <span className={styles.memberOnline} data-on={row.online ? "true" : "false"}>
               {formatRaidRoomOnlineLabel(row.online, row.clients)}
             </span>
-            {region ? (
-              <span className={styles.memberRegion}>{region}</span>
-            ) : null}
+            {region ? <span className={styles.memberRegion}>{region}</span> : null}
           </span>
         );
       })}

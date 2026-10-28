@@ -34,9 +34,7 @@ JOB_IDS = (
 )
 
 UPSTREAM_REPO_JOB_IDS = tuple(REPO_SYNC_JOB_IDS.values())
-_RETIRED_ROR2_SCHEDULER_KEYS = frozenset(
-    {"ror2_wiki_sync", "ror2_weblate_sync", "ror2_lang_sync"}
-)
+_RETIRED_ROR2_SCHEDULER_KEYS = frozenset({"ror2_wiki_sync", "ror2_weblate_sync", "ror2_lang_sync"})
 
 INTERVAL_JOB_IDS = frozenset({"steam_presence"})
 
@@ -62,9 +60,7 @@ def _clamp_interval(value: Any, default: int = 3) -> int:
         return default
 
 
-def _clamp_repo_sync_timeout(
-    value: Any, default: int = DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
-) -> int:
+def _clamp_repo_sync_timeout(value: Any, default: int = DEFAULT_REPO_SYNC_TIMEOUT_MINUTES) -> int:
     try:
         return max(1, min(MAX_REPO_SYNC_TIMEOUT_MINUTES, int(value)))
     except (TypeError, ValueError):
@@ -140,19 +136,11 @@ def load_scheduler_config(_db: Session | None = None) -> dict[str, dict[str, Any
     scheduler = blob.get("scheduler")
     retired_settings = False
     if isinstance(scheduler, dict):
-        cleaned_scheduler = {
-            key: value
-            for key, value in scheduler.items()
-            if key not in _RETIRED_ROR2_SCHEDULER_KEYS
-        }
+        cleaned_scheduler = {key: value for key, value in scheduler.items() if key not in _RETIRED_ROR2_SCHEDULER_KEYS}
         if len(cleaned_scheduler) != len(scheduler):
             blob = {**blob, "scheduler": cleaned_scheduler}
             retired_settings = True
-    cleaned_blob = {
-        key: value
-        for key, value in blob.items()
-        if key not in _RETIRED_ROR2_SCHEDULER_KEYS
-    }
+    cleaned_blob = {key: value for key, value in blob.items() if key not in _RETIRED_ROR2_SCHEDULER_KEYS}
     if len(cleaned_blob) != len(blob):
         blob = cleaned_blob
         retired_settings = True

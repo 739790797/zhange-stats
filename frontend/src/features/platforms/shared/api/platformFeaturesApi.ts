@@ -15,15 +15,11 @@ export async function fetchPlatformFeaturesEffective() {
 }
 
 export async function fetchPlatformFeaturesAdmin() {
-  const { data } = await client.get<PlatformFeaturesResponse>(
-    "/settings/platform-features",
-  );
+  const { data } = await client.get<PlatformFeaturesResponse>("/settings/platform-features");
   return data;
 }
 
-export async function updatePlatformFeatures(
-  payload: PlatformFeaturesUpdate,
-) {
+export async function updatePlatformFeatures(payload: PlatformFeaturesUpdate) {
   const { data } = await client.put<PlatformFeaturesResponse>(
     "/settings/platform-features",
     payload,

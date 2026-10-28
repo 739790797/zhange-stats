@@ -68,9 +68,7 @@ def test_orphans_follow_their_on_delete_action(plain_engine) -> None:
         # user 99 is gone: the member cascades, then its sessions on the next pass
         db.add(Member(id=2, nickname="orphan", user_id=99))
         db.add_all([_session(1), _session(2), _session(42)])
-        db.add(
-            CheckinRolePref(platform="skland", member_id=77, game_code="arknights", role_uid="1")
-        )
+        db.add(CheckinRolePref(platform="skland", member_id=77, game_code="arknights", role_uid="1"))
         db.add(TarkovRaidRoom(id=1, public_id="R1", host_user_id=55))
         db.add(Article(slug="a", title="A", author_user_id=88))
         db.commit()
@@ -112,13 +110,9 @@ def test_legacy_register_challenges_rows_are_copied_not_dropped(plain_engine) ->
         "email",
         "purpose",
     }
-    assert "ix_register_challenges_expires_at" in {
-        ix["name"] for ix in insp.get_indexes("register_challenges")
-    }
+    assert "ix_register_challenges_expires_at" in {ix["name"] for ix in insp.get_indexes("register_challenges")}
     with plain_engine.connect() as conn:
-        rows = conn.exec_driver_sql(
-            "SELECT email, purpose, code, attempts FROM register_challenges"
-        ).fetchall()
+        rows = conn.exec_driver_sql("SELECT email, purpose, code, attempts FROM register_challenges").fetchall()
     assert [tuple(r) for r in rows] == [("a@example.com", "register", "123456", 0)]
 
 
@@ -142,9 +136,7 @@ def test_interrupted_register_challenges_rebuild_is_finished(plain_engine) -> No
     tables = set(insp.get_table_names())
     assert "register_challenges" in tables
     assert "_register_challenges_rebuild" not in tables
-    assert "ix_register_challenges_expires_at" in {
-        ix["name"] for ix in insp.get_indexes("register_challenges")
-    }
+    assert "ix_register_challenges_expires_at" in {ix["name"] for ix in insp.get_indexes("register_challenges")}
     with plain_engine.connect() as conn:
         rows = conn.exec_driver_sql("SELECT email, purpose, attempts FROM register_challenges")
         assert [tuple(r) for r in rows] == [("a@example.com", "reset", 2)]
@@ -156,13 +148,10 @@ def test_minecraft_public_address_moves_into_integrations(plain_engine) -> None:
         db.add(SystemConfig(key="integrations", value=json.dumps({"github_token": "t"})))
         db.commit()
     with plain_engine.begin() as conn:
-        conn.exec_driver_sql(
-            "ALTER TABLE minecraft_server_profiles ADD COLUMN public_host VARCHAR(255)"
-        )
+        conn.exec_driver_sql("ALTER TABLE minecraft_server_profiles ADD COLUMN public_host VARCHAR(255)")
         conn.exec_driver_sql("ALTER TABLE minecraft_server_profiles ADD COLUMN public_port INTEGER")
         conn.exec_driver_sql(
-            "UPDATE minecraft_server_profiles SET public_host = ' mc.example.com ', "
-            "public_port = 25566 WHERE id = 1"
+            "UPDATE minecraft_server_profiles SET public_host = ' mc.example.com ', public_port = 25566 WHERE id = 1"
         )
 
     _upgrade_from_0118()

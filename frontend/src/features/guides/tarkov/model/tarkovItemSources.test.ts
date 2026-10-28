@@ -51,9 +51,7 @@ describe("tarkovItemSources", () => {
   });
 
   it("buildItemFleaQuote hides noFlea and falls back to vendor price", () => {
-    expect(
-      buildItemFleaQuote({ types: ["noFlea"], lastLowPrice: 9000 }),
-    ).toBeNull();
+    expect(buildItemFleaQuote({ types: ["noFlea"], lastLowPrice: 9000 })).toBeNull();
     expect(
       buildItemFleaQuote(
         { lastLowPrice: 0, avg24hPrice: null },
@@ -80,9 +78,7 @@ describe("tarkovItemSources", () => {
 
   it("itemHasSources is false when empty", () => {
     expect(itemHasSources(undefined)).toBe(false);
-    expect(itemHasSources({ barters: [], crafts: [], quest_rewards: [] })).toBe(
-      false,
-    );
+    expect(itemHasSources({ barters: [], crafts: [], quest_rewards: [] })).toBe(false);
   });
 
   it("itemHasSources is true when any bucket has rows", () => {
@@ -105,9 +101,7 @@ describe("tarkovItemSources", () => {
 
   it("itemHasUses is true for hideout or tasks", () => {
     expect(itemHasUses(undefined)).toBe(false);
-    expect(
-      itemHasUses({ barters: [], crafts: [], hideout: [], tasks: [] }),
-    ).toBe(false);
+    expect(itemHasUses({ barters: [], crafts: [], hideout: [], tasks: [] })).toBe(false);
     expect(
       itemHasUses({
         barters: [],
@@ -181,9 +175,7 @@ describe("tarkovItemSources", () => {
       }).map((step) => `${questStepLabel(step.type)} ${questStepCountText(step.count)}`.trim()),
     ).toEqual(["找到 ×1", "上交 ×1"]);
     expect(questStepPrimaryText({ type: "sellItem", count: 50 })).toBe("出售");
-    expect(questStepDisplayText({ type: "sellItem", count: 50 })).toBe(
-      "出售 ×50",
-    );
+    expect(questStepDisplayText({ type: "sellItem", count: 50 })).toBe("出售 ×50");
     expect(
       questStepPrimaryText({
         type: "sellItem",
@@ -198,9 +190,7 @@ describe("tarkovItemSources", () => {
         text: "向 BTR 驾驶员出售物品",
       }),
     ).toBe("向 BTR 驾驶员出售物品 ×50");
-    expect(questStepDisplayText({ type: "finish", count: 1, text: "" })).toBe(
-      "完成奖励 ×1",
-    );
+    expect(questStepDisplayText({ type: "finish", count: 1, text: "" })).toBe("完成奖励 ×1");
     expect(questRelationSteps({ kind: "finish", count: 2 })).toEqual([
       { type: "finish", count: 2, found_in_raid: undefined },
     ]);
@@ -235,9 +225,7 @@ describe("tarkovItemSources", () => {
         "bolt",
       ),
     ).toBe(true);
-    expect(
-      requiredItemFoundInRaid([{ id: "bolt", found_in_raid: false }], "bolt"),
-    ).toBe(false);
+    expect(requiredItemFoundInRaid([{ id: "bolt", found_in_raid: false }], "bolt")).toBe(false);
   });
 
   it("splits drops into Boss vs 非 Boss", () => {

@@ -60,20 +60,12 @@ import {
 import type { TaskListItem } from "./tarkovTaskTree";
 import { mutexIndexFromTasks } from "./tarkovTaskMutex";
 
-function task(
-  id: string,
-  name: string,
-  extra: Partial<TaskListItem> = {},
-): TaskListItem {
+function task(id: string, name: string, extra: Partial<TaskListItem> = {}): TaskListItem {
   return { id, name, trader_slug: "prapor", ...extra };
 }
 
 describe("task progress", () => {
-  const items = [
-    task("p1", "惩罚者 - 1"),
-    task("p2", "惩罚者 - 2"),
-    task("side", "支线"),
-  ];
+  const items = [task("p1", "惩罚者 - 1"), task("p2", "惩罚者 - 2"), task("side", "支线")];
 
   it("summarizes incomplete / active / completed", () => {
     expect(summarizeTaskProgress(items, new Set(["p1"]), new Set(["p2"]))).toEqual({
@@ -108,33 +100,19 @@ describe("task progress", () => {
   it("derives failed and unreachable from line index", () => {
     const mutex = { mutex_ids: ["choose"], blocked_by: [] };
     const fork = { mutex_ids: ["choose"], blocked_by: ["bat1"] };
-    expect(
-      resolveTaskStatus("price1", new Set(["price1"]), new Set(), mutex),
-    ).toBe("done");
-    expect(
-      resolveTaskStatus("price1", new Set(["choose"]), new Set(), mutex),
-    ).toBe("failed");
-    expect(
-      resolveTaskStatus("price2", new Set(["bat1"]), new Set(), fork),
-    ).toBe("unreachable");
-    expect(
-      resolveTaskStatus("price2", new Set(), new Set(["bat1"]), fork),
-    ).toBe("unreachable");
-    expect(
-      resolveTaskStatus("choose", new Set(), new Set(["choose"]), mutex),
-    ).toBe("active");
+    expect(resolveTaskStatus("price1", new Set(["price1"]), new Set(), mutex)).toBe("done");
+    expect(resolveTaskStatus("price1", new Set(["choose"]), new Set(), mutex)).toBe("failed");
+    expect(resolveTaskStatus("price2", new Set(["bat1"]), new Set(), fork)).toBe("unreachable");
+    expect(resolveTaskStatus("price2", new Set(), new Set(["bat1"]), fork)).toBe("unreachable");
+    expect(resolveTaskStatus("choose", new Set(), new Set(["choose"]), mutex)).toBe("active");
     expect(isWritableTaskStatus("failed")).toBe(true);
     expect(isWritableTaskStatus("unreachable")).toBe(false);
     expect(isWritableTaskStatus("todo")).toBe(true);
-    expect(
-      isDerivedTaskStatus("price1", new Set(["choose"]), new Set(), mutex),
-    ).toBe(true);
-    expect(
-      isDerivedTaskStatus("price1", new Set(), new Set(), mutex, new Set(["price1"])),
-    ).toBe(false);
-    expect(
-      isDerivedTaskStatus("price2", new Set(["bat1"]), new Set(), fork),
-    ).toBe(true);
+    expect(isDerivedTaskStatus("price1", new Set(["choose"]), new Set(), mutex)).toBe(true);
+    expect(isDerivedTaskStatus("price1", new Set(), new Set(), mutex, new Set(["price1"]))).toBe(
+      false,
+    );
+    expect(isDerivedTaskStatus("price2", new Set(["bat1"]), new Set(), fork)).toBe(true);
   });
 
   it("counts failed and unreachable outside incomplete", () => {
@@ -143,9 +121,7 @@ describe("task progress", () => {
       task("price2", "独立的代价", { mutex_ids: ["choose"], blocked_by: ["bat1"] }),
       task("side", "支线"),
     ];
-    expect(
-      summarizeTaskProgress(rows, new Set(["choose", "bat1"]), new Set()),
-    ).toEqual({
+    expect(summarizeTaskProgress(rows, new Set(["choose", "bat1"]), new Set())).toEqual({
       total: 3,
       incomplete: 1,
       active: 0,
@@ -164,13 +140,8 @@ describe("task progress", () => {
   });
 
   it("counts a child as unreachable when its prereq failed", () => {
-    const rows = [
-      task("pre", "前置"),
-      task("child", "后续", { prereq_ids: ["pre"] }),
-    ];
-    expect(
-      summarizeTaskProgress(rows, new Set(), new Set(), new Set(["pre"])),
-    ).toEqual({
+    const rows = [task("pre", "前置"), task("child", "后续", { prereq_ids: ["pre"] })];
+    expect(summarizeTaskProgress(rows, new Set(), new Set(), new Set(["pre"]))).toEqual({
       total: 2,
       incomplete: 0,
       active: 0,
@@ -184,25 +155,16 @@ describe("task progress", () => {
     const failUnlock = task("next", "失败解锁", { fail_prereq_ids: ["pre"] });
     const flex = task("flex", "完成或失败", { fail_or_complete_ids: ["pre"] });
     const pre = task("pre", "前置");
-    expect(taskIsAvailable(failUnlock, new Set(), new Set(), new Set(["pre"]))).toBe(
-      true,
+    expect(taskIsAvailable(failUnlock, new Set(), new Set(), new Set(["pre"]))).toBe(true);
+    expect(taskIsAvailable(failUnlock, new Set(["pre"]), new Set(), new Set())).toBe(false);
+    expect(resolveTaskStatus("next", new Set(["pre"]), new Set(), failUnlock, new Set())).toBe(
+      "unreachable",
     );
-    expect(taskIsAvailable(failUnlock, new Set(["pre"]), new Set(), new Set())).toBe(
-      false,
-    );
-    expect(
-      resolveTaskStatus("next", new Set(["pre"]), new Set(), failUnlock, new Set()),
-    ).toBe("unreachable");
     expect(taskIsAvailable(flex, new Set(["pre"]), new Set(), new Set())).toBe(true);
     expect(taskIsAvailable(flex, new Set(), new Set(), new Set(["pre"]))).toBe(true);
     expect(taskIsAvailable(flex, new Set(), new Set(), new Set())).toBe(false);
     expect(
-      summarizeTaskProgress(
-        [pre, failUnlock],
-        new Set(),
-        new Set(),
-        new Set(["pre"]),
-      ),
+      summarizeTaskProgress([pre, failUnlock], new Set(), new Set(), new Set(["pre"])),
     ).toEqual({
       total: 2,
       incomplete: 1,
@@ -212,12 +174,7 @@ describe("task progress", () => {
       unreachable: 0,
     });
     expect(
-      summarizeTaskProgress(
-        [pre, failUnlock],
-        new Set(["pre"]),
-        new Set(),
-        new Set(),
-      ),
+      summarizeTaskProgress([pre, failUnlock], new Set(["pre"]), new Set(), new Set()),
     ).toMatchObject({
       completed: 1,
       unreachable: 1,
@@ -226,15 +183,13 @@ describe("task progress", () => {
 
   it("hides ids missing from the live catalog", () => {
     expect(
-      keepCatalogTaskProgress(
-        ["keep", "gone"],
-        ["live", "gone-start"],
-        ["keep", "live"],
-      ),
+      keepCatalogTaskProgress(["keep", "gone"], ["live", "gone-start"], ["keep", "live"]),
     ).toEqual({ done: ["keep"], started: ["live"], failed: [] });
-    expect(
-      keepCatalogTaskProgress(["gone"], ["gone-start"], null),
-    ).toEqual({ done: ["gone"], started: ["gone-start"], failed: [] });
+    expect(keepCatalogTaskProgress(["gone"], ["gone-start"], null)).toEqual({
+      done: ["gone"],
+      started: ["gone-start"],
+      failed: [],
+    });
   });
 
   it("sets a specific status", () => {
@@ -269,33 +224,18 @@ describe("task progress", () => {
       failed: ["p1"],
     });
     expect(
-      setTaskStatus(
-        ["chem", "curio", "big"],
-        [],
-        "chem",
-        "done",
-        [],
-        ["curio", "big"],
-      ),
+      setTaskStatus(["chem", "curio", "big"], [], "chem", "done", [], ["curio", "big"]),
     ).toEqual({
       done: ["chem"],
       started: [],
       failed: ["curio", "big"],
     });
     expect(
-      setTaskStatus(
-        [],
-        ["child"],
-        "grand",
-        "done",
-        [],
-        undefined,
-        [
-          { id: "pre" },
-          { id: "child", prereq_ids: ["pre"] },
-          { id: "grand", prereq_ids: ["child"] },
-        ],
-      ),
+      setTaskStatus([], ["child"], "grand", "done", [], undefined, [
+        { id: "pre" },
+        { id: "child", prereq_ids: ["pre"] },
+        { id: "grand", prereq_ids: ["child"] },
+      ]),
     ).toEqual({
       done: ["grand", "child", "pre"],
       started: [],
@@ -319,9 +259,9 @@ describe("task progress", () => {
   });
 
   it("treats an explicit failed set as failed before mutex", () => {
-    expect(
-      resolveTaskStatus("chem", new Set(), new Set(), undefined, new Set(["chem"])),
-    ).toBe("failed");
+    expect(resolveTaskStatus("chem", new Set(), new Set(), undefined, new Set(["chem"]))).toBe(
+      "failed",
+    );
     expect(
       resolveTaskStatus("chem", new Set(["chem"]), new Set(), undefined, new Set(["chem"])),
     ).toBe("done");
@@ -330,32 +270,18 @@ describe("task progress", () => {
 
 describe("groupTasksByTrader", () => {
   it("keeps completed tasks in the group", () => {
-    const items = [
-      task("p1", "惩罚者 - 1"),
-      task("p2", "惩罚者 - 2"),
-      task("solo", "单独"),
-    ];
-    const groups = groupTasksByTrader(
-      items,
-      [{ slug: "prapor", name: "Prapor" }],
-      ["solo"],
-    );
+    const items = [task("p1", "惩罚者 - 1"), task("p2", "惩罚者 - 2"), task("solo", "单独")];
+    const groups = groupTasksByTrader(items, [{ slug: "prapor", name: "Prapor" }], ["solo"]);
     expect(groups[0]?.items.map((row) => row.id)).toEqual(["p1", "p2", "solo"]);
     expect(groups[0]?.done).toBe(1);
     expect(groups[0]?.total).toBe(3);
   });
 
   it("filters by name", () => {
-    const items = [
-      task("p1", "惩罚者 - 1"),
-      task("side", "支线"),
-    ];
-    const groups = groupTasksByTrader(
-      items,
-      [{ slug: "prapor", name: "Prapor" }],
-      [],
-      { q: "支线" },
-    );
+    const items = [task("p1", "惩罚者 - 1"), task("side", "支线")];
+    const groups = groupTasksByTrader(items, [{ slug: "prapor", name: "Prapor" }], [], {
+      q: "支线",
+    });
     expect(groups[0]?.items.map((row) => row.id)).toEqual(["side"]);
   });
 
@@ -365,12 +291,9 @@ describe("groupTasksByTrader", () => {
       task("w1", "森林", { map_slug: "woods", map_name: "森林" }),
       task("any", "任意", { map_slug: "", map_name: "" }),
     ];
-    const groups = groupTasksByTrader(
-      items,
-      [{ slug: "prapor", name: "Prapor" }],
-      [],
-      { map: "customs" },
-    );
+    const groups = groupTasksByTrader(items, [{ slug: "prapor", name: "Prapor" }], [], {
+      map: "customs",
+    });
     expect(groups[0]?.items.map((row) => row.id)).toEqual(["c1"]);
   });
 });
@@ -524,9 +447,7 @@ describe("task dones storage", () => {
       },
     );
     expect(next.task_ids).toEqual(["new"]);
-    expect(next.cleared).toEqual([
-      { task_id: "manual", cleared_at: "2026-10-14 13:00:00" },
-    ]);
+    expect(next.cleared).toEqual([{ task_id: "manual", cleared_at: "2026-10-14 13:00:00" }]);
     expect(next.reset_epoch).toBe(2);
   });
 
@@ -708,14 +629,7 @@ describe("task dones storage", () => {
   });
 
   it("unions objective pairs and keeps pvp/pve apart", () => {
-    saveTaskProgress(
-      "pvp",
-      ["t1"],
-      [],
-      false,
-      false,
-      [{ task_id: "t1", objective_id: "cam-a" }],
-    );
+    saveTaskProgress("pvp", ["t1"], [], false, false, [{ task_id: "t1", objective_id: "cam-a" }]);
     expect(
       planAccountTaskHydrate({
         serverDone: ["t1"],
@@ -735,17 +649,10 @@ describe("task dones storage", () => {
       ],
       upload: true,
     });
-    expect(loadTaskObjectivePairs("pvp")).toEqual([
-      { task_id: "t1", objective_id: "cam-a" },
-    ]);
+    expect(loadTaskObjectivePairs("pvp")).toEqual([{ task_id: "t1", objective_id: "cam-a" }]);
     expect(loadTaskObjectivePairs("pve")).toEqual([]);
     expect(
-      setTaskObjective(
-        [{ task_id: "t1", objective_id: "cam-a" }],
-        "t1",
-        "cam-a",
-        false,
-      ),
+      setTaskObjective([{ task_id: "t1", objective_id: "cam-a" }], "t1", "cam-a", false),
     ).toEqual([]);
     expect(mergeObjectivesForTask([], "t1", ["a", "b", "a"])).toEqual([
       { task_id: "t1", objective_id: "a" },

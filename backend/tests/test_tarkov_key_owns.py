@@ -102,9 +102,7 @@ def test_room_snapshot_lists_seated_owns(monkeypatch: pytest.MonkeyPatch) -> Non
     rooms.set_room_map(db, pid, host, "customs", now=now)
     rooms.join_room(db, pid, guest, now=now)
     snap = rooms.get_room(db, pid, host)
-    names = {
-        (row["item_id"], row["display_name"]) for row in snap["key_owns"]
-    }
+    names = {(row["item_id"], row["display_name"]) for row in snap["key_owns"]}
     assert names == {("key-a", "甲"), ("key-a", "乙"), ("key-b", "乙")}
     assert rooms.occupant_public_ids(db, host.id) == [pid]
     assert rooms.occupant_public_ids(db, outsider.id) == []

@@ -30,9 +30,7 @@ from app.services.taygedo.client import GAME_NTE
 
 @pytest.fixture
 def engine():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -49,9 +47,7 @@ def db(engine):
     session.close()
 
 
-def _log(
-    day: date, uid: str, role_name: str, channel_name: str, *, member_id: int = 1
-) -> SklandCheckinLog:
+def _log(day: date, uid: str, role_name: str, channel_name: str, *, member_id: int = 1) -> SklandCheckinLog:
     return SklandCheckinLog(
         member_id=member_id,
         bind_id=member_id,
@@ -95,11 +91,7 @@ def test_skland_arknights_roles_from_rogue_raws_use_checkin_logs(db) -> None:
 
 
 def test_skland_arknights_roles_from_attendance_keep_names(db) -> None:
-    db.add(
-        SklandAttendanceRaw(
-            member_id=1, uid="1", role_name="白衣#5820", channel_name="官服", raw_json="{}"
-        )
-    )
+    db.add(SklandAttendanceRaw(member_id=1, uid="1", role_name="白衣#5820", channel_name="官服", raw_json="{}"))
     db.commit()
     roles = skland_arknights_roles_from_raws(db, 1)
     assert roles is not None
@@ -133,9 +125,7 @@ def test_skland_arknights_rogue_role_is_labelled_from_its_latest_log_day(db) -> 
 def test_attendance_role_missing_channel_takes_it_from_logs(db) -> None:
     db.add_all(
         [
-            SklandAttendanceRaw(
-                member_id=1, uid="1", role_name="白衣#5820", channel_name=None, raw_json="{}"
-            ),
+            SklandAttendanceRaw(member_id=1, uid="1", role_name="白衣#5820", channel_name=None, raw_json="{}"),
             ArknightsRogueRaw(member_id=1, uid="1", topic_id="rogue_4", raw_json="{}"),
             _log(date(2026, 9, 9), "1", "旧名#5820", "bilibili服"),
         ]

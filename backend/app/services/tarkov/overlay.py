@@ -266,9 +266,7 @@ def _apply_crafts(payload: dict[str, Any], overlay: dict[str, Any], mode_key: st
     if crafts is None:
         return payload
     existing = {
-        str(row.get("id") or "").strip()
-        for row in crafts
-        if isinstance(row, dict) and str(row.get("id") or "").strip()
+        str(row.get("id") or "").strip() for row in crafts if isinstance(row, dict) and str(row.get("id") or "").strip()
     }
     additions = _section(overlay, "craftsAdd", mode_key=mode_key)
     for cid, row in additions.items():
@@ -365,9 +363,7 @@ def overlay_status(db: Session) -> dict[str, Any]:
         "url": last.get("url") or "",
         "last_success_at": last.get("at") or synced_at,
         "synced_at": synced_at,
-        "upstream_at": last.get("upstream_at") or upstream_svc.notes_upstream_at(
-            row.note if row is not None else None
-        ),
+        "upstream_at": last.get("upstream_at") or upstream_svc.notes_upstream_at(row.note if row is not None else None),
         "age_seconds": age_sec,
         "stale": bool(age_sec is not None and age_sec > OVERLAY_STALE_AFTER_SEC),
         "error": last.get("error"),

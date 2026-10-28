@@ -1,4 +1,5 @@
 """游戏区 API（塔科夫攻略等）。"""
+
 from fastapi import APIRouter
 
 from app.api.guides import minecraft, tarkov

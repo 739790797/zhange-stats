@@ -23,9 +23,7 @@ describe("legal docs", () => {
     expect(siteIcpBeianNo("  浙ICP备1号  ")).toBe("浙ICP备1号");
     expect(termsTailParagraph("")).not.toMatch(/ICP 备案/);
     expect(termsTailParagraph("浙ICP备1号")).toContain("浙ICP备1号");
-    expect(legalDoc("terms", "京ICP备2号").paragraphs.join("\n")).toContain(
-      "京ICP备2号",
-    );
+    expect(legalDoc("terms", "京ICP备2号").paragraphs.join("\n")).toContain("京ICP备2号");
   });
 
   it("states unofficial, no-cheat, and room title rules", () => {

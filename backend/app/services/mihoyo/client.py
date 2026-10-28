@@ -325,9 +325,7 @@ def is_auth_failure(*, code: Any = None, message: str | None = None) -> bool:
 T = TypeVar("T")
 
 
-def call_with_cookie_refresh(
-    creds: MihoyoCredentials, fn: Callable[[MihoyoCredentials], T]
-) -> T:
+def call_with_cookie_refresh(creds: MihoyoCredentials, fn: Callable[[MihoyoCredentials], T]) -> T:
     """对齐 MihoyoBBSTools login.update_cookie_token：-100 时用 stoken 刷新 cookie_token 再试一次。"""
     try:
         return fn(creds)
@@ -441,9 +439,7 @@ def _normalize_creds(creds: MihoyoCredentials) -> MihoyoCredentials:
     if not creds.stuid:
         creds.stuid = kv.get("stuid") or creds.ltuid or creds.account_id
     if not creds.mid:
-        creds.mid = (
-            kv.get("mid") or kv.get("account_mid_v2") or kv.get("ltmid_v2") or ""
-        )
+        creds.mid = kv.get("mid") or kv.get("account_mid_v2") or kv.get("ltmid_v2") or ""
     return _ensure_device_id(creds)
 
 
@@ -519,9 +515,7 @@ def _game_headers(
     return headers
 
 
-def _game_headers_for_meta(
-    creds: MihoyoCredentials, meta: dict[str, str], *, ds: str | None = None
-) -> dict[str, str]:
+def _game_headers_for_meta(creds: MihoyoCredentials, meta: dict[str, str], *, ds: str | None = None) -> dict[str, str]:
     return _game_headers(
         creds,
         referer=meta.get("referer") or "https://act.mihoyo.com/",
@@ -602,13 +596,7 @@ def _mall_item_meta(row: dict[str, Any], *, game_key: str = "") -> tuple[str, st
     biz_meta = GAME_BIZ_META.get(biz, {})
     mall_meta = MALL_GAME_META.get(key, ("", ""))
     game_code = str(biz_meta.get("game_code") or mall_meta[0] or "")
-    game_name = str(
-        biz_meta.get("game_name")
-        or mall_meta[1]
-        or row.get("game_name")
-        or biz
-        or "米游社"
-    )
+    game_name = str(biz_meta.get("game_name") or mall_meta[1] or row.get("game_name") or biz or "米游社")
     return biz, game_code, game_name
 
 
@@ -617,8 +605,8 @@ def _parse_exchange_item(row: dict[str, Any], *, game_key: str = "") -> Exchange
     if not gid:
         return None
     unlimit = bool(row.get("unlimit"))
-    limit = 0 if unlimit else _safe_int(
-        row.get("account_cycle_limit") or row.get("exchange_limit") or row.get("buy_limit")
+    limit = (
+        0 if unlimit else _safe_int(row.get("account_cycle_limit") or row.get("exchange_limit") or row.get("buy_limit"))
     )
     biz, game_code, game_name = _mall_item_meta(row, game_key=game_key)
     return ExchangeItem(
@@ -629,9 +617,7 @@ def _parse_exchange_item(row: dict[str, Any], *, game_key: str = "") -> Exchange
         price=_safe_int(row.get("price") or row.get("goods_price")),
         exchange_limit=limit,
         exchanged_count=_safe_int(
-            row.get("account_exchange_count")
-            or row.get("exchanged_count")
-            or row.get("buy_num")
+            row.get("account_exchange_count") or row.get("exchanged_count") or row.get("buy_num")
         ),
         next_exchange_time=_mall_next_time(row.get("next_time") or row.get("next_exchange_time")),
         game_biz=biz,
@@ -759,9 +745,7 @@ def _http_json(
     except HttpRequestError as exc:
         raise MihoyoApiError(f"网络错误：{exc}") from exc
     except json.JSONDecodeError as exc:
-        raise MihoyoApiError(
-            f"上游返回非 JSON（HTTP {resp.status_code}）"
-        ) from exc
+        raise MihoyoApiError(f"上游返回非 JSON（HTTP {resp.status_code}）") from exc
     if not isinstance(payload, dict):
         raise MihoyoApiError("上游返回格式异常")
     return payload
@@ -774,10 +758,7 @@ def resolve_stoken(creds: MihoyoCredentials) -> MihoyoCredentials:
     ticket = creds.login_ticket
     if not ticket:
         raise MihoyoApiError("Cookie 缺少 login_ticket / stoken，请重新扫码或登录绑定")
-    acc_url = (
-        "https://webapi.account.mihoyo.com/Api/cookie_accountinfo_by_loginticket"
-        f"?login_ticket={ticket}"
-    )
+    acc_url = f"https://webapi.account.mihoyo.com/Api/cookie_accountinfo_by_loginticket?login_ticket={ticket}"
     acc_payload = _http_json("GET", acc_url, headers={"User-Agent": USER_AGENT})
     acc_data = acc_payload.get("data") if isinstance(acc_payload.get("data"), dict) else {}
     cookie_info = acc_data.get("cookie_info") if isinstance(acc_data.get("cookie_info"), dict) else {}
@@ -821,9 +802,7 @@ def stoken_cookie_header(creds: MihoyoCredentials) -> str:
     return ";".join(parts)
 
 
-def refresh_cookie_token(
-    creds: MihoyoCredentials, *, force: bool = False
-) -> MihoyoCredentials:
+def refresh_cookie_token(creds: MihoyoCredentials, *, force: bool = False) -> MihoyoCredentials:
     """stoken(+mid) → cookie_token。force 时覆盖已有 token（对齐 update_cookie_token）。"""
     creds = _normalize_creds(creds)
     parts = parse_cookie_string(creds.cookie)

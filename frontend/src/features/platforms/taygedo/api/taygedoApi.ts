@@ -1,6 +1,13 @@
 import { client } from "../../../../shared/api/http";
 import type { components } from "../../../../shared/api/generated/schema";
-import type { ExastrisBox, TaygedoAttendanceCalendar, TaygedoCheckinResponse, TaygedoExchangeResult, TaygedoExchangeShop, TaygedoStatus } from "@/features/platforms/taygedo/api/types";
+import type {
+  ExastrisBox,
+  TaygedoAttendanceCalendar,
+  TaygedoCheckinResponse,
+  TaygedoExchangeResult,
+  TaygedoExchangeShop,
+  TaygedoStatus,
+} from "@/features/platforms/taygedo/api/types";
 
 /** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
 export async function fetchTaygedoStatus(includeRoles = true, force = true) {
@@ -31,11 +38,7 @@ export async function sendTaygedoSms(phone: string, deviceId?: string | null) {
   return data;
 }
 
-export async function bindTaygedoSms(
-  phone: string,
-  captcha: string,
-  deviceId: string,
-) {
+export async function bindTaygedoSms(phone: string, captcha: string, deviceId: string) {
   const { data } = await client.post<TaygedoStatus>("/taygedo/bind/sms", {
     phone,
     captcha,
@@ -56,13 +59,8 @@ export async function updateTaygedoRolePref(
   return data;
 }
 
-export async function triggerTaygedoCheckin(
-  payload?: components["schemas"]["CheckinNowBody"],
-) {
-  const { data } = await client.post<TaygedoCheckinResponse>(
-    "/taygedo/checkin",
-    payload ?? {},
-  );
+export async function triggerTaygedoCheckin(payload?: components["schemas"]["CheckinNowBody"]) {
+  const { data } = await client.post<TaygedoCheckinResponse>("/taygedo/checkin", payload ?? {});
   return data;
 }
 
@@ -71,17 +69,14 @@ export async function fetchTaygedoAttendanceCalendar(
   roleUid?: string,
   force = false,
 ) {
-  const { data } = await client.get<TaygedoAttendanceCalendar>(
-    "/taygedo/attendance-calendar",
-    {
-      params: {
-        game_code: gameCode,
-        ...(roleUid ? { role_uid: roleUid } : {}),
-        force,
-      },
-      timeout: 60000,
+  const { data } = await client.get<TaygedoAttendanceCalendar>("/taygedo/attendance-calendar", {
+    params: {
+      game_code: gameCode,
+      ...(roleUid ? { role_uid: roleUid } : {}),
+      force,
     },
-  );
+    timeout: 60000,
+  });
   return data;
 }
 

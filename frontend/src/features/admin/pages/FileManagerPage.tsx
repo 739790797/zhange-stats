@@ -118,9 +118,7 @@ export default function FileManagerPage() {
 
   useEffect(
     () => () => {
-      Object.values(dismissTimers.current).forEach((id) =>
-        window.clearTimeout(id),
-      );
+      Object.values(dismissTimers.current).forEach((id) => window.clearTimeout(id));
     },
     [],
   );
@@ -139,9 +137,7 @@ export default function FileManagerPage() {
   const summary = summaryQuery.data;
   const roots = useMemo(() => summary?.roots || [], [summary?.roots]);
   const summaryCards = useMemo(() => {
-    const byKind = new Map(
-      (summary?.kind_totals || []).map((row) => [row.kind, row]),
-    );
+    const byKind = new Map((summary?.kind_totals || []).map((row) => [row.kind, row]));
     const kinds = Object.keys(FILE_KIND_LABEL) as FileKind[];
     return [
       {
@@ -164,17 +160,20 @@ export default function FileManagerPage() {
     [summary?.total_bytes, summary?.volumes],
   );
 
-  const setLocation = useCallback((nextRoot: string, nextPath = "") => {
-    setSelected([]);
-    setFilter("");
-    if (!nextRoot) {
-      setParams({});
-      return;
-    }
-    const next: Record<string, string> = { root: nextRoot };
-    if (nextPath) next.path = nextPath;
-    setParams(next);
-  }, [setParams]);
+  const setLocation = useCallback(
+    (nextRoot: string, nextPath = "") => {
+      setSelected([]);
+      setFilter("");
+      if (!nextRoot) {
+        setParams({});
+        return;
+      }
+      const next: Record<string, string> = { root: nextRoot };
+      if (nextPath) next.path = nextPath;
+      setParams(next);
+    },
+    [setParams],
+  );
 
   const refreshBrowse = () => {
     void queryClient.invalidateQueries({ queryKey: ["site-files-browse"] });
@@ -213,9 +212,7 @@ export default function FileManagerPage() {
   };
 
   const patchUpload = (uid: string, patch: Partial<UploadJob>) => {
-    setUploads((rows) =>
-      rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)),
-    );
+    setUploads((rows) => rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)));
   };
 
   const dismissUpload = (uid: string) => {
@@ -226,10 +223,7 @@ export default function FileManagerPage() {
 
   const scheduleDismiss = (uid: string) => {
     window.clearTimeout(dismissTimers.current[uid]);
-    dismissTimers.current[uid] = window.setTimeout(
-      () => dismissUpload(uid),
-      UPLOAD_DISMISS_MS,
-    );
+    dismissTimers.current[uid] = window.setTimeout(() => dismissUpload(uid), UPLOAD_DISMISS_MS);
   };
 
   const openEntry = (row: BrowserRow) => {
@@ -304,9 +298,7 @@ export default function FileManagerPage() {
   const browserRows: BrowserRow[] = useMemo(() => {
     const entries = browseQuery.data?.entries || [];
     const q = filter.trim().toLowerCase();
-    const filtered = q
-      ? entries.filter((row) => row.name.toLowerCase().includes(q))
-      : entries;
+    const filtered = q ? entries.filter((row) => row.name.toLowerCase().includes(q)) : entries;
     const rows: BrowserRow[] = filtered.map((row) => ({
       ...row,
       key: row.name,
@@ -328,9 +320,7 @@ export default function FileManagerPage() {
 
   const crumbs = useMemo(() => {
     const rootLabel =
-      browseQuery.data?.root_label ||
-      roots.find((row) => row.id === rootId)?.label ||
-      "安装根";
+      browseQuery.data?.root_label || roots.find((row) => row.id === rootId)?.label || "安装根";
     const items = [
       {
         title: (
@@ -442,15 +432,13 @@ export default function FileManagerPage() {
       title: "大小",
       dataIndex: "size",
       width: 110,
-      render: (n: number, row) =>
-        row.is_dir || row.name === ".." ? "—" : formatBytes(n),
+      render: (n: number, row) => (row.is_dir || row.name === ".." ? "—" : formatBytes(n)),
     },
     {
       title: "修改时间",
       dataIndex: "modified_at",
       width: 180,
-      render: (value: string | null) =>
-        value ? formatBeijing(value, "YYYY-MM-DD HH:mm") : "—",
+      render: (value: string | null) => (value ? formatBeijing(value, "YYYY-MM-DD HH:mm") : "—"),
     },
     {
       title: "",
@@ -518,11 +506,7 @@ export default function FileManagerPage() {
 
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }} align="stretch">
         {summaryCards.map((card) => (
-          <Col
-            key={card.key}
-            flex="1 1 0"
-            style={{ minWidth: 168, display: "flex" }}
-          >
+          <Col key={card.key} flex="1 1 0" style={{ minWidth: 168, display: "flex" }}>
             <Card size="small" style={{ width: "100%", height: "100%" }}>
               <Statistic
                 title={card.title}
@@ -541,12 +525,9 @@ export default function FileManagerPage() {
           title="磁盘占用"
           extra={
             <Typography.Text type="secondary">
-              已用 {formatBytes(disk.siteBytes + disk.otherBytes)} /{" "}
-              {formatBytes(disk.totalBytes)}
+              已用 {formatBytes(disk.siteBytes + disk.otherBytes)} / {formatBytes(disk.totalBytes)}
               {` · ${formatPercent(disk.siteBytes + disk.otherBytes, disk.totalBytes)}%`}
-              {summary?.measured_at
-                ? ` · ${formatBeijing(summary.measured_at, "HH:mm:ss")}`
-                : ""}
+              {summary?.measured_at ? ` · ${formatBeijing(summary.measured_at, "HH:mm:ss")}` : ""}
             </Typography.Text>
           }
           style={{ marginBottom: 16 }}
@@ -618,10 +599,7 @@ export default function FileManagerPage() {
             />
           </Space>
           {disk.path ? (
-            <Typography.Text
-              type="secondary"
-              style={{ display: "block", marginTop: 8 }}
-            >
+            <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
               {disk.path}
             </Typography.Text>
           ) : null}
@@ -638,9 +616,7 @@ export default function FileManagerPage() {
               showUploadList={false}
               customRequest={async (options) => {
                 const file = options.file as File & { uid?: string };
-                const uid = String(
-                  file.uid || `${file.name}-${file.size}-${Date.now()}`,
-                );
+                const uid = String(file.uid || `${file.name}-${file.size}-${Date.now()}`);
                 setUploads((rows) => [
                   ...rows.filter((row) => row.uid !== uid),
                   {
@@ -704,20 +680,13 @@ export default function FileManagerPage() {
             >
               删除
             </Button>
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={() => browseQuery.refetch()}
-            >
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => browseQuery.refetch()}>
               刷新
             </Button>
           </Space>
         }
       >
-        <Space
-          style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }}
-          wrap
-        >
+        <Space style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }} wrap>
           <Breadcrumb items={crumbs} />
           <Space wrap>
             {rootId && browseQuery.data?.abs_path ? (
@@ -751,9 +720,7 @@ export default function FileManagerPage() {
                     {job.name}
                   </Typography.Text>
                   <Space size={8}>
-                    <Typography.Text type="secondary">
-                      {formatBytes(job.size)}
-                    </Typography.Text>
+                    <Typography.Text type="secondary">{formatBytes(job.size)}</Typography.Text>
                     {job.phase === "done" || job.phase === "error" ? (
                       <Button
                         type="text"
@@ -800,23 +767,17 @@ export default function FileManagerPage() {
             selectedRowKeys: selected,
             onChange: (keys) =>
               setSelected(
-                keys
-                  .map(String)
-                  .filter((name) => {
-                    const row = browserRows.find((item) => item.name === name);
-                    return Boolean(
-                      row && row.name !== ".." && !isFileBrowseLocked(row),
-                    );
-                  }),
+                keys.map(String).filter((name) => {
+                  const row = browserRows.find((item) => item.name === name);
+                  return Boolean(row && row.name !== ".." && !isFileBrowseLocked(row));
+                }),
               ),
             getCheckboxProps: (row) => ({
               disabled: row.name === ".." || isFileBrowseLocked(row),
             }),
           }}
           onRow={(row) => ({
-            style: row.sensitive
-              ? { opacity: 0.45, color: token.colorTextDisabled }
-              : undefined,
+            style: row.sensitive ? { opacity: 0.45, color: token.colorTextDisabled } : undefined,
             onDoubleClick: () => {
               if (row.is_dir && !isFileBrowseLocked(row)) openEntry(row);
             },
@@ -830,10 +791,7 @@ export default function FileManagerPage() {
         onCancel={() => setFolderOpen(false)}
         onOk={async () => {
           const values = await folderForm.validateFields();
-          const ok = await run(
-            () => createManagedFolder(rootId, path, values.name),
-            "已创建目录",
-          );
+          const ok = await run(() => createManagedFolder(rootId, path, values.name), "已创建目录");
           if (ok) setFolderOpen(false);
         }}
       >
@@ -888,17 +846,13 @@ export default function FileManagerPage() {
             label="文件名"
             rules={[{ required: true, message: "请输入文件名" }]}
           >
-            <Input
-              disabled={editor?.mode === "edit"}
-              placeholder="notes.txt"
-            />
+            <Input disabled={editor?.mode === "edit"} placeholder="notes.txt" />
           </Form.Item>
           <Form.Item name="content" label="内容">
             <Input.TextArea
               rows={18}
               style={{
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                 fontSize: 13,
               }}
             />

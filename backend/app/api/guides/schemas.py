@@ -237,9 +237,7 @@ class TarkovWorkbenchGunsmithTaskOut(BaseModel):
     weapon_image: str = ""
     constraints: dict[str, float] = Field(default_factory=dict)
     required_items: list[TarkovWorkbenchGunsmithNamedOut] = Field(default_factory=list)
-    required_category_groups: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(
-        default_factory=list
-    )
+    required_category_groups: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(default_factory=list)
     loadable: bool = False
 
 
@@ -260,9 +258,7 @@ class TarkovWorkbenchGunsmithSolveIn(BaseModel):
 class TarkovWorkbenchGunsmithChecklistOut(BaseModel):
     ok: bool = False
     missing_items: list[TarkovWorkbenchGunsmithNamedOut] = Field(default_factory=list)
-    missing_categories: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(
-        default_factory=list
-    )
+    missing_categories: list[list[TarkovWorkbenchGunsmithNamedOut]] = Field(default_factory=list)
     unmet_constraints: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     recoil_sum: int = 0
@@ -445,9 +441,7 @@ class TarkovTaskObjectiveOut(BaseModel):
     exit_status: list[str] = Field(default_factory=list)
     exit_name: str = ""
     zones: list["TarkovTaskZoneOut"] = Field(default_factory=list)
-    possible_locations: list["TarkovTaskPossibleLocationOut"] = Field(
-        default_factory=list
-    )
+    possible_locations: list["TarkovTaskPossibleLocationOut"] = Field(default_factory=list)
     zone_names: list[str] = Field(default_factory=list)
     target_names: list[str] = Field(default_factory=list)
     body_parts: list[str] = Field(default_factory=list)
@@ -626,15 +620,9 @@ class TarkovTaskDetailOut(TarkovTaskListItemOut):
     trader_requirements: list[TarkovTaskTraderReqOut] = Field(default_factory=list)
     task_requirements: list[TarkovTaskRequirementOut] = Field(default_factory=list)
     unlocks: list[TarkovTaskRequirementOut] = Field(default_factory=list)
-    start_rewards: TarkovTaskFinishRewardsOut = Field(
-        default_factory=TarkovTaskFinishRewardsOut
-    )
-    finish_rewards: TarkovTaskFinishRewardsOut = Field(
-        default_factory=TarkovTaskFinishRewardsOut
-    )
-    fail_rewards: TarkovTaskFinishRewardsOut = Field(
-        default_factory=TarkovTaskFinishRewardsOut
-    )
+    start_rewards: TarkovTaskFinishRewardsOut = Field(default_factory=TarkovTaskFinishRewardsOut)
+    finish_rewards: TarkovTaskFinishRewardsOut = Field(default_factory=TarkovTaskFinishRewardsOut)
+    fail_rewards: TarkovTaskFinishRewardsOut = Field(default_factory=TarkovTaskFinishRewardsOut)
     needed_keys: list[TarkovTaskNeededKeysOut] = Field(default_factory=list)
     fail_conditions: list[TarkovTaskFailConditionOut] = Field(default_factory=list)
     required_prestige: TarkovTaskPrestigeOut | None = None
@@ -1132,9 +1120,7 @@ class TarkovMapDetailOut(TarkovMapListItemOut):
     locks: list[TarkovMapLockOut] = Field(default_factory=list)
     hazards: list[TarkovMapHazardOut] = Field(default_factory=list)
     switches: list[TarkovMapSwitchOut] = Field(default_factory=list)
-    stationary_weapons: list[TarkovMapStationaryWeaponOut] = Field(
-        default_factory=list
-    )
+    stationary_weapons: list[TarkovMapStationaryWeaponOut] = Field(default_factory=list)
     btr_stops: list[TarkovMapBtrStopOut] = Field(default_factory=list)
     loot_containers: list[TarkovMapLootContainerOut] = Field(default_factory=list)
     loot_loose: list[TarkovMapLootLooseOut] = Field(default_factory=list)
@@ -1655,9 +1641,7 @@ class TarkovCollectionPlacementIn(BaseModel):
 
 
 class TarkovCollectionLayoutIn(BaseModel):
-    placements: list[TarkovCollectionPlacementIn] = Field(
-        default_factory=list, max_length=200
-    )
+    placements: list[TarkovCollectionPlacementIn] = Field(default_factory=list, max_length=200)
 
 
 class TarkovTaskObjectiveDonePair(BaseModel):
@@ -1683,9 +1667,7 @@ class TarkovTaskDonesOut(BaseModel):
         default=None,
         description="玩家点了清空、还没被带日志的同步定成下限的时刻；有值时本机账以空为准。",
     )
-    reset_profile_id: str = Field(
-        default="", description="定下 reset_at 时日志里当前模式的游戏 ProfileId。"
-    )
+    reset_profile_id: str = Field(default="", description="定下 reset_at 时日志里当前模式的游戏 ProfileId。")
     reset_epoch: int = Field(
         default=0,
         description="每次清空或推进下限加 1。批量写入带上它；对不上回 409，说明本机账已过期。",
@@ -1700,9 +1682,7 @@ class TarkovTaskDonesIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=800)
     started_ids: list[str] | None = Field(default=None, max_length=800)
     failed_ids: list[str] | None = Field(default=None, max_length=800)
-    objective_dones: list[TarkovTaskObjectiveDonePair] | None = Field(
-        default=None, max_length=8000
-    )
+    objective_dones: list[TarkovTaskObjectiveDonePair] | None = Field(default=None, max_length=8000)
     replace: bool = False
     expect_epoch: int | None = Field(
         default=None,
@@ -1724,9 +1704,7 @@ class TarkovTaskResetIn(BaseModel):
     task_ids: list[str] = Field(default_factory=list, max_length=800)
     started_ids: list[str] = Field(default_factory=list, max_length=800)
     failed_ids: list[str] = Field(default_factory=list, max_length=800)
-    objective_dones: list[TarkovTaskObjectiveDonePair] = Field(
-        default_factory=list, max_length=8000
-    )
+    objective_dones: list[TarkovTaskObjectiveDonePair] = Field(default_factory=list, max_length=8000)
 
 
 class TarkovRaidLogIn(BaseModel):
@@ -1841,13 +1819,9 @@ class TarkovRaidRoomDetailOut(TarkovRaidRoomLobbyItemOut):
     claims: list[TarkovRaidRoomClaimOut] = Field(default_factory=list)
     key_brings: list[TarkovRaidRoomKeyBringOut] = Field(default_factory=list)
     key_owns: list[TarkovKeyOwnOut] = Field(default_factory=list)
-    objective_dones: list[TarkovRaidRoomObjectiveDoneOut] = Field(
-        default_factory=list
-    )
+    objective_dones: list[TarkovRaidRoomObjectiveDoneOut] = Field(default_factory=list)
     marks: list[TarkovRaidRoomMarkOut] = Field(default_factory=list)
-    task_progress: list[TarkovRaidRoomMemberProgressOut] = Field(
-        default_factory=list
-    )
+    task_progress: list[TarkovRaidRoomMemberProgressOut] = Field(default_factory=list)
     map_overlap: list[TarkovRaidRoomMapOverlapOut] = Field(default_factory=list)
 
 
@@ -1857,9 +1831,7 @@ class TarkovRaidPrepObjectiveDoneIn(BaseModel):
 
 
 class TarkovRaidRoomObjectiveDonesIn(BaseModel):
-    items: list[TarkovRaidPrepObjectiveDoneIn] = Field(
-        default_factory=list, max_length=80
-    )
+    items: list[TarkovRaidPrepObjectiveDoneIn] = Field(default_factory=list, max_length=80)
 
 
 def _clip_str_ids(value: object, limit: int) -> list[str]:
@@ -1880,9 +1852,7 @@ def _clip_str_ids(value: object, limit: int) -> list[str]:
 
 class TarkovUserRaidPrepStateIn(BaseModel):
     selected: list[str] = Field(default_factory=list, max_length=40)
-    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(
-        default_factory=list, max_length=200
-    )
+    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(default_factory=list, max_length=200)
     key_brings: list[str] = Field(default_factory=list, max_length=80)
 
     @field_validator("selected", mode="before")
@@ -1907,12 +1877,7 @@ class TarkovUserRaidPrepStateIn(BaseModel):
                 continue
             task_id = str(item.get("task_id") or "").strip()
             objective_id = str(item.get("objective_id") or "").strip()
-            if (
-                not task_id
-                or not objective_id
-                or len(task_id) > 64
-                or len(objective_id) > 64
-            ):
+            if not task_id or not objective_id or len(task_id) > 64 or len(objective_id) > 64:
                 continue
             key = (task_id, objective_id)
             if key in seen:
@@ -1928,9 +1893,7 @@ class TarkovUserRaidPrepStateOut(BaseModel):
     map: str = ""
     game_mode: str = "pvp"
     selected: list[str] = Field(default_factory=list)
-    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(
-        default_factory=list
-    )
+    objective_dones: list[TarkovRaidPrepObjectiveDoneIn] = Field(default_factory=list)
     key_brings: list[str] = Field(default_factory=list)
     updated_at: str | None = None
 

@@ -54,183 +54,99 @@ describe("filterHomeSearch", () => {
     const hits = filterHomeSearch("弹药", index);
     expect(hits.some((h) => h.id === "ammo-chart")).toBe(true);
     expect(hits.some((h) => h.label === "弹药图表筛选器")).toBe(true);
-    expect(hits.some((h) => h.id === "ammo" || h.id === "handbook-ammo")).toBe(
-      true,
-    );
+    expect(hits.some((h) => h.id === "ammo" || h.id === "handbook-ammo")).toBe(true);
   });
 
   it("finds gunsmith workbench", () => {
-    expect(filterHomeSearch("改枪", index).some((h) => h.id === "workbench")).toBe(
-      true,
-    );
-    expect(
-      filterHomeSearch("gunsmith", index).some((h) => h.id === "workbench"),
-    ).toBe(true);
+    expect(filterHomeSearch("改枪", index).some((h) => h.id === "workbench")).toBe(true);
+    expect(filterHomeSearch("gunsmith", index).some((h) => h.id === "workbench")).toBe(true);
   });
 
   it("finds bullets, ammo packs and melee on handbook ammo/guns", () => {
-    expect(filterHomeSearch("子弹", index).some((h) => h.id === "ammo")).toBe(
-      true,
-    );
-    expect(
-      filterHomeSearch("弹药包", index).some((h) => h.id === "ammo"),
-    ).toBe(true);
-    expect(filterHomeSearch("近战", index).some((h) => h.id === "guns")).toBe(
-      true,
-    );
+    expect(filterHomeSearch("子弹", index).some((h) => h.id === "ammo")).toBe(true);
+    expect(filterHomeSearch("弹药包", index).some((h) => h.id === "ammo")).toBe(true);
+    expect(filterHomeSearch("近战", index).some((h) => h.id === "guns")).toBe(true);
   });
 
   it("sends pistol grips and suppressors to weapon mods", () => {
-    expect(
-      filterHomeSearch("手枪式握把", index).some((h) => h.id === "weapon-mods"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("消音器", index).some((h) => h.id === "weapon-mods"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("suppressor", index).some((h) => h.id === "weapon-mods"),
-    ).toBe(true);
-    expect(filterHomeSearch("消音器", index).some((h) => h.id === "suppressors")).toBe(
-      false,
-    );
+    expect(filterHomeSearch("手枪式握把", index).some((h) => h.id === "weapon-mods")).toBe(true);
+    expect(filterHomeSearch("消音器", index).some((h) => h.id === "weapon-mods")).toBe(true);
+    expect(filterHomeSearch("suppressor", index).some((h) => h.id === "weapon-mods")).toBe(true);
+    expect(filterHomeSearch("消音器", index).some((h) => h.id === "suppressors")).toBe(false);
   });
 
   it("finds customs by chinese or english", () => {
-    expect(filterHomeSearch("海关", index).some((h) => h.id === "customs")).toBe(
-      true,
-    );
-    expect(
-      filterHomeSearch("customs", index).some((h) => h.id === "customs"),
-    ).toBe(true);
+    expect(filterHomeSearch("海关", index).some((h) => h.id === "customs")).toBe(true);
+    expect(filterHomeSearch("customs", index).some((h) => h.id === "customs")).toBe(true);
   });
 
   it("finds streets as 塔科夫街区 and ground zero as 中心区", () => {
-    expect(
-      filterHomeSearch("塔科夫街区", index).some((h) => h.id === "streets"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("streets", index).some((h) => h.id === "streets"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("中心区", index).some((h) => h.id === "ground-zero"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("ground zero", index).some((h) => h.id === "ground-zero"),
-    ).toBe(true);
+    expect(filterHomeSearch("塔科夫街区", index).some((h) => h.id === "streets")).toBe(true);
+    expect(filterHomeSearch("streets", index).some((h) => h.id === "streets")).toBe(true);
+    expect(filterHomeSearch("中心区", index).some((h) => h.id === "ground-zero")).toBe(true);
+    expect(filterHomeSearch("ground zero", index).some((h) => h.id === "ground-zero")).toBe(true);
   });
 
   it("finds bosses by chinese nicknames", () => {
-    expect(filterHomeSearch("沙拉", index).some((h) => h.id === "reshala")).toBe(
-      true,
-    );
-    expect(filterHomeSearch("三兄弟", index).some((h) => h.id === "goons")).toBe(
-      true,
-    );
+    expect(filterHomeSearch("沙拉", index).some((h) => h.id === "reshala")).toBe(true);
+    expect(filterHomeSearch("三兄弟", index).some((h) => h.id === "goons")).toBe(true);
   });
 
   it("finds traders by old nicknames but labels stay english", () => {
-    expect(filterHomeSearch("大妈", index).some((h) => h.id === "therapist")).toBe(
-      true,
-    );
-    expect(TARKOV_TRADERS.find((row) => row.id === "therapist")?.label).toBe(
-      "Therapist",
-    );
+    expect(filterHomeSearch("大妈", index).some((h) => h.id === "therapist")).toBe(true);
+    expect(TARKOV_TRADERS.find((row) => row.id === "therapist")?.label).toBe("Therapist");
   });
 
   it("finds ground zero without spaces", () => {
-    expect(
-      filterHomeSearch("groundzero", index).some((h) => h.id === "ground-zero"),
-    ).toBe(true);
+    expect(filterHomeSearch("groundzero", index).some((h) => h.id === "ground-zero")).toBe(true);
   });
 
   it("finds raid prep from the home search index", () => {
-    expect(filterHomeSearch("战局", index).some((h) => h.id === "raid-prep")).toBe(
-      true,
-    );
-    expect(
-      filterHomeSearch("联机大厅", index).some((h) => h.id === "raid-prep"),
-    ).toBe(true);
+    expect(filterHomeSearch("战局", index).some((h) => h.id === "raid-prep")).toBe(true);
+    expect(filterHomeSearch("联机大厅", index).some((h) => h.id === "raid-prep")).toBe(true);
   });
 
   it("finds task tree inside 个人中心", () => {
-    expect(
-      filterHomeSearch("任务树", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("任务管理", index).some((h) => h.id === "me"),
-    ).toBe(true);
+    expect(filterHomeSearch("任务树", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("任务管理", index).some((h) => h.id === "me")).toBe(true);
   });
 
   it("finds profile inside 个人中心", () => {
-    expect(
-      filterHomeSearch("个人资料", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("商人好感", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(filterHomeSearch("蓝边", index).some((h) => h.id === "me")).toBe(
-      true,
-    );
+    expect(filterHomeSearch("个人资料", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("商人好感", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("蓝边", index).some((h) => h.id === "me")).toBe(true);
   });
 
   it("finds key packs inside 个人中心", () => {
-    expect(
-      filterHomeSearch("钥匙分类", index).some((h) => h.id === "key-packs"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("钥匙分类", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("钥匙用途", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(filterHomeSearch("打包", index).some((h) => h.id === "me")).toBe(
-      true,
-    );
+    expect(filterHomeSearch("钥匙分类", index).some((h) => h.id === "key-packs")).toBe(true);
+    expect(filterHomeSearch("钥匙分类", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("钥匙用途", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("打包", index).some((h) => h.id === "me")).toBe(true);
   });
 
   it("finds game logs inside 个人中心", () => {
-    expect(
-      filterHomeSearch("游戏日志", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("目录绑定", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("application", index).some((h) => h.id === "me"),
-    ).toBe(true);
+    expect(filterHomeSearch("游戏日志", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("目录绑定", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("application", index).some((h) => h.id === "me")).toBe(true);
   });
 
   it("finds hideout inside 个人中心", () => {
-    expect(
-      filterHomeSearch("藏身处", index).some((h) => h.id === "hideout"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("藏身处", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("hideout", index).some((h) => h.id === "me"),
-    ).toBe(true);
+    expect(filterHomeSearch("藏身处", index).some((h) => h.id === "hideout")).toBe(true);
+    expect(filterHomeSearch("藏身处", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("hideout", index).some((h) => h.id === "me")).toBe(true);
   });
 
   it("finds 3x4 collection inside 个人中心", () => {
-    expect(
-      filterHomeSearch("3×4收集", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("收集者", index).some((h) => h.id === "me"),
-    ).toBe(true);
-    expect(
-      filterHomeSearch("收藏家", index).some((h) => h.id === "me"),
-    ).toBe(true);
+    expect(filterHomeSearch("3×4收集", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("收集者", index).some((h) => h.id === "me")).toBe(true);
+    expect(filterHomeSearch("收藏家", index).some((h) => h.id === "me")).toBe(true);
   });
 });
 
 describe("textMatchesQuery", () => {
   it("matches hyphenated quest names against spaced titles", () => {
     expect(textMatchesQuery("医疗隐私-1", "医疗隐私 - Part 1")).toBe(true);
-    expect(
-      textMatchesQuery("医疗隐私-1", "Health Care Privacy - Part 1"),
-    ).toBe(false);
+    expect(textMatchesQuery("医疗隐私-1", "Health Care Privacy - Part 1")).toBe(false);
   });
 });
 
@@ -270,9 +186,7 @@ describe("buildSiteSearchSections", () => {
     const sections = buildSiteSearchSections("弹药", undefined, index);
     const nav = sections.find((s) => s.id === "nav");
     expect(nav?.hits.some((h) => h.label.includes("弹药"))).toBe(true);
-    expect(sections.some((s) => s.id === "traders" || s.id === "bosses")).toBe(
-      false,
-    );
+    expect(sections.some((s) => s.id === "traders" || s.id === "bosses")).toBe(false);
   });
 });
 
@@ -354,9 +268,7 @@ describe("TARKOV_BOSSES", () => {
 
 describe("trader image urls", () => {
   it("uses tarkov.dev icon and portrait paths", () => {
-    expect(traderIconUrl("prapor")).toBe(
-      "https://tarkov.dev/images/traders/prapor-icon.jpg",
-    );
+    expect(traderIconUrl("prapor")).toBe("https://tarkov.dev/images/traders/prapor-icon.jpg");
     expect(traderPortraitUrl("prapor")).toBe(
       "https://tarkov.dev/images/traders/prapor-portrait.png",
     );
@@ -424,9 +336,7 @@ describe("TARKOV_MAPS", () => {
       "openworld",
       "transits",
     ]);
-    expect(
-      TARKOV_MAPS.filter((m) => !m.comingSoon).every((m) => m.status === "ready"),
-    ).toBe(true);
+    expect(TARKOV_MAPS.filter((m) => !m.comingSoon).every((m) => m.status === "ready")).toBe(true);
   });
 });
 
@@ -475,9 +385,7 @@ describe("TARKOV_HOME_ITEMS", () => {
       "barter",
     ]);
     const menuIds = TARKOV_ITEM_MENU_GROUPS.flatMap((g) => g.items.map((i) => i.id));
-    const homeGroupIds = TARKOV_HOME_ITEM_GROUPS.flatMap((g) =>
-      g.items.map((i) => i.id),
-    );
+    const homeGroupIds = TARKOV_HOME_ITEM_GROUPS.flatMap((g) => g.items.map((i) => i.id));
     expect([...menuIds].sort()).toEqual([...TARKOV_HOME_ITEMS.map((i) => i.id)].sort());
     expect(homeGroupIds).toEqual(menuIds);
     expect(TARKOV_ITEM_MENU_GROUPS[0]?.items.map((i) => i.id)).toEqual([
@@ -501,9 +409,7 @@ describe("TARKOV_HOME_ITEMS", () => {
   });
 
   it("uses handbook category icons", () => {
-    expect(TARKOV_HOME_ITEMS.every((item) => item.icon.includes("handbook-category-"))).toBe(
-      true,
-    );
+    expect(TARKOV_HOME_ITEMS.every((item) => item.icon.includes("handbook-category-"))).toBe(true);
   });
 });
 
@@ -517,21 +423,13 @@ describe("isTarkovHomePath", () => {
 
 describe("isTarkovTopNavActive", () => {
   it("highlights items for ammo and guns subpaths", () => {
-    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, `${ITEMS_BASE_PATH}/ammo`)).toBe(
-      true,
-    );
-    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, `${ITEMS_BASE_PATH}/guns`)).toBe(
-      true,
-    );
-    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, "/guides/tarkov/maps")).toBe(
-      false,
-    );
+    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, `${ITEMS_BASE_PATH}/ammo`)).toBe(true);
+    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, `${ITEMS_BASE_PATH}/guns`)).toBe(true);
+    expect(isTarkovTopNavActive(ITEMS_BASE_PATH, "/guides/tarkov/maps")).toBe(false);
   });
 
   it("highlights progression when on the tasks page", () => {
-    expect(
-      isTarkovTopNavActive("/guides/tarkov/tasks", "/guides/tarkov/tasks"),
-    ).toBe(true);
+    expect(isTarkovTopNavActive("/guides/tarkov/tasks", "/guides/tarkov/tasks")).toBe(true);
     expect(
       isTarkovTopNavActive("/guides/tarkov/tasks", "/guides/tarkov/progression", [
         "/guides/tarkov/progression",
@@ -559,9 +457,7 @@ describe("TARKOV_ADMIN_NAV", () => {
     expect(parseTarkovMaintainMode("places")).toBe("info");
     expect(parseTarkovMaintainMode("nope")).toBe("");
     expect(isTarkovAdminPath("/guides/tarkov/maps", "maintain=info")).toBe(true);
-    expect(
-      isTarkovAdminPath("/guides/tarkov/maps/customs", "maintain=places"),
-    ).toBe(true);
+    expect(isTarkovAdminPath("/guides/tarkov/maps/customs", "maintain=places")).toBe(true);
     expect(isTarkovAdminPath("/guides/tarkov/maps")).toBe(false);
     expect(isTarkovAdminPath(tarkovRaidPulseDemoHref())).toBe(true);
     const index = buildHomeSearchIndex();
@@ -574,9 +470,7 @@ describe("TARKOV_TOP_NAV", () => {
   it("nests tasks under progression instead of a top-level item", () => {
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("tasks");
     expect(TARKOV_TOP_NAV.map((i) => i.id)).not.toContain("workbench");
-    expect(TARKOV_TOP_NAV.find((i) => i.id === "progression")?.href).toBe(
-      "/guides/tarkov/tasks",
-    );
+    expect(TARKOV_TOP_NAV.find((i) => i.id === "progression")?.href).toBe("/guides/tarkov/tasks");
     expect(TARKOV_PROGRESSION[0]).toMatchObject({
       id: "tasks",
       label: "任务",
@@ -585,14 +479,11 @@ describe("TARKOV_TOP_NAV", () => {
     });
     expect(TARKOV_PROGRESSION.find((p) => p.id === "hideout")).toBeUndefined();
     expect(TARKOV_PROGRESSION.find((p) => p.id === "raid-prep")).toBeUndefined();
-    expect(TARKOV_TOP_NAV.find((i) => i.id === "bosses")?.groups?.map((g) => g.id)).toEqual(
-      ["boss", "other"],
-    );
-    expect(TARKOV_OTHER_MOBS.map((row) => row.id)).toEqual([
-      "rogue",
-      "exusecfree",
-      "raider",
+    expect(TARKOV_TOP_NAV.find((i) => i.id === "bosses")?.groups?.map((g) => g.id)).toEqual([
+      "boss",
+      "other",
     ]);
+    expect(TARKOV_OTHER_MOBS.map((row) => row.id)).toEqual(["rogue", "exusecfree", "raider"]);
     expect(TARKOV_PROGRESSION.find((p) => p.id === "loot-tiers")).toBeUndefined();
   });
 });
@@ -628,9 +519,7 @@ describe("TARKOV_TRADERS", () => {
 
 describe("TARKOV_HOME_TRADERS", () => {
   it("shows the same traders as the hub, including Lightkeeper and BTR", () => {
-    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toEqual(
-      TARKOV_TRADERS.map((t) => t.id),
-    );
+    expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toEqual(TARKOV_TRADERS.map((t) => t.id));
     expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toContain("lightkeeper");
     expect(TARKOV_HOME_TRADERS.map((t) => t.id)).toContain("btr-driver");
   });
@@ -700,15 +589,9 @@ describe("tarkovPageTitle", () => {
     expect(tarkovPageTitle("/guides/tarkov/items/meds")).toBe("医疗物品");
     expect(tarkovPageTitle("/guides/tarkov/tasks/abc")).toBe("任务");
     expect(tarkovPageTitle("/guides/tarkov/raid-prep")).toBe("联机大厅");
-    expect(tarkovPageTitle("/guides/tarkov/raid-prep/pulse-demo")).toBe(
-      "测试房间",
-    );
-    expect(tarkovPageTitle("/guides/tarkov/maps", "maintain=info")).toBe(
-      "地图信息",
-    );
-    expect(tarkovPageTitle("/guides/tarkov/maps/customs", "maintain=nav")).toBe(
-      "地图信息",
-    );
+    expect(tarkovPageTitle("/guides/tarkov/raid-prep/pulse-demo")).toBe("测试房间");
+    expect(tarkovPageTitle("/guides/tarkov/maps", "maintain=info")).toBe("地图信息");
+    expect(tarkovPageTitle("/guides/tarkov/maps/customs", "maintain=nav")).toBe("地图信息");
     expect(tarkovPageTitle("/guides/tarkov/maps/customs")).toBe("地图");
     expect(tarkovPageTitle("/guides/tarkov/hideout")).toBe("藏身处");
     expect(tarkovPageTitle("/guides/tarkov/workbench")).toBe("枪械工作台");
@@ -723,12 +606,8 @@ describe("tarkovPageTitle", () => {
 describe("tarkovGuideShellFills", () => {
   it("fills raid-prep rooms so the map has a definite height", () => {
     expect(tarkovGuideShellFills("/guides/tarkov/raid-prep")).toBe(true);
-    expect(
-      tarkovGuideShellFills("/guides/tarkov/raid-prep/rooms/cv4i6efn"),
-    ).toBe(true);
-    expect(tarkovGuideShellFills("/guides/tarkov/raid-prep/pulse-demo")).toBe(
-      true,
-    );
+    expect(tarkovGuideShellFills("/guides/tarkov/raid-prep/rooms/cv4i6efn")).toBe(true);
+    expect(tarkovGuideShellFills("/guides/tarkov/raid-prep/pulse-demo")).toBe(true);
     expect(tarkovGuideShellFills("/guides/tarkov/workbench")).toBe(true);
     expect(tarkovGuideShellFills("/guides/tarkov/workbench/ak74")).toBe(true);
     expect(tarkovGuideShellFills("/guides/tarkov/me", "collection")).toBe(true);
@@ -745,9 +624,9 @@ describe("tarkovWorkbenchHref", () => {
     expect(tarkovWorkbenchHref(undefined, { taskId: "gs" })).toBe(
       "/guides/tarkov/workbench?task=gs",
     );
-    expect(
-      tarkovWorkbenchHref("ak74", { taskId: "gs", objectiveId: "o1" }),
-    ).toBe("/guides/tarkov/workbench/ak74?task=gs&obj=o1");
+    expect(tarkovWorkbenchHref("ak74", { taskId: "gs", objectiveId: "o1" })).toBe(
+      "/guides/tarkov/workbench/ak74?task=gs&obj=o1",
+    );
   });
 });
 
@@ -766,9 +645,7 @@ describe("tarkov me tabs", () => {
     expect(tarkovMeHref("profile")).toBe("/guides/tarkov/me?tab=profile");
     expect(tarkovMeHref("hideout")).toBe("/guides/tarkov/me?tab=hideout");
     expect(tarkovHideoutHref()).toBe("/guides/tarkov/hideout");
-    expect(tarkovHideoutHref("workbench")).toBe(
-      "/guides/tarkov/hideout/workbench",
-    );
+    expect(tarkovHideoutHref("workbench")).toBe("/guides/tarkov/hideout/workbench");
     expect(tarkovMeHref("keys")).toBe("/guides/tarkov/me?tab=keys");
     expect(tarkovMeHref()).toBe("/guides/tarkov/me?tab=tasks");
   });

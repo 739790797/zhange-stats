@@ -80,14 +80,8 @@ describe("shouldDehydratePersistedQuery", () => {
 
 describe("isInitialQueryPending", () => {
   it("blocks UI only when there is no data yet", () => {
-    expect(isInitialQueryPending({ data: undefined, isPending: true })).toBe(
-      true,
-    );
-    expect(
-      isInitialQueryPending({ data: { bound: true }, isPending: false }),
-    ).toBe(false);
-    expect(
-      isInitialQueryPending({ data: { bound: true }, isPending: true }),
-    ).toBe(false);
+    expect(isInitialQueryPending({ data: undefined, isPending: true })).toBe(true);
+    expect(isInitialQueryPending({ data: { bound: true }, isPending: false })).toBe(false);
+    expect(isInitialQueryPending({ data: { bound: true }, isPending: true })).toBe(false);
   });
 });

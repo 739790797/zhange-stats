@@ -2,7 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Upload, message } from "antd";
 import type { UploadProps } from "antd";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { fetchMemberProfile, fetchMyProfile, startQqOAuthBind, startSteamOpenIdBind, unbindQq, updateMemberProfile, updateMyProfile, uploadMemberAvatar, uploadMyAvatar } from "@/features/profile/api/usersApi";
+import {
+  fetchMemberProfile,
+  fetchMyProfile,
+  startQqOAuthBind,
+  startSteamOpenIdBind,
+  unbindQq,
+  updateMemberProfile,
+  updateMyProfile,
+  uploadMemberAvatar,
+  uploadMyAvatar,
+} from "@/features/profile/api/usersApi";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
 import { unbindSkland } from "@/features/platforms/skland/api/sklandApi";
 import { unbindTaygedo } from "@/features/platforms/taygedo/api/taygedoApi";
@@ -54,8 +64,7 @@ export default function ProfileSettingsPage() {
 
   const { data, isLoading, error, isError } = useQuery({
     queryKey: profileQueryKey,
-    queryFn: () =>
-      isAdminEdit ? fetchMemberProfile(targetMemberId) : fetchMyProfile(),
+    queryFn: () => (isAdminEdit ? fetchMemberProfile(targetMemberId) : fetchMyProfile()),
     enabled: !isAdminEdit || Number.isFinite(targetMemberId),
     retry: false,
     staleTime: LOCAL_QUERY_STALE_MS,
@@ -69,9 +78,7 @@ export default function ProfileSettingsPage() {
   });
 
   const saveProfilePatch = (payload: ProfilePayload) =>
-    isAdminEdit
-      ? updateMemberProfile(targetMemberId, payload)
-      : updateMyProfile(payload);
+    isAdminEdit ? updateMemberProfile(targetMemberId, payload) : updateMyProfile(payload);
 
   const invalidateProfile = () => {
     queryClient.invalidateQueries({ queryKey: profileQueryKey });
@@ -91,16 +98,14 @@ export default function ProfileSettingsPage() {
     if (isAdminEdit || !authUser) return;
     setUser({
       ...authUser,
-      display_name:
-        profile.display_name || profile.nickname || authUser.display_name,
+      display_name: profile.display_name || profile.nickname || authUser.display_name,
       avatar_url: profile.avatar_url ?? null,
       steam_id: profile.steam_id ?? null,
     });
   };
 
   const startSteamBind = useMutation({
-    mutationFn: async () =>
-      startSteamOpenIdBind(isAdminEdit ? targetMemberId : undefined),
+    mutationFn: async () => startSteamOpenIdBind(isAdminEdit ? targetMemberId : undefined),
     onSuccess: ({ url }) => {
       window.location.href = url;
     },
@@ -108,8 +113,7 @@ export default function ProfileSettingsPage() {
   });
 
   const startQqBind = useMutation({
-    mutationFn: async () =>
-      startQqOAuthBind(isAdminEdit ? targetMemberId : undefined),
+    mutationFn: async () => startQqOAuthBind(isAdminEdit ? targetMemberId : undefined),
     onSuccess: ({ url }) => {
       window.location.href = url;
     },
@@ -127,8 +131,7 @@ export default function ProfileSettingsPage() {
   });
 
   const unbindQqMut = useMutation({
-    mutationFn: async () =>
-      unbindQq(isAdminEdit ? targetMemberId : undefined),
+    mutationFn: async () => unbindQq(isAdminEdit ? targetMemberId : undefined),
     onSuccess: () => {
       message.success("已解除 QQ 绑定");
       invalidateProfile();
@@ -190,9 +193,7 @@ export default function ProfileSettingsPage() {
 
   const uploadAvatar = useMutation({
     mutationFn: async (file: File) =>
-      isAdminEdit
-        ? uploadMemberAvatar(targetMemberId, file)
-        : uploadMyAvatar(file),
+      isAdminEdit ? uploadMemberAvatar(targetMemberId, file) : uploadMyAvatar(file),
     onSuccess: (profile) => {
       message.success("头像已更新");
       invalidateProfile();
@@ -202,9 +203,7 @@ export default function ProfileSettingsPage() {
   });
 
   const beforeUpload: UploadProps["beforeUpload"] = (file) => {
-    const okType = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(
-      file.type,
-    );
+    const okType = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type);
     if (!okType) {
       message.error("仅支持 JPG / PNG / WebP / GIF");
       return Upload.LIST_IGNORE;
@@ -226,15 +225,9 @@ export default function ProfileSettingsPage() {
   const exiliumBound = Boolean(data?.exilium_bound);
   const kujiequBound = Boolean(data?.kujiequ_bound);
   const mihoyoBound = Boolean(data?.mihoyo_bound);
-  const displayName =
-    data?.display_name ||
-    data?.nickname ||
-    "-";
+  const displayName = data?.display_name || data?.nickname || "-";
   const subjectLabel =
-    data?.display_name ||
-    data?.nickname ||
-    data?.email ||
-    `成员 #${targetMemberId}`;
+    data?.display_name || data?.nickname || data?.email || `成员 #${targetMemberId}`;
 
   return (
     <div>
@@ -245,9 +238,7 @@ export default function ProfileSettingsPage() {
             ? `正在编辑：${subjectLabel}（管理员代操作：需用目标 Steam 账号完成登录）`
             : "绑定平台账号、选择加入本站的角色；也可修改登录密码与头像"
         }
-        extra={
-          isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined
-        }
+        extra={isAdminEdit ? <Link to="/settings/users">返回用户管理</Link> : undefined}
       />
 
       {isAdminEdit ? (

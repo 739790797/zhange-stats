@@ -2,10 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
 import { Alert, Card, Empty, Space, Typography } from "antd";
 import type { ReactNode } from "react";
-import {
-  bindTokenErrorMessage,
-  isBindTokenBroken,
-} from "@/features/daily/model/checkinStatus";
+import { bindTokenErrorMessage, isBindTokenBroken } from "@/features/daily/model/checkinStatus";
 import { isInitialQueryPending } from "@/shared/lib/queryCache";
 
 /** 兑换页绑定门禁所需的最小 status 面 */
@@ -101,16 +98,13 @@ export function ExchangePageTemplate<TShop>({
           type={tokenBroken ? "warning" : "info"}
           showIcon
           message={
-            tokenBroken
-              ? `${bindName}凭证可能已失效`
-              : unboundMessage || `尚未绑定${bindName}`
+            tokenBroken ? `${bindName}凭证可能已失效` : unboundMessage || `尚未绑定${bindName}`
           }
-            description={
-              tokenBroken
-                ? bindTokenErrorMessage(statusQuery.data) ||
-                  "请重新绑定后再兑换。"
-                : undefined
-            }
+          description={
+            tokenBroken
+              ? bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再兑换。"
+              : undefined
+          }
         />
         <Card>{bindPanel}</Card>
         {bindFooter}
@@ -149,10 +143,7 @@ export function ExchangePageTemplate<TShop>({
           <Typography.Text type="secondary" style={{ display: "block" }}>
             {balanceLabel}
           </Typography.Text>
-          <Typography.Text
-            strong
-            style={{ fontSize: 28, color: "#d48806", lineHeight: 1.2 }}
-          >
+          <Typography.Text strong style={{ fontSize: 28, color: "#d48806", lineHeight: 1.2 }}>
             {balanceValue(shop)}
           </Typography.Text>
           {balanceExtra?.(shop)}
@@ -161,10 +152,7 @@ export function ExchangePageTemplate<TShop>({
           <Typography.Text strong style={{ fontSize: 16 }}>
             兑换商城
           </Typography.Text>
-          <Typography.Paragraph
-            type="secondary"
-            style={{ margin: "6px 0 0", fontSize: 13 }}
-          >
+          <Typography.Paragraph type="secondary" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {description}
           </Typography.Paragraph>
         </Card>

@@ -74,22 +74,14 @@ function namedLabel(item: { id?: string | null; name?: string | null } | null | 
   return name || ident;
 }
 
-function ObjectiveItem({
-  item,
-  count,
-}: {
-  item: NamedRef;
-  count?: number | null;
-}) {
+function ObjectiveItem({ item, count }: { item: NamedRef; count?: number | null }) {
   const thumb = transparentThumbUrl(item.icon_link) || item.icon_link;
   const label = namedLabel(item);
   const body = (
     <>
       <span className={styles.itemTileIconWrap}>
         {thumb ? <img className={styles.itemTileIcon} src={thumb} alt="" /> : null}
-        {count && count > 1 ? (
-          <span className={styles.objItemCount}>×{count}</span>
-        ) : null}
+        {count && count > 1 ? <span className={styles.objItemCount}>×{count}</span> : null}
       </span>
       <span className={styles.itemTileName}>{label}</span>
     </>
@@ -139,13 +131,7 @@ function MetaStrip({ lines }: { lines: string[] }) {
   );
 }
 
-function ItemGrid({
-  label,
-  children,
-}: {
-  label?: string;
-  children: ReactNode;
-}) {
+function ItemGrid({ label, children }: { label?: string; children: ReactNode }) {
   return (
     <div className={styles.itemGridWrap}>
       {label ? <div className={styles.objGroupLabel}>{label}</div> : null}
@@ -154,13 +140,7 @@ function ItemGrid({
   );
 }
 
-function ItemGroup({
-  label,
-  groups,
-}: {
-  label: string;
-  groups: NamedRef[][] | undefined;
-}) {
+function ItemGroup({ label, groups }: { label: string; groups: NamedRef[][] | undefined }) {
   if (!groups?.length) return null;
   return (
     <div className={styles.itemGridWrap}>
@@ -184,10 +164,7 @@ function RequiredKeyGroups({ groups }: { groups: NamedRef[][] | undefined }) {
   return (
     <>
       {groups.map((group, index) => (
-        <ItemGrid
-          key={`rk-${index}`}
-          label={groups.length > 1 ? `钥匙 ${index + 1}` : "所需钥匙"}
-        >
+        <ItemGrid key={`rk-${index}`} label={groups.length > 1 ? `钥匙 ${index + 1}` : "所需钥匙"}>
           {group.map((item, itemIndex) => (
             <span key={item.id || `${index}-${itemIndex}`} className={styles.itemGridGroup}>
               {itemIndex > 0 ? <span className={styles.itemGridOr}>或</span> : null}
@@ -232,8 +209,7 @@ function ObjectiveRow({ obj, taskId }: { obj: Objective; taskId?: string }) {
   const showItems = items.length > 0;
   const extraLines = formatTaskObjectiveExtraLines({
     ...obj,
-    count:
-      items.length === 1 || extractLines.length ? null : obj.count,
+    count: items.length === 1 || extractLines.length ? null : obj.count,
   });
   const boxLines = [...extractLines, ...extraLines];
   const countForSingle = items.length === 1 ? obj.count : null;
@@ -253,9 +229,7 @@ function ObjectiveRow({ obj, taskId }: { obj: Objective; taskId?: string }) {
       <div className={styles.objBody}>
         <div className={styles.objTitle}>
           {obj.optional ? <span className={styles.tag}>可选</span> : null}
-          {obj.found_in_raid ? (
-            <span className={styles.tag}>战局内</span>
-          ) : null}
+          {obj.found_in_raid ? <span className={styles.tag}>战局内</span> : null}
           {typeLabel ? (
             <span
               className={`${taskStyles.typeChip} ${styles.objTypeChip}`}
@@ -405,9 +379,7 @@ function leftoverFailConditions(conditions: FailCondition[]): FailCondition[] {
   return conditions.filter((row) => {
     const type = (row.type || "").trim();
     if (!type) return Boolean((row.description || "").trim());
-    return !["taskStatus", "extract", "useItem", "traderStanding", "shoot"].includes(
-      type,
-    );
+    return !["taskStatus", "extract", "useItem", "traderStanding", "shoot"].includes(type);
   });
 }
 
@@ -425,13 +397,7 @@ function rewardsHaveContent(rewards: Rewards | undefined): boolean {
   );
 }
 
-function RewardCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+function RewardCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className={styles.rewardCard}>
       <div className={styles.rewardCardHead}>{title}</div>
@@ -458,9 +424,7 @@ function RewardLine({
       {icon ? <img className={styles.rewardLineIcon} src={icon} alt="" /> : null}
       <span className={styles.rewardLineName}>{name}</span>
       {value != null ? (
-        <span className={accent ? styles.rewardGold : styles.rewardLineValue}>
-          {value}
-        </span>
+        <span className={accent ? styles.rewardGold : styles.rewardLineValue}>{value}</span>
       ) : null}
     </>
   );
@@ -553,7 +517,9 @@ function RewardsBlock({
               return (
                 <RewardLine
                   key={row.id || item?.id}
-                  href={item ? itemHref(item) : trader?.slug ? tarkovTraderHref(trader.slug) : undefined}
+                  href={
+                    item ? itemHref(item) : trader?.slug ? tarkovTraderHref(trader.slug) : undefined
+                  }
                   icon={item?.icon_link}
                   name={
                     <>
@@ -597,11 +563,7 @@ function RewardsBlock({
               <RewardLine
                 key={row.id}
                 href={row.slug ? tarkovTraderHref(row.slug) : undefined}
-                name={
-                  row.slug
-                    ? traderDisplayName(row.slug, row.name || row.id)
-                    : namedLabel(row)
-                }
+                name={row.slug ? traderDisplayName(row.slug, row.name || row.id) : namedLabel(row)}
               />
             ))}
           </RewardCard>
@@ -620,11 +582,7 @@ function RewardsBlock({
         {rewards?.achievement?.length ? (
           <RewardCard title="成就">
             {rewards.achievement.map((row) => (
-              <RewardLine
-                key={row.id}
-                icon={row.image_link}
-                name={namedLabel(row)}
-              />
+              <RewardLine key={row.id} icon={row.image_link} name={namedLabel(row)} />
             ))}
           </RewardCard>
         ) : null}
@@ -670,9 +628,7 @@ function FailSection({
         <span className={styles.sectionRule} aria-hidden />
       </h2>
       <div className={styles.failBox}>
-        {restartable ? (
-          <div className={styles.muted}>失败后可重新接取。</div>
-        ) : null}
+        {restartable ? <div className={styles.muted}>失败后可重新接取。</div> : null}
         {chips.length ? (
           <div className={styles.failList}>
             {chips.map((chip) => (
@@ -733,11 +689,7 @@ export function TarkovTaskObjectivesRewards({
         {objectives.length ? (
           <div className={styles.objList}>
             {objectives.map((obj) => (
-              <ObjectiveRow
-                key={obj.id || obj.description}
-                obj={obj}
-                taskId={detail.id}
-              />
+              <ObjectiveRow key={obj.id || obj.description} obj={obj} taskId={detail.id} />
             ))}
           </div>
         ) : (
@@ -753,10 +705,7 @@ export function TarkovTaskObjectivesRewards({
           </h2>
           <div className={styles.keys}>
             {keys.map((row, index) => (
-              <div
-                key={`${row.map?.id || "map"}-${index}`}
-                className={styles.keyGroup}
-              >
+              <div key={`${row.map?.id || "map"}-${index}`} className={styles.keyGroup}>
                 <div className={styles.keyMap}>
                   <MapNameLink slug={row.map?.slug} name={row.map?.name} />
                 </div>
@@ -770,9 +719,7 @@ export function TarkovTaskObjectivesRewards({
           </div>
         </section>
       ) : null}
-      {showStart ? (
-        <RewardsBlock id="task-start-rewards" title="接取奖励" rewards={start} />
-      ) : null}
+      {showStart ? <RewardsBlock id="task-start-rewards" title="接取奖励" rewards={start} /> : null}
       <RewardsBlock
         id="task-finish-rewards"
         title="完成奖励"
@@ -780,11 +727,7 @@ export function TarkovTaskObjectivesRewards({
         experience={detail.experience}
       />
       {rewardsHaveContent(detail.fail_rewards) ? (
-        <RewardsBlock
-          id="task-fail-rewards"
-          title="失败惩罚"
-          rewards={detail.fail_rewards}
-        />
+        <RewardsBlock id="task-fail-rewards" title="失败惩罚" rewards={detail.fail_rewards} />
       ) : null}
       <FailSection
         id="task-fail"

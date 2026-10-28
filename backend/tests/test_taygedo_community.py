@@ -44,9 +44,7 @@ def _creds() -> TaygedoCredentials:
 
 
 def test_query_app_today_pending() -> None:
-    with patch(
-        "app.services.taygedo.attendance._get_app_sign_state", return_value=False
-    ):
+    with patch("app.services.taygedo.attendance._get_app_sign_state", return_value=False):
         r = query_app_today(_creds())
     assert r.game_code == GAME_APP
     assert r.channel_name == "社区"
@@ -58,9 +56,7 @@ def test_query_app_today_pending() -> None:
 
 def test_query_app_today_already_with_awards() -> None:
     with (
-        patch(
-            "app.services.taygedo.attendance._get_app_sign_state", return_value=True
-        ),
+        patch("app.services.taygedo.attendance._get_app_sign_state", return_value=True),
         patch(
             "app.services.taygedo.attendance._app_signin_awards_from_tasks",
             return_value=("塔塔币+40", [{"name": "塔塔币", "count": 40, "resource_type": "gold"}]),
@@ -83,9 +79,7 @@ def test_query_app_today_already_with_awards() -> None:
 
 
 def test_query_app_today_state_unavailable() -> None:
-    with patch(
-        "app.services.taygedo.attendance._app_signed_today", return_value=None
-    ):
+    with patch("app.services.taygedo.attendance._app_signed_today", return_value=None):
         r = query_app_today(_creds())
     assert r.status == "error"
     assert "查询社区签到状态失败" in (r.message or "")
@@ -191,9 +185,7 @@ def test_query_today_all_community_first() -> None:
         role_id="r1",
         role_name="主角",
     )
-    community = MagicMock(
-        game_code=GAME_APP, role_uid="u100", role_name="社区账号"
-    )
+    community = MagicMock(game_code=GAME_APP, role_uid="u100", role_name="社区账号")
     game = MagicMock(game_code=GAME_NTE, role_uid="r1", role_name="主角")
     with (
         patch(
@@ -219,9 +211,7 @@ def test_query_today_all_community_first() -> None:
 
 def test_checkin_target_app_calls_signin() -> None:
     expected = MagicMock(game_code=GAME_APP, channel_name="社区")
-    with patch(
-        "app.services.taygedo.attendance.app_signin", return_value=expected
-    ) as sign:
+    with patch("app.services.taygedo.attendance.app_signin", return_value=expected) as sign:
         out = checkin_target(_creds(), game_code=GAME_APP, role=None)
     assert out is expected
     sign.assert_called_once()
@@ -488,9 +478,7 @@ def test_exchange_shop_goods_uses_app_headers_and_count() -> None:
         return 200, {"code": 0, "data": {"ok": True}}
 
     with patch("app.services.taygedo.attendance._http", side_effect=_fake_http):
-        out = exchange_shop_goods(
-            _creds(), goods_id="12", game_id="1289", role_id="219000995082"
-        )
+        out = exchange_shop_goods(_creds(), goods_id="12", game_id="1289", role_id="219000995082")
     assert out.get("ok") is True
     assert captured["method"] == "POST"
     assert captured["url"].endswith("/apihub/api/shop/exchange")
@@ -657,12 +645,8 @@ def test_checkin_probes_session_and_lists_roles_once(taygedo_db) -> None:
         )
 
     with (
-        patch(
-            "app.services.taygedo.attendance.ensure_session", side_effect=lambda c: c
-        ) as ensure,
-        patch(
-            "app.services.taygedo.attendance.list_all_game_roles", return_value=[role]
-        ) as list_roles,
+        patch("app.services.taygedo.attendance.ensure_session", side_effect=lambda c: c) as ensure,
+        patch("app.services.taygedo.attendance.list_all_game_roles", return_value=[role]) as list_roles,
         patch(
             "app.services.taygedo.attendance.query_app_today",
             return_value=result(GAME_APP, "u100", "already"),

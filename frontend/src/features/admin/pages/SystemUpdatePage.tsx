@@ -1,15 +1,6 @@
 import { CloudSyncOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Card,
-  Modal,
-  Space,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Card, Modal, Space, Tag, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 import {
   checkAppUpdate,
@@ -36,8 +27,7 @@ export default function SystemUpdatePage() {
   const statusQuery = useQuery({
     queryKey: ["app-update-status"],
     queryFn: fetchAppUpdateStatus,
-    refetchInterval: (q) =>
-      q.state.data?.busy || waitingRestart ? 2000 : false,
+    refetchInterval: (q) => (q.state.data?.busy || waitingRestart ? 2000 : false),
   });
 
   const checkMutation = useMutation({
@@ -75,9 +65,7 @@ export default function SystemUpdatePage() {
               await queryClient.refetchQueries({
                 queryKey: ["app-update-status"],
               });
-              const st = queryClient.getQueryData<AppUpdateStatus>([
-                "app-update-status",
-              ]);
+              const st = queryClient.getQueryData<AppUpdateStatus>(["app-update-status"]);
               return st?.error || null;
             },
           });
@@ -88,9 +76,7 @@ export default function SystemUpdatePage() {
           window.setTimeout(() => window.location.reload(), RELOAD_AFTER_UPDATE_MS);
         } catch (e: unknown) {
           if (controller.signal.aborted) return;
-          const st = queryClient.getQueryData<AppUpdateStatus>([
-            "app-update-status",
-          ]);
+          const st = queryClient.getQueryData<AppUpdateStatus>(["app-update-status"]);
           if (st?.error) {
             message.error(st.error);
           } else {
@@ -192,9 +178,7 @@ export default function SystemUpdatePage() {
             </Typography.Paragraph>
           ) : null}
 
-          {status?.error ? (
-            <Alert type="error" showIcon message={status.error} />
-          ) : null}
+          {status?.error ? <Alert type="error" showIcon message={status.error} /> : null}
         </Space>
       </Card>
     </div>

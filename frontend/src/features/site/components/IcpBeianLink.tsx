@@ -30,9 +30,7 @@ export function IcpBeianLink({ light = false, className, style }: Props) {
         alignItems: "center",
         gap: 4,
         textDecoration: "none",
-        ...(light
-          ? { color: "rgba(255,255,255,0.45)", fontSize: 12 }
-          : {}),
+        ...(light ? { color: "rgba(255,255,255,0.45)", fontSize: 12 } : {}),
         ...style,
       }}
     >
@@ -66,10 +64,7 @@ export function IcpBeianFooter({ variant = "default" }: FooterProps) {
   if (!siteIcpBeianNo(data?.icp_beian_no)) return null;
   return (
     <div
-      className={[
-        "app-icp-footer",
-        variant === "tarkov" ? "app-icp-footer--tarkov" : "",
-      ]
+      className={["app-icp-footer", variant === "tarkov" ? "app-icp-footer--tarkov" : ""]
         .filter(Boolean)
         .join(" ")}
     >

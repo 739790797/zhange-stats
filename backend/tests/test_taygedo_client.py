@@ -68,9 +68,7 @@ def test_refresh_access_token_uses_usercenter_protocol() -> None:
         }
 
     with patch("app.services.taygedo.client._http", side_effect=fake_http):
-        out = refresh_access_token(
-            _creds(phone="13800000000", laohu_token="ltok", laohu_user_id="42")
-        )
+        out = refresh_access_token(_creds(phone="13800000000", laohu_token="ltok", laohu_user_id="42"))
     assert captured["method"] == "POST"
     assert str(captured["url"]).endswith("/usercenter/api/refreshToken")
     headers = captured["headers"]

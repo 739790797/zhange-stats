@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import rawMaps from "@/features/guides/tarkov/data/tarkov-dev-maps.json";
 import type { TarkovDevMapGroup } from "./tarkovMapImages";
-import {
-  hasTarkovMapLabel,
-  tarkovBossMapLabel,
-  tarkovMapLabel,
-} from "./tarkovMapLabelsZh";
+import { hasTarkovMapLabel, tarkovBossMapLabel, tarkovMapLabel } from "./tarkovMapLabelsZh";
 
 describe("tarkovMapLabel", () => {
   it("translates iconic place names used on the map overlay", () => {

@@ -168,32 +168,19 @@ _SAMPLES: tuple[dict, ...] = (
 
 def _stamp(days_ago: int, hour: int, minute: int):
     now = now_naive()
-    when = (now - timedelta(days=days_ago)).replace(
-        hour=hour, minute=minute, second=0, microsecond=0
-    )
+    when = (now - timedelta(days=days_ago)).replace(hour=hour, minute=minute, second=0, microsecond=0)
     if when > now:
         when = now - timedelta(minutes=3)
     return when
 
 
 def _commenters(db: Session, admin: User) -> list[User]:
-    others = (
-        db.query(User)
-        .filter(User.id != admin.id)
-        .order_by(User.id.asc())
-        .limit(3)
-        .all()
-    )
+    others = db.query(User).filter(User.id != admin.id).order_by(User.id.asc()).limit(3).all()
     return others or [admin]
 
 
 def _refresh_welcome(db: Session, notice: ArticleCategory) -> None:
-    row = (
-        db.query(Article)
-        .options(selectinload(Article.categories))
-        .filter(Article.slug == WELCOME_SLUG)
-        .first()
-    )
+    row = db.query(Article).options(selectinload(Article.categories)).filter(Article.slug == WELCOME_SLUG).first()
     if row is None:
         return
     changed = False
@@ -209,9 +196,7 @@ def _refresh_welcome(db: Session, notice: ArticleCategory) -> None:
         db.commit()
 
 
-def _apply_sample_categories(
-    db: Session, cats: dict[str, ArticleCategory]
-) -> None:
+def _apply_sample_categories(db: Session, cats: dict[str, ArticleCategory]) -> None:
     mapping = {spec["slug"]: spec["category"] for spec in _SAMPLES}
     mapping[WELCOME_SLUG] = "notice"
     changed = False
@@ -219,12 +204,7 @@ def _apply_sample_categories(
         cat = cats.get(cat_key)
         if cat is None:
             continue
-        row = (
-            db.query(Article)
-            .options(selectinload(Article.categories))
-            .filter(Article.slug == slug)
-            .first()
-        )
+        row = db.query(Article).options(selectinload(Article.categories)).filter(Article.slug == slug).first()
         if row is None:
             continue
         if [item.id for item in row.categories] != [cat.id]:
@@ -238,12 +218,7 @@ def ensure_dev_sample_articles(db: Session) -> dict:
     """幂等写入分类、示例稿和少量评论。仅 CLI 灌数；生产与启动路径不调用。"""
     if get_settings().is_production:
         return {"created": 0, "skipped": "production"}
-    admin = (
-        db.query(User)
-        .filter(User.role == UserRole.admin)
-        .order_by(User.id.asc())
-        .first()
-    )
+    admin = db.query(User).filter(User.role == UserRole.admin).order_by(User.id.asc()).first()
     if admin is None:
         return {"created": 0, "skipped": "no-admin"}
 

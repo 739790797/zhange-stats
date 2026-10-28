@@ -13,16 +13,14 @@ export function articleCategoryChipColor(
   return articleCategoryChipHex(cat) || DEFAULT_ARTICLE_CATEGORY_CHIP;
 }
 
-export function selectableArticleCategories<
-  T extends { admin_only?: boolean },
->(cats: T[], canAdmin: boolean): T[] {
+export function selectableArticleCategories<T extends { admin_only?: boolean }>(
+  cats: T[],
+  canAdmin: boolean,
+): T[] {
   if (canAdmin) return cats;
   return cats.filter((cat) => !cat.admin_only);
 }
 
-export function articleCategoryOptionLabel(cat: {
-  name: string;
-  admin_only?: boolean;
-}): string {
+export function articleCategoryOptionLabel(cat: { name: string; admin_only?: boolean }): string {
   return cat.admin_only ? `${cat.name}（仅管理员）` : cat.name;
 }

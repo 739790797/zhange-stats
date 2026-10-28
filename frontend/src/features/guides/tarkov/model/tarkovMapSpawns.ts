@@ -43,9 +43,7 @@ export type TarkovBossMarkerIcon = {
 };
 
 /** kind=boss 用带 BOSS 字样的骷髅；精英和小兵仍用原出生点骷髅。 */
-export function tarkovBossMarkerIcon(
-  kind: string | null | undefined,
-): TarkovBossMarkerIcon {
+export function tarkovBossMarkerIcon(kind: string | null | undefined): TarkovBossMarkerIcon {
   if (normalizeBossKind(kind) === "boss") {
     return {
       iconUrl: "/tarkov/map-icons/spawn_boss_named.png",
@@ -66,7 +64,9 @@ export function spawnKindsPresent(input: {
 }): TarkovSpawnKind[] {
   const seen = new Set<TarkovSpawnKind>();
   for (const row of input.spawns || []) {
-    const kind = String(row.kind || "").trim().toLowerCase();
+    const kind = String(row.kind || "")
+      .trim()
+      .toLowerCase();
     if (kind === "pmc" || kind === "scav" || kind === "sniper") seen.add(kind);
   }
   if ((input.bosses || []).length) seen.add("boss");

@@ -2,10 +2,7 @@ import { QqOutlined } from "@ant-design/icons";
 import { Avatar, Button, Popconfirm, Typography } from "antd";
 import type { MemberProfile } from "@/features/profile/api/types";
 import { BindActionSlots } from "@/features/profile/components/BindActionSlots";
-import {
-  BIND_ROW_ICON_SIZE,
-  BindStatusTitle,
-} from "@/features/profile/components/BindStatusTitle";
+import { BIND_ROW_ICON_SIZE, BindStatusTitle } from "@/features/profile/components/BindStatusTitle";
 
 function QqBindMark() {
   return (

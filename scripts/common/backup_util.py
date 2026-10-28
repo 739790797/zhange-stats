@@ -37,9 +37,7 @@ SQL_DUMP_NAME = "zhange.sql"
 DATA_TREES = ("data/runtime", "data/uploads", "data/models")
 LEGACY_TREES = {"data/runtime": "var/data", "data/uploads": "var/uploads"}
 # Transient or regenerated entries directly under data/runtime.
-RUNTIME_SKIP = frozenset(
-    {"update-tmp", "update.lock", "setup-token", "tmp", "cache", "tarkov_pw_profile"}
-)
+RUNTIME_SKIP = frozenset({"update-tmp", "update.lock", "setup-token", "tmp", "cache", "tarkov_pw_profile"})
 SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
 DUMP_TOOLS = ("mysqldump", "mariadb-dump")
 CLIENT_TOOLS = ("mysql", "mariadb")
@@ -93,7 +91,10 @@ def sqlite_path_from_url(url: str, root: Path) -> Optional[Path]:
     raw = unquote(rest.split("?", 1)[0])
     if not raw or raw == ":memory:":
         return None
-    path = Path(raw)
+    if os.name == "nt" and raw.startswith("/"):
+        path = Path(Path.cwd().anchor) / raw.lstrip("/")
+    else:
+        path = Path(raw)
     # SQLAlchemy resolves relative sqlite URLs against the process cwd, which is backend/.
     return path if path.is_absolute() else root / "backend" / path
 
@@ -182,8 +183,7 @@ def find_tool(root: Path, names: Sequence[str]) -> str:
                 if candidate.is_file():
                     return str(candidate)
     raise BackupError(
-        f"缺少 {names[0]}：请安装 MariaDB/MySQL 客户端并加入 PATH"
-        "（Windows 便携包放在 data/mariadb/dist 下也能找到）"
+        f"缺少 {names[0]}：请安装 MariaDB/MySQL 客户端并加入 PATH（Windows 便携包放在 data/mariadb/dist 下也能找到）"
     )
 
 
@@ -244,9 +244,7 @@ def dump_revisions(dump: Path) -> list[str]:
         with dump.open("rb") as fh:
             for line in fh:
                 if line.startswith(_ALEMBIC_INSERT):
-                    found.update(
-                        m.decode("utf-8", "replace") for m in re.findall(rb"'([^'\\]+)'", line)
-                    )
+                    found.update(m.decode("utf-8", "replace") for m in re.findall(rb"'([^'\\]+)'", line))
     except OSError:
         return []
     return sorted(found)
@@ -299,9 +297,7 @@ def _arcname_in_root(path: Path, root: Path) -> Optional[str]:
     return rel if rel not in ("", ".") else None
 
 
-def _member_filter(
-    top: str, skip: frozenset[str]
-) -> Callable[[tarfile.TarInfo], Optional[tarfile.TarInfo]]:
+def _member_filter(top: str, skip: frozenset[str]) -> Callable[[tarfile.TarInfo], Optional[tarfile.TarInfo]]:
     def keep(info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
         name = info.name
         if name in skip or info.issym() or info.isdev():
@@ -315,6 +311,7 @@ def _member_filter(
         if top == "data/models" and base.endswith(".part"):
             return None
         return info
+
     return keep
 
 
@@ -427,9 +424,7 @@ def cmd_backup(args: argparse.Namespace) -> int:
     else:
         log("尚未选库，只打包 config/ 与 data/")
 
-    write_archive(
-        root, out, manifest=manifest, dump=dump, sqlite_copy=sqlite_copy, skip=frozenset(skip)
-    )
+    write_archive(root, out, manifest=manifest, dump=dump, sqlite_copy=sqlite_copy, skip=frozenset(skip))
     revs = ", ".join(manifest["alembic_revisions"]) or "-"
     log(f"已写入 {out}（{_human_size(out.stat().st_size)}；v{manifest['version']}，迁移 {revs}）")
     return 0
@@ -543,9 +538,7 @@ def cmd_load_db(args: argparse.Namespace) -> int:
         tool = find_tool(root, CLIENT_TOOLS)
         log(f"导入 {conn.database} @ {conn.where}")
         with dump.open("rb") as fh:
-            proc = subprocess.run(
-                [tool, *conn.client_args(), conn.database], stdin=fh, env=conn.env(), check=False
-            )
+            proc = subprocess.run([tool, *conn.client_args(), conn.database], stdin=fh, env=conn.env(), check=False)
         if proc.returncode != 0:
             raise BackupError(f"mysql 导入失败（exit={proc.returncode}）")
 

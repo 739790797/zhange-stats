@@ -10,7 +10,8 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@zhange-base/*": ["vendor/zhange-base/design-system/*"]
     },
 
     /* Bundler mode */

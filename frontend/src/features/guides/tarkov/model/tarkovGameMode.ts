@@ -20,9 +20,7 @@ export function parseTarkovGameMode(raw: unknown): TarkovGameMode {
 export function loadTarkovGameMode(): TarkovGameMode {
   if (typeof window === "undefined") return "pvp";
   try {
-    return parseTarkovGameMode(
-      window.localStorage.getItem(TARKOV_GAME_MODE_STORAGE_KEY),
-    );
+    return parseTarkovGameMode(window.localStorage.getItem(TARKOV_GAME_MODE_STORAGE_KEY));
   } catch {
     return "pvp";
   }

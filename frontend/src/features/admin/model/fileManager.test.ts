@@ -39,7 +39,9 @@ describe("fileManager", () => {
   it("joins and splits relative paths", () => {
     expect(joinFileRel("", "data")).toBe("data");
     expect(joinFileRel("data", "texteller")).toBe("data/texteller");
-    expect(joinFileRel("data\\texteller", "encoder_model.onnx")).toBe("data/texteller/encoder_model.onnx");
+    expect(joinFileRel("data\\texteller", "encoder_model.onnx")).toBe(
+      "data/texteller/encoder_model.onnx",
+    );
     expect(parentFileRel("data/texteller/encoder_model.onnx")).toBe("data/texteller");
     expect(parentFileRel("data")).toBe("");
     expect(parentFileRel("")).toBe("");
@@ -90,14 +92,9 @@ describe("fileManager", () => {
 
   it("parses content-disposition filenames", () => {
     expect(
-      filenameFromDisposition(
-        "attachment; filename*=UTF-8''%E6%9D%83%E9%87%8D.onnx",
-        "x",
-      ),
+      filenameFromDisposition("attachment; filename*=UTF-8''%E6%9D%83%E9%87%8D.onnx", "x"),
     ).toBe("权重.onnx");
-    expect(
-      filenameFromDisposition('attachment; filename="plain.bin"', "x"),
-    ).toBe("plain.bin");
+    expect(filenameFromDisposition('attachment; filename="plain.bin"', "x")).toBe("plain.bin");
   });
 
   it("stacks site vs other vs free on the install volume", () => {

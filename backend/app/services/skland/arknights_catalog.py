@@ -91,11 +91,7 @@ def operator_count(db: Session) -> int:
 
 
 def get_catalog_meta(db: Session) -> ArknightsCatalogMeta | None:
-    return (
-        db.query(ArknightsCatalogMeta)
-        .filter(ArknightsCatalogMeta.id == META_ROW_ID)
-        .one_or_none()
-    )
+    return db.query(ArknightsCatalogMeta).filter(ArknightsCatalogMeta.id == META_ROW_ID).one_or_none()
 
 
 def list_operators(db: Session) -> list[ArknightsOperator]:

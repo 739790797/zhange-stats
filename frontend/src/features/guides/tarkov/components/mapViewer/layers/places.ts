@@ -3,7 +3,6 @@
 import { escapeHtml } from "@/shared/lib/escapeHtml";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import { pos } from "@/features/guides/tarkov/model/tarkovMapCrs";
 import {
   PLACE_LABEL_FONT_PX,

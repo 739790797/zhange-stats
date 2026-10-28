@@ -27,10 +27,7 @@ function paintBlankPad(canvas: HTMLCanvasElement) {
   ctx.lineJoin = "round";
 }
 
-function canvasPoint(
-  canvas: HTMLCanvasElement,
-  event: { clientX: number; clientY: number },
-) {
+function canvasPoint(canvas: HTMLCanvasElement, event: { clientX: number; clientY: number }) {
   const rect = canvas.getBoundingClientRect();
   return {
     x: ((event.clientX - rect.left) / rect.width) * canvas.width,
@@ -275,11 +272,7 @@ export function ArticleMathModal({
         />
         <div className={styles.mathPreview}>
           {preview.error ? (
-            <span
-              className={
-                draft.trim() ? styles.mathPreviewError : styles.mutedHint
-              }
-            >
+            <span className={draft.trim() ? styles.mathPreviewError : styles.mutedHint}>
               {draft.trim() ? preview.error : "预览"}
             </span>
           ) : (

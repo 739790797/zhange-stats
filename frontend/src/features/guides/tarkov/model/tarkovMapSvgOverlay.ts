@@ -36,11 +36,7 @@ export function svgBasemapZoomLimit(
 }
 
 /** >1 表示当前像素尺寸已经超过上限，元素要缩小这么多倍再 scale 回去。 */
-export function svgOverlayScale(
-  width: number,
-  height: number,
-  capPx = SVG_OVERLAY_MAX_PX,
-): number {
+export function svgOverlayScale(width: number, height: number, capPx = SVG_OVERLAY_MAX_PX): number {
   const long = Math.max(width, height);
   if (!Number.isFinite(long) || long <= capPx || !Number.isFinite(capPx) || capPx <= 0) {
     return 1;

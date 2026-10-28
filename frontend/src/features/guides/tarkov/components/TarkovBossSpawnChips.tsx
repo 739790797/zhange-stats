@@ -21,39 +21,19 @@ function formatChance(chance: number | undefined): string {
   return `${Math.round(chance * 100)}%`;
 }
 
-export function TarkovBossMapChip({
-  row,
-  chance,
-}: {
-  row: BossSpawnMapChip;
-  chance?: string;
-}) {
-  const mark =
-    tarkovMapMarkByName(row.name) ||
-    (row.slug ? tarkovMapMarkByName(row.slug) : null);
+export function TarkovBossMapChip({ row, chance }: { row: BossSpawnMapChip; chance?: string }) {
+  const mark = tarkovMapMarkByName(row.name) || (row.slug ? tarkovMapMarkByName(row.slug) : null);
   const label = mark?.label || row.name || row.slug;
-  const href = row.slug
-    ? tarkovMapHref(row.slug)
-    : mark?.id
-      ? tarkovMapHref(mark.id)
-      : "";
+  const href = row.slug ? tarkovMapHref(row.slug) : mark?.id ? tarkovMapHref(mark.id) : "";
   const inner = (
     <span className={styles.mapChip}>
       {mark?.icon ? (
-        <svg
-          className={styles.mapIcon}
-          viewBox="0 0 24 24"
-          width={16}
-          height={16}
-          aria-hidden
-        >
+        <svg className={styles.mapIcon} viewBox="0 0 24 24" width={16} height={16} aria-hidden>
           <path d={mark.icon} fill="currentColor" />
         </svg>
       ) : null}
       <span>{label}</span>
-      {chance ? (
-        <span className={styles.mapChance}>（{chance}）</span>
-      ) : null}
+      {chance ? <span className={styles.mapChance}>（{chance}）</span> : null}
     </span>
   );
   if (!href) return inner;
@@ -84,10 +64,7 @@ export function TarkovBossLocationChips({ group }: { group: BossSpawnGroup }) {
   return (
     <span className={styles.locList}>
       {group.locations.map((row, index) => (
-        <span
-          key={`${row.mapSlug}-${row.name}-${index}`}
-          className={styles.locChip}
-        >
+        <span key={`${row.mapSlug}-${row.name}-${index}`} className={styles.locChip}>
           {locationChipLabel(row, group, tarkovMapLabel)}
           {group.showLocationChance ? ` ${formatChance(row.chance)}` : ""}
         </span>
@@ -118,13 +95,7 @@ function EscortPerson({
   const body = (
     <>
       {portrait ? (
-        <img
-          className={styles.escortAvatar}
-          src={portrait}
-          alt=""
-          width={32}
-          height={32}
-        />
+        <img className={styles.escortAvatar} src={portrait} alt="" width={32} height={32} />
       ) : (
         <span className={styles.escortAvatar} />
       )}

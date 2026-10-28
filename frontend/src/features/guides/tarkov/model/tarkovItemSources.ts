@@ -1,8 +1,5 @@
 import type { TarkovItemDetail } from "@/features/guides/tarkov/api/guidesApi";
-import {
-  bossPortraitUrl,
-  tarkovBossHref,
-} from "@/features/guides/tarkov/model/tarkovHomeNav";
+import { bossPortraitUrl, tarkovBossHref } from "@/features/guides/tarkov/model/tarkovHomeNav";
 import {
   bossHubSectionForRow,
   TARKOV_BOSS_HUB_SECTION_LABELS,
@@ -13,9 +10,7 @@ import { tarkovObjectiveTypeLabel } from "@/features/guides/tarkov/model/tarkovT
 
 export type TarkovItemSources = NonNullable<TarkovItemDetail["sources"]>;
 export type TarkovItemUses = NonNullable<TarkovItemDetail["uses"]>;
-export type TarkovItemDropSource = NonNullable<
-  TarkovItemSources["drops"]
->[number];
+export type TarkovItemDropSource = NonNullable<TarkovItemSources["drops"]>[number];
 
 export function itemDropSection(
   row: Pick<TarkovItemDropSource, "id" | "parent_ids">,
@@ -105,9 +100,7 @@ export function previewRows<T>(
   return list.slice(0, limit);
 }
 
-export function itemHasSources(
-  sources: TarkovItemSources | null | undefined,
-): boolean {
+export function itemHasSources(sources: TarkovItemSources | null | undefined): boolean {
   if (!sources) return false;
   return Boolean(
     sources.barters?.length ||
@@ -120,10 +113,7 @@ export function itemHasSources(
 export function itemHasUses(uses: TarkovItemUses | null | undefined): boolean {
   if (!uses) return false;
   return Boolean(
-    uses.barters?.length ||
-      uses.crafts?.length ||
-      uses.hideout?.length ||
-      uses.tasks?.length,
+    uses.barters?.length || uses.crafts?.length || uses.hideout?.length || uses.tasks?.length,
   );
 }
 
@@ -148,15 +138,11 @@ export function itemHasCraftRelations(
   return Boolean(sources?.crafts?.length || uses?.crafts?.length);
 }
 
-export function itemHasHideoutRelations(
-  uses: TarkovItemUses | null | undefined,
-): boolean {
+export function itemHasHideoutRelations(uses: TarkovItemUses | null | undefined): boolean {
   return Boolean(uses?.hideout?.length);
 }
 
-export function itemHasDropRelations(
-  sources: TarkovItemSources | null | undefined,
-): boolean {
+export function itemHasDropRelations(sources: TarkovItemSources | null | undefined): boolean {
   return Boolean(sources?.drops?.length);
 }
 
@@ -253,7 +239,5 @@ export function requiredItemFoundInRaid(
   items: Array<{ id?: string; found_in_raid?: boolean | null }> | undefined,
   itemId: string,
 ): boolean {
-  return (items || []).some(
-    (item) => item.id === itemId && Boolean(item.found_in_raid),
-  );
+  return (items || []).some((item) => item.id === itemId && Boolean(item.found_in_raid));
 }

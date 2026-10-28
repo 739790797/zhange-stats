@@ -101,9 +101,7 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
                 {model.maps.map((col, colIdx) => {
                   const cell = model.cells[rowIdx][colIdx];
                   if (!cell.label) {
-                    return (
-                      <td key={col.slug} className={styles.tdEmpty} aria-label="不刷新" />
-                    );
+                    return <td key={col.slug} className={styles.tdEmpty} aria-label="不刷新" />;
                   }
                   const blocks = heatmapCellHoverBlocks(cell.recipes, boss);
                   return (
@@ -131,15 +129,13 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
                         destroyTooltipOnHide
                         zIndex={1200}
                       >
-                          <span
+                        <span
                           className={styles.cellBtn}
                           role="button"
                           tabIndex={0}
                           aria-label={`${cell.label}${cell.locationCount > 1 ? `，${cell.locationCount}个区域` : ""}，点击查看刷新区域，${formatHoverAria(blocks)}`}
                           onClick={() => {
-                            const first = heatmapSpawnLocationOptions(
-                              cell.spawnPoints,
-                            )[0];
+                            const first = heatmapSpawnLocationOptions(cell.spawnPoints)[0];
                             setSpawn({
                               boss,
                               mapSlug: col.slug,
@@ -148,11 +144,7 @@ export function TarkovBossHeatmap({ bosses, portraits }: Props) {
                               points: cell.spawnPoints,
                               recipes: cell.recipes,
                             });
-                            setFocus(
-                              first
-                                ? { x: first.x, y: first.y, z: first.z, seq: 1 }
-                                : null,
-                            );
+                            setFocus(first ? { x: first.x, y: first.y, z: first.z, seq: 1 } : null);
                           }}
                           onKeyDown={(event) => {
                             if (event.key !== "Enter" && event.key !== " ") return;
@@ -216,14 +208,9 @@ function SpawnMapModal({
   onClose: () => void;
   onFocus: (point: HeatmapSpawnPoint) => void;
 }) {
-  const overlayBosses = useMemo(
-    () => (spawn ? [overlayBoss(spawn)] : []),
-    [spawn],
-  );
+  const overlayBosses = useMemo(() => (spawn ? [overlayBoss(spawn)] : []), [spawn]);
   const locations = spawn ? heatmapSpawnLocationOptions(spawn.points) : [];
-  const countBlocks = spawn
-    ? heatmapCellHoverBlocks(spawn.recipes, spawn.boss)
-    : [];
+  const countBlocks = spawn ? heatmapCellHoverBlocks(spawn.recipes, spawn.boss) : [];
   const activeName = focus
     ? locations.find((row) => row.x === focus.x && row.z === focus.z)?.name
     : locations[0]?.name;
@@ -250,10 +237,7 @@ function SpawnMapModal({
             hoverUsesLocationCounts(countBlocks) ? (
               <div className={styles.spawnCountGroups}>
                 {countBlocks.map((block, index) => {
-                  const count = formatHoverSquadCount(
-                    block.squadSizes,
-                    block.showChance,
-                  );
+                  const count = formatHoverSquadCount(block.squadSizes, block.showChance);
                   return (
                     <div
                       key={`${(block.locations || []).join("|")}-${index}`}
@@ -337,16 +321,11 @@ function EscortHoverTip({
   const byLocation = hoverUsesLocationCounts(blocks);
   return (
     <div className={styles.tipBody}>
-      {landOnce ? (
-        <div className={styles.tipHead}>出生时间：{landOnce}</div>
-      ) : null}
+      {landOnce ? <div className={styles.tipHead}>出生时间：{landOnce}</div> : null}
       {byLocation ? (
         <div className={styles.tipLocs}>
           {blocks.map((block, index) => (
-            <div
-              key={`${(block.locations || []).join("|")}-${index}`}
-              className={styles.tipLoc}
-            >
+            <div key={`${(block.locations || []).join("|")}-${index}`} className={styles.tipLoc}>
               {block.squadSizes.length ? (
                 <div className={styles.tipHead}>
                   出生数量：{formatHoverSquadCount(block.squadSizes, block.showChance)}
@@ -392,7 +371,13 @@ function EscortHoverTip({
                       return (
                         <li key={`${row.slug}-${row.count}-${rowIdx}`} className={styles.tipEscort}>
                           {portrait ? (
-                            <img className={styles.tipAvatar} src={portrait} alt="" width={22} height={22} />
+                            <img
+                              className={styles.tipAvatar}
+                              src={portrait}
+                              alt=""
+                              width={22}
+                              height={22}
+                            />
                           ) : (
                             <span className={styles.tipAvatar} />
                           )}
@@ -435,8 +420,7 @@ function SquadSizeLines({
             <div key={`${row.size}-${row.chance}`} className={styles.tipScheme}>
               <span className={styles.tipSchemeMark}>组合{index + 1}：</span>
               <span>
-                {row.size}人
-                {block.showChance ? `（${row.chance}）` : ""}
+                {row.size}人{block.showChance ? `（${row.chance}）` : ""}
               </span>
             </div>
           ))}
@@ -471,8 +455,7 @@ function SchemeLine({
 }) {
   const chance = row.showChance && row.chance ? `（${row.chance}）` : "";
   const land = !landOnce && row.land ? ` · ${row.land}` : "";
-  const portrait =
-    row.escorts.length === 1 ? lookupEscortPortrait(row.escorts[0]!, portraits) : "";
+  const portrait = row.escorts.length === 1 ? lookupEscortPortrait(row.escorts[0]!, portraits) : "";
   return (
     <div className={styles.tipScheme}>
       <span className={styles.tipSchemeMark}>

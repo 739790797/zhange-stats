@@ -58,9 +58,10 @@ describe("tarkov map marker helpers", () => {
       jacket: true,
       safe: true,
     });
-    expect(
-      withArrivedLootKindsOn({ jacket: false }, ["jacket", "safe"], true),
-    ).toEqual({ jacket: false, safe: true });
+    expect(withArrivedLootKindsOn({ jacket: false }, ["jacket", "safe"], true)).toEqual({
+      jacket: false,
+      safe: true,
+    });
     const kept = { jacket: true };
     expect(withArrivedLootKindsOn(kept, ["jacket"], true)).toBe(kept);
   });
@@ -106,14 +107,10 @@ describe("tarkov map marker helpers", () => {
     expect(tarkovContainerIconUrl("medical-supply-crate")).toBe(
       "/tarkov/map-icons/container_crate.png",
     );
-    expect(tarkovContainerIconUrl("unknown-box")).toBe(
-      "/tarkov/map-icons/container_crate.png",
-    );
+    expect(tarkovContainerIconUrl("unknown-box")).toBe("/tarkov/map-icons/container_crate.png");
     expect(tarkovLockHref("dorm-114")).toBe("/guides/tarkov/items/keys/dorm-114");
     expect(tarkovLockLabel({ key_name: "宿舍 114" })).toBe("宿舍 114");
-    expect(
-      tarkovLockLabel({ key_name: "5448ba0b4bdc2d02308b456c Name" }),
-    ).toBe("门锁");
+    expect(tarkovLockLabel({ key_name: "5448ba0b4bdc2d02308b456c Name" })).toBe("门锁");
     expect(
       tarkovLockThumbUrl({
         key_id: "5448ba0b4bdc2d02308b456c",
@@ -142,12 +139,10 @@ describe("tarkov map marker helpers", () => {
     expect(tarkovMarkerHeightSpan({ x: 1, z: 2 })).toBeNull();
     expect(tarkovMarkerVisibleOnFloor({ x: 1, z: 2 }, "", bands)).toBe(true);
     expect(tarkovMarkerVisibleOnFloor({ x: 1, z: 2 }, "2nd", bands)).toBe(true);
-    expect(
-      tarkovMarkerVisibleOnFloor({ x: 1, z: 2, top: 14, bottom: 12 }, "", bands),
-    ).toBe(false);
-    expect(
-      tarkovMarkerVisibleOnFloor({ x: 1, z: 2, top: 14, bottom: 12 }, "2nd", bands),
-    ).toBe(true);
+    expect(tarkovMarkerVisibleOnFloor({ x: 1, z: 2, top: 14, bottom: 12 }, "", bands)).toBe(false);
+    expect(tarkovMarkerVisibleOnFloor({ x: 1, z: 2, top: 14, bottom: 12 }, "2nd", bands)).toBe(
+      true,
+    );
   });
 
   it("fades markers that are not on the selected height", () => {
@@ -196,9 +191,7 @@ describe("tarkov map marker helpers", () => {
     const bands = mapLayerFloorBands(findInteractiveMap("shoreline"));
     const westWing = { x: -180, z: -80, y: -6 };
     const road = { x: -355, z: 188, y: -6 };
-    expect(tarkovMarkerVisibleOnFloor(westWing, "Underground", bands)).toBe(
-      true,
-    );
+    expect(tarkovMarkerVisibleOnFloor(westWing, "Underground", bands)).toBe(true);
     expect(tarkovMarkerVisibleOnFloor(westWing, "", bands)).toBe(false);
     expect(tarkovMarkerVisibleOnFloor(road, "Underground", bands)).toBe(false);
     expect(tarkovMarkerVisibleOnFloor(road, "", bands)).toBe(true);
@@ -222,9 +215,7 @@ describe("tarkov map marker helpers", () => {
     const bands = mapLayerMarkerFloorBands(layer!);
     const upstairs = { x: 140, z: 300, y: 6.7 };
     const street = { x: 9, z: 104, y: 1.2 };
-    expect(official.some((band) => band.name === "2nd Floor" && band.min >= 10)).toBe(
-      true,
-    );
+    expect(official.some((band) => band.name === "2nd Floor" && band.min >= 10)).toBe(true);
     expect(tarkovMarkerVisibleOnFloor(upstairs, "", official)).toBe(true);
     expect(tarkovMarkerFloorDisplay(street, "", bands)).toEqual({
       onFloor: true,
@@ -242,9 +233,7 @@ describe("tarkov map marker helpers", () => {
 
   it("only remaps streets; other maps already peel upstairs by height or bounds", () => {
     const slugs = rawMaps
-      .filter((group) =>
-        group.maps.some((layer) => layer.projection === "interactive"),
-      )
+      .filter((group) => group.maps.some((layer) => layer.projection === "interactive"))
       .map((group) => group.normalizedName);
     const needRemap = slugs.filter((slug) =>
       floorBandsNeedStoryRemap(mapLayerFloorBands(findInteractiveMap(slug))),
@@ -270,25 +259,15 @@ describe("tarkov lock key badge", () => {
 
   it("stays unset without a key or in encyclopedia mode", () => {
     expect(tarkovLockKeyBadge("", { mode: "solo", viewerId: 1 })).toBeUndefined();
-    expect(
-      tarkovLockKeyBadge("k1", { mode: "neutral", viewerId: 1, owns: [me] }),
-    ).toBeUndefined();
+    expect(tarkovLockKeyBadge("k1", { mode: "neutral", viewerId: 1, owns: [me] })).toBeUndefined();
     expect(tarkovLockKeyBadge("k1")).toBeUndefined();
   });
 
   it("marks solo own vs missing and ignores teammates", () => {
-    expect(
-      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [me] }),
-    ).toBe("own");
-    expect(
-      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, brings: [me] }),
-    ).toBe("own");
-    expect(
-      tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [mate] }),
-    ).toBe("missing");
-    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1 })).toBe(
-      "missing",
-    );
+    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [me] })).toBe("own");
+    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, brings: [me] })).toBe("own");
+    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1, owns: [mate] })).toBe("missing");
+    expect(tarkovLockKeyBadge("k1", { mode: "solo", viewerId: 1 })).toBe("missing");
   });
 
   it("prefers self in a party, then teammate own or bring", () => {
@@ -314,9 +293,7 @@ describe("tarkov lock key badge", () => {
         brings: [mate],
       }),
     ).toBe("teammate");
-    expect(tarkovLockKeyBadge("k1", { mode: "party", viewerId: 1 })).toBe(
-      "missing",
-    );
+    expect(tarkovLockKeyBadge("k1", { mode: "party", viewerId: 1 })).toBe("missing");
   });
 });
 
@@ -356,14 +333,9 @@ describe("tarkov lock tooltip html", () => {
   it("omits type chips when the lock has no type", () => {
     expect(tarkovLockTypeLine("")).toBe("");
     expect(tarkovLockTypeLine("door")).toBe("锁的类型：门");
+    expect(tarkovLockTypeChipsHtml({ key_id: "k1", key_name: "工厂钥匙" }, classes)).toBe("");
     expect(
-      tarkovLockTypeChipsHtml({ key_id: "k1", key_name: "工厂钥匙" }, classes),
-    ).toBe("");
-    expect(
-      tarkovLockTypeChipsHtml(
-        { key_id: "k1", lock_type: "trunk", needs_power: true },
-        classes,
-      ),
+      tarkovLockTypeChipsHtml({ key_id: "k1", lock_type: "trunk", needs_power: true }, classes),
     ).toContain("锁的类型：后备箱");
   });
 
@@ -376,9 +348,10 @@ describe("tarkov lock tooltip html", () => {
         brings: [{ item_id: "k1", user_id: 2, display_name: "乙" }],
       }),
     ).toEqual(["甲拥有这把钥匙。", "乙带了这把钥匙。"]);
-    expect(
-      tarkovLockKeyStatusLines("k1", { mode: "solo", viewerId: 1 }),
-    ).toEqual(["没人拥有这把钥匙", "还没人声明带这把钥匙"]);
+    expect(tarkovLockKeyStatusLines("k1", { mode: "solo", viewerId: 1 })).toEqual([
+      "没人拥有这把钥匙",
+      "还没人声明带这把钥匙",
+    ]);
     const html = tarkovLockTooltipHtml(
       { key_id: "k1", key_name: "工厂钥匙", lock_type: "door" },
       classes,

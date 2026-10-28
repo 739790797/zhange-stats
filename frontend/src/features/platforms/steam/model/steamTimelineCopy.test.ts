@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  steamPrivacySkipHint,
-  steamTimelineEmptyText,
-} from "./steamTimelineCopy";
+import { steamPrivacySkipHint, steamTimelineEmptyText } from "./steamTimelineCopy";
 
 describe("steamTimelineEmptyText", () => {
   it("distinguishes no members vs no sessions", () => {
@@ -12,17 +9,13 @@ describe("steamTimelineEmptyText", () => {
     expect(steamTimelineEmptyText({ rowCount: 0, visibleMemberCount: 3 })).toBe(
       "该时段暂无游玩记录",
     );
-    expect(steamTimelineEmptyText({ rowCount: 2, visibleMemberCount: 3 })).toBe(
-      "",
-    );
+    expect(steamTimelineEmptyText({ rowCount: 2, visibleMemberCount: 3 })).toBe("");
   });
 });
 
 describe("steamPrivacySkipHint", () => {
   it("prefers API hint", () => {
-    expect(
-      steamPrivacySkipHint({ hint: "资料未公开", steam_bound: true }, 0),
-    ).toBe("资料未公开");
+    expect(steamPrivacySkipHint({ hint: "资料未公开", steam_bound: true }, 0)).toBe("资料未公开");
   });
 
   it("explains skip only when bound and empty", () => {

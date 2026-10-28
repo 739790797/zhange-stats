@@ -38,8 +38,7 @@ export const TARKOV_MAP_FILTER_GROUP_ORDER = [
   "screenshot",
 ] as const;
 
-export type TarkovMapFilterGroupId =
-  (typeof TARKOV_MAP_FILTER_GROUP_ORDER)[number];
+export type TarkovMapFilterGroupId = (typeof TARKOV_MAP_FILTER_GROUP_ORDER)[number];
 
 const FILTER_GROUP_IDS = new Set<string>(TARKOV_MAP_FILTER_GROUP_ORDER);
 
@@ -80,21 +79,15 @@ export type TarkovMapFilterFlagItem = {
   on: boolean;
 };
 
-export function filterGroupAllOn(
-  items: readonly TarkovMapFilterFlagItem[],
-): boolean {
+export function filterGroupAllOn(items: readonly TarkovMapFilterFlagItem[]): boolean {
   return items.length > 0 && items.every((item) => item.on);
 }
 
-export function filterGroupAnyOn(
-  items: readonly TarkovMapFilterFlagItem[],
-): boolean {
+export function filterGroupAnyOn(items: readonly TarkovMapFilterFlagItem[]): boolean {
   return items.some((item) => item.on);
 }
 
-export function filterGroupPartial(
-  items: readonly TarkovMapFilterFlagItem[],
-): boolean {
+export function filterGroupPartial(items: readonly TarkovMapFilterFlagItem[]): boolean {
   return filterGroupAnyOn(items) && !filterGroupAllOn(items);
 }
 

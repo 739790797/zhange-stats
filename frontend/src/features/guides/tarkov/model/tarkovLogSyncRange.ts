@@ -68,9 +68,7 @@ function beijingDayEnd(input: Date | string): string {
   return parseBeijing(input).endOf("day").format("YYYY-MM-DD HH:mm:ss");
 }
 
-export function wipeStartBeijingClock(
-  wipe: TarkovWipeStart,
-): string {
+export function wipeStartBeijingClock(wipe: TarkovWipeStart): string {
   return parseBeijing(wipe.start).format("YYYY-MM-DD HH:mm:ss");
 }
 
@@ -82,9 +80,7 @@ export function defaultLogSyncRange(
   const earliest = table[0];
   return {
     all: true,
-    from: earliest
-      ? wipeStartBeijingClock(earliest)
-      : beijingDayStart("2017-01-01"),
+    from: earliest ? wipeStartBeijingClock(earliest) : beijingDayStart("2017-01-01"),
     to: beijingDayEnd(now),
   };
 }
@@ -104,19 +100,13 @@ export function resolveLogSyncRange(
   }
   if (input.preset === "7d") {
     return {
-      from: parseBeijing(now)
-        .subtract(6, "day")
-        .startOf("day")
-        .format("YYYY-MM-DD HH:mm:ss"),
+      from: parseBeijing(now).subtract(6, "day").startOf("day").format("YYYY-MM-DD HH:mm:ss"),
       to: beijingDayEnd(now),
     };
   }
   if (input.preset === "30d") {
     return {
-      from: parseBeijing(now)
-        .subtract(29, "day")
-        .startOf("day")
-        .format("YYYY-MM-DD HH:mm:ss"),
+      from: parseBeijing(now).subtract(29, "day").startOf("day").format("YYYY-MM-DD HH:mm:ss"),
       to: beijingDayEnd(now),
     };
   }
@@ -136,10 +126,7 @@ export function sessionStartedAtInRange(
   if (range.all) return true;
   const at = (startedAt || "").trim();
   if (!at || !parseBeijing(at).isValid()) return false;
-  return (
-    compareBeijingClock(at, range.from) >= 0 &&
-    compareBeijingClock(at, range.to) <= 0
-  );
+  return compareBeijingClock(at, range.from) >= 0 && compareBeijingClock(at, range.to) <= 0;
 }
 
 export function filterSessionStubsByRange(
@@ -151,9 +138,10 @@ export function filterSessionStubsByRange(
 }
 
 /** 列目录后的可选最早/最晚启动日（北京 YYYY-MM-DD）。 */
-export function sessionStubDateBounds(
-  stubs: readonly TarkovLogSessionStub[],
-): { min: string | null; max: string | null } {
+export function sessionStubDateBounds(stubs: readonly TarkovLogSessionStub[]): {
+  min: string | null;
+  max: string | null;
+} {
   let min: string | null = null;
   let max: string | null = null;
   for (const stub of stubs) {

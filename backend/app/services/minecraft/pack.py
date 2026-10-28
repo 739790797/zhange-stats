@@ -22,11 +22,7 @@ RCON_DEFAULT_PORT = 25575
 
 
 def redact_properties(props: dict[str, str]) -> dict[str, str]:
-    return {
-        key: value
-        for key, value in (props or {}).items()
-        if key not in SECRET_PROPERTY_KEYS
-    }
+    return {key: value for key, value in (props or {}).items() if key not in SECRET_PROPERTY_KEYS}
 
 
 def merge_rcon_properties(
@@ -67,11 +63,7 @@ def parse_properties(text: str) -> dict[str, str]:
 
 def merge_properties(text: str, updates: dict[str, str]) -> str:
     """按原文件顺序改值；新键追加在末尾。"""
-    updates_clean = {
-        str(k).strip(): str(v)
-        for k, v in (updates or {}).items()
-        if str(k).strip()
-    }
+    updates_clean = {str(k).strip(): str(v) for k, v in (updates or {}).items() if str(k).strip()}
     if not text and not updates_clean:
         return ""
     seen: set[str] = set()

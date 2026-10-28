@@ -62,10 +62,10 @@
 
 仓库不自动注册或启用 MCP 服务。以下服务按需由开发者手动加入自己使用的 Agent 配置；对 Codex CLI，可使用 `codex mcp add`（先运行 `codex mcp add --help` 确认本机 CLI 语法）。这些命令只修改本机配置，不提交密钥或机器专属设置。
 
-| 服务 | 用途 | Codex CLI 示例 |
-|---|---|---|
-| Ant Design MCP | 查询 Ant Design 5 组件文档与用法 | `codex mcp add antd -- npx -y @ant-design/cli mcp --version 5.22.7` |
-| Context7 | 检索库/框架的当前文档；如服务要求授权，只在本机完成 | `codex mcp add context7 --url https://mcp.context7.com/mcp` |
-| Playwright MCP | 浏览器自动化与页面验证 | `codex mcp add playwright -- npx -y @playwright/mcp@0.0.83 --headless` |
+| 服务           | 用途                                                | Codex CLI 示例                                                         |
+| -------------- | --------------------------------------------------- | ---------------------------------------------------------------------- |
+| Ant Design MCP | 查询 Ant Design 5 组件文档与用法                    | `codex mcp add antd -- npx -y @ant-design/cli mcp --version 5.22.7`    |
+| Context7       | 检索库/框架的当前文档；如服务要求授权，只在本机完成 | `codex mcp add context7 --url https://mcp.context7.com/mcp`            |
+| Playwright MCP | 浏览器自动化与页面验证                              | `codex mcp add playwright -- npx -y @playwright/mcp@0.0.83 --headless` |
 
 以上命令记录的是迁移前仓库使用过的端点/参数，尤其 Playwright MCP 版本可能已过时；使用前请核对各服务当前的官方安装说明。其他 Agent 按其本机文档手动配置。移除本机配置可用 `codex mcp remove <name>`。

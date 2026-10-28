@@ -28,9 +28,7 @@ export function MinecraftPluginsPanel() {
             目录 plugins/。把 jar 放进来或从这里核对已有文件。
           </Typography.Paragraph>
           {jars.length ? (
-            jars.map((row) => (
-              <div key={row.name}>{row.name}</div>
-            ))
+            jars.map((row) => <div key={row.name}>{row.name}</div>)
           ) : (
             <Typography.Text type="secondary">目录里还没有 jar。</Typography.Text>
           )}

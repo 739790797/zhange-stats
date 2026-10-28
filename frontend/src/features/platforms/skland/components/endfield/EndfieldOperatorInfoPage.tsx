@@ -2,8 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Space, Tag, Typography, message } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { fetchEndfieldBox, fetchEndfieldBoxCompare, fetchEndfieldCompareCandidates } from "@/features/platforms/skland/api/sklandApi";
-import type { EndfieldChar, EndfieldCompareRow, EndfieldOperator } from "@/features/platforms/skland/api/types";
+import {
+  fetchEndfieldBox,
+  fetchEndfieldBoxCompare,
+  fetchEndfieldCompareCandidates,
+} from "@/features/platforms/skland/api/sklandApi";
+import type {
+  EndfieldChar,
+  EndfieldCompareRow,
+  EndfieldOperator,
+} from "@/features/platforms/skland/api/types";
 import { apiError } from "@/shared/api/apiError";
 import {
   AddCompareMemberCard,
@@ -52,9 +60,7 @@ function EndfieldCharacterCard({
   operator: EndfieldOperator;
   progress?: EndfieldChar;
 }) {
-  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
   const accent = RARITY_COLOR[operator.rarity] || "#8a9099";
   const imageUrls = [
     progress?.avatar_url,
@@ -80,10 +86,13 @@ function EndfieldCharacterCard({
           alt={operator.name}
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() =>
-            setFailedImageUrls((previous) => new Set(previous).add(imageUrl))
-          }
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }}
+          onError={() => setFailedImageUrls((previous) => new Set(previous).add(imageUrl))}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center top",
+          }}
         />
       ) : (
         <div
@@ -135,7 +144,15 @@ function EndfieldCharacterCard({
           textShadow: "0 1px 3px #000",
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {operator.name}
         </span>
         <span style={{ fontSize: 11, opacity: 0.9 }}>
@@ -143,9 +160,7 @@ function EndfieldCharacterCard({
         </span>
       </div>
       {!progress ? (
-        <Tag
-          style={{ position: "absolute", top: 4, right: 4, margin: 0, fontSize: 10 }}
-        >
+        <Tag style={{ position: "absolute", top: 4, right: 4, margin: 0, fontSize: 10 }}>
           未持有
         </Tag>
       ) : null}
@@ -311,9 +326,7 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
 
   const candidates = useMemo(
     () =>
-      (candidatesQuery.data || []).filter(
-        (candidate) => !compareIds.includes(candidate.member_id),
-      ),
+      (candidatesQuery.data || []).filter((candidate) => !compareIds.includes(candidate.member_id)),
     [candidatesQuery.data, compareIds],
   );
 
@@ -345,9 +358,7 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
     const rows = compareQuery.data?.rows || [];
     if (selfId == null) return rows;
     const selfRow = rows.find((row) => row.member_id === selfId);
-    return selfRow
-      ? [selfRow, ...rows.filter((row) => row.member_id !== selfId)]
-      : rows;
+    return selfRow ? [selfRow, ...rows.filter((row) => row.member_id !== selfId)] : rows;
   }, [compareQuery.data?.rows, selfId]);
 
   useEffect(() => {
@@ -379,7 +390,10 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
     setSelectedIds((previous) => {
       if (previous.includes(memberId) || previous.length >= OPERATOR_COMPARE_MAX) return previous;
       if (selfId != null && previous.includes(selfId)) {
-        return [selfId, ...previous.filter((id) => id !== selfId), memberId].slice(0, OPERATOR_COMPARE_MAX);
+        return [selfId, ...previous.filter((id) => id !== selfId), memberId].slice(
+          0,
+          OPERATOR_COMPARE_MAX,
+        );
       }
       return [...previous, memberId].slice(0, OPERATOR_COMPARE_MAX);
     });
@@ -459,9 +473,7 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
       </Button>
       <AddCompareMemberCard
         gameName="终末地"
-        disabled={
-          compareIds.length >= OPERATOR_COMPARE_MAX || candidates.length === 0
-        }
+        disabled={compareIds.length >= OPERATOR_COMPARE_MAX || candidates.length === 0}
         loading={candidatesQuery.isLoading}
         candidates={candidates as OperatorCompareCandidate[]}
         onAdd={addMember}
@@ -470,11 +482,7 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
   );
 
   return (
-    <OperatorInfoCompareTemplate<
-      EndfieldOperator,
-      EndfieldChar,
-      EndfieldCompareRow
-    >
+    <OperatorInfoCompareTemplate<EndfieldOperator, EndfieldChar, EndfieldCompareRow>
       gameName="终末地"
       operators={catalog}
       rows={displayRows}
@@ -491,7 +499,8 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
           onUidChange={(uid) => updateRoleUid(row.member_id, uid)}
           summary={
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              已拥有 {Object.keys(row.owned || {}).length} / {compareQuery.data.catalog_count ?? catalog.length} 名
+              已拥有 {Object.keys(row.owned || {}).length} /{" "}
+              {compareQuery.data.catalog_count ?? catalog.length} 名
             </Typography.Text>
           }
         />
@@ -500,11 +509,7 @@ export function EndfieldOperatorInfoPage({ enabled }: { enabled: boolean }) {
         <EndfieldCharacterCard operator={operator} progress={progress} />
       )}
       renderDetails={(operator, progress, row) => (
-        <EndfieldOperatorDetails
-          operator={operator}
-          progress={progress}
-          ownerName={row.nickname}
-        />
+        <EndfieldOperatorDetails operator={operator} progress={progress} ownerName={row.nickname} />
       )}
     />
   );

@@ -1,4 +1,5 @@
 """森空岛：明日方舟盒子与图鉴。"""
+
 from __future__ import annotations
 
 import re
@@ -87,6 +88,7 @@ def _resolve_arknights_asset(kind: str, name: str):
         raise HTTPException(status_code=503, detail="方舟资源仓暂不可用") from exc
     return path
 
+
 _MEMBER_ID_RE = re.compile(r"[0-9]{1,12}")
 _ROLE_UID_RE = re.compile(r"[0-9A-Za-z_-]{1,32}")
 
@@ -105,10 +107,8 @@ def skland_arknights_attendance_calendar(
     """明日方舟签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。"""
     member = _member_or_404(db, user)
     try:
-        parsed, role, roles, synced_at, stale = (
-            get_arknights_attendance_calendar_for_member(
-                db, member, uid, force=force
-            )
+        parsed, role, roles, synced_at, stale = get_arknights_attendance_calendar_for_member(
+            db, member, uid, force=force
         )
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
@@ -384,14 +384,8 @@ def skland_arknights_box_compare(
                 player_name=r.get("player_name"),
                 player_level=r.get("player_level"),
                 char_count=r.get("char_count") or 0,
-                owned={
-                    cid: ArknightsOwnedCharOut(**owned)
-                    for cid, owned in (r.get("owned") or {}).items()
-                },
-                roles=[
-                    ArknightsCompareRoleOut(**role)
-                    for role in (r.get("roles") or [])
-                ],
+                owned={cid: ArknightsOwnedCharOut(**owned) for cid, owned in (r.get("owned") or {}).items()},
+                roles=[ArknightsCompareRoleOut(**role) for role in (r.get("roles") or [])],
             )
             for r in data["rows"]
         ],

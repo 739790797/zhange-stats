@@ -1,14 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Drawer,
-  Segmented,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Drawer, Segmented, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { fetchArknightsRogue } from "@/features/platforms/skland/api/sklandApi";
 import { BoxPanelChrome } from "@/features/platforms/shared/components/BoxPanelChrome";
@@ -116,9 +108,7 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
       title: "难度",
       width: 100,
       render: (_, row) =>
-        row.mode_grade > 0
-          ? `${row.mode || "难度"} ${row.mode_grade}`
-          : row.mode || "—",
+        row.mode_grade > 0 ? `${row.mode || "难度"} ${row.mode_grade}` : row.mode || "—",
     },
     {
       title: "层/藏品",
@@ -143,9 +133,7 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
       stale={data?.stale}
       title={data?.topic_name || "集成战略"}
       subtitle={
-        data
-          ? formatRoleNameChannel(data.role_name, data.channel_name) || undefined
-          : undefined
+        data ? formatRoleNameChannel(data.role_name, data.channel_name) || undefined : undefined
       }
       roles={roleOptions.map((r) => ({ uid: r.value, label: r.label }))}
       selectedUid={uid ?? data?.uid}
@@ -154,134 +142,134 @@ export function ArknightsRoguePanel({ enabled = true }: Props) {
     >
       {data && ov ? (
         <>
-      <Space wrap style={{ marginBottom: 16 }} size="middle">
-        <Segmented
-          size="small"
-          value={topicId}
-          options={topicOptions}
-          onChange={(v) => setTopicId(String(v))}
-        />
-      </Space>
+          <Space wrap style={{ marginBottom: 16 }} size="middle">
+            <Segmented
+              size="small"
+              value={topicId}
+              options={topicOptions}
+              onChange={(v) => setTopicId(String(v))}
+            />
+          </Space>
 
-      <Space wrap size={[16, 8]} style={{ marginBottom: 16 }}>
-        <Stat label="当前主题" value={data.topic_name} />
-        <Stat
-          label="最高难度"
-          value={
-            ov.clear_difficulty || ov.mode
-              ? `${ov.clear_difficulty || ov.mode} ${ov.clear_grade || ov.mode_grade || ""}`.trim()
-              : "—"
-          }
-        />
-        <Stat label="分数" value={String(ov.score || "—")} />
-        <Stat
-          label="勋章"
-          value={
-            ov.medal_count
-              ? `${ov.medal_current}/${ov.medal_count}`
-              : String(ov.medal_current || "—")
-          }
-        />
-        <Stat label="投资" value={String(ov.invest || "—")} />
-        <Stat label="藏品" value={String(ov.relic || "—")} />
-        <Stat label="对局" value={String(ov.game_count || "—")} />
-      </Space>
+          <Space wrap size={[16, 8]} style={{ marginBottom: 16 }}>
+            <Stat label="当前主题" value={data.topic_name} />
+            <Stat
+              label="最高难度"
+              value={
+                ov.clear_difficulty || ov.mode
+                  ? `${ov.clear_difficulty || ov.mode} ${ov.clear_grade || ov.mode_grade || ""}`.trim()
+                  : "—"
+              }
+            />
+            <Stat label="分数" value={String(ov.score || "—")} />
+            <Stat
+              label="勋章"
+              value={
+                ov.medal_count
+                  ? `${ov.medal_current}/${ov.medal_count}`
+                  : String(ov.medal_current || "—")
+              }
+            />
+            <Stat label="投资" value={String(ov.invest || "—")} />
+            <Stat label="藏品" value={String(ov.relic || "—")} />
+            <Stat label="对局" value={String(ov.game_count || "—")} />
+          </Space>
 
-      <Typography.Title level={5} style={{ marginTop: 8 }}>
-        近期战绩
-      </Typography.Title>
-      <Table
-        size="small"
-        rowKey="record_id"
-        columns={columns}
-        dataSource={data.records}
-        pagination={{ pageSize: 10, hideOnSinglePage: true }}
-        locale={{ emptyText: "该主题暂无战绩" }}
-        onRow={(row) => ({
-          onClick: () => setDetail(row),
-          style: { cursor: "pointer" },
-        })}
-      />
-
-      {data.favour_records?.length ? (
-        <>
-          <Typography.Title level={5} style={{ marginTop: 24 }}>
-            收藏战绩
+          <Typography.Title level={5} style={{ marginTop: 8 }}>
+            近期战绩
           </Typography.Title>
           <Table
             size="small"
             rowKey="record_id"
             columns={columns}
-            dataSource={data.favour_records}
-            pagination={false}
+            dataSource={data.records}
+            pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            locale={{ emptyText: "该主题暂无战绩" }}
             onRow={(row) => ({
               onClick: () => setDetail(row),
               style: { cursor: "pointer" },
             })}
           />
-        </>
-      ) : null}
 
-      <Drawer
-        title="战绩详情"
-        width={420}
-        open={Boolean(detail)}
-        onClose={() => setDetail(null)}
-        destroyOnClose
-      >
-        {detail ? (
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-            <div>
-              <Typography.Text type="secondary">结局</Typography.Text>
-              <div>{detail.ending_text || "—"}</div>
-            </div>
-            <div>
-              <Typography.Text type="secondary">时间</Typography.Text>
-              <div>
-                {formatTs(detail.start_ts)} → {formatTs(detail.end_ts)}
-              </div>
-            </div>
-            <Space wrap>
-              <Tag>分数 {detail.score}</Tag>
-              <Tag>
-                {detail.mode} {detail.mode_grade || ""}
-              </Tag>
-              <Tag>
-                层 {detail.zone_count} / 节点 {detail.node_count}
-              </Tag>
-              <Tag>藏品 {detail.relic_count}</Tag>
-              {detail.band_name ? <Tag>{detail.band_name}</Tag> : null}
-            </Space>
-            {detail.tags?.length ? (
-              <div>
-                <Typography.Text type="secondary">标签</Typography.Text>
-                <div style={{ marginTop: 4 }}>
-                  <Space wrap size={4}>
-                    {detail.tags.map((t) => (
-                      <Tag key={t}>{t}</Tag>
-                    ))}
-                  </Space>
+          {data.favour_records?.length ? (
+            <>
+              <Typography.Title level={5} style={{ marginTop: 24 }}>
+                收藏战绩
+              </Typography.Title>
+              <Table
+                size="small"
+                rowKey="record_id"
+                columns={columns}
+                dataSource={data.favour_records}
+                pagination={false}
+                onRow={(row) => ({
+                  onClick: () => setDetail(row),
+                  style: { cursor: "pointer" },
+                })}
+              />
+            </>
+          ) : null}
+
+          <Drawer
+            title="战绩详情"
+            width={420}
+            open={Boolean(detail)}
+            onClose={() => setDetail(null)}
+            destroyOnClose
+          >
+            {detail ? (
+              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                <div>
+                  <Typography.Text type="secondary">结局</Typography.Text>
+                  <div>{detail.ending_text || "—"}</div>
                 </div>
-              </div>
+                <div>
+                  <Typography.Text type="secondary">时间</Typography.Text>
+                  <div>
+                    {formatTs(detail.start_ts)} → {formatTs(detail.end_ts)}
+                  </div>
+                </div>
+                <Space wrap>
+                  <Tag>分数 {detail.score}</Tag>
+                  <Tag>
+                    {detail.mode} {detail.mode_grade || ""}
+                  </Tag>
+                  <Tag>
+                    层 {detail.zone_count} / 节点 {detail.node_count}
+                  </Tag>
+                  <Tag>藏品 {detail.relic_count}</Tag>
+                  {detail.band_name ? <Tag>{detail.band_name}</Tag> : null}
+                </Space>
+                {detail.tags?.length ? (
+                  <div>
+                    <Typography.Text type="secondary">标签</Typography.Text>
+                    <div style={{ marginTop: 4 }}>
+                      <Space wrap size={4}>
+                        {detail.tags.map((t) => (
+                          <Tag key={t}>{t}</Tag>
+                        ))}
+                      </Space>
+                    </div>
+                  </div>
+                ) : null}
+                <div>
+                  <Typography.Text type="secondary">终局小队</Typography.Text>
+                  {detail.squad?.length ? (
+                    <ul style={{ paddingLeft: 18, margin: "8px 0 0" }}>
+                      {detail.squad.map((c) => (
+                        <li key={c.char_id}>
+                          {c.name} · 精{c.evolve_phase} Lv.{c.level}
+                          {c.rarity ? ` · ${c.rarity}★` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div>—</div>
+                  )}
+                </div>
+              </Space>
             ) : null}
-            <div>
-              <Typography.Text type="secondary">终局小队</Typography.Text>
-              {detail.squad?.length ? (
-                <ul style={{ paddingLeft: 18, margin: "8px 0 0" }}>
-                  {detail.squad.map((c) => (
-                    <li key={c.char_id}>
-                      {c.name} · 精{c.evolve_phase} Lv.{c.level}
-                      {c.rarity ? ` · ${c.rarity}★` : ""}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div>—</div>
-              )}
-            </div>
-          </Space>
-        ) : null}
-      </Drawer>
+          </Drawer>
         </>
       ) : null}
     </BoxPanelChrome>

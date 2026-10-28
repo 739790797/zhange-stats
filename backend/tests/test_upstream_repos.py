@@ -87,9 +87,7 @@ def test_arknights_clone_checks_out_full_tree_and_updates_incrementally(
     assert (repo_home / repos.REPO_ARKNIGHTS / "payload.json").is_file()
 
     second = repos.sync_repo(repos.REPO_ARKNIGHTS, run=run)
-    fetch_args = [
-        args for args in flags["commands"] if len(args) > 3 and args[3] == "fetch"
-    ][-1]
+    fetch_args = [args for args in flags["commands"] if len(args) > 3 and args[3] == "fetch"][-1]
     assert second["ok"] is True
     assert fetch_args == [
         "git",
@@ -215,9 +213,7 @@ def test_git_progress_logs_milestones_and_diagnostics_not_each_path(caplog) -> N
     assert warnings == ["git: warning: paths collided on a case-insensitive filesystem"]
 
 
-def test_readonly_remove_retries_transient_permission_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_readonly_remove_retries_transient_permission_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "pack.idx"
     target.write_bytes(b"pack index")
     calls = 0
@@ -241,9 +237,7 @@ def test_readonly_remove_retries_transient_permission_errors(
     assert not target.exists()
 
 
-def test_clone_removes_stale_readonly_pack_before_fresh_clone(
-    repo_home: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_clone_removes_stale_readonly_pack_before_fresh_clone(repo_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     staging = repo_home / f"{repos.REPO_ARKNIGHTS}.clone"
     pack_dir = staging / ".git" / "objects" / "pack"
     pack_dir.mkdir(parents=True)
@@ -362,9 +356,7 @@ def test_manual_repo_sync_reuses_queued_run_and_records_repository_result(
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     monkeypatch.setattr(database, "SessionLocal", session_factory)
     monkeypatch.setattr(job_run_progress, "SessionLocal", session_factory)
-    monkeypatch.setattr(
-        repos, "_configured_repo_sync_timeout_minutes", lambda _repo_id: 95
-    )
+    monkeypatch.setattr(repos, "_configured_repo_sync_timeout_minutes", lambda _repo_id: 95)
 
     timeout_values: list[float] = []
     original_sync_repo = repos.sync_repo
@@ -425,9 +417,7 @@ def test_tarkov_svg_reads_are_not_blocked_by_arknights_sync(
         return base_run(args)
 
     sync_thread = threading.Thread(
-        target=lambda: sync_rows.append(
-            repos.sync_repo(repos.REPO_ARKNIGHTS, run=blocking_run)
-        ),
+        target=lambda: sync_rows.append(repos.sync_repo(repos.REPO_ARKNIGHTS, run=blocking_run)),
         daemon=True,
     )
     sync_thread.start()
@@ -481,9 +471,7 @@ def test_repo_file_rejects_traversal_and_reports_missing(repo_home: Path) -> Non
         repos.resolve_repo_file(repos.REPO_ENDFIELD, "missing.txt")
 
 
-def test_repo_file_allows_internal_link_and_rejects_external_link(
-    repo_home: Path, tmp_path: Path
-) -> None:
+def test_repo_file_allows_internal_link_and_rejects_external_link(repo_home: Path, tmp_path: Path) -> None:
     checkout = repo_home / repos.REPO_ENDFIELD
     (checkout / ".git").mkdir(parents=True)
     (checkout / "source.txt").write_text("inside", encoding="utf-8")

@@ -11,9 +11,7 @@ import {
 describe("tarkov item image urls", () => {
   it("rewrites cdn suffixes to inventory / inspect variants", () => {
     const base = "https://assets.tarkov.dev/abc-base-image.webp";
-    expect(inventoryThumbUrl(base)).toBe(
-      "https://assets.tarkov.dev/abc-icon.webp",
-    );
+    expect(inventoryThumbUrl(base)).toBe("https://assets.tarkov.dev/abc-icon.webp");
     expect(transparentThumbUrl("https://assets.tarkov.dev/abc-icon.webp")).toBe(
       "https://assets.tarkov.dev/abc-base-image.webp",
     );
@@ -43,9 +41,9 @@ describe("tarkov item image urls", () => {
   });
 
   it("uses 512px assets for collection tiles", () => {
-    expect(
-      collectionItemImageUrl("https://assets.tarkov.dev/abc-icon.webp"),
-    ).toBe("https://assets.tarkov.dev/abc-512.webp");
+    expect(collectionItemImageUrl("https://assets.tarkov.dev/abc-icon.webp")).toBe(
+      "https://assets.tarkov.dev/abc-512.webp",
+    );
     expect(collectionItemImageUrl("", "5910922b86f7747d96753483")).toBe(
       "https://assets.tarkov.dev/5910922b86f7747d96753483-512.webp",
     );

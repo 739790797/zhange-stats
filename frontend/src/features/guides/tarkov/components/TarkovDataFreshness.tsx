@@ -23,9 +23,7 @@ export function TarkovDataFreshness({ source, syncedAt, note }: Props) {
       }}
     >
       {sourceLabel ? <span>数据来源：{sourceLabel}</span> : null}
-      {timestamp ? (
-        <span>同步时间：{timestamp.replace("T", " ")}</span>
-      ) : null}
+      {timestamp ? <span>同步时间：{timestamp.replace("T", " ")}</span> : null}
       {noteText ? <span title={noteText}>数据说明：{noteText}</span> : null}
     </div>
   );

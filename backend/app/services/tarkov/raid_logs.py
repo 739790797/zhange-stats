@@ -188,12 +188,8 @@ def serialize_raid(row: TarkovUserRaidLog) -> dict[str, Any]:
         "ended_at": row.ended_at,
         "reconnected": bool(row.reconnected),
         "aborted": bool(row.aborted),
-        "created_at": row.created_at.isoformat(timespec="seconds")
-        if row.created_at
-        else None,
-        "updated_at": row.updated_at.isoformat(timespec="seconds")
-        if row.updated_at
-        else None,
+        "created_at": row.created_at.isoformat(timespec="seconds") if row.created_at else None,
+        "updated_at": row.updated_at.isoformat(timespec="seconds") if row.updated_at else None,
     }
 
 

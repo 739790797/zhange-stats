@@ -1,7 +1,11 @@
 import { Alert, Button, Form, Input, Radio, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { completeSetupAdmin, completeSetupDatabase, fetchSetupStatus } from "@/features/auth/api/setupApi";
+import {
+  completeSetupAdmin,
+  completeSetupDatabase,
+  fetchSetupStatus,
+} from "@/features/auth/api/setupApi";
 import { fetchMe } from "@/features/auth/api/authApi";
 import { AuthGuestShell } from "@/features/auth/components/AuthGuestShell";
 import { apiError, apiStatus, isApiForbidden } from "@/shared/api/apiError";
@@ -158,20 +162,9 @@ export default function SetupPage() {
       brandTitleSize={32}
       headerMarginBottom={28}
       title="安装"
-      subtitle={
-        needsDatabase
-          ? "首次安装 · 选择数据库"
-          : "首次安装 · 创建管理员账号"
-      }
+      subtitle={needsDatabase ? "首次安装 · 选择数据库" : "首次安装 · 创建管理员账号"}
     >
-      {error ? (
-        <Alert
-          type="error"
-          message={error}
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-      ) : null}
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
       {tokenRequired ? (
         <Form form={tokenForm} layout="vertical" requiredMark={false}>

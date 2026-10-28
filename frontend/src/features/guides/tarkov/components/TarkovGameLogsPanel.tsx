@@ -44,12 +44,7 @@ import styles from "./TarkovGameLogsPanel.module.css";
 
 type Perm = "unknown" | "none" | "prompt" | "granted";
 type BindField = "shots" | "logs";
-type Action =
-  | ""
-  | "replace-shots"
-  | "verify-shots"
-  | "replace-logs"
-  | "verify-logs";
+type Action = "" | "replace-shots" | "verify-shots" | "replace-logs" | "verify-logs";
 
 function friendlyError(error: unknown, fallback: string): string {
   if (isPickerAbort(error)) return "";
@@ -71,12 +66,8 @@ export function TarkovGameLogsPanel() {
   const [shotPerm, setShotPerm] = useState<Perm>("unknown");
   const [shotCanWrite, setShotCanWrite] = useState(false);
   const [shotLabel, setShotLabel] = useState("");
-  const [pruneEnabled, setPruneEnabled] = useState(
-    () => loadScreenshotPrunePref().enabled,
-  );
-  const [pruneKeepMax, setPruneKeepMax] = useState(
-    () => loadScreenshotPrunePref().keepMax,
-  );
+  const [pruneEnabled, setPruneEnabled] = useState(() => loadScreenshotPrunePref().enabled);
+  const [pruneKeepMax, setPruneKeepMax] = useState(() => loadScreenshotPrunePref().keepMax);
   const [action, setAction] = useState<Action>("");
   const [error, setError] = useState("");
   const [active, setActive] = useState<BindField>("shots");
@@ -106,22 +97,14 @@ export function TarkovGameLogsPanel() {
 
   const loadSessions = useCallback(async (handle: ReadableDir) => {
     const { resolved } = await readLogsIndex(handle);
-    const nextPath = await displayPathForResolved(
-      handle,
-      resolved,
-      dirNameRef.current,
-    );
+    const nextPath = await displayPathForResolved(handle, resolved, dirNameRef.current);
     setDirName(nextPath);
     await saveLogsDisplayPath(nextPath);
   }, []);
 
   const loadShots = useCallback(async (handle: ReadableDir) => {
     const resolved = await resolveScreenshotsDirDetailed(handle);
-    const nextPath = await displayPathForResolved(
-      handle,
-      resolved,
-      shotLabelRef.current,
-    );
+    const nextPath = await displayPathForResolved(handle, resolved, shotLabelRef.current);
     setShotLabel(nextPath);
     await saveScreenshotsDisplayPath(nextPath);
   }, []);
@@ -205,9 +188,7 @@ export function TarkovGameLogsPanel() {
     };
   }, [supported, bootGranted, loadShots]);
 
-  const bindLogs = async (opts: {
-    existingOnly?: boolean;
-  }): Promise<boolean> => {
+  const bindLogs = async (opts: { existingOnly?: boolean }): Promise<boolean> => {
     if (opts.existingOnly) {
       if (!handleRef.current) return false;
       const next = await ensureGranted(handleRef.current);
@@ -253,9 +234,7 @@ export function TarkovGameLogsPanel() {
     return true;
   };
 
-  const bindShots = async (opts: {
-    existingOnly?: boolean;
-  }): Promise<boolean> => {
+  const bindShots = async (opts: { existingOnly?: boolean }): Promise<boolean> => {
     if (opts.existingOnly) {
       if (!shotRef.current) return false;
       const next = await requestScreenshotsDirPermission(shotRef.current);
@@ -291,15 +270,9 @@ export function TarkovGameLogsPanel() {
       if (ok && (nextAction === "verify-shots" || nextAction === "verify-logs")) {
         const shotOk = screenshotPruneVerifyResult({
           pruneEnabled: loadScreenshotPrunePref().enabled,
-          canWrite: shotRef.current
-            ? await screenshotsDirCanWrite(shotRef.current)
-            : false,
+          canWrite: shotRef.current ? await screenshotsDirCanWrite(shotRef.current) : false,
         });
-        message.success(
-          nextAction === "verify-shots"
-            ? shotOk.text
-            : "日志目录校验通过",
-        );
+        message.success(nextAction === "verify-shots" ? shotOk.text : "日志目录校验通过");
       }
     } catch (err) {
       const text = friendlyError(err, "授权目录失败");
@@ -310,13 +283,7 @@ export function TarkovGameLogsPanel() {
   };
 
   if (assistantEmbed && !assistantBound) {
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message="战鸽助手还没有绑定截图和日志目录"
-      />
-    );
+    return <Alert type="warning" showIcon message="战鸽助手还没有绑定截图和日志目录" />;
   }
 
   if (!supported) {
@@ -372,18 +339,10 @@ export function TarkovGameLogsPanel() {
           </Button>
           <Button
             className={styles.sideBtn}
-            type={
-              shotPerm === "prompt" || (pruneEnabled && !shotCanWrite)
-                ? "primary"
-                : "default"
-            }
+            type={shotPerm === "prompt" || (pruneEnabled && !shotCanWrite) ? "primary" : "default"}
             disabled={busy || shotPerm === "none"}
             loading={action === "verify-shots"}
-            title={
-              pruneEnabled
-                ? "校验读取，并检查删除所需的写入授权"
-                : "继续读取已保存的截图目录"
-            }
+            title={pruneEnabled ? "校验读取，并检查删除所需的写入授权" : "继续读取已保存的截图目录"}
             onClick={() => {
               setActive("shots");
               void runBind("verify-shots", () => bindShots({ existingOnly: true }));
@@ -435,15 +394,15 @@ export function TarkovGameLogsPanel() {
         <p className={styles.hint}>
           常见位置：{TARKOV_SCREENSHOTS_PATH_HINT}
           <br />
-          战局里用游戏截图键（Print Screen）会把坐标写进文件名。开房间后，用同一账号在手机打开该房间即可当第二块地图；队友也能看到。页面只读最新一张。请只选 Screenshots 文件夹。
+          战局里用游戏截图键（Print
+          Screen）会把坐标写进文件名。开房间后，用同一账号在手机打开该房间即可当第二块地图；队友也能看到。页面只读最新一张。请只选
+          Screenshots 文件夹。
           {pruneEnabled
             ? shotCanWrite
               ? ` 已具备写入授权，超过 ${pruneKeepMax} 张游戏截图时会删掉最旧的。`
               : " 开启删除后需要写入授权：旧的只读授权不够，请点「校验」或「更换」，弹窗里选「查看并编辑」。"
             : ""}
-          {shotPerm === "prompt"
-            ? " 目录已保存，点「继续授权」即可，不用重新选文件夹。"
-            : ""}
+          {shotPerm === "prompt" ? " 目录已保存，点「继续授权」即可，不用重新选文件夹。" : ""}
         </p>
       </div>
       <div className={styles.row}>
@@ -508,7 +467,8 @@ export function TarkovGameLogsPanel() {
           ))}
         </select>
         <p className={styles.hint}>
-          本地 / 离线战局常常没有 Location。选好地图后，进图或离线开战时会挂截图坐标；回菜单不会强切。
+          本地 / 离线战局常常没有
+          Location。选好地图后，进图或离线开战时会挂截图坐标；回菜单不会强切。
         </p>
       </div>
     </div>

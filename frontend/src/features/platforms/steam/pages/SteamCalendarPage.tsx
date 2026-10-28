@@ -2,7 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchSteamDay, fetchSteamNow, triggerSteamPoll } from "@/features/platforms/steam/api/steamApi";
+import {
+  fetchSteamDay,
+  fetchSteamNow,
+  triggerSteamPoll,
+} from "@/features/platforms/steam/api/steamApi";
 import { startSteamOpenIdBind } from "@/features/profile/api/usersApi";
 import { DayTimeline } from "@/features/platforms/steam/components/DayTimeline";
 import { DAY_SECONDS, type Granularity } from "@/features/platforms/steam/components/constants";
@@ -34,10 +38,7 @@ export default function SteamCalendarPage() {
   const [dayStartHour, setDayStartHour] = useState<0 | 12>(0);
 
   const weekRangeStart = useMemo(() => anchor.startOf("isoWeek"), [anchor]);
-  const weekRangeEnd = useMemo(
-    () => weekRangeStart.endOf("isoWeek"),
-    [weekRangeStart],
-  );
+  const weekRangeEnd = useMemo(() => weekRangeStart.endOf("isoWeek"), [weekRangeStart]);
 
   const dayQueryDate = anchor.format("YYYY-MM-DD");
   const dayQueryEnd =
@@ -69,8 +70,7 @@ export default function SteamCalendarPage() {
       timelineRange?.end,
       granularity === "day" ? dayStartHour : 0,
     ],
-    queryFn: () =>
-      fetchSteamDay(timelineRange!.start, timelineRange!.end),
+    queryFn: () => fetchSteamDay(timelineRange!.start, timelineRange!.end),
     enabled: timelineEnabled,
     staleTime: 60_000,
   });
@@ -165,8 +165,7 @@ export default function SteamCalendarPage() {
   };
 
   const spanSeconds =
-    timelineData?.span_seconds ??
-    (granularity === "week" ? 7 * DAY_SECONDS : DAY_SECONDS);
+    timelineData?.span_seconds ?? (granularity === "week" ? 7 * DAY_SECONDS : DAY_SECONDS);
   const timelineStart = useMemo(() => {
     if (timelineData?.range_start) {
       return parseBeijing(timelineData.range_start);
@@ -175,19 +174,10 @@ export default function SteamCalendarPage() {
       return weekRangeStart;
     }
     return dayStartHour === 12 ? anchor.hour(12).minute(0).second(0) : anchor;
-  }, [
-    timelineData?.range_start,
-    granularity,
-    weekRangeStart,
-    anchor,
-    dayStartHour,
-  ]);
+  }, [timelineData?.range_start, granularity, weekRangeStart, anchor, dayStartHour]);
 
   const timelineRows = timelineData?.timeline ?? [];
-  const privacyHint = steamPrivacySkipHint(
-    timelineData?.visibility,
-    timelineRows.length,
-  );
+  const privacyHint = steamPrivacySkipHint(timelineData?.visibility, timelineRows.length);
 
   return (
     <div>
@@ -212,17 +202,10 @@ export default function SteamCalendarPage() {
       ) : (
         <>
           {privacyHint ? (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={privacyHint}
-            />
+            <Alert type="info" showIcon style={{ marginBottom: 16 }} message={privacyHint} />
           ) : null}
 
-          {nowPlaying && nowPlaying.length > 0 ? (
-            <NowPlayingPanel items={nowPlaying} />
-          ) : null}
+          {nowPlaying && nowPlaying.length > 0 ? <NowPlayingPanel items={nowPlaying} /> : null}
 
           <TimelineControls
             granularity={granularity}
@@ -247,8 +230,7 @@ export default function SteamCalendarPage() {
               rangeStart={timelineStart}
               emptyText={steamTimelineEmptyText({
                 rowCount: timelineRows.length,
-                visibleMemberCount:
-                  timelineData?.visibility?.visible_member_count,
+                visibleMemberCount: timelineData?.visibility?.visible_member_count,
               })}
             />
           )}

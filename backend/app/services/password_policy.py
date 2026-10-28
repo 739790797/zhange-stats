@@ -114,8 +114,6 @@ def list_admins_with_weak_password(db: Session) -> list[User]:
         if not user.password_hash:
             weak.append(user)
             continue
-        if password_matches_weak_list(
-            user.password_hash, username=user.username
-        ):
+        if password_matches_weak_list(user.password_hash, username=user.username):
             weak.append(user)
     return weak

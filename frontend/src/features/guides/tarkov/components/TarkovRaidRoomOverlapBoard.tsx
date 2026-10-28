@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { sameGoonMap } from "@/features/guides/tarkov/model/tarkovGoonTracker";
 import { tarkovMapThumbUrl } from "@/features/guides/tarkov/model/tarkovMapThumbs";
-import { colorForUserId, type RaidPrepMapOption } from "@/features/guides/tarkov/model/tarkovRaidPrep";
+import {
+  colorForUserId,
+  type RaidPrepMapOption,
+} from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import {
   groupRaidRoomMapPresence,
   type RaidRoomPresenceMember,
@@ -137,9 +140,7 @@ export function TarkovRaidRoomOverlapBoard({
       <div className={styles.grid}>
         {grouped.maps.map((row) => {
           const label = labelById.get(row.mapId) || row.mapId;
-          const current = Boolean(
-            currentMapSlug && row.mapId === currentMapSlug,
-          );
+          const current = Boolean(currentMapSlug && row.mapId === currentMapSlug);
           const goon = sameGoonMap(row.mapId, goonMapSlug);
           return (
             <div key={row.mapId} className={styles.cell}>

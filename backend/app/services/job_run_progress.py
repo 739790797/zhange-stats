@@ -45,9 +45,7 @@ _PHASE_LABELS = {
     "error": "执行失败",
 }
 
-_ACTIVE_RUN: ContextVar[tuple[str, int] | None] = ContextVar(
-    "active_job_run", default=None
-)
+_ACTIVE_RUN: ContextVar[tuple[str, int] | None] = ContextVar("active_job_run", default=None)
 
 
 def category_for_job(job_key: str) -> str | None:
@@ -107,11 +105,7 @@ def versioned_job_stats(
         else:
             current_bytes = _as_number(raw.get("bytes"))
             total_bytes = _as_number(raw.get("total_bytes"))
-            if (
-                current_bytes is not None
-                and total_bytes is not None
-                and total_bytes > 0
-            ):
+            if current_bytes is not None and total_bytes is not None and total_bytes > 0:
                 current, total, unit = current_bytes, total_bytes, "字节"
 
     progress: dict[str, Any] = {}
@@ -220,9 +214,7 @@ def create_or_reuse_job_run(
         job.finished_at = None
     if message is not None:
         job.message = message[:500]
-    job.stats = versioned_job_stats(
-        job_key, status="running", stats=stats, message=message
-    )
+    job.stats = versioned_job_stats(job_key, status="running", stats=stats, message=message)
     return job
 
 

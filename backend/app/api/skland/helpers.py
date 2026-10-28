@@ -1,4 +1,5 @@
 """Shared helpers for skland routes."""
+
 from __future__ import annotations
 
 from fastapi import HTTPException

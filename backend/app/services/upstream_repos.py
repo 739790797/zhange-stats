@@ -138,12 +138,7 @@ def _resolve_repo_file_unlocked(spec: UpstreamRepo, relative: str) -> Path:
     posix = PurePosixPath(rel)
     windows = PureWindowsPath(rel)
     parts = posix.parts
-    if (
-        posix.is_absolute()
-        or windows.is_absolute()
-        or windows.drive
-        or ".." in parts
-    ):
+    if posix.is_absolute() or windows.is_absolute() or windows.drive or ".." in parts:
         raise RepoPathError("路径越界")
     root = repo_dir(spec.repo_id).resolve()
     actual_repos = (resolve_install_dir().resolve() / "data" / "repos").resolve()
@@ -204,9 +199,7 @@ def _log_git_line(line: str, progress: dict[str, int]) -> None:
         logger.error("git: %s", message[:1000])
 
 
-def _kill_git_on_timeout(
-    proc: subprocess.Popen[bytes], timed_out: threading.Event
-) -> None:
+def _kill_git_on_timeout(proc: subprocess.Popen[bytes], timed_out: threading.Event) -> None:
     if proc.poll() is None:
         timed_out.set()
         try:
@@ -238,9 +231,7 @@ def _default_run(
     progress_line = bytearray()
     progress: dict[str, int] = {}
     timed_out = threading.Event()
-    timer = threading.Timer(
-        timeout_seconds, _kill_git_on_timeout, args=(proc, timed_out)
-    )
+    timer = threading.Timer(timeout_seconds, _kill_git_on_timeout, args=(proc, timed_out))
     timer.daemon = True
     timer.start()
     try:
@@ -420,11 +411,7 @@ def _sync_one(spec: UpstreamRepo, run) -> dict[str, object]:
     except (RepoError, OSError) as exc:
         message = exc.message if isinstance(exc, RepoError) else _trim(str(exc))
         try:
-            commit = (
-                _head(dest_path, run)
-                if dest_path.exists() and not _is_link(dest_path)
-                else None
-            )
+            commit = _head(dest_path, run) if dest_path.exists() and not _is_link(dest_path) else None
         except RepoError:
             commit = None
         return {
@@ -455,9 +442,7 @@ def _deadline_runner(run, deadline: float, timeout_message: str):
         if remaining <= 0:
             raise RepoTimeoutError(timeout_message)
         if run is None:
-            return _default_run(
-                args, timeout_seconds=remaining, timeout_message=timeout_message
-            )
+            return _default_run(args, timeout_seconds=remaining, timeout_message=timeout_message)
         return run(args)
 
     return _run

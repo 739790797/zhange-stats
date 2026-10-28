@@ -75,12 +75,7 @@ def test_passport_retcode_treats_zero_as_success():
 
 
 def test_stoken_from_qr_tokens():
-    assert (
-        _stoken_from_qr_tokens(
-            [{"token_type": 1, "token": "v2_abc"}, {"token_type": 4, "token": "ck"}]
-        )
-        == "v2_abc"
-    )
+    assert _stoken_from_qr_tokens([{"token_type": 1, "token": "v2_abc"}, {"token_type": 4, "token": "ck"}]) == "v2_abc"
     assert _stoken_from_qr_tokens([{"name": "stoken", "token": "s1"}]) == "s1"
     assert _stoken_from_qr_tokens([]) == ""
     # 对齐 MHY_Scanner：无 type 时取 tokens[0]
@@ -108,10 +103,7 @@ def test_extract_error_text_unwraps_nested_json():
         ensure_ascii=False,
     )
     assert _extract_error_text(raw) == "请使用最新版本产品/链接以获得更佳体验"
-    assert (
-        _humanize_passport_error({"code": 400, "data": raw})
-        == "请使用最新版本产品/链接以获得更佳体验"
-    )
+    assert _humanize_passport_error({"code": 400, "data": raw}) == "请使用最新版本产品/链接以获得更佳体验"
 
 
 def test_parse_aigis_challenge_reads_gt():
@@ -232,9 +224,7 @@ def test_game_headers_include_signgame():
         _game_headers_for_meta,
     )
 
-    creds = MihoyoCredentials(
-        cookie="ltuid=1; stoken=s; cookie_token=c", stuid="1", stoken="s"
-    )
+    creds = MihoyoCredentials(cookie="ltuid=1; stoken=s; cookie_token=c", stuid="1", stoken="s")
     genshin = _game_headers_for_meta(creds, GAME_BIZ_META["hk4e_cn"])
     assert genshin["x-rpc-signgame"] == "hk4e"
     assert genshin["Origin"] == "https://act.mihoyo.com"

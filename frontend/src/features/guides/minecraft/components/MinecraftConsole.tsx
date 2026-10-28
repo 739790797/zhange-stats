@@ -31,8 +31,7 @@ export function MinecraftConsoleView({
             padding: "12px 14px 8px",
             background: "#0b1220",
             color: "#b6e36a",
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12.5,
             lineHeight: 1.5,
             borderRadius: "8px 8px 0 0",
@@ -47,8 +46,7 @@ export function MinecraftConsoleView({
               inset: 0,
               padding: "12px 14px",
               color: "#4b5563",
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
               fontSize: 12.5,
               pointerEvents: "none",
             }}
@@ -109,8 +107,7 @@ export function MinecraftConsoleView({
             outline: "none",
             background: "transparent",
             color: "#e5e7eb",
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 13,
             padding: 0,
             lineHeight: 1.4,

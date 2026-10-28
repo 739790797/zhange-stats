@@ -169,17 +169,13 @@ def _parse_token_body(text: str) -> dict[str, str]:
         except json.JSONDecodeError as exc:
             raise QqOAuthError("QQ Token JSON 无效") from exc
         if data.get("error") or data.get("error_description"):
-            raise QqOAuthError(
-                str(data.get("error_description") or data.get("error") or "换取 Token 失败")
-            )
+            raise QqOAuthError(str(data.get("error_description") or data.get("error") or "换取 Token 失败"))
         return {str(k): str(v) for k, v in data.items()}
     # access_token=...&expires_in=...
     parsed = urllib.parse.parse_qs(text, keep_blank_values=False)
     flat = {k: (v[0] if v else "") for k, v in parsed.items()}
     if flat.get("error") or flat.get("error_description"):
-        raise QqOAuthError(
-            flat.get("error_description") or flat.get("error") or "换取 Token 失败"
-        )
+        raise QqOAuthError(flat.get("error_description") or flat.get("error") or "换取 Token 失败")
     return flat
 
 
@@ -194,9 +190,7 @@ def _parse_jsonp_or_json(text: str) -> dict:
     if not isinstance(data, dict):
         raise QqOAuthError("QQ OpenID 响应格式错误")
     if data.get("error") or data.get("error_description"):
-        raise QqOAuthError(
-            str(data.get("error_description") or data.get("error") or "获取 OpenID 失败")
-        )
+        raise QqOAuthError(str(data.get("error_description") or data.get("error") or "获取 OpenID 失败"))
     return data
 
 
@@ -236,12 +230,8 @@ def exchange_code_for_profile(code: str, *, backend: str | None = None) -> QqPro
     unionid = str(me.get("unionid") or "").strip() or None
     if not unionid:
         try:
-            union_qs = urllib.parse.urlencode(
-                {"access_token": access_token, "fmt": "json", "unionid": "1"}
-            )
-            union_me = _parse_jsonp_or_json(
-                _http_get_text(f"{OPENID_URL}?{union_qs}")
-            )
+            union_qs = urllib.parse.urlencode({"access_token": access_token, "fmt": "json", "unionid": "1"})
+            union_me = _parse_jsonp_or_json(_http_get_text(f"{OPENID_URL}?{union_qs}"))
             unionid = str(union_me.get("unionid") or "").strip() or None
         except QqOAuthError as exc:
             logger.debug("qq unionid unavailable (openid-only bind): %s", exc.message)

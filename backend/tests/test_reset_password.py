@@ -89,9 +89,7 @@ def test_undeliverable_notice_drops_the_challenge(monkeypatch) -> None:
         lambda _db: {"code_expire_minutes": 15},
     )
     with pytest.raises(HTTPException) as exc:
-        _upsert_register_challenge(
-            db, "nobody@example.com", purpose=PURPOSE_RESET, notice=NOTICE_NO_ACCOUNT_RESET
-        )
+        _upsert_register_challenge(db, "nobody@example.com", purpose=PURPOSE_RESET, notice=NOTICE_NO_ACCOUNT_RESET)
     assert exc.value.status_code == 503
     assert db.query(RegisterChallenge).count() == 0
     db.close()

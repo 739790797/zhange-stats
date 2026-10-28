@@ -62,9 +62,7 @@ def _mysql_url_opens_standin(monkeypatch: pytest.MonkeyPatch, standin: Path) -> 
     monkeypatch.setattr(file_config, "ping_mysql_url", lambda _url, **_kw: None)
     monkeypatch.setattr(
         "app.api.setup.configure_engine",
-        lambda url=None: real_configure(
-            f"sqlite:///{standin.as_posix()}" if url and url.startswith("mysql") else url
-        ),
+        lambda url=None: real_configure(f"sqlite:///{standin.as_posix()}" if url and url.startswith("mysql") else url),
     )
 
     def schema(engine) -> None:
@@ -143,9 +141,7 @@ def test_schema_failure_rolls_back_without_leaking_credentials(
     assert not any("s3cret-pw" in m or "zhange_user" in m for m in logged)
 
 
-def test_first_deploy_sqlite_wizard_http(
-    fresh_install: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_first_deploy_sqlite_wizard_http(fresh_install: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.main import app
 
     startup_calls: list[str] = []

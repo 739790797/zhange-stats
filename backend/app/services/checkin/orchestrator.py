@@ -177,9 +177,7 @@ def run_checkin_for_bind(
         adapter,
         db,
         bind,
-        lambda session: adapter.run_checkins(
-            session, force=force, role_keys=role_keys
-        ),
+        lambda session: adapter.run_checkins(session, force=force, role_keys=role_keys),
     )
 
     if outcome.early_response is not None:
@@ -188,21 +186,15 @@ def run_checkin_for_bind(
         db.commit()
         early = dict(outcome.early_response)
         early.setdefault("exchanges", [])
-        early.setdefault(
-            "no_targets", not early.get("skipped") and not early.get("results")
-        )
+        early.setdefault("no_targets", not early.get("skipped") and not early.get("results"))
         return early
 
     adapter.save_session(db, bind, outcome.session)
     results = adapter.normalize_results(outcome.results)
     exchanges = _exchanges_from_results(results)
-    ok, summary = summarize_results(
-        results, empty_message=adapter.empty_message
-    )
+    ok, summary = summarize_results(results, empty_message=adapter.empty_message)
     summary = adapter.enrich_summary(summary, results)
-    skipped = adapter.mark_as_skipped(
-        bind, results, force=force, checkin_date=checkin_date
-    )
+    skipped = adapter.mark_as_skipped(bind, results, force=force, checkin_date=checkin_date)
     now = now_naive()
     merged = adapter.normalize_results(
         upsert_and_reload_day_results(
@@ -271,9 +263,7 @@ def run_checkin_job(
             continue
         log_key = f"checkin-auto:{adapter.platform}:{mid}"
         try:
-            out = run_checkin_for_bind(
-                adapter, db, bind, force=False, role_keys=keys
-            )
+            out = run_checkin_for_bind(adapter, db, bind, force=False, role_keys=keys)
         except adapter.api_error_cls as exc:
             db.rollback()
             stats["failed"] += 1

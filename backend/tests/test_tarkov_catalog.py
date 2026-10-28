@@ -115,12 +115,8 @@ def test_filter_type_aliases_silencer_and_headset():
         {"id": "sup1", "types": ["suppressor"], "handbook_ids": []},
         {"id": "hp1", "types": ["headphones"], "handbook_ids": []},
     ]
-    assert [r["id"] for r in catalog.filter_catalog_items(rows, types=["silencer"])] == [
-        "sup1"
-    ]
-    assert [r["id"] for r in catalog.filter_catalog_items(rows, types=["headset"])] == [
-        "hp1"
-    ]
+    assert [r["id"] for r in catalog.filter_catalog_items(rows, types=["silencer"])] == ["sup1"]
+    assert [r["id"] for r in catalog.filter_catalog_items(rows, types=["headset"])] == ["hp1"]
 
 
 def test_extract_detail_uses_locale():
@@ -310,9 +306,7 @@ def test_compact_properties_marks_armored_rigs():
     assert plates["armored"] is True
     assert "armorSlots" not in plates
 
-    soft_slot = catalog._compact_properties(
-        {"armorSlots": [{"name": "Soft_armor", "durability": 80}]}
-    )
+    soft_slot = catalog._compact_properties({"armorSlots": [{"name": "Soft_armor", "durability": 80}]})
     assert soft_slot["armored"] is True
 
 
@@ -336,17 +330,9 @@ def test_compact_properties_prefers_locale_armor_labels():
 
 
 def test_locale_enum_label_ignores_echo_and_garbled():
-    assert (
-        catalog._locale_enum_label({"RibcageUp": "RibcageUp"}, "RibcageUp")
-        == "RibcageUp"
-    )
+    assert catalog._locale_enum_label({"RibcageUp": "RibcageUp"}, "RibcageUp") == "RibcageUp"
     assert catalog._locale_enum_label({"RibcageUp": "????"}, "RibcageUp") == "RibcageUp"
-    assert (
-        catalog._locale_enum_label(
-            {"RibcageUp": "上肋骨"}, "Collider Type RibcageUp"
-        )
-        == "上肋骨"
-    )
+    assert catalog._locale_enum_label({"RibcageUp": "上肋骨"}, "Collider Type RibcageUp") == "上肋骨"
 
 
 def test_extract_detail_uses_locale_for_armor_slots():
@@ -482,9 +468,7 @@ def test_attach_item_key_locks_for_key(monkeypatch) -> None:
         called["key_id"] = key_id
         return [{"slug": "factory", "name": "工厂", "locks": [{"x": 1, "z": 2}]}]
 
-    monkeypatch.setattr(
-        "app.services.tarkov.maps.key_lock_maps", fake_collect
-    )
+    monkeypatch.setattr("app.services.tarkov.maps.key_lock_maps", fake_collect)
     detail = {
         "id": "k1",
         "item": {

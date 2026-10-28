@@ -325,9 +325,7 @@ def group_key_packs(
             entry = _ensure_entry(pack_keys, ref, catalog_by_id)
             entry["access"] = True
 
-    _apply_community_binds(
-        packs, bound_ids, catalog_by_id, has_catalog=bool(catalog_rows)
-    )
+    _apply_community_binds(packs, bound_ids, catalog_by_id, has_catalog=bool(catalog_rows))
 
     maps_out: list[dict[str, Any]] = []
     for pack in packs.values():
@@ -485,9 +483,7 @@ def build_key_source_index(
         bucket(item_id)["barters"].append(
             {
                 "trader_slug": slug,
-                "trader_name": _trader_label(
-                    trader_id, slug, str(raw.get("trader_name") or "")
-                ),
+                "trader_name": _trader_label(trader_id, slug, str(raw.get("trader_name") or "")),
                 "min_trader_level": int(raw.get("min_trader_level") or 0),
             }
         )
@@ -648,14 +644,10 @@ def attach_key_usage(
             continue
         for key in pack.get("keys") or []:
             if isinstance(key, dict):
-                key["used_in_tasks"] = [
-                    dict(row) for row in (index.get(str(key.get("id") or "")) or [])
-                ]
+                key["used_in_tasks"] = [dict(row) for row in (index.get(str(key.get("id") or "")) or [])]
     for key in grouped.get("unbound") or []:
         if isinstance(key, dict):
-            key["used_in_tasks"] = [
-                dict(row) for row in (index.get(str(key.get("id") or "")) or [])
-            ]
+            key["used_in_tasks"] = [dict(row) for row in (index.get(str(key.get("id") or "")) or [])]
     return grouped
 
 
@@ -689,9 +681,7 @@ def parse_json_maps_locks(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "name": MAP_ZH.get(slug) or str(raw.get("name") or ""),
                 "normalizedName": slug,
                 "locks": raw.get("locks") if isinstance(raw.get("locks"), list) else [],
-                "accessKeys": (
-                    raw.get("accessKeys") if isinstance(raw.get("accessKeys"), list) else []
-                ),
+                "accessKeys": (raw.get("accessKeys") if isinstance(raw.get("accessKeys"), list) else []),
             }
         )
     if not out:
@@ -770,10 +760,7 @@ def _key_id_index(db: Session) -> KeyIdIndex:
         logger.warning("key id index: items catalog unavailable: %s", exc)
         catalog_rows = []
     grouped = group_key_packs(stored_map_locks(db), catalog_rows)
-    by_map = {
-        str(pack["slug"]): frozenset(str(row["id"]) for row in pack["keys"])
-        for pack in grouped["maps"]
-    }
+    by_map = {str(pack["slug"]): frozenset(str(row["id"]) for row in pack["keys"]) for pack in grouped["maps"]}
     known: set[str] = {str(row["id"]) for row in grouped["unbound"]}
     for ids in by_map.values():
         known |= ids
@@ -822,9 +809,7 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         logger.warning("key packs tasks unavailable: %s", exc)
         return [], {}
     names = {
-        str(row.get("id") or ""): str(row.get("name") or "")
-        for row in rows
-        if isinstance(row, dict) and row.get("id")
+        str(row.get("id") or ""): str(row.get("name") or "") for row in rows if isinstance(row, dict) and row.get("id")
     }
     # 与物品来源共用按表头缓存的任务 raw 行：建钥匙目录时不能每次解码任务 dump。
     task_raws, raw_locale = _load_task_rows(db)
@@ -836,9 +821,7 @@ def _tasks_for_keys(db: Session) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         copied = dict(row)
         task_id = str(copied.get("id") or "").strip()
         parsed_name = names.get(task_id) or ""
-        loc_name = tasks_svc._locale_lookup(
-            locale, f"{task_id} name", f"{task_id} Name"
-        )
+        loc_name = tasks_svc._locale_lookup(locale, f"{task_id} name", f"{task_id} Name")
         if parsed_name and not tasks_svc._is_placeholder_name(task_id, parsed_name):
             copied["name"] = parsed_name
         elif loc_name:

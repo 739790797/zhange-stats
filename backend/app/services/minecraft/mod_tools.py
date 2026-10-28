@@ -660,11 +660,7 @@ def _blob_from_startup(current: dict[str, Any]) -> str:
             current.get("egg_name"),
             current.get("docker_image"),
             " ".join(str(row or "") for row in (current.get("docker_images") or [])),
-            " ".join(
-                f"{row.get('key')}={row.get('value')}"
-                for row in variables
-                if isinstance(row, dict)
-            ),
+            " ".join(f"{row.get('key')}={row.get('value')}" for row in variables if isinstance(row, dict)),
         )
     )
 
@@ -705,9 +701,7 @@ def _live_egg_context(db: Session) -> dict[str, str]:
         from app.services.minecraft.eggs import inspect_current_egg
 
         current = inspect_current_egg(base, token, uuid)
-        loader = str(current.get("inferred_loader") or "") or _infer_runtime_loader(
-            _blob_from_startup(current)
-        )
+        loader = str(current.get("inferred_loader") or "") or _infer_runtime_loader(_blob_from_startup(current))
         mc_version = _mc_version_from_variables(current.get("variables"))
     except pelican.PelicanError:
         pass
@@ -836,9 +830,7 @@ def _tool_out(
             directory=directory,
             installed_version=installed_version,
         ),
-        "config_directory": config_directory_abs(
-            loader, spec, present_directory=directory
-        ),
+        "config_directory": config_directory_abs(loader, spec, present_directory=directory),
         "command_tree": command_tree_out(spec),
         "features": features_out(spec),
     }
@@ -950,9 +942,7 @@ def _require_config(spec: ModToolSpec) -> None:
         raise MinecraftModToolsError("该模组没有配置预设")
 
 
-def _read_config_file(
-    base: str, token: str, uuid: str, path: str
-) -> str | None:
+def _read_config_file(base: str, token: str, uuid: str, path: str) -> str | None:
     try:
         return pelican.get_file_contents(base, token, uuid, path)
     except pelican.PelicanError as exc:
@@ -961,9 +951,7 @@ def _read_config_file(
         raise
 
 
-def _dir_has_pinnable(
-    base: str, token: str, uuid: str, directory: str
-) -> bool:
+def _dir_has_pinnable(base: str, token: str, uuid: str, directory: str) -> bool:
     try:
         entries = pelican.list_files(base, token, uuid, directory)
     except pelican.PelicanError as exc:
@@ -999,9 +987,7 @@ def get_tool_preset(db: Session, tool_id: str) -> dict[str, Any]:
         else:
             files[path] = None
     report = pins_svc.reconcile_pins(pins=pins, files=files)
-    config_found = any(
-        _dir_has_pinnable(base, token, uuid, directory) for directory in directories
-    )
+    config_found = any(_dir_has_pinnable(base, token, uuid, directory) for directory in directories)
     if not config_found:
         config_found = any(body is not None for body in files.values())
     return {
@@ -1153,9 +1139,7 @@ def list_tool_versions(db: Session, tool_id: str) -> dict[str, Any]:
         message = "读不到当前服的加载器或 Minecraft 版本"
     else:
         try:
-            versions = modrinth.list_versions(
-                project_id, loader=loader, mc_version=mc_version
-            )
+            versions = modrinth.list_versions(project_id, loader=loader, mc_version=mc_version)
         except modrinth.ModrinthError as exc:
             raise MinecraftModToolsError(exc.message, status_code=502) from exc
         if not versions:
@@ -1240,9 +1224,7 @@ def install_tool(
     removed = 0
     by_dir: dict[str, list[str]] = {}
     for row in hits:
-        by_dir.setdefault(str(row.get("directory") or directory), []).append(
-            str(row.get("filename") or "")
-        )
+        by_dir.setdefault(str(row.get("directory") or directory), []).append(str(row.get("filename") or ""))
     for folder, names in by_dir.items():
         names = [name for name in names if name and name != filename]
         if not names:

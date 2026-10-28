@@ -39,8 +39,7 @@ _CALABASH_COUNTRY_CODE = 1
 
 # roleBox 链路探测：ios 头 + did/b-at（无用户 token）可通；混 token 会 10000「参数错误」
 _ROLEBOX_UA = (
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) "
-    "AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/3.1.3"
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/3.1.3"
 )
 _ROLEBOX_VERSION = "3.1.3"
 
@@ -175,9 +174,7 @@ def request_ww_bat_token(creds: KujiequCredentials, role: GameRole) -> str:
     return bat
 
 
-def refresh_ww_role_data(
-    creds: KujiequCredentials, role: GameRole, *, bat: str
-) -> None:
+def refresh_ww_role_data(creds: KujiequCredentials, role: GameRole, *, bat: str) -> None:
     """POST /aki/roleBox/akiBox/refreshData — 只带 did + b-at。"""
     data = _post_form(
         "/aki/roleBox/akiBox/refreshData",
@@ -187,9 +184,7 @@ def refresh_ww_role_data(
     _assert_ok(data)
 
 
-def fetch_ww_base_data(
-    creds: KujiequCredentials, role: GameRole, *, bat: str
-) -> dict[str, Any]:
+def fetch_ww_base_data(creds: KujiequCredentials, role: GameRole, *, bat: str) -> dict[str, Any]:
     """POST /aki/roleBox/akiBox/baseData — 只带 did + b-at。"""
     data = _post_form(
         "/aki/roleBox/akiBox/baseData",

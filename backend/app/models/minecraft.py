@@ -31,19 +31,11 @@ class MinecraftServerProfile(Base):
     egg_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     startup: Mapped[str] = mapped_column(Text, nullable=False, default="")
     mods_json: Mapped[list[Any]] = mapped_column(PortableJSON, nullable=False, default=list)
-    overrides_json: Mapped[dict[str, Any]] = mapped_column(
-        PortableJSON, nullable=False, default=dict
-    )
+    overrides_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False, default=dict)
     applied_json: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
-    mod_presets_json: Mapped[dict[str, Any]] = mapped_column(
-        PortableJSON, nullable=False, default=dict
-    )
-    mod_inventory_json: Mapped[dict[str, Any]] = mapped_column(
-        PortableJSON, nullable=False, default=dict
-    )
-    last_applied_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    mod_presets_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False, default=dict)
+    mod_inventory_json: Mapped[dict[str, Any]] = mapped_column(PortableJSON, nullable=False, default=dict)
+    last_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_apply_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -64,9 +56,7 @@ class MinecraftPerfSample(Base):
     __tablename__ = "minecraft_perf_samples"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sampled_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    sampled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     tps: Mapped[float | None] = mapped_column(Float, nullable=True)
     mspt: Mapped[float | None] = mapped_column(Float, nullable=True)
     entities: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -81,15 +71,11 @@ class MinecraftPerfRollup(Base):
     """
 
     __tablename__ = "minecraft_perf_rollups"
-    __table_args__ = (
-        UniqueConstraint("grain", "bucket_at", name="uq_mc_perf_rollup_grain_bucket"),
-    )
+    __table_args__ = (UniqueConstraint("grain", "bucket_at", name="uq_mc_perf_rollup_grain_bucket"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     grain: Mapped[str] = mapped_column(String(8), nullable=False)
-    bucket_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    bucket_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tps_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
     tps_min: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -118,12 +104,6 @@ class MinecraftPresenceSegment(Base):
     player_uuid: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     # online | offline
     status: Mapped[str] = mapped_column(String(16), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    ended_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True
-    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)

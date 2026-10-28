@@ -1,6 +1,12 @@
 import { client } from "../../../../shared/api/http";
 import type { components } from "../../../../shared/api/generated/schema";
-import type { ExiliumCheckinResponse, ExiliumExchangeResult, ExiliumExchangeShop, ExiliumSmsSendResponse, ExiliumStatus } from "@/features/platforms/exilium/api/types";
+import type {
+  ExiliumCheckinResponse,
+  ExiliumExchangeResult,
+  ExiliumExchangeShop,
+  ExiliumSmsSendResponse,
+  ExiliumStatus,
+} from "@/features/platforms/exilium/api/types";
 
 /** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
 export async function fetchExiliumStatus(includeRoles = true, force = true) {
@@ -23,10 +29,10 @@ export async function bindExiliumPassword(account: string, password: string) {
 }
 
 export async function sendExiliumSms(phone: string, graphCode?: string | null) {
-  const { data } = await client.post<ExiliumSmsSendResponse>(
-    "/exilium/bind/sms/send",
-    { phone, graph_code: graphCode || null },
-  );
+  const { data } = await client.post<ExiliumSmsSendResponse>("/exilium/bind/sms/send", {
+    phone,
+    graph_code: graphCode || null,
+  });
   return data;
 }
 
@@ -50,13 +56,8 @@ export async function updateExiliumRolePref(
   return data;
 }
 
-export async function triggerExiliumCheckin(
-  payload?: components["schemas"]["CheckinNowBody"],
-) {
-  const { data } = await client.post<ExiliumCheckinResponse>(
-    "/exilium/checkin",
-    payload ?? {},
-  );
+export async function triggerExiliumCheckin(payload?: components["schemas"]["CheckinNowBody"]) {
+  const { data } = await client.post<ExiliumCheckinResponse>("/exilium/checkin", payload ?? {});
   return data;
 }
 

@@ -14,11 +14,7 @@ describe("parseAppSiderCollapsed", () => {
     expect(parseAppSiderCollapsed("1")).toBe(true);
     expect(parseAppSiderCollapsed("false")).toBe(false);
     expect(parseAppSiderCollapsed("0")).toBe(false);
-    expect(parseAppSiderCollapsed(JSON.stringify({ collapsed: true }))).toBe(
-      true,
-    );
-    expect(parseAppSiderCollapsed(JSON.stringify({ collapsed: false }))).toBe(
-      false,
-    );
+    expect(parseAppSiderCollapsed(JSON.stringify({ collapsed: true }))).toBe(true);
+    expect(parseAppSiderCollapsed(JSON.stringify({ collapsed: false }))).toBe(false);
   });
 });

@@ -146,10 +146,7 @@ export function PhoneAuthBindTemplate({
       }}
     >
       {title ? (
-        <Typography.Title
-          level={5}
-          style={{ marginTop: 0, marginBottom: description ? 8 : 16 }}
-        >
+        <Typography.Title level={5} style={{ marginTop: 0, marginBottom: description ? 8 : 16 }}>
           {title}
         </Typography.Title>
       ) : null}

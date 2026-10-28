@@ -90,19 +90,9 @@ const BOTTOM_COL: Partial<Record<WorkbenchSlotFamily, number>> = {
   pistol_grip: WORKBENCH_GUN_COL + 2,
 };
 
-const BOTTOM_LEFT = new Set<WorkbenchSlotFamily>([
-  "bipod",
-  "foregrip",
-  "ubgl",
-]);
+const BOTTOM_LEFT = new Set<WorkbenchSlotFamily>(["bipod", "foregrip", "ubgl"]);
 
-const EXTRAS = new Set<WorkbenchSlotFamily>([
-  "grip",
-  "shroud",
-  "trigger",
-  "chamber",
-  "hammer",
-]);
+const EXTRAS = new Set<WorkbenchSlotFamily>(["grip", "shroud", "trigger", "chamber", "hammer"]);
 
 type SlotWalkNode = {
   id: string;
@@ -175,9 +165,7 @@ export function collectWorkbenchGridSlots(
       slotName,
       itemId,
       icon: node.installed?.icon_link || "",
-      shortName: itemId
-        ? node.installed?.short_name || node.installed?.name || itemId
-        : "",
+      shortName: itemId ? node.installed?.short_name || node.installed?.name || itemId : "",
       required: Boolean(node.required),
       empty: !itemId,
       depth,
@@ -187,12 +175,7 @@ export function collectWorkbenchGridSlots(
     });
     if (node.children?.length) {
       out.push(
-        ...collectWorkbenchGridSlots(
-          node.children as SlotWalkNode[],
-          node.id,
-          family,
-          depth + 1,
-        ),
+        ...collectWorkbenchGridSlots(node.children as SlotWalkNode[], node.id, family, depth + 1),
       );
     }
   }
@@ -201,9 +184,7 @@ export function collectWorkbenchGridSlots(
 
 type Point = { col: number; vrow: number };
 
-export function layoutWorkbenchGrid(
-  slots: WorkbenchGridSlot[],
-): WorkbenchGridLayout {
+export function layoutWorkbenchGrid(slots: WorkbenchGridSlot[]): WorkbenchGridLayout {
   const occupied = new Set<string>();
   const virtual: Array<Point | null> = [];
 
@@ -300,10 +281,7 @@ export function layoutWorkbenchGrid(
         return placeAt(WORKBENCH_GUN_COL, -tacticalCount);
       }
 
-      if (
-        slot.family in TOP_COL &&
-        (slot.isBase || slot.parentFamily === "receiver")
-      ) {
+      if (slot.family in TOP_COL && (slot.isBase || slot.parentFamily === "receiver")) {
         const col = TOP_COL[slot.family];
         if (col != null) return placeUp(col, -1);
       }
@@ -321,9 +299,7 @@ export function layoutWorkbenchGrid(
         return placeAt(muzzleCol, -1);
       }
 
-      const parent = slot.parentSlotId
-        ? installPos.get(slot.parentSlotId)
-        : undefined;
+      const parent = slot.parentSlotId ? installPos.get(slot.parentSlotId) : undefined;
       if (parent) {
         if (parent.vrow < 0) return placeUp(parent.col, parent.vrow - 1);
         if (parent.vrow > 0) return placeDown(parent.col, parent.vrow + 1);

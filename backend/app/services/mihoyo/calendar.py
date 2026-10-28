@@ -23,9 +23,7 @@ def award_from_mihoyo_row(row: Any) -> dict[str, Any] | None:
         count = int(num) if num is not None else 1
     except (TypeError, ValueError):
         count = 1
-    icon = str(
-        row.get("icon") or row.get("icon_url") or row.get("img") or ""
-    ).strip() or None
+    icon = str(row.get("icon") or row.get("icon_url") or row.get("img") or "").strip() or None
     rid = row.get("id") or row.get("goods_id")
     return award_item(
         name=name,

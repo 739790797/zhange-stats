@@ -36,12 +36,7 @@ export function PlatformRoute({
   }
 
   if (featuresQuery.isError || !isFeatureOn(featuresQuery.data, featureId)) {
-    return (
-      <FeatureUnavailablePage
-        featureId={featureId}
-        loadError={featuresQuery.isError}
-      />
-    );
+    return <FeatureUnavailablePage featureId={featureId} loadError={featuresQuery.isError} />;
   }
 
   return <>{children}</>;

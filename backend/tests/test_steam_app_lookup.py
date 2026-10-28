@@ -185,9 +185,7 @@ def test_icon_backfill_skips_owned_games_without_players(monkeypatch, factory, n
     assert calls["owned"] == []
 
 
-def test_owned_games_failure_warns_once_without_traceback(
-    monkeypatch, factory, no_http, caplog
-) -> None:
+def test_owned_games_failure_warns_once_without_traceback(monkeypatch, factory, no_http, caplog) -> None:
     db = factory()
     _players(db, "570", 3)
     _players(db, "730", 1)

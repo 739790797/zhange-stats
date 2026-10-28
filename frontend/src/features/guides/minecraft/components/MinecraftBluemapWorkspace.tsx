@@ -1,18 +1,6 @@
-import {
-  CaretRightOutlined,
-  PauseOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
+import { CaretRightOutlined, PauseOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  InputNumber,
-  Popconfirm,
-  Progress,
-  Select,
-  Tag,
-  message,
-} from "antd";
+import { Button, InputNumber, Popconfirm, Progress, Select, Tag, message } from "antd";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
   runMinecraftModToolCommand,
@@ -52,9 +40,7 @@ export function MinecraftBluemapWorkspace({
   const maps = useMemo(() => {
     return [
       ...new Set(
-        [...(status?.maps || []), ...(data.worlds || []), ...DEFAULT_MAPS].filter(
-          Boolean,
-        ),
+        [...(status?.maps || []), ...(data.worlds || []), ...DEFAULT_MAPS].filter(Boolean),
       ),
     ];
   }, [status?.maps, data.worlds]);
@@ -76,10 +62,7 @@ export function MinecraftBluemapWorkspace({
   const argsFor = (commandId: string) => {
     if (["start", "stop", "status"].includes(commandId)) return {};
     const payload: Record<string, string | number> = { map: mapId.trim() };
-    if (
-      ["update", "force-update", "fix-edges"].includes(commandId) &&
-      radius != null
-    ) {
+    if (["update", "force-update", "fix-edges"].includes(commandId) && radius != null) {
       payload.x = centerX ?? 0;
       payload.z = centerZ ?? 0;
       payload.radius = radius;
@@ -117,9 +100,7 @@ export function MinecraftBluemapWorkspace({
     <>
       <div className={styles.workspace}>
         <section>
-          <div className={styles.paneTitle}>
-            {feature?.title || "更新范围"}
-          </div>
+          <div className={styles.paneTitle}>{feature?.title || "更新范围"}</div>
           <p className={styles.hint}>
             {feature?.summary ||
               "不填半径则更新整张图。BlueMap 平时会自动增量更新，改过配置或漏渲时才需要手动触发。"}
@@ -194,15 +175,11 @@ export function MinecraftBluemapWorkspace({
             </div>
             <div className={styles.stat}>
               <span className={styles.statLabel}>当前地图</span>
-              <span className={styles.statValue}>
-                {status?.current_map || "—"}
-              </span>
+              <span className={styles.statValue}>{status?.current_map || "—"}</span>
             </div>
             <div className={styles.stat}>
               <span className={styles.statLabel}>当前任务</span>
-              <span className={styles.statValue}>
-                {taskLabel(status?.current_task || "")}
-              </span>
+              <span className={styles.statValue}>{taskLabel(status?.current_task || "")}</span>
             </div>
             <div className={styles.stat}>
               <span className={styles.statLabel}>剩余</span>

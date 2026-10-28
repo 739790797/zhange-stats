@@ -162,16 +162,12 @@ def test_mode_keyed_cache_drops_old_subkeys_on_new_key() -> None:
 
 def test_header_query_leaves_raw_json_unloaded(engine, db, clock) -> None:
     with game_mode_scope("pvp"):
-        upstream_svc.persist_raw(
-            db, "tasks", {"tasks": {"t1": _task("t1")}}, source="test", note="n"
-        )
+        upstream_svc.persist_raw(db, "tasks", {"tasks": {"t1": _task("t1")}}, source="test", note="n")
     fresh = sessionmaker(bind=engine)()
     try:
         with game_mode_scope("pvp"):
             with _SqlLog(engine) as header_sql:
-                source, synced, _note = upstream_svc.raw_row_header(
-                    upstream_svc.load_raw_row(fresh, "tasks")
-                )
+                source, synced, _note = upstream_svc.raw_row_header(upstream_svc.load_raw_row(fresh, "tasks"))
             with _SqlLog(engine) as json_sql:
                 payload = upstream_svc.load_raw(fresh, "tasks")
     finally:
@@ -250,9 +246,7 @@ def test_catalog_and_items_index_hit_by_header_per_mode(db, clock, monkeypatch) 
     with game_mode_scope("pvp"):
         upstream_svc.persist_raw(db, "items", _items_dump("a1"), source=SOURCE_JSON_API, note="pvp")
     with game_mode_scope("pve"):
-        upstream_svc.persist_raw(
-            db, "items", _items_dump("b1", "b2"), source=SOURCE_JSON_API, note="pve"
-        )
+        upstream_svc.persist_raw(db, "items", _items_dump("b1", "b2"), source=SOURCE_JSON_API, note="pve")
     with game_mode_scope("pvp"):
         pvp_catalog = catalog_svc.load_parsed_catalog(db)
         pvp_index = catalog_svc.load_items_index(db)
@@ -342,12 +336,8 @@ def _rich_items_payload() -> dict:
                         "properties": {"class": 4, "durability": 40},
                     },
                 },
-                "itemCategories": {
-                    "5447b5f14bdc2d61278b4567": {"normalizedName": "assault-rifle"}
-                },
-                "handbookCategories": {
-                    "5b5f78fc86f77409407a7f90": {"normalizedName": "assault-rifles"}
-                },
+                "itemCategories": {"5447b5f14bdc2d61278b4567": {"normalizedName": "assault-rifle"}},
+                "handbookCategories": {"5b5f78fc86f77409407a7f90": {"normalizedName": "assault-rifles"}},
             }
         },
         "locale": {
@@ -448,15 +438,12 @@ def test_ammo_detail_304_until_items_or_overlay_change(client, monkeypatch) -> N
     token = {"value": "o1"}
     served: list[str] = []
     monkeypatch.setattr(items_svc, "ensure_items", lambda _db: None)
-    monkeypatch.setattr(
-        items_svc, "items_raw_header", lambda _db: (SOURCE_JSON_API, "s1", None)
-    )
+    monkeypatch.setattr(items_svc, "items_raw_header", lambda _db: (SOURCE_JSON_API, "s1", None))
     monkeypatch.setattr(overlay_svc, "overlay_cache_token", lambda _db: token["value"])
     monkeypatch.setattr(
         items_svc,
         "get_ammo_item_detail",
-        lambda _db, item_id: served.append(item_id)
-        or {"id": item_id, "name": "BP", "item": {}, "properties": {}},
+        lambda _db, item_id: served.append(item_id) or {"id": item_id, "name": "BP", "item": {}, "properties": {}},
     )
     first = client.get("/tarkov/ammo/a1")
     assert first.status_code == 200
@@ -471,9 +458,7 @@ def test_locale_only_update_invalidates_task_cache_and_etag(db, clock, monkeypat
     """只翻中文（主文件字节不变 → synced_at 不变）也要打穿解析缓存与 ETag。"""
     monkeypatch.setattr(items_svc, "ensure_items", lambda _db: None)
     with game_mode_scope("pvp"):
-        upstream_svc.persist_raw(
-            db, "tasks", {"tasks": {"t1": _task("t1")}}, source="test", note="n"
-        )
+        upstream_svc.persist_raw(db, "tasks", {"tasks": {"t1": _task("t1")}}, source="test", note="n")
         upstream_svc.persist_raw(
             db,
             "tasks",

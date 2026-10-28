@@ -12,7 +12,11 @@ import {
   message,
 } from "antd";
 import { useState } from "react";
-import { fetchEmailSettings, testEmailSettings, updateEmailSettings } from "@/features/admin/api/emailSettingsApi";
+import {
+  fetchEmailSettings,
+  testEmailSettings,
+  updateEmailSettings,
+} from "@/features/admin/api/emailSettingsApi";
 import type { EmailSettings } from "@/features/admin/api/emailSettingsApi";
 import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
 import { SecretFormItem } from "@/shared/ui/SecretFormItem";
@@ -90,8 +94,7 @@ export default function EmailSettingsPage() {
   };
 
   const save = useMutation({
-    mutationFn: (payload: ReturnType<typeof toPayload>) =>
-      updateEmailSettings(payload),
+    mutationFn: (payload: ReturnType<typeof toPayload>) => updateEmailSettings(payload),
     onSuccess: (saved) => {
       applySaved(saved);
       message.success("邮箱设置已保存");
@@ -100,13 +103,7 @@ export default function EmailSettingsPage() {
   });
 
   const test = useMutation({
-    mutationFn: async ({
-      payload,
-      to,
-    }: {
-      payload: ReturnType<typeof toPayload>;
-      to: string;
-    }) => {
+    mutationFn: async ({ payload, to }: { payload: ReturnType<typeof toPayload>; to: string }) => {
       applySaved(await updateEmailSettings(payload));
       return testEmailSettings(to);
     },
@@ -162,11 +159,7 @@ export default function EmailSettingsPage() {
                 <Form.Item
                   name="smtp_user"
                   label="用户名"
-                  rules={
-                    enabled
-                      ? [{ required: true, message: "请输入用户名" }]
-                      : undefined
-                  }
+                  rules={enabled ? [{ required: true, message: "请输入用户名" }] : undefined}
                 >
                   <Input placeholder="user@example.com" />
                 </Form.Item>
@@ -218,9 +211,7 @@ export default function EmailSettingsPage() {
                   name="smtp_host"
                   label="SMTP 服务器地址"
                   rules={
-                    enabled
-                      ? [{ required: true, message: "请输入 SMTP 服务器地址" }]
-                      : undefined
+                    enabled ? [{ required: true, message: "请输入 SMTP 服务器地址" }] : undefined
                   }
                 >
                   <Input placeholder="smtp.example.com" />
@@ -229,18 +220,9 @@ export default function EmailSettingsPage() {
                 <Form.Item
                   name="smtp_port"
                   label="端口号"
-                  rules={
-                    enabled
-                      ? [{ required: true, message: "请输入端口号" }]
-                      : undefined
-                  }
+                  rules={enabled ? [{ required: true, message: "请输入端口号" }] : undefined}
                 >
-                  <InputNumber
-                    min={1}
-                    max={65535}
-                    style={{ width: "100%" }}
-                    placeholder="465"
-                  />
+                  <InputNumber min={1} max={65535} style={{ width: "100%" }} placeholder="465" />
                 </Form.Item>
 
                 <Form.Item name="encryption" label="加密方式">
@@ -267,11 +249,7 @@ export default function EmailSettingsPage() {
           >
             测试邮箱
           </Button>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={save.isPending}
-          >
+          <Button type="primary" htmlType="submit" loading={save.isPending}>
             保存
           </Button>
         </Space>
@@ -305,11 +283,7 @@ export default function EmailSettingsPage() {
         <Typography.Paragraph type="secondary">
           将先保存当前配置，再向该地址发送测试邮件。
         </Typography.Paragraph>
-        <Input
-          value={testTo}
-          onChange={(e) => setTestTo(e.target.value)}
-          placeholder="收件邮箱"
-        />
+        <Input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="收件邮箱" />
       </Modal>
     </div>
   );

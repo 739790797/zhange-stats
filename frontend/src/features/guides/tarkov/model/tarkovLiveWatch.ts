@@ -54,29 +54,20 @@ export function notifyTarkovTaskProgress(detail: TarkovTaskProgressDetail) {
   );
 }
 
-export function formatPollClock(
-  input: number | string | Date | null | undefined,
-): string {
+export function formatPollClock(input: number | string | Date | null | undefined): string {
   if (input == null || input === "") return "—";
   return formatBeijing(input, "YYYY-MM-DD HH:mm:ss");
 }
 
-export function formatLiveWatchShotLine(
-  at: number | string | Date | null | undefined,
-): string {
+export function formatLiveWatchShotLine(at: number | string | Date | null | undefined): string {
   return `最近截图：${formatPollClock(at)}`;
 }
 
-export function formatLiveWatchLogLine(
-  at: number | string | Date | null | undefined,
-): string {
+export function formatLiveWatchLogLine(at: number | string | Date | null | undefined): string {
   return `最近日志：${formatPollClock(at)}`;
 }
 
-export function sameIdLists(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
+export function sameIdLists(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   const a = [...left].sort();
   const b = [...right].sort();
@@ -84,10 +75,7 @@ export function sameIdLists(
 }
 
 /** `next` 里多出来的 id，保序。 */
-export function addedIdList(
-  prev: readonly string[],
-  next: readonly string[],
-): string[] {
+export function addedIdList(prev: readonly string[], next: readonly string[]): string[] {
   const have = new Set(prev);
   return next.filter((id) => Boolean(id) && !have.has(id));
 }
@@ -170,8 +158,7 @@ export function planRaidLogImportRows(
   const nextKeys = new Set(ended.map((row) => raidLogEndedKey(row)));
   if (opts?.force) return { nextKeys, rows };
   const hasFresh =
-    prevEndedKeys.size > 0 &&
-    ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
+    prevEndedKeys.size > 0 && ended.some((row) => !prevEndedKeys.has(raidLogEndedKey(row)));
   return { nextKeys, rows: hasFresh ? rows : [] };
 }
 
@@ -180,11 +167,7 @@ export function planRaidLogImport(
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
   opts?: { force?: boolean },
 ): { nextKeys: Set<string>; rows: TarkovRaidLogImportRow[] } {
-  return planRaidLogImportRows(
-    prevEndedKeys,
-    toRaidLogImportRows(sessions),
-    opts,
-  );
+  return planRaidLogImportRows(prevEndedKeys, toRaidLogImportRows(sessions), opts);
 }
 
 export type LiveLogSyncResult = {

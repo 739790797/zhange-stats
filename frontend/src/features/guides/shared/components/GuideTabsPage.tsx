@@ -36,9 +36,7 @@ export function GuideTabsPage({
   destroyInactiveTabPane,
 }: GuideTabsPageProps) {
   const controlled = activeTab !== undefined;
-  const [innerTab, setInnerTab] = useState(
-    defaultTab || tabItems[0]?.key || "",
-  );
+  const [innerTab, setInnerTab] = useState(defaultTab || tabItems[0]?.key || "");
   const tab = controlled ? activeTab : innerTab;
 
   useEffect(() => {
@@ -64,9 +62,7 @@ export function GuideTabsPage({
           onChange={handleChange}
           items={tabItems.map((item) => ({
             ...item,
-            children: (
-              <Suspense fallback={<PanelFallback />}>{item.children}</Suspense>
-            ),
+            children: <Suspense fallback={<PanelFallback />}>{item.children}</Suspense>,
           }))}
           destroyInactiveTabPane={destroyInactiveTabPane}
         />

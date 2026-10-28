@@ -45,9 +45,7 @@ class ArknightsBoxSnapshot(Base):
     """明日方舟盒子练度快照（按角色 uid 日更缓存）。"""
 
     __tablename__ = "arknights_box_snapshots"
-    __table_args__ = (
-        UniqueConstraint("member_id", "uid", name="uq_arknights_box_snapshot_member_uid"),
-    )
+    __table_args__ = (UniqueConstraint("member_id", "uid", name="uq_arknights_box_snapshot_member_uid"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(

@@ -35,9 +35,7 @@ def test_percentile_nearest() -> None:
 
 
 def test_normalize_api_collapses_ids() -> None:
-    host, key = normalize_api_url(
-        "/api/guides/tarkov/items/5447b5f14bdc2d61278b4567?game_mode=pve"
-    )
+    host, key = normalize_api_url("/api/guides/tarkov/items/5447b5f14bdc2d61278b4567?game_mode=pve")
     assert host == ""
     assert key == "/api/guides/tarkov/items/{id}"
     _, raid = normalize_api_url("/api/guides/tarkov/raid-rooms/a1b2c3d4")
@@ -49,14 +47,10 @@ def test_normalize_api_collapses_ids() -> None:
 
 
 def test_normalize_img_collapses_tiles_and_item_icons() -> None:
-    host, key = normalize_img_url(
-        "https://assets.tarkov.dev/maps/labyrinth/main/0/0/0.png?x=1"
-    )
+    host, key = normalize_img_url("https://assets.tarkov.dev/maps/labyrinth/main/0/0/0.png?x=1")
     assert host == "assets.tarkov.dev"
     assert key == "https://assets.tarkov.dev/maps/{map}/**.png"
-    _, icon = normalize_img_url(
-        "https://assets.tarkov.dev/5448ba0b4bdc2d02308b456c-icon.webp"
-    )
+    _, icon = normalize_img_url("https://assets.tarkov.dev/5448ba0b4bdc2d02308b456c-icon.webp")
     assert icon == "https://assets.tarkov.dev/{id}-icon.webp"
     assert normalize_img_url("data:image/png;base64,aaa") == ("", "")
     assert normalize_img_url("blob:https://example/1") == ("", "")
@@ -146,12 +140,8 @@ def test_truncate_and_series_step() -> None:
     assert rum_series_step(1) == timedelta(minutes=5)
     assert rum_series_step(24) == timedelta(hours=1)
     assert rum_series_step(336) == timedelta(days=1)
-    assert truncate_to_step(
-        datetime(2026, 9, 11, 12, 7, 30), timedelta(minutes=5)
-    ) == datetime(2026, 9, 11, 12, 5, 0)
-    assert truncate_to_step(
-        datetime(2026, 9, 11, 13, 47, 0), timedelta(hours=6)
-    ) == datetime(2026, 9, 11, 12, 0, 0)
+    assert truncate_to_step(datetime(2026, 9, 11, 12, 7, 30), timedelta(minutes=5)) == datetime(2026, 9, 11, 12, 5, 0)
+    assert truncate_to_step(datetime(2026, 9, 11, 13, 47, 0), timedelta(hours=6)) == datetime(2026, 9, 11, 12, 0, 0)
 
 
 def test_summarize_series_two_buckets() -> None:
@@ -204,13 +194,8 @@ def test_ingest_is_one_bulk_insert_and_clips_fields() -> None:
             statements.append((statement, executemany))
 
     long_page = "/p" + "x" * 1000
-    events = [
-        RumEventIn(
-            kind="img", url="https://cdn.example/" + "y" * 600, duration_ms=5, transfer_size=10**12
-        )
-    ] + [
-        RumEventIn(kind="api", url=f"/api/a/{i}?token=secret", duration_ms=10 + i, method="get")
-        for i in range(120)
+    events = [RumEventIn(kind="img", url="https://cdn.example/" + "y" * 600, duration_ms=5, transfer_size=10**12)] + [
+        RumEventIn(kind="api", url=f"/api/a/{i}?token=secret", duration_ms=10 + i, method="get") for i in range(120)
     ]
     n = ingest_rum_events(db, page=long_page, events=events)
     db.commit()

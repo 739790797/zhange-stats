@@ -2,7 +2,11 @@ import { Button, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { TarkovBarter, TarkovCraft, TarkovItemDetail } from "@/features/guides/tarkov/api/guidesApi";
+import type {
+  TarkovBarter,
+  TarkovCraft,
+  TarkovItemDetail,
+} from "@/features/guides/tarkov/api/guidesApi";
 import {
   tarkovHideoutHref,
   tarkovTaskHref,
@@ -133,9 +137,7 @@ function TraderCell({ row }: { row: TarkovBarter }) {
   const label = traderDisplayName(slug, row.trader_name || slug);
   const inner = (
     <>
-      {slug ? (
-        <img className={styles.traderIcon} src={traderIconUrl(slug)} alt="" />
-      ) : null}
+      {slug ? <img className={styles.traderIcon} src={traderIconUrl(slug)} alt="" /> : null}
       <span>
         {label}
         {row.min_trader_level ? (
@@ -219,11 +221,7 @@ function barterColumns(itemId: string): ColumnsType<TarkovBarter> {
       key: "required",
       width: BARTER_COL_WIDTH.required,
       render: (_: unknown, row) => (
-        <TarkovGuideItemStack
-          items={row.required_items}
-          highlightId={itemId}
-          alwaysCount
-        />
+        <TarkovGuideItemStack items={row.required_items} highlightId={itemId} alwaysCount />
       ),
     },
     {
@@ -260,11 +258,7 @@ function craftColumns(itemId: string): ColumnsType<TarkovCraft> {
       key: "required",
       width: CRAFT_COL_WIDTH.required,
       render: (_: unknown, row) => (
-        <TarkovGuideItemStack
-          items={row.required_items}
-          highlightId={itemId}
-          alwaysCount
-        />
+        <TarkovGuideItemStack items={row.required_items} highlightId={itemId} alwaysCount />
       ),
     },
     {
@@ -310,20 +304,12 @@ function TradeTable<T extends object>({
   );
 }
 
-function QuestTraderCell({
-  slug,
-  name,
-}: {
-  slug?: string;
-  name?: string;
-}) {
+function QuestTraderCell({ slug, name }: { slug?: string; name?: string }) {
   const key = slug || "";
   const label = traderDisplayName(key, name || key);
   const inner = (
     <>
-      {key ? (
-        <img className={styles.traderIcon} src={traderIconUrl(key)} alt="" />
-      ) : null}
+      {key ? <img className={styles.traderIcon} src={traderIconUrl(key)} alt="" /> : null}
       <span>{label || "—"}</span>
     </>
   );
@@ -343,16 +329,9 @@ function QuestStepsCell({ row }: { row: QuestTableRow }) {
       {steps.map((step, index) => {
         const count = questStepCountText(step.count);
         return (
-          <div
-            key={step.id || `${step.type || "step"}-${index}`}
-            className={styles.questStep}
-          >
-            <span className={styles.questStepText}>
-              {questStepPrimaryText(step)}
-            </span>
-            {count ? (
-              <span className={styles.questStepCount}>{count}</span>
-            ) : null}
+          <div key={step.id || `${step.type || "step"}-${index}`} className={styles.questStep}>
+            <span className={styles.questStepText}>{questStepPrimaryText(step)}</span>
+            {count ? <span className={styles.questStepCount}>{count}</span> : null}
             <FirMark show={step.found_in_raid} />
           </div>
         );
@@ -389,13 +368,7 @@ function questColumns(): ColumnsType<QuestTableRow> {
   ];
 }
 
-function TradeSection({
-  detail,
-  flea,
-  traderBuys,
-  traderSells,
-  bestSell,
-}: Props) {
+function TradeSection({ detail, flea, traderBuys, traderSells, bestSell }: Props) {
   const itemId = detail.id;
   const sourceBarters = detail.sources?.barters || [];
   const useBarters = detail.uses?.barters || [];
@@ -431,9 +404,7 @@ function TradeSection({
           <TradeTable<TarkovBarter>
             columns={barterColumns(itemId)}
             rows={rows}
-            rowKey={(row) =>
-              row.id || `${row.trader_slug}-${row.min_trader_level}`
-            }
+            rowKey={(row) => row.id || `${row.trader_slug}-${row.min_trader_level}`}
           />
         )}
       </ExpandableBlock>
@@ -442,9 +413,7 @@ function TradeSection({
           <TradeTable<TarkovBarter>
             columns={barterColumns(itemId)}
             rows={rows}
-            rowKey={(row) =>
-              row.id || `${row.trader_slug}-${row.min_trader_level}`
-            }
+            rowKey={(row) => row.id || `${row.trader_slug}-${row.min_trader_level}`}
           />
         )}
       </ExpandableBlock>
@@ -538,20 +507,14 @@ function HideoutSection({ detail }: { detail: TarkovItemDetail }) {
                   </span>
                   <span className={styles.questName}>{label}</span>
                   <span className={styles.questMeta}>
-                    {count > 1 ? (
-                      <span className={styles.questCount}>×{count}</span>
-                    ) : null}
+                    {count > 1 ? <span className={styles.questCount}>×{count}</span> : null}
                     <FirMark show={row.found_in_raid} />
                   </span>
                 </>
               );
               const key = `${row.station_slug || row.station_id}-${row.level}-${row.found_in_raid ? "fir" : "any"}`;
               return row.station_slug ? (
-                <Link
-                  key={key}
-                  className={styles.quest}
-                  to={tarkovHideoutHref(row.station_slug)}
-                >
+                <Link key={key} className={styles.quest} to={tarkovHideoutHref(row.station_slug)}>
                   {inner}
                 </Link>
               ) : (
@@ -567,13 +530,7 @@ function HideoutSection({ detail }: { detail: TarkovItemDetail }) {
   );
 }
 
-function DropGroup({
-  section,
-  rows,
-}: {
-  section: "boss" | "other";
-  rows: TarkovItemDropSource[];
-}) {
+function DropGroup({ section, rows }: { section: "boss" | "other"; rows: TarkovItemDropSource[] }) {
   const [open, setOpen] = useState(false);
   if (!rows.length) return null;
   const visible = previewRows(rows, open);
@@ -582,11 +539,7 @@ function DropGroup({
       <h4 className={styles.dropGroupTitle}>
         {dropSourceSectionLabel(section)}
         <span className={styles.blockCount}>{rows.length}</span>
-        <ExpandButton
-          total={rows.length}
-          open={open}
-          onToggle={() => setOpen((value) => !value)}
-        />
+        <ExpandButton total={rows.length} open={open} onToggle={() => setOpen((value) => !value)} />
       </h4>
       <div className={styles.dropRow}>
         {visible.map((row) => {
@@ -598,17 +551,11 @@ function DropGroup({
                 {portrait ? (
                   <img className={styles.dropImg} src={portrait} alt="" />
                 ) : (
-                  <span className={styles.dropFallback}>
-                    {(row.name || "?").slice(0, 1)}
-                  </span>
+                  <span className={styles.dropFallback}>{(row.name || "?").slice(0, 1)}</span>
                 )}
               </span>
-              <span className={styles.dropName}>
-                {row.name || row.slug || row.id}
-              </span>
-              {row.maps_label ? (
-                <span className={styles.dropMaps}>{row.maps_label}</span>
-              ) : null}
+              <span className={styles.dropName}>{row.name || row.slug || row.id}</span>
+              {row.maps_label ? <span className={styles.dropMaps}>{row.maps_label}</span> : null}
             </>
           );
           if (href) {

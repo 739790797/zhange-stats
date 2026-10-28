@@ -4,9 +4,7 @@ import { TAVERN_ADMIN_PATH, TAVERN_PATH } from "@/features/articles/model/tavern
 
 export type AdminContentShell = "form" | "wide" | "reading" | "flush";
 
-export function adminContentShell(
-  pathname: string,
-): AdminContentShell | null {
+export function adminContentShell(pathname: string): AdminContentShell | null {
   // Minecraft 页面已停用。
   // if (pathname === "/guides/minecraft" || pathname.startsWith("/guides/minecraft/")) {
   //   return "wide";
@@ -14,11 +12,7 @@ export function adminContentShell(
   if (pathname === TAVERN_ADMIN_PATH || pathname.startsWith(`${TAVERN_ADMIN_PATH}/`)) {
     return "wide";
   }
-  if (
-    pathname === "/" ||
-    pathname === TAVERN_PATH ||
-    pathname.startsWith(`${TAVERN_PATH}/`)
-  ) {
+  if (pathname === "/" || pathname === TAVERN_PATH || pathname.startsWith(`${TAVERN_PATH}/`)) {
     return "flush";
   }
   if (pathname === "/settings" || pathname.startsWith("/settings/")) {

@@ -3,9 +3,15 @@
 import { useEffect, useRef } from "react";
 import { message, Modal } from "antd";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { fetchTarkovTaskDonesFor, mergeTarkovKeyOwns } from "@/features/guides/tarkov/api/guidesApi";
+import {
+  fetchTarkovTaskDonesFor,
+  mergeTarkovKeyOwns,
+} from "@/features/guides/tarkov/api/guidesApi";
 import { apiError } from "@/shared/api/apiError";
-import { TARKOV_GAME_MODES, type TarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
+import {
+  TARKOV_GAME_MODES,
+  type TarkovGameMode,
+} from "@/features/guides/tarkov/model/tarkovGameMode";
 import {
   browserLocalStorage,
   discardTarkovGuestProgress,
@@ -68,9 +74,7 @@ async function importTarkovGuestProgress(
   }
   importGuestTaskProgress(stash[TARKOV_TASK_DONES_STORAGE_KEY], skip);
   importGuestRaidPrepObjectiveDone(stash[RAID_PREP_OBJ_DONE_STORAGE], userId);
-  const factions = parseTarkovPmcFactionMap(
-    stash[TARKOV_PMC_FACTION_STORAGE_KEY] ?? null,
-  );
+  const factions = parseTarkovPmcFactionMap(stash[TARKOV_PMC_FACTION_STORAGE_KEY] ?? null);
   for (const mode of TARKOV_GAME_MODES) {
     const faction = factions[mode];
     if (faction && !loadTarkovPmcFaction(mode)) {

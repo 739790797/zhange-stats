@@ -85,9 +85,7 @@ def test_clear_survives_as_server_state_not_client_state() -> None:
     dones.clear_progress(db, user, game_mode="pvp", now=T_CLEAR)
     db.commit()
     fresh = sessionmaker(bind=db.get_bind())()
-    assert dones.task_boundary(fresh, user.id, game_mode="pvp")["pending_clear_at"] == (
-        "2026-10-13 15:00:00"
-    )
+    assert dones.task_boundary(fresh, user.id, game_mode="pvp")["pending_clear_at"] == ("2026-10-13 15:00:00")
 
 
 def test_reset_clear_floor_keeps_the_sync_time() -> None:
@@ -218,9 +216,7 @@ def test_reset_floor_is_monotonic() -> None:
             game_mode="pvp",
         )
     assert exc.value.status_code == 409
-    assert dones.task_boundary(db, user.id, game_mode="pvp")["reset_at"] == (
-        "2026-10-13 15:00:00"
-    )
+    assert dones.task_boundary(db, user.id, game_mode="pvp")["reset_at"] == ("2026-10-13 15:00:00")
 
 
 def test_stale_epoch_is_rejected_for_bulk_writes() -> None:
@@ -285,9 +281,7 @@ def test_manual_uncheck_is_remembered_on_the_account() -> None:
     user = _user(db)
     dones.add_done(db, user, "t1", game_mode="pvp")
     dones.remove_done(db, user, "t1", game_mode="pvp", now=T_CLEAR)
-    assert dones.list_cleared(db, user.id, game_mode="pvp") == [
-        {"task_id": "t1", "cleared_at": "2026-10-13 15:00:00"}
-    ]
+    assert dones.list_cleared(db, user.id, game_mode="pvp") == [{"task_id": "t1", "cleared_at": "2026-10-13 15:00:00"}]
     # 标回完成就释放
     dones.add_done(db, user, "t1", game_mode="pvp")
     assert dones.list_cleared(db, user.id, game_mode="pvp") == []
@@ -297,9 +291,7 @@ def test_replace_records_removed_dones_and_releases_readded() -> None:
     db = _session()
     user = _user(db)
     dones.write_progress(db, user, ["a", "b"], [], replace=True, game_mode="pvp")
-    dones.write_progress(
-        db, user, ["a"], [], replace=True, game_mode="pvp", now=T_CLEAR
-    )
+    dones.write_progress(db, user, ["a"], [], replace=True, game_mode="pvp", now=T_CLEAR)
     assert [row["task_id"] for row in dones.list_cleared(db, user.id, game_mode="pvp")] == ["b"]
     dones.write_progress(db, user, ["a", "b"], [], replace=False, game_mode="pvp")
     assert dones.list_cleared(db, user.id, game_mode="pvp") == []
@@ -379,9 +371,7 @@ def test_prestige_reset_keeps_manual_uncheck_newer_than_the_floor() -> None:
         now=datetime(2026, 10, 6, 0, 0, 0),
     )
     # 10-05 的取消晚于 10-01 的下限：保留；09-01 的已被下限覆盖：删掉
-    assert dones.list_cleared(db, user.id, game_mode="pvp") == [
-        {"task_id": "x", "cleared_at": "2026-10-05 12:00:00"}
-    ]
+    assert dones.list_cleared(db, user.id, game_mode="pvp") == [{"task_id": "x", "cleared_at": "2026-10-05 12:00:00"}]
 
 
 def test_reset_does_not_stamp_marks_for_replayed_removals() -> None:

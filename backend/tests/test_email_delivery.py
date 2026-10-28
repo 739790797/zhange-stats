@@ -80,11 +80,7 @@ def smtp(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
 
 
 def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
-    return [
-        r.getMessage()
-        for r in caplog.records
-        if r.name == _LOGGER and r.levelno >= logging.WARNING
-    ]
+    return [r.getMessage() for r in caplog.records if r.name == _LOGGER and r.levelno >= logging.WARNING]
 
 
 def test_unavailable_without_allow_log(monkeypatch) -> None:
@@ -215,8 +211,7 @@ def test_smtp_failures_warn_once_per_kind_without_recipients(smtp, caplog) -> No
         assert _send_with_config(_CFG, to, _CODE) == {"sent": False, "mode": "smtp_error"}
 
     assert _warnings(caplog) == [
-        "发送验证邮件失败 host=smtp.example.com port=465 encryption=SSL "
-        "error=SMTPRecipientsRefused"
+        "发送验证邮件失败 host=smtp.example.com port=465 encryption=SSL error=SMTPRecipientsRefused"
     ]
     assert all(r.exc_info is None for r in caplog.records)
     for to in recipients:
@@ -232,9 +227,7 @@ def test_new_failure_kind_or_success_rearms_the_warning(smtp, caplog) -> None:
     smtp.fail = lambda _to: OSError("smtp down")
     for _ in range(3):
         _send_with_config(_CFG, "alice@example.com", _CODE)
-    smtp.fail = lambda _to: smtplib.SMTPAuthenticationError(
-        535, b"5.7.8 bot@example.com: authentication failed"
-    )
+    smtp.fail = lambda _to: smtplib.SMTPAuthenticationError(535, b"5.7.8 bot@example.com: authentication failed")
     for _ in range(2):
         _send_with_config(_CFG, "alice@example.com", _CODE)
     smtp.fail = None
@@ -252,9 +245,7 @@ def test_new_failure_kind_or_success_rearms_the_warning(smtp, caplog) -> None:
 
 
 @pytest.mark.parametrize("encryption", ["NONE", "none", "TLS"])
-def test_plaintext_auth_to_remote_host_is_refused_before_connecting(
-    smtp, caplog, encryption: str
-) -> None:
+def test_plaintext_auth_to_remote_host_is_refused_before_connecting(smtp, caplog, encryption: str) -> None:
     caplog.set_level(logging.DEBUG, logger=_LOGGER)
     cfg = {**_CFG, "smtp_port": 25, "encryption": encryption}
     for to in ("alice@example.com", "bob@example.com"):

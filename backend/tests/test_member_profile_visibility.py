@@ -73,9 +73,7 @@ def _user(db, username: str, role: UserRole, email: str | None = None) -> User:
 
 @pytest.fixture
 def env():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
 

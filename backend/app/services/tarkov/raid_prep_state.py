@@ -109,9 +109,7 @@ def serialize_state(row: TarkovUserRaidPrep) -> dict[str, Any]:
         "selected": _id_list(row.selected_json, limit=SELECTED_MAX),
         "objective_dones": _objective_pairs(row.objective_dones_json),
         "key_brings": _id_list(row.key_brings_json, limit=KEY_BRING_MAX),
-        "updated_at": row.updated_at.isoformat(timespec="seconds")
-        if row.updated_at
-        else None,
+        "updated_at": row.updated_at.isoformat(timespec="seconds") if row.updated_at else None,
     }
 
 

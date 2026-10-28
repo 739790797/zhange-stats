@@ -21,11 +21,7 @@ import {
   type TaskForestNode,
 } from "./tarkovTaskForest";
 
-function task(
-  id: string,
-  name: string,
-  extra: Partial<TaskForestItem> = {},
-): TaskForestItem {
+function task(id: string, name: string, extra: Partial<TaskForestItem> = {}): TaskForestItem {
   return { id, name, ...extra };
 }
 
@@ -49,9 +45,7 @@ function findNode<T extends TaskForestItem>(
   return undefined;
 }
 
-function collectIds<T extends TaskForestItem>(
-  children: readonly TaskForestChild<T>[],
-): string[] {
+function collectIds<T extends TaskForestItem>(children: readonly TaskForestChild<T>[]): string[] {
   const out: string[] = [];
   for (const child of children) {
     if (child.kind === "choice") {
@@ -118,10 +112,7 @@ describe("buildTaskForest", () => {
     expect(root?.children).toHaveLength(1);
     expect(root?.children[0]?.kind).toBe("choice");
     if (root?.children[0]?.kind !== "choice") return;
-    expect(root.children[0].options.map((row) => row.task.id).sort()).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(root.children[0].options.map((row) => row.task.id).sort()).toEqual(["a", "b"]);
     expect(taskChoiceLabel(2)).toBe("二选一");
   });
 
@@ -135,15 +126,9 @@ describe("buildTaskForest", () => {
     const choice = forest.find((row) => row.kind === "choice");
     expect(choice?.kind).toBe("choice");
     if (choice?.kind !== "choice") return;
-    expect(choice.options.map((row) => row.task.id).sort()).toEqual([
-      "big",
-      "chem",
-      "curio",
-    ]);
+    expect(choice.options.map((row) => row.task.id).sort()).toEqual(["big", "chem", "curio"]);
     expect(taskChoiceLabel(choice.options.length)).toBe("三选一");
-    expect(forest.some((row) => row.kind === "task" && row.node.task.id === "plain")).toBe(
-      true,
-    );
+    expect(forest.some((row) => row.kind === "task" && row.node.task.id === "plain")).toBe(true);
   });
 
   it("pulls missing prereqs into the closure so follow-ups can nest", () => {
@@ -157,15 +142,11 @@ describe("buildTaskForest", () => {
     expect(closure.map((row) => row.id).sort()).toEqual(["c", "p"]);
     const forest = buildTaskForest(closure);
     expect(findNode(forest, "c")?.extraPrereqIds).toEqual([]);
-    expect(
-      findNode(forest, "p") && findNode(findNode(forest, "p")!.children, "c"),
-    ).toBeTruthy();
+    expect(findNode(forest, "p") && findNode(findNode(forest, "p")!.children, "c")).toBeTruthy();
   });
 
   it("keeps out-of-group prereqs as extras on a root", () => {
-    const forest = buildTaskForest([
-      task("a", "后续", { prereq_ids: ["b"] }),
-    ]);
+    const forest = buildTaskForest([task("a", "后续", { prereq_ids: ["b"] })]);
     const node = findNode(forest, "a");
     expect(node?.extraPrereqIds).toEqual(["b"]);
     expect(forest).toHaveLength(1);
@@ -182,9 +163,7 @@ describe("buildTaskForest", () => {
     expect(bNode && findNode(bNode.children, "c")).toBeTruthy();
     expect(findNode(forest, "c")?.extraPrereqIds).toEqual(["a"]);
     expect(
-      aNode?.children.some(
-        (child) => child.kind === "task" && child.node.task.id === "c",
-      ),
+      aNode?.children.some((child) => child.kind === "task" && child.node.task.id === "c"),
     ).toBe(false);
   });
 
@@ -217,9 +196,7 @@ describe("buildTraderTaskForest", () => {
     expect(findNode(airNode?.children || [], "later")).toBeTruthy();
     expect(findNode(forest, "later")?.extraPrereqIds).toEqual([]);
     expect(
-      splitFlowForest(forest).chains.map((row) =>
-        row.kind === "task" ? row.node.task.id : "",
-      ),
+      splitFlowForest(forest).chains.map((row) => (row.kind === "task" ? row.node.task.id : "")),
     ).toEqual(["air"]);
   });
 
@@ -279,13 +256,13 @@ describe("splitFlowForest", () => {
       task("b", "线B", { mutex_ids: ["a"] }),
     ]);
     const split = splitFlowForest(forest);
-    expect(split.chains.map((row) => (row.kind === "choice" ? "choice" : row.node.task.id))).toEqual(
-      ["root", "choice"],
-    );
-    expect(forestChildDepth(split.chains[0]!)).toBe(2);
     expect(
-      split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : "")),
-    ).toEqual(["solo"]);
+      split.chains.map((row) => (row.kind === "choice" ? "choice" : row.node.task.id)),
+    ).toEqual(["root", "choice"]);
+    expect(forestChildDepth(split.chains[0]!)).toBe(2);
+    expect(split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : ""))).toEqual([
+      "solo",
+    ]);
   });
 
   it("keeps a foreign-prereq root in chains instead of isolates", () => {
@@ -294,13 +271,13 @@ describe("splitFlowForest", () => {
       task("solo", "一信之缘"),
     ]);
     const split = splitFlowForest(forest);
-    expect(
-      split.chains.map((row) => (row.kind === "task" ? row.node.task.id : "")),
-    ).toEqual(["later"]);
+    expect(split.chains.map((row) => (row.kind === "task" ? row.node.task.id : ""))).toEqual([
+      "later",
+    ]);
     expect(findNode(split.chains, "later")?.extraPrereqIds).toEqual(["air"]);
-    expect(
-      split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : "")),
-    ).toEqual(["solo"]);
+    expect(split.isolates.map((row) => (row.kind === "task" ? row.node.task.id : ""))).toEqual([
+      "solo",
+    ]);
   });
 });
 
@@ -336,13 +313,12 @@ describe("flowCardRibbonKinds", () => {
     expect(flowCardRibbonKinds({})).toEqual([]);
     expect(flowCardRibbonKinds({ prereq: true })).toEqual(["prereq"]);
     expect(flowCardRibbonKinds({ conflict: true })).toEqual(["conflict"]);
-    expect(flowCardRibbonKinds({ prereq: true, conflict: true })).toEqual([
+    expect(flowCardRibbonKinds({ prereq: true, conflict: true })).toEqual(["prereq", "conflict"]);
+    expect(flowCardRibbonKinds({ prereq: true, blocked: true, conflict: true })).toEqual([
       "prereq",
+      "blocked",
       "conflict",
     ]);
-    expect(
-      flowCardRibbonKinds({ prereq: true, blocked: true, conflict: true }),
-    ).toEqual(["prereq", "blocked", "conflict"]);
     expect(flowCardRibbonGradient(["prereq"])).toBe("#7a7c70");
     expect(flowCardRibbonGradient(["conflict"])).toBe("#c45c4a");
     expect(flowCardRibbonGradient(["prereq", "conflict"])).toBe(

@@ -65,9 +65,7 @@ def _included(engine) -> dict[str, int]:
 def test_default_of_one_becomes_zero_and_stored_values_stay(plain_engine) -> None:
     # The MariaDB shape 0029 left behind: DEFAULT 1, and a row that relied on it.
     with plain_engine.begin() as conn:
-        with Operations(MigrationContext.configure(conn)).batch_alter_table(
-            "checkin_role_prefs"
-        ) as batch:
+        with Operations(MigrationContext.configure(conn)).batch_alter_table("checkin_role_prefs") as batch:
             batch.alter_column(
                 "included",
                 existing_type=sa.Boolean(),

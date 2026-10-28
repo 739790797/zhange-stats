@@ -97,9 +97,7 @@ def test_put_faction_traders_and_level() -> None:
         assert out["pmc_faction"] == "usec"
         assert out["player_level"] == 42
         assert out["trader_levels"] == {"prapor": 3}
-        again = profile_svc.update_profile(
-            db, user, {"trader_levels": {"therapist": 2}}, _stations()
-        )
+        again = profile_svc.update_profile(db, user, {"trader_levels": {"therapist": 2}}, _stations())
         assert again["trader_levels"] == {"prapor": 3, "therapist": 2}
     finally:
         reset_game_mode(token)
@@ -113,31 +111,15 @@ def test_eod_raises_stash_to_four() -> None:
     try:
         rows = {r["station_id"]: r["level"] for r in levels_svc.list_levels(db, user.id, stations)}
         assert rows["stash"] == 1
-        profile_svc.update_profile(
-            db, user, {"game_edition": "eod"}, stations
-        )
-        rows = {
-            r["station_id"]: r["level"]
-            for r in levels_svc.list_levels(db, user.id, stations)
-        }
+        profile_svc.update_profile(db, user, {"game_edition": "eod"}, stations)
+        rows = {r["station_id"]: r["level"] for r in levels_svc.list_levels(db, user.id, stations)}
         assert rows["stash"] == 4
-        stored = {
-            (r.station_id, r.level)
-            for r in db.query(TarkovUserHideoutLevel).all()
-        }
+        stored = {(r.station_id, r.level) for r in db.query(TarkovUserHideoutLevel).all()}
         assert ("stash", 4) in stored
-        still = {
-            r["station_id"]: r["level"]
-            for r in levels_svc.set_level(db, user, stations, "stash", 3)
-        }
+        still = {r["station_id"]: r["level"] for r in levels_svc.set_level(db, user, stations, "stash", 3)}
         assert still["stash"] == 4
-        profile_svc.update_profile(
-            db, user, {"game_edition": "standard"}, stations
-        )
-        kept = {
-            r["station_id"]: r["level"]
-            for r in levels_svc.list_levels(db, user.id, stations)
-        }
+        profile_svc.update_profile(db, user, {"game_edition": "standard"}, stations)
+        kept = {r["station_id"]: r["level"] for r in levels_svc.list_levels(db, user.id, stations)}
         assert kept["stash"] == 4
     finally:
         reset_game_mode(token)
@@ -148,9 +130,7 @@ def test_pve_profile_separate() -> None:
     user = _user(db, "a")
     pvp = use_game_mode("pvp")
     try:
-        profile_svc.update_profile(
-            db, user, {"pmc_faction": "bear", "game_edition": "eod"}, _stations()
-        )
+        profile_svc.update_profile(db, user, {"pmc_faction": "bear", "game_edition": "eod"}, _stations())
     finally:
         reset_game_mode(pvp)
     pve = use_game_mode("pve")
@@ -158,9 +138,7 @@ def test_pve_profile_separate() -> None:
         row = profile_svc.get_profile(db, user.id)
         assert row["pmc_faction"] == ""
         assert row["game_edition"] == "standard"
-        profile_svc.update_profile(
-            db, user, {"pmc_faction": "usec"}, _stations()
-        )
+        profile_svc.update_profile(db, user, {"pmc_faction": "usec"}, _stations())
     finally:
         reset_game_mode(pve)
     pvp_row = profile_svc.get_profile(db, user.id, game_mode="pvp")
@@ -172,13 +150,9 @@ def test_invalid_faction_and_edition() -> None:
     db = _session()
     user = _user(db, "a")
     with pytest.raises(profile_svc.TarkovProfileError, match="阵营"):
-        profile_svc.update_profile(
-            db, user, {"pmc_faction": "scav"}, _stations()
-        )
+        profile_svc.update_profile(db, user, {"pmc_faction": "scav"}, _stations())
     with pytest.raises(profile_svc.TarkovProfileError, match="版本"):
-        profile_svc.update_profile(
-            db, user, {"game_edition": "unheard"}, _stations()
-        )
+        profile_svc.update_profile(db, user, {"game_edition": "unheard"}, _stations())
 
 
 def test_profile_openapi_requires_login() -> None:

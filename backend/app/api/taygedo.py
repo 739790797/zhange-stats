@@ -71,9 +71,7 @@ router = APIRouter(
 )
 
 
-def _status_out(
-    db: Session, member: Member, *, include_roles: bool, force: bool
-) -> TaygedoStatusOut:
+def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool) -> TaygedoStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -132,9 +130,7 @@ def taygedo_bind_sms_send(
     ip = client_ip(request)
     platform_limiter.hit(f"taygedo-sms:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"taygedo-sms:uid:{user.id}", limit=5, window_sec=600)
-    platform_limiter.hit(
-        f"taygedo-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
-    )
+    platform_limiter.hit(f"taygedo-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600)
     try:
         device_id = send_sms_captcha(payload.phone, payload.device_id)
     except TaygedoApiError as exc:
@@ -293,9 +289,7 @@ def taygedo_checkin_now(
 ):
     role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(
-            db, member, force=True, role_keys=role_keys
-        )
+        out = run_checkin_for_member(db, member, force=True, role_keys=role_keys)
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
     return build_checkin_response(
@@ -323,21 +317,9 @@ def taygedo_exchange_shop(
         gold=int(data.get("gold") or 0),
         today_get=int(data.get("today_get") or 0),
         today_total=int(data.get("today_total") or 0),
-        tabs=[
-            TaygedoExchangeTabOut(**t)
-            for t in (data.get("tabs") or [])
-            if isinstance(t, dict)
-        ],
-        items=[
-            TaygedoExchangeItemOut(**item)
-            for item in (data.get("items") or [])
-            if isinstance(item, dict)
-        ],
-        roles=[
-            TaygedoExchangeRoleOut(**r)
-            for r in (data.get("roles") or [])
-            if isinstance(r, dict)
-        ],
+        tabs=[TaygedoExchangeTabOut(**t) for t in (data.get("tabs") or []) if isinstance(t, dict)],
+        items=[TaygedoExchangeItemOut(**item) for item in (data.get("items") or []) if isinstance(item, dict)],
+        roles=[TaygedoExchangeRoleOut(**r) for r in (data.get("roles") or []) if isinstance(r, dict)],
     )
 
 
@@ -384,14 +366,12 @@ def taygedo_attendance_calendar(
 ):
     """异环 / 幻塔签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。"""
     try:
-        parsed, role, roles, synced_at, stale = (
-            get_taygedo_attendance_calendar_for_member(
-                db,
-                member,
-                game_code=game_code,
-                role_uid=role_uid,
-                force=force,
-            )
+        parsed, role, roles, synced_at, stale = get_taygedo_attendance_calendar_for_member(
+            db,
+            member,
+            game_code=game_code,
+            role_uid=role_uid,
+            force=force,
         )
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
@@ -479,9 +459,7 @@ def taygedo_exastris_box(
 ):
     """异环角色盒子：默认读库二次加工；force 或首次回源落库。"""
     try:
-        box, role, roles, synced_at, stale = get_exastris_box_for_member(
-            db, member, uid, force=force
-        )
+        box, role, roles, synced_at, stale = get_exastris_box_for_member(db, member, uid, force=force)
     except TaygedoApiError as exc:
         raise_api_error(exc, TaygedoApiError)
     return _exastris_box_out(box, role, roles, synced_at, stale)

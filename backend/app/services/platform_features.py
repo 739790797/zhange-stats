@@ -363,9 +363,7 @@ def _iter_nodes(
 
 _ALL_FEATURE_IDS: list[str] = [str(n["id"]) for n, _ in _iter_nodes()]
 _ALL_FEATURE_ID_SET: set[str] = set(_ALL_FEATURE_IDS)
-_RESERVED_FEATURE_IDS: set[str] = {
-    str(n["id"]) for n, _ in _iter_nodes() if n.get("reserved")
-}
+_RESERVED_FEATURE_IDS: set[str] = {str(n["id"]) for n, _ in _iter_nodes() if n.get("reserved")}
 _RETIRED_ROR2_FEATURE_FLAGS = frozenset(
     {
         "guides.ror2",
@@ -392,9 +390,7 @@ def _apply_legacy_feature_flags(base: dict[str, bool], flags: dict[str, Any]) ->
         if "tavern.texteller_sync" in flags:
             base["zhange.texteller_model"] = bool(flags["tavern.texteller_sync"])
     if "zhange" in flags or "zhange.upstream_repos" in flags:
-        legacy_on = bool(flags.get("zhange", True)) and bool(
-            flags.get("zhange.upstream_repos", True)
-        )
+        legacy_on = bool(flags.get("zhange", True)) and bool(flags.get("zhange.upstream_repos", True))
         for feature_id in (
             "skland.arknights.repo_sync",
             "skland.endfield.repo_sync",
@@ -473,9 +469,7 @@ def save_feature_flags(
     return current
 
 
-def is_feature_enabled_from_flags(
-    flags: dict[str, bool], feature_id: str
-) -> bool:
+def is_feature_enabled_from_flags(flags: dict[str, bool], feature_id: str) -> bool:
     """自身及全部祖先均为开启时才有效（基于已加载 flags）。"""
     feature_id = _canonical_feature_id(feature_id)
     parts = feature_id.split(".")

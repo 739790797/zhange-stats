@@ -212,9 +212,7 @@ def test_fetch_follows_one_www_redirect(monkeypatch):
         return _Resp(
             301,
             b"redirect",
-            headers={
-                "location": "https://www.eftforge.com/builds/public?gun_id=gun1"
-            },
+            headers={"location": "https://www.eftforge.com/builds/public?gun_id=gun1"},
         )
 
     monkeypatch.setattr(svc, "http_request", _http)
@@ -250,9 +248,7 @@ def test_fetch_rejects_offsite_and_chained_redirect(monkeypatch):
         return _Resp(
             301,
             b"",
-            headers={
-                "location": "https://www.eftforge.com/builds/public?gun_id=gun1"
-            },
+            headers={"location": "https://www.eftforge.com/builds/public?gun_id=gun1"},
         )
 
     monkeypatch.setattr(svc, "http_request", _chain)
@@ -266,9 +262,7 @@ def test_fetch_public_raw_kill_switch_and_transport(monkeypatch):
     monkeypatch.setattr(
         svc,
         "http_request",
-        lambda *_a, **_k: _Resp(
-            403, b'{"detail":"community_builds_disabled"}'
-        ),
+        lambda *_a, **_k: _Resp(403, b'{"detail":"community_builds_disabled"}'),
     )
     with pytest.raises(svc.TarkovCommunityError, match="已关闭") as disabled:
         svc.fetch_public_raw("gun1")
@@ -283,9 +277,7 @@ def test_fetch_public_raw_kill_switch_and_transport(monkeypatch):
 
 
 def test_fetch_rejects_non_eftforge_host(monkeypatch):
-    monkeypatch.setattr(
-        svc, "get_settings", lambda: _settings(base="http://127.0.0.1:9")
-    )
+    monkeypatch.setattr(svc, "get_settings", lambda: _settings(base="http://127.0.0.1:9"))
     with pytest.raises(svc.TarkovCommunityError, match="未配置") as exc:
         svc.fetch_public_raw("gun1")
     assert exc.value.status_code == 503
@@ -304,15 +296,7 @@ def test_fetch_rejects_oversized_payload(monkeypatch):
 
 
 def test_accept_eftforge_public_url():
-    assert svc.accept_eftforge_public_url(
-        "https://eftforge.com/builds/public?gun_id=x"
-    )
-    assert svc.accept_eftforge_public_url(
-        "https://www.eftforge.com/builds/public?gun_id=x"
-    )
-    assert not svc.accept_eftforge_public_url(
-        "https://evil.example/builds/public?gun_id=x"
-    )
-    assert not svc.accept_eftforge_public_url(
-        "http://eftforge.com/builds/public?gun_id=x"
-    )
+    assert svc.accept_eftforge_public_url("https://eftforge.com/builds/public?gun_id=x")
+    assert svc.accept_eftforge_public_url("https://www.eftforge.com/builds/public?gun_id=x")
+    assert not svc.accept_eftforge_public_url("https://evil.example/builds/public?gun_id=x")
+    assert not svc.accept_eftforge_public_url("http://eftforge.com/builds/public?gun_id=x")

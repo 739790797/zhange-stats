@@ -1,6 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Alert, message } from "antd";
-import { bindSklandPassword, bindSklandSms, fetchSklandStatus, pollSklandQrBind, sendSklandSms, startSklandQrBind } from "@/features/platforms/skland/api/sklandApi";
+import {
+  bindSklandPassword,
+  bindSklandSms,
+  fetchSklandStatus,
+  pollSklandQrBind,
+  sendSklandSms,
+  startSklandQrBind,
+} from "@/features/platforms/skland/api/sklandApi";
 import type { SklandStatus } from "@/features/platforms/skland/api/types";
 import { PhoneAuthBindTemplate } from "@/features/auth/components/PhoneAuthBindTemplate";
 import { preferredPhoneAuthMode, type PhoneAuthMode } from "@/features/auth/model/phoneAuth";
@@ -25,10 +32,7 @@ export function SklandBindPanel({
   const { openPicker, modal } = useRoleMembershipPicker("skland");
   const resolvedDefault = preferredPhoneAuthMode(SKLAND_MODES);
 
-  const finishOk = async (
-    status?: SklandStatus | null,
-    msg = "森空岛绑定成功",
-  ) => {
+  const finishOk = async (status?: SklandStatus | null, msg = "森空岛绑定成功") => {
     await queryClient.cancelQueries({ queryKey: STATUS_KEY });
     let next = status;
     if (!next?.bound || next.token_ok === false) {
@@ -38,9 +42,7 @@ export function SklandBindPanel({
       queryClient.setQueryData(STATUS_KEY, next);
     }
     if (next?.bound && next.token_ok === false) {
-      message.warning(
-        next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试",
-      );
+      message.warning(next.token_error || "绑定已写入，但凭证校验未通过，请稍后刷新或重试");
     } else {
       message.success(msg);
     }
@@ -81,12 +83,7 @@ export function SklandBindPanel({
         }}
         qrPanel={qrPanel}
       />
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginTop: 12 }}
-        message={SKLAND_APP_LOGOUT_HINT}
-      />
+      <Alert type="info" showIcon style={{ marginTop: 12 }} message={SKLAND_APP_LOGOUT_HINT} />
       {modal}
     </>
   );

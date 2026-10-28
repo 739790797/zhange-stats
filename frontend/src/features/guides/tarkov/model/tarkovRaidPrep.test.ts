@@ -114,9 +114,7 @@ import {
 
 describe("raid prep map keys", () => {
   it("treats streets aliases as the same map", () => {
-    expect([...mapSlugKeys("streets")].sort()).toEqual(
-      ["streets", "streets-of-tarkov"].sort(),
-    );
+    expect([...mapSlugKeys("streets")].sort()).toEqual(["streets", "streets-of-tarkov"].sort());
     expect(normalizeRaidPrepMapId("streets-of-tarkov")).toBe("streets");
     expect(normalizeRaidPrepMapId("lab")).toBe("lab");
     expect(normalizeRaidPrepMapId("the-lab")).toBe("lab");
@@ -234,27 +232,29 @@ describe("raid prep participant line", () => {
 
   it("filters quest overlays by selected people", () => {
     const byTask = new Map([
-      ["t1", [{ name: "甲", userId: 1 }, { name: "乙", userId: 2 }]],
+      [
+        "t1",
+        [
+          { name: "甲", userId: 1 },
+          { name: "乙", userId: 2 },
+        ],
+      ],
       ["t2", [{ name: "乙", userId: 2 }]],
     ]);
     const people = collectRaidPrepQuestFilterPeople(byTask);
     expect(people.map((row) => raidPrepPersonKey(row))).toEqual(["id:1", "id:2"]);
     const onlyJia = new Set(["id:1"]);
-    expect(
-      raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t1")), onlyJia),
-    ).toBe(true);
-    expect(
-      raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t2")), onlyJia),
-    ).toBe(false);
+    expect(raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t1")), onlyJia)).toBe(true);
+    expect(raidPrepQuestOverlayVisible(raidPrepParticipants(byTask.get("t2")), onlyJia)).toBe(
+      false,
+    );
     expect(raidPrepQuestOverlayVisible([], onlyJia)).toBe(true);
     expect(raidPrepQuestOverlayVisible(people, new Set())).toBe(false);
     expect(raidPrepQuestOverlayVisible(people, null)).toBe(true);
   });
 
   it("falls back to the current user for the solo quest filter tree", () => {
-    const byTask = new Map([
-      ["t1", [{ name: "甲", userId: 1 }]],
-    ]);
+    const byTask = new Map([["t1", [{ name: "甲", userId: 1 }]]]);
     expect(
       collectRaidPrepQuestFilterPeopleOrSelf(byTask, {
         name: "乙",
@@ -267,9 +267,7 @@ describe("raid prep participant line", () => {
         userId: 2,
       }),
     ).toEqual([{ name: "乙", userId: 2 }]);
-    expect(collectRaidPrepQuestFilterPeopleOrSelf(new Map(), {})).toEqual([
-      { name: "我" },
-    ]);
+    expect(collectRaidPrepQuestFilterPeopleOrSelf(new Map(), {})).toEqual([{ name: "我" }]);
   });
 
   it("selects only the clicked person after the parent was turned off", () => {
@@ -282,21 +280,15 @@ describe("raid prep participant line", () => {
       showQuests: true,
       offKeys: [],
     });
-    expect(
-      nextQuestPersonSelection(keys, new Set(), false, "id:2"),
-    ).toEqual({
+    expect(nextQuestPersonSelection(keys, new Set(), false, "id:2")).toEqual({
       showQuests: true,
       offKeys: ["id:1", "id:3"],
     });
-    expect(
-      nextQuestPersonSelection(keys, new Set(keys), true, "id:2"),
-    ).toEqual({
+    expect(nextQuestPersonSelection(keys, new Set(keys), true, "id:2")).toEqual({
       showQuests: true,
       offKeys: ["id:1", "id:3"],
     });
-    expect(
-      nextQuestPersonSelection(keys, new Set(["id:2"]), true, "id:2"),
-    ).toEqual({
+    expect(nextQuestPersonSelection(keys, new Set(["id:2"]), true, "id:2")).toEqual({
       showQuests: true,
       offKeys: [],
     });
@@ -323,15 +315,24 @@ describe("selected ids", () => {
 
   it("pins checked tasks to the top without shuffling groups", () => {
     const rows = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
-    expect(pinSelectedRaidPrepRows(rows, new Set()).map((row) => row.id)).toEqual(
-      ["a", "b", "c", "d"],
-    );
-    expect(
-      pinSelectedRaidPrepRows(rows, new Set(["c", "b"])).map((row) => row.id),
-    ).toEqual(["b", "c", "a", "d"]);
-    expect(
-      pinSelectedRaidPrepRows(rows, new Set(["missing"])).map((row) => row.id),
-    ).toEqual(["a", "b", "c", "d"]);
+    expect(pinSelectedRaidPrepRows(rows, new Set()).map((row) => row.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+    expect(pinSelectedRaidPrepRows(rows, new Set(["c", "b"])).map((row) => row.id)).toEqual([
+      "b",
+      "c",
+      "a",
+      "d",
+    ]);
+    expect(pinSelectedRaidPrepRows(rows, new Set(["missing"])).map((row) => row.id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 
   it("keeps selected tasks outside the current filter", () => {
@@ -449,10 +450,7 @@ describe("buildRaidPrepOverlays", () => {
       ],
     };
     const overlays = buildRaidPrepOverlays([mixed], "customs");
-    expect(overlays.map((row) => row.title)).toEqual([
-      "逃跑（第1处）",
-      "逃跑（第2处）",
-    ]);
+    expect(overlays.map((row) => row.title)).toEqual(["逃跑（第1处）", "逃跑（第2处）"]);
     expect(overlays[0]).toMatchObject({
       keyNames: ["Dorm 114"],
       showNoKey: false,
@@ -465,12 +463,8 @@ describe("buildRaidPrepOverlays", () => {
 
   it("formats a needed-key line without doubling 钥匙", () => {
     expect(formatRaidPrepKeyNeedLine(["Dorm 114"])).toBe("需要Dorm 114钥匙");
-    expect(formatRaidPrepKeyNeedLine(["TerraGroup 会议室钥匙"])).toBe(
-      "需要TerraGroup 会议室钥匙",
-    );
-    expect(formatRaidPrepKeyNeedLine(["宿舍114", "RB-OB钥匙"])).toBe(
-      "需要宿舍114钥匙、RB-OB钥匙",
-    );
+    expect(formatRaidPrepKeyNeedLine(["TerraGroup 会议室钥匙"])).toBe("需要TerraGroup 会议室钥匙");
+    expect(formatRaidPrepKeyNeedLine(["宿舍114", "RB-OB钥匙"])).toBe("需要宿舍114钥匙、RB-OB钥匙");
     expect(formatRaidPrepKeyNeedLine([])).toBe("");
   });
 
@@ -505,11 +499,7 @@ describe("buildRaidPrepOverlays", () => {
       ],
     };
     const rows = collectRaidPrepTaskObjectives(chem, "customs");
-    expect(rows.map((row) => row.text)).toEqual([
-      "上交信息",
-      "上交物品",
-      "上交在战局中找到的警棍",
-    ]);
+    expect(rows.map((row) => row.text)).toEqual(["上交信息", "上交物品", "上交在战局中找到的警棍"]);
     expect(rows.map((row) => row.items)).toEqual([
       [
         {
@@ -545,9 +535,7 @@ describe("buildRaidPrepOverlays", () => {
     };
     const row = collectRaidPrepTaskObjectives(chem3, "factory")[0];
     expect(row?.text).toBe("上交装有化学品的注射器");
-    expect(row?.items).toEqual([
-      { id: "syringe", name: "化学品注射器", icon_link: "", count: 1 },
-    ]);
+    expect(row?.items).toEqual([{ id: "syringe", name: "化学品注射器", icon_link: "", count: 1 }]);
   });
 
   it("does not hang chips on plant steps", () => {
@@ -563,9 +551,7 @@ describe("buildRaidPrepOverlays", () => {
       ],
     };
     const row = collectRaidPrepTaskObjectives(meme, "streets")[0];
-    expect(row?.text).toBe(
-      "在塔科夫街区被铁丝网缠绕的尸体处安装WI-FI摄像头",
-    );
+    expect(row?.text).toBe("在塔科夫街区被铁丝网缠绕的尸体处安装WI-FI摄像头");
     expect(row?.items).toEqual([]);
   });
 
@@ -700,9 +686,7 @@ describe("buildRaidPrepOverlays", () => {
         description: "在塔科夫街区使用 12 号霰弹枪爆头击杀任意敌对目标",
         count: 15,
       }),
-    ).toBe(
-      "在塔科夫街区使用 12 号霰弹枪爆头击杀任意敌对目标 ×15",
-    );
+    ).toBe("在塔科夫街区使用 12 号霰弹枪爆头击杀任意敌对目标 ×15");
     expect(
       raidPrepObjectiveStepText({
         type: "shoot",
@@ -894,26 +878,10 @@ describe("buildRaidPrepOverlays", () => {
     const overlays = buildRaidPrepOverlays([task], "shoreline");
     expect(overlays).toHaveLength(4);
     expect(overlays.map((row) => [row.title, row.optional, row.subtitle])).toEqual([
-      [
-        "人道主义援助（第1处）",
-        false,
-        "使用MS2000指示器标记第一辆UN卡车",
-      ],
-      [
-        "人道主义援助（第2处）",
-        true,
-        "在海岸线找到第一辆装有UN失货货物的卡车（可选）",
-      ],
-      [
-        "人道主义援助（第3处）",
-        false,
-        "使用MS2000指示器标记第二辆UN卡车",
-      ],
-      [
-        "人道主义援助（第4处）",
-        true,
-        "在海岸线找到第二辆装有UN失货货物的卡车（可选）",
-      ],
+      ["人道主义援助（第1处）", false, "使用MS2000指示器标记第一辆UN卡车"],
+      ["人道主义援助（第2处）", true, "在海岸线找到第一辆装有UN失货货物的卡车（可选）"],
+      ["人道主义援助（第3处）", false, "使用MS2000指示器标记第二辆UN卡车"],
+      ["人道主义援助（第4处）", true, "在海岸线找到第二辆装有UN失货货物的卡车（可选）"],
     ]);
     expect(overlays[2]!.steps.map((step) => [step.active, step.text])).toEqual([
       [false, "使用MS2000指示器标记第一辆UN卡车"],
@@ -999,45 +967,30 @@ describe("buildRaidPrepOverlays", () => {
     };
     const overlays = buildRaidPrepOverlays([mixed], "customs");
     expect(overlays).toHaveLength(2);
-    expect(overlays.map((row) => row.subtitle)).toEqual([
-      "检查兵营东楼黑",
-      "检查兵营南楼白",
-    ]);
+    expect(overlays.map((row) => row.subtitle)).toEqual(["检查兵营东楼黑", "检查兵营南楼白"]);
     expect(overlays.map((row) => row.objectiveId)).toEqual(["o-key", "o-free"]);
     expect(
-      filterRaidPrepOverlaysForViewer(
-        overlays,
-        new Map([["t-storage", new Set(["o-key"])]]),
-      ).map((row) => row.subtitle),
+      filterRaidPrepOverlaysForViewer(overlays, new Map([["t-storage", new Set(["o-key"])]])).map(
+        (row) => row.subtitle,
+      ),
     ).toEqual(["检查兵营南楼白"]);
     expect(
-      filterRaidPrepOverlaysForViewer(
-        overlays,
-        new Map([["t-storage", new Set(["o-free"])]]),
-      ).map((row) => row.subtitle),
+      filterRaidPrepOverlaysForViewer(overlays, new Map([["t-storage", new Set(["o-free"])]])).map(
+        (row) => row.subtitle,
+      ),
     ).toEqual(["检查兵营东楼黑"]);
     expect(filterRaidPrepOverlaysForViewer(overlays, new Map())).toHaveLength(2);
-    expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual(
-      [],
-    );
+    expect(collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-key"]))).toEqual([]);
     expect(
-      collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-free"])).map(
-        (item) => item.name,
-      ),
+      collectRaidPrepTaskKeys(mixed, "customs", new Set(["o-free"])).map((item) => item.name),
     ).toEqual(["RB-OB钥匙"]);
-    expect(resolveRaidPrepLocatePoints(mixed, "customs", new Set(["o-key"]))).toEqual(
-      [{ x: 40, z: 40 }],
-    );
+    expect(resolveRaidPrepLocatePoints(mixed, "customs", new Set(["o-key"]))).toEqual([
+      { x: 40, z: 40 },
+    ]);
     expect(raidPrepTaskCanLocate(mixed, "customs")).toBe(true);
-    expect(raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key"]))).toBe(
-      true,
-    );
-    expect(
-      raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key", "o-free"])),
-    ).toBe(false);
-    expect(
-      raidPrepTaskCanLocate(mixed, "customs", undefined, { taskDone: true }),
-    ).toBe(false);
+    expect(raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key"]))).toBe(true);
+    expect(raidPrepTaskCanLocate(mixed, "customs", new Set(["o-key", "o-free"]))).toBe(false);
+    expect(raidPrepTaskCanLocate(mixed, "customs", undefined, { taskDone: true })).toBe(false);
     expect(raidPrepTaskCanLocate(mixed, "woods")).toBe(false);
   });
 
@@ -1086,7 +1039,13 @@ describe("filterRaidPrepOverlaysForSelection", () => {
     ],
   };
   const people = new Map([
-    ["wealth", [{ name: "我", userId: 1 }, { name: "队友", userId: 2 }]],
+    [
+      "wealth",
+      [
+        { name: "我", userId: 1 },
+        { name: "队友", userId: 2 },
+      ],
+    ],
   ]);
 
   it("keeps a point when a selected teammate has not finished it", () => {
@@ -1095,9 +1054,7 @@ describe("filterRaidPrepOverlaysForSelection", () => {
       selectedKeys: new Set(["id:2"]),
       participantsByTask: people,
       selfUserId: 1,
-      objectiveDones: [
-        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
-      ],
+      objectiveDones: [{ task_id: "wealth", objective_id: "o-key", user_id: 1 }],
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
     expect(shown.map((row) => row.objectiveId)).toEqual(["o-key"]);
@@ -1139,9 +1096,7 @@ describe("filterRaidPrepOverlaysForSelection", () => {
       selfUserId: 1,
       skippedByTask: new Map([["wealth", new Set(["o-key"])]]),
     });
-    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
-      ["o-key", true],
-    ]);
+    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([["o-key", true]]);
     expect(shown[0]?.neededBy).toEqual([{ name: "队友", userId: 2 }]);
   });
 
@@ -1152,9 +1107,7 @@ describe("filterRaidPrepOverlaysForSelection", () => {
       participantsByTask: people,
       selfUserId: 1,
     });
-    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([
-      ["o-key", false],
-    ]);
+    expect(shown.map((row) => [row.objectiveId, Boolean(row.done)])).toEqual([["o-key", false]]);
     expect(shown[0]?.neededBy?.map((person) => person.userId)).toEqual([1, 2]);
   });
 
@@ -1164,9 +1117,7 @@ describe("filterRaidPrepOverlaysForSelection", () => {
       selectedKeys: new Set(["id:2"]),
       participantsByTask: people,
       selfUserId: 1,
-      objectiveDones: [
-        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
-      ],
+      objectiveDones: [{ task_id: "wealth", objective_id: "o-key", user_id: 2 }],
     });
     expect(shown).toEqual([]);
   });
@@ -1189,21 +1140,14 @@ describe("readable item names", () => {
   it("hides hex ids that leaked through as names", () => {
     expect(isTarkovHexId("5a9f913a86f77472bf74a592")).toBe(true);
     expect(tarkovReadableName("5a9f913a86f77472bf74a592")).toBe("");
-    expect(
-      tarkovReadableName("5a9f913a86f77472bf74a592", "5a9f913a86f77472bf74a592"),
-    ).toBe("");
-    expect(tarkovReadableName("宿舍 114 钥匙", "5a9f913a86f77472bf74a592")).toBe(
-      "宿舍 114 钥匙",
-    );
+    expect(tarkovReadableName("5a9f913a86f77472bf74a592", "5a9f913a86f77472bf74a592")).toBe("");
+    expect(tarkovReadableName("宿舍 114 钥匙", "5a9f913a86f77472bf74a592")).toBe("宿舍 114 钥匙");
     expect(isGarbledTarkovName("????")).toBe(true);
     expect(isGarbledTarkovName("？？？？")).toBe(true);
     expect(tarkovReadableName("????", "abc")).toBe("");
-    expect(
-      tarkovReadableName(
-        "5780cfa52459777dfb276eb1 Name",
-        "5780cfa52459777dfb276eb1",
-      ),
-    ).toBe("");
+    expect(tarkovReadableName("5780cfa52459777dfb276eb1 Name", "5780cfa52459777dfb276eb1")).toBe(
+      "",
+    );
     expect(tarkovReadableName("首秀", "abc")).toBe("首秀");
     expect(
       displayRaidPrepTaskName({
@@ -1228,9 +1172,9 @@ describe("readable item names", () => {
   });
 
   it("opens a step menu only when the point can be completed", () => {
-    expect(
-      raidPrepQuestPointMenuActions({ canOpenGuide: true, canComplete: false }),
-    ).toEqual(["guide"]);
+    expect(raidPrepQuestPointMenuActions({ canOpenGuide: true, canComplete: false })).toEqual([
+      "guide",
+    ]);
     expect(
       raidPrepQuestPointMenuActions({
         canOpenGuide: true,
@@ -1253,7 +1197,6 @@ describe("readable item names", () => {
       }),
     ).toEqual(["guide", "uncomplete"]);
   });
-
 });
 
 describe("raid prep needed items", () => {
@@ -1368,12 +1311,7 @@ describe("raid prep needed items", () => {
       count: 5,
       found_in_raid: true,
     });
-    expect(items[0].anyOf?.map((item) => item.name)).toEqual([
-      "AI-2",
-      "IFAK",
-      "Salewa",
-      "Grizzly",
-    ]);
+    expect(items[0].anyOf?.map((item) => item.name)).toEqual(["AI-2", "IFAK", "Salewa", "Grizzly"]);
   });
 
   it("does not collapse long item lists unless the description says 任意", () => {
@@ -1423,9 +1361,9 @@ describe("raid prep needed items", () => {
 
   it("treats objectives without a map as this raid", () => {
     expect(objectiveAppliesToMap({ type: "giveItem" }, "customs")).toBe(true);
-    expect(
-      objectiveAppliesToMap({ type: "plantItem", maps: [{ slug: "woods" }] }, "customs"),
-    ).toBe(false);
+    expect(objectiveAppliesToMap({ type: "plantItem", maps: [{ slug: "woods" }] }, "customs")).toBe(
+      false,
+    );
     expect(
       objectiveAppliesToMap({ type: "plantItem", maps: [{ slug: "customs" }] }, "customs"),
     ).toBe(true);
@@ -1438,21 +1376,15 @@ describe("raid prep needed items", () => {
     const rows = buildRaidPrepSummary([task], "customs");
     expect(rows).toHaveLength(1);
     expect(rows[0].taskName).toBe("Debut");
-    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual([
-      "硬盘",
+    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual(["硬盘"]);
+    expect(rows[0].itemsByType.giveItem?.map((item) => `${item.name}×${item.count}`)).toEqual([
+      "金项链×7",
+      "金项链×2",
     ]);
-    expect(
-      rows[0].itemsByType.giveItem?.map(
-        (item) => `${item.name}×${item.count}`,
-      ),
-    ).toEqual(["金项链×7", "金项链×2"]);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
     expect(rows[0].types).toEqual(["findItem", "giveItem"]);
     expect(rows[0].objectiveLines).toEqual(["上交", "找到"]);
-    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
-      "findItem",
-      "giveItem",
-    ]);
+    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual(["findItem", "giveItem"]);
   });
 
   it("merges item and quest-item types into one summary column", () => {
@@ -1487,22 +1419,10 @@ describe("raid prep needed items", () => {
       ],
       "customs",
     );
-    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual([
-      "plantItem",
-      "findItem",
-      "giveItem",
-    ]);
-    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual([
-      "螺栓",
-      "硬盘",
-    ]);
-    expect(rows[0].itemsByType.giveItem?.map((item) => item.name)).toEqual([
-      "纸条",
-    ]);
-    expect(rows[0].itemsByType.plantItem?.map((item) => item.name)).toEqual([
-      "MS2000",
-      "血样",
-    ]);
+    expect(collectRaidPrepSummaryTypeColumns(rows)).toEqual(["plantItem", "findItem", "giveItem"]);
+    expect(rows[0].itemsByType.findItem?.map((item) => item.name)).toEqual(["螺栓", "硬盘"]);
+    expect(rows[0].itemsByType.giveItem?.map((item) => item.name)).toEqual(["纸条"]);
+    expect(rows[0].itemsByType.plantItem?.map((item) => item.name)).toEqual(["MS2000", "血样"]);
   });
 
   it("only opens summary columns for types that carry items", () => {
@@ -1566,26 +1486,16 @@ describe("raid prep needed items", () => {
       "在海关使用 HS2000 击杀 4 名 PMC",
       "找到并消灭Kollontay",
     ]);
-    expect(rows[0].shootSlots[0]?.items.map((item) => item.name)).toEqual([
-      "HS2000",
-    ]);
+    expect(rows[0].shootSlots[0]?.items.map((item) => item.name)).toEqual(["HS2000"]);
     expect(rows[0].shootSlots[0]?.items[0]?.count).toBe(1);
     expect(rows[0].shootSlots.map((slot) => slot.count)).toEqual([4, 1]);
-    const grid = expandRaidPrepSummaryItemLines(
-      rows[0]!,
-      ["giveItem"],
-      false,
-      true,
-    );
+    const grid = expandRaidPrepSummaryItemLines(rows[0]!, ["giveItem"], false, true);
     expect(grid.lines).toHaveLength(2);
     expect(grid.lines.map((line) => line.shoot?.text)).toEqual([
       "在海关使用 HS2000 击杀 4 名 PMC",
       "找到并消灭Kollontay",
     ]);
-    expect(grid.lines.map((line) => line.rest.giveItem?.name)).toEqual([
-      "金项链",
-      undefined,
-    ]);
+    expect(grid.lines.map((line) => line.rest.giveItem?.name)).toEqual(["金项链", undefined]);
   });
 
   it("omits skipped kill objectives from the summary shoot column", () => {
@@ -1666,11 +1576,7 @@ describe("raid prep needed items", () => {
     ]);
     expect(raidPrepSummaryHasBringTypes(rows)).toBe(true);
     const kit = collectRaidPrepBringKit(rows);
-    expect(kit.map((item) => item.name)).toEqual([
-      "WIFI 摄像头",
-      "MS2000",
-      "信号弹",
-    ]);
+    expect(kit.map((item) => item.name)).toEqual(["WIFI 摄像头", "MS2000", "信号弹"]);
   });
 
   it("merges the current user's plant/mark/use kit across tasks", () => {
@@ -1697,23 +1603,24 @@ describe("raid prep needed items", () => {
     );
     const byTask = new Map([
       ["t-a", [{ name: "甲", userId: 1 }]],
-      ["t-b", [{ name: "乙", userId: 2 }, { name: "甲", userId: 1 }]],
+      [
+        "t-b",
+        [
+          { name: "乙", userId: 2 },
+          { name: "甲", userId: 1 },
+        ],
+      ],
     ]);
-    expect(raidPrepTaskIdsForParticipant(byTask, 1)).toEqual(
-      new Set(["t-a", "t-b"]),
-    );
+    expect(raidPrepTaskIdsForParticipant(byTask, 1)).toEqual(new Set(["t-a", "t-b"]));
     expect(raidPrepTaskIdsForParticipant(byTask, 2)).toEqual(new Set(["t-b"]));
     expect(raidPrepTaskIdsForParticipant(byTask, 0)).toBeNull();
     expect(raidPrepTaskIdsForParticipant(byTask, 9)).toEqual(new Set());
     expect(collectRaidPrepBringKit(rows, new Set())).toEqual([]);
     const mine = collectRaidPrepBringKit(rows, new Set(["t-a", "t-b"]));
-    expect(mine.map((item) => `${item.name}×${item.count}`)).toEqual([
-      "摄像头×2",
-      "MS2000×1",
+    expect(mine.map((item) => `${item.name}×${item.count}`)).toEqual(["摄像头×2", "MS2000×1"]);
+    expect(collectRaidPrepBringKit(rows, new Set(["t-b"])).map((item) => item.name)).toEqual([
+      "摄像头",
     ]);
-    expect(
-      collectRaidPrepBringKit(rows, new Set(["t-b"])).map((item) => item.name),
-    ).toEqual(["摄像头"]);
   });
 
   it("treats a mark-only task as having the merged bring column", () => {
@@ -1768,18 +1675,9 @@ describe("raid prep needed items", () => {
     expect(grid.spanKey).toBe(false);
     expect(grid.spanBring).toBe(false);
     expect(grid.spanRest.findItem).toBe(true);
-    expect(grid.lines.map((line) => line.key?.name)).toEqual([
-      "宿舍 114",
-      "宿舍 105",
-    ]);
-    expect(grid.lines.map((line) => line.bring?.item?.name)).toEqual([
-      "WIFI 摄像头",
-      "血样",
-    ]);
-    expect(grid.lines.map((line) => line.rest.findItem?.name)).toEqual([
-      "螺栓",
-      undefined,
-    ]);
+    expect(grid.lines.map((line) => line.key?.name)).toEqual(["宿舍 114", "宿舍 105"]);
+    expect(grid.lines.map((line) => line.bring?.item?.name)).toEqual(["WIFI 摄像头", "血样"]);
+    expect(grid.lines.map((line) => line.rest.findItem?.name)).toEqual(["螺栓", undefined]);
   });
 
   it("uses objective descriptions for the summary hover", () => {
@@ -1851,14 +1749,8 @@ describe("raid prep needed items", () => {
   });
 
   it("omits skipped handover items from the summary", () => {
-    const rows = buildRaidPrepSummary(
-      [task],
-      "customs",
-      new Map([["t1", new Set(["i:0"])]]),
-    );
-    expect(rows[0].itemsByType.giveItem?.map((item) => item.name)).toEqual([
-      "金项链",
-    ]);
+    const rows = buildRaidPrepSummary([task], "customs", new Map([["t1", new Set(["i:0"])]]));
+    expect(rows[0].itemsByType.giveItem?.map((item) => item.name)).toEqual(["金项链"]);
     expect(rows[0].itemsByType.giveItem?.[0]?.count).toBe(2);
     expect(rows[0].keys.map((item) => item.name)).toEqual(["Dorm 114"]);
     expect(rows[0].hasMapKeys).toBe(true);
@@ -1874,18 +1766,20 @@ describe("raid prep needed items", () => {
           id: "o-key",
           type: "visit",
           description: "进入办公室",
-          required_keys: [
-            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
-          ],
+          required_keys: [[{ id: "re-office", name: "不动产管理处办公室钥匙" }]],
         },
         { id: "o-upload", type: "visit", description: "上传找到的信息" },
       ],
     };
-    const viewerSkip = new Map([
-      ["wealth", new Set(["o-find", "o-key", "o-upload"])],
-    ]);
+    const viewerSkip = new Map([["wealth", new Set(["o-find", "o-key", "o-upload"])]]);
     const people = new Map([
-      ["wealth", [{ userId: 1, name: "我" }, { userId: 2, name: "队友" }]],
+      [
+        "wealth",
+        [
+          { userId: 1, name: "我" },
+          { userId: 2, name: "队友" },
+        ],
+      ],
     ]);
     const keySkipped = collectRaidPrepPartyKeySkipMap(
       [wealth],
@@ -1899,15 +1793,8 @@ describe("raid prep needed items", () => {
       viewerSkip,
     );
     expect(keySkipped.get("wealth")?.size ?? 0).toBe(0);
-    const rows = buildRaidPrepSummary(
-      [wealth],
-      "streets",
-      viewerSkip,
-      keySkipped,
-    );
-    expect(rows[0].keys.map((item) => item.name)).toEqual([
-      "不动产管理处办公室钥匙",
-    ]);
+    const rows = buildRaidPrepSummary([wealth], "streets", viewerSkip, keySkipped);
+    expect(rows[0].keys.map((item) => item.name)).toEqual(["不动产管理处办公室钥匙"]);
     expect(rows[0].hasMapKeys).toBe(true);
   });
 
@@ -1920,31 +1807,19 @@ describe("raid prep needed items", () => {
           id: "o-key",
           type: "visit",
           description: "进入办公室",
-          required_keys: [
-            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
-          ],
+          required_keys: [[{ id: "re-office", name: "不动产管理处办公室钥匙" }]],
         },
         { id: "o-upload", type: "visit", description: "上传找到的信息" },
       ],
     };
-    const people = new Map([
-      ["wealth", [{ userId: 1 }, { userId: 2 }]],
+    const people = new Map([["wealth", [{ userId: 1 }, { userId: 2 }]]]);
+    const keySkipped = collectRaidPrepPartyKeySkipMap([wealth], "streets", people, [
+      { task_id: "wealth", objective_id: "o-key", user_id: 1 },
+      { task_id: "wealth", objective_id: "o-upload", user_id: 1 },
+      { task_id: "wealth", objective_id: "o-key", user_id: 2 },
+      { task_id: "wealth", objective_id: "o-upload", user_id: 2 },
     ]);
-    const keySkipped = collectRaidPrepPartyKeySkipMap(
-      [wealth],
-      "streets",
-      people,
-      [
-        { task_id: "wealth", objective_id: "o-key", user_id: 1 },
-        { task_id: "wealth", objective_id: "o-upload", user_id: 1 },
-        { task_id: "wealth", objective_id: "o-key", user_id: 2 },
-        { task_id: "wealth", objective_id: "o-upload", user_id: 2 },
-      ],
-    );
-    expect([...keySkipped.get("wealth")!].sort()).toEqual([
-      "o-key",
-      "o-upload",
-    ]);
+    expect([...keySkipped.get("wealth")!].sort()).toEqual(["o-key", "o-upload"]);
     const rows = buildRaidPrepSummary(
       [wealth],
       "streets",
@@ -1964,9 +1839,7 @@ describe("raid prep needed items", () => {
           id: "o-key",
           type: "visit",
           description: "进入办公室",
-          required_keys: [
-            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
-          ],
+          required_keys: [[{ id: "re-office", name: "不动产管理处办公室钥匙" }]],
         },
         { id: "o-upload", type: "visit", description: "上传找到的信息" },
       ],
@@ -1995,9 +1868,7 @@ describe("raid prep needed items", () => {
           id: "o-key",
           type: "visit",
           description: "进入办公室",
-          required_keys: [
-            [{ id: "re-office", name: "不动产管理处办公室钥匙" }],
-          ],
+          required_keys: [[{ id: "re-office", name: "不动产管理处办公室钥匙" }]],
         },
       ],
     };
@@ -2010,12 +1881,7 @@ describe("raid prep needed items", () => {
       viewerSkip,
     );
     expect([...keySkipped.get("wealth")!]).toEqual(["o-key"]);
-    const rows = buildRaidPrepSummary(
-      [wealth],
-      "streets",
-      viewerSkip,
-      keySkipped,
-    );
+    const rows = buildRaidPrepSummary([wealth], "streets", viewerSkip, keySkipped);
     expect(rows[0].keys).toEqual([]);
     expect(rows[0].hasMapKeys).toBe(true);
   });
@@ -2073,37 +1939,19 @@ describe("raid prep needed items", () => {
         },
       ],
     };
-    expect(
-      buildRaidPrepOverlays([wet], "shoreline").map((row) => row.subtitle),
-    ).toEqual([
+    expect(buildRaidPrepOverlays([wet], "shoreline").map((row) => row.subtitle)).toEqual([
       "在海岸线找到渔民的住所",
       "使用MS2000指示器标记钓鱼点",
     ]);
-    expect(raidPrepMapObjectiveIds(tasks[0]!, "customs")).toEqual([
-      "o-1",
-      "o-2",
-      "o-opt",
-    ]);
-    expect(raidPrepAllObjectiveIds(tasks[0]!)).toEqual([
-      "o-1",
-      "o-2",
-      "o-opt",
-    ]);
+    expect(raidPrepMapObjectiveIds(tasks[0]!, "customs")).toEqual(["o-1", "o-2", "o-opt"]);
+    expect(raidPrepAllObjectiveIds(tasks[0]!)).toEqual(["o-1", "o-2", "o-opt"]);
     expect(
-      roomObjectiveMarksForCompletedTasks(
-        ["wet-2", "other"],
-        tasks,
-        "customs",
-        dones,
-        2,
-      ),
+      roomObjectiveMarksForCompletedTasks(["wet-2", "other"], tasks, "customs", dones, 2),
     ).toEqual([
       { taskId: "wet-2", objectiveId: "o-2" },
       { taskId: "wet-2", objectiveId: "o-opt" },
     ]);
-    expect(
-      skipMapToObjectiveDones(mine, { userId: 2, name: "乙" }),
-    ).toEqual([
+    expect(skipMapToObjectiveDones(mine, { userId: 2, name: "乙" })).toEqual([
       {
         task_id: "wet-2",
         objective_id: "o-1",
@@ -2140,41 +1988,45 @@ describe("raid prep needed items", () => {
     const cleared = toggleRaidPrepObjectiveDone(skipped, "t1", "o-key");
     expect(cleared.size).toBe(0);
     expect(
-      serializeRaidPrepObjectiveDone(
-        parseRaidPrepObjectiveDone({ t1: ["o-key", ""], t2: [] }),
-      ),
+      serializeRaidPrepObjectiveDone(parseRaidPrepObjectiveDone({ t1: ["o-key", ""], t2: [] })),
     ).toEqual({ t1: ["o-key"] });
-    expect(raidPrepObjectiveDoneScope("streets", "pve", 7)).toBe(
-      "user:7:pve:streets",
-    );
+    expect(raidPrepObjectiveDoneScope("streets", "pve", 7)).toBe("user:7:pve:streets");
     expect(raidPrepObjectiveDoneLegacyScopes("streets", "ab12")).toEqual([
       "solo:streets",
       "room:ab12",
     ]);
     const merged = mergeRaidPrepSkipMaps(
       new Map([["t1", new Set(["a"])]]),
-      new Map([["t1", new Set(["b"])], ["t2", new Set(["c"])]]),
+      new Map([
+        ["t1", new Set(["b"])],
+        ["t2", new Set(["c"])],
+      ]),
     );
     expect([...merged.get("t1")!].sort()).toEqual(["a", "b"]);
     expect([...merged.get("t2")!]).toEqual(["c"]);
+    expect(raidPrepSkipMapsEqual(merged, mergeRaidPrepSkipMaps(merged))).toBe(true);
     expect(
-      raidPrepSkipMapsEqual(merged, mergeRaidPrepSkipMaps(merged)),
-    ).toBe(true);
-    expect(
-      [...(raidPrepSkipMapForViewer(
-        new Map([["meme", new Set(["s1"])]]),
-        [{ task_id: "meme", objective_id: "c1" }],
-      ).get("meme") || [])].sort(),
+      [
+        ...(raidPrepSkipMapForViewer(new Map([["meme", new Set(["s1"])]]), [
+          { task_id: "meme", objective_id: "c1" },
+        ]).get("meme") || []),
+      ].sort(),
     ).toEqual(["c1", "s1"]);
-    expect(
-      planRaidPrepObjectiveToggle({ localHas: false, viewHas: true }),
-    ).toEqual({ nextChecked: false, toggleLocal: false, reopenTask: false });
-    expect(
-      planRaidPrepObjectiveToggle({ localHas: true, viewHas: true }),
-    ).toEqual({ nextChecked: false, toggleLocal: true, reopenTask: false });
-    expect(
-      planRaidPrepObjectiveToggle({ localHas: false, viewHas: false }),
-    ).toEqual({ nextChecked: true, toggleLocal: true, reopenTask: false });
+    expect(planRaidPrepObjectiveToggle({ localHas: false, viewHas: true })).toEqual({
+      nextChecked: false,
+      toggleLocal: false,
+      reopenTask: false,
+    });
+    expect(planRaidPrepObjectiveToggle({ localHas: true, viewHas: true })).toEqual({
+      nextChecked: false,
+      toggleLocal: true,
+      reopenTask: false,
+    });
+    expect(planRaidPrepObjectiveToggle({ localHas: false, viewHas: false })).toEqual({
+      nextChecked: true,
+      toggleLocal: true,
+      reopenTask: false,
+    });
     expect(
       planRaidPrepObjectiveToggle({
         localHas: false,
@@ -2196,14 +2048,8 @@ describe("raid prep needed items", () => {
       ),
       7,
     );
-    expect(Object.keys(merged).sort()).toEqual([
-      "solo:woods",
-      "user:7:pvp:customs",
-    ]);
-    expect([...(merged["user:7:pvp:customs"]?.t1 || [])].sort()).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(Object.keys(merged).sort()).toEqual(["solo:woods", "user:7:pvp:customs"]);
+    expect([...(merged["user:7:pvp:customs"]?.t1 || [])].sort()).toEqual(["a", "b"]);
     expect(merged["user:7:pvp:customs"]?.t2).toBeUndefined();
     expect(merged["solo:woods"]).toEqual({ t3: ["c"] });
     expect(parseRaidPrepObjectiveDoneStore("not json")).toEqual({});
@@ -2220,9 +2066,11 @@ describe("raid prep needed items", () => {
       ["b", ["u1", "u2", "u3"]],
       ["c", ["u1", "u2"]],
     ]);
-    expect(
-      sortRaidPrepSummaryByParticipants(rows, people).map((row) => row.taskId),
-    ).toEqual(["b", "c", "a"]);
+    expect(sortRaidPrepSummaryByParticipants(rows, people).map((row) => row.taskId)).toEqual([
+      "b",
+      "c",
+      "a",
+    ]);
   });
 });
 
@@ -2259,43 +2107,26 @@ describe("multi-map raid prep progress", () => {
   };
 
   it("only lists this-map steps for checkboxes", () => {
-    expect(
-      collectRaidPrepTaskObjectives(meme, "streets").map((row) => row.id),
-    ).toEqual(["s1", "s2"]);
-    expect(
-      collectRaidPrepTaskObjectives(meme, "customs").map((row) => row.id),
-    ).toEqual(["c1"]);
+    expect(collectRaidPrepTaskObjectives(meme, "streets").map((row) => row.id)).toEqual([
+      "s1",
+      "s2",
+    ]);
+    expect(collectRaidPrepTaskObjectives(meme, "customs").map((row) => row.id)).toEqual(["c1"]);
   });
 
   it("treats this-map steps complete without requiring other maps", () => {
     expect(raidPrepMapObjectivesComplete(meme, "streets")).toBe(false);
-    expect(
-      raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1"])),
-    ).toBe(false);
-    expect(
-      raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1", "s2"])),
-    ).toBe(true);
-    expect(
-      raidPrepMapObjectivesComplete(meme, "customs", new Set(["s1", "s2"])),
-    ).toBe(false);
-    expect(
-      raidPrepMapObjectivesComplete(meme, "customs", new Set(["c1"])),
-    ).toBe(true);
-    expect(raidPrepMapObjectivesComplete(meme, "streets", new Set())).toBe(
-      false,
-    );
-    expect(
-      raidPrepMapObjectivesComplete({ id: "empty" }, "streets", new Set(["x"])),
-    ).toBe(false);
+    expect(raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1"]))).toBe(false);
+    expect(raidPrepMapObjectivesComplete(meme, "streets", new Set(["s1", "s2"]))).toBe(true);
+    expect(raidPrepMapObjectivesComplete(meme, "customs", new Set(["s1", "s2"]))).toBe(false);
+    expect(raidPrepMapObjectivesComplete(meme, "customs", new Set(["c1"]))).toBe(true);
+    expect(raidPrepMapObjectivesComplete(meme, "streets", new Set())).toBe(false);
+    expect(raidPrepMapObjectivesComplete({ id: "empty" }, "streets", new Set(["x"]))).toBe(false);
   });
 
   it("keeps dump objective order instead of putting this map first", () => {
     const seq = collectRaidPrepSequenceGroups(meme, "customs");
-    expect(seq.map((row) => row.mapLabel)).toEqual([
-      "塔科夫街区",
-      "海关",
-      "森林",
-    ]);
+    expect(seq.map((row) => row.mapLabel)).toEqual(["塔科夫街区", "海关", "森林"]);
     expect(seq.map((row) => row.onThisMap)).toEqual([false, true, false]);
     expect(seq[1]?.objectives.map((row) => row.id)).toEqual(["c1"]);
     expect(seq[0]?.objectives.map((row) => row.id)).toEqual(["s1", "s2"]);
@@ -2334,17 +2165,13 @@ describe("multi-map raid prep progress", () => {
     expect(seq[0]?.objectives.map((row) => row.id)).toEqual(["find", "ex"]);
     expect(seq[1]?.objectives.map((row) => row.id)).toEqual(["plant"]);
     expect(
-      collectRaidPrepSequenceGroups(polikhim, "customs")[0]?.objectives.map(
-        (row) => row.id,
-      ),
+      collectRaidPrepSequenceGroups(polikhim, "customs")[0]?.objectives.map((row) => row.id),
     ).toEqual(["find", "ex"]);
     expect(seq[0]?.altMaps).toEqual([]);
     expect(seq[1]?.altMaps.map((row) => row.label)).toEqual(["夜间工厂"]);
     expect(formatRaidPrepSequenceMapTitle(seq[1]!)).toBe("工厂/夜间工厂");
     expect(formatRaidPrepSequenceMapTitle(seq[0]!)).toBe("海关");
-    expect(formatRaidPrepAltMapsLead(seq[1]?.altMaps, "step")).toBe(
-      "此步骤也可在夜间工厂完成",
-    );
+    expect(formatRaidPrepAltMapsLead(seq[1]?.altMaps, "step")).toBe("此步骤也可在夜间工厂完成");
   });
 
   it("does not pull a later same-map handover in front of an extract", () => {
@@ -2457,9 +2284,10 @@ describe("multi-map raid prep progress", () => {
     const seq = collectRaidPrepSequenceGroups(task, "factory");
     expect(seq).toHaveLength(1);
     expect(seq[0]?.altMaps).toEqual([]);
-    expect(
-      seq[0]?.objectives.map((row) => row.altMaps?.map((item) => item.label) || []),
-    ).toEqual([[], ["夜间工厂"]]);
+    expect(seq[0]?.objectives.map((row) => row.altMaps?.map((item) => item.label) || [])).toEqual([
+      [],
+      ["夜间工厂"],
+    ]);
   });
 
   it("joins shared OR maps in dump order for the group title", () => {
@@ -2477,15 +2305,11 @@ describe("multi-map raid prep progress", () => {
         },
       ],
     };
+    expect(formatRaidPrepSequenceMapTitle(collectRaidPrepSequenceGroups(task, "customs")[0]!)).toBe(
+      "海关/灯塔",
+    );
     expect(
-      formatRaidPrepSequenceMapTitle(
-        collectRaidPrepSequenceGroups(task, "customs")[0]!,
-      ),
-    ).toBe("海关/灯塔");
-    expect(
-      formatRaidPrepSequenceMapTitle(
-        collectRaidPrepSequenceGroups(task, "lighthouse")[0]!,
-      ),
+      formatRaidPrepSequenceMapTitle(collectRaidPrepSequenceGroups(task, "lighthouse")[0]!),
     ).toBe("海关/灯塔");
   });
 
@@ -2493,22 +2317,15 @@ describe("multi-map raid prep progress", () => {
     const groups = collectRaidPrepOtherMapGroups(meme, "streets");
     expect(splitRaidPrepOtherMapGroups(groups).allowed).toEqual([]);
     expect(groups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
-    expect(groups[0]?.lines).toEqual([
-      { id: "c1", text: "在海关的旧加油站安装Wi-Fi摄像头" },
-    ]);
-    expect(groups[1]?.lines).toEqual([
-      { id: "w1", text: "在森林的木屋处安装Wi-Fi摄像头" },
-    ]);
+    expect(groups[0]?.lines).toEqual([{ id: "c1", text: "在海关的旧加油站安装Wi-Fi摄像头" }]);
+    expect(groups[1]?.lines).toEqual([{ id: "w1", text: "在森林的木屋处安装Wi-Fi摄像头" }]);
     const summary = buildRaidPrepSummary(
       [meme],
       "streets",
       new Map([["meme", new Set(["s1", "s2"])]]),
     );
     expect(summary[0]?.mapComplete).toBe(true);
-    expect(summary[0]?.otherMapGroups.map((row) => row.mapLabel)).toEqual([
-      "海关",
-      "森林",
-    ]);
+    expect(summary[0]?.otherMapGroups.map((row) => row.mapLabel)).toEqual(["海关", "森林"]);
   });
 
   it("treats extra maps on the same step as also-allowed", () => {
@@ -2535,7 +2352,6 @@ describe("multi-map raid prep progress", () => {
     expect(groups.every((row) => row.lines.length === 0)).toBe(true);
     expect(splitRaidPrepOtherMapGroups(groups).required).toEqual([]);
   });
-
 });
 
 describe("collectRaidPrepFailChips", () => {
@@ -2626,7 +2442,8 @@ describe("collectRaidPrepFailChips", () => {
       collectRaidPrepFailChips([
         {
           type: "extract",
-          description: "任务进行过程中不得死亡，或以其它状态离开战局（阵亡、擅离、失踪、匆匆逃离均会导致失败）",
+          description:
+            "任务进行过程中不得死亡，或以其它状态离开战局（阵亡、擅离、失踪、匆匆逃离均会导致失败）",
           exit_status: ["Killed", "Left", "MissingInAction"],
         },
         {
@@ -2753,10 +2570,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
       36,
     );
     expect(labels).toHaveLength(1);
-    expect(labels[0].items.map((item) => item.title)).toEqual([
-      "半路杀人",
-      "Debut",
-    ]);
+    expect(labels[0].items.map((item) => item.title)).toEqual(["半路杀人", "Debut"]);
     expect(labels[0].items[1].color).toBe(blue);
   });
 
@@ -2856,10 +2670,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
       36,
     );
     expect(labels).toHaveLength(1);
-    expect(labels[0].items.map((item) => item.title)).toEqual([
-      "逃跑（第1处）",
-      "逃跑（第2处）",
-    ]);
+    expect(labels[0].items.map((item) => item.title)).toEqual(["逃跑（第1处）", "逃跑（第2处）"]);
     expect(labels[0].items[0]).toMatchObject({
       keyNames: ["Dorm 114"],
       showNoKey: false,
@@ -2884,10 +2695,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
       }),
     ]);
     expect(labels).toHaveLength(1);
-    expect(labels[0].items.map((item) => item.traderSlug)).toEqual([
-      "prapor",
-      "therapist",
-    ]);
+    expect(labels[0].items.map((item) => item.traderSlug)).toEqual(["prapor", "therapist"]);
   });
 
   it("clusters in projected space so zoomed-out far points can still share a label", () => {
@@ -2926,9 +2734,7 @@ describe("clusterRaidPrepOverlayLabels", () => {
 
   it("skips hex ids that leaked through as task titles", () => {
     expect(
-      clusterRaidPrepOverlayLabels([
-        overlay("5a9f913a86f77472bf74a592", [{ x: 1, z: 1 }]),
-      ]),
+      clusterRaidPrepOverlayLabels([overlay("5a9f913a86f77472bf74a592", [{ x: 1, z: 1 }])]),
     ).toEqual([]);
   });
 
@@ -2972,21 +2778,23 @@ describe("raidPrepVirtualWindow", () => {
 describe("raid prep geometry cache", () => {
   it("lists missing ids and merges fetched items", () => {
     const cached = { a: { id: "a", name: "A" } };
-    expect(missingRaidPrepGeometryIds(cached, ["a", "b", "b", ""])).toEqual([
-      "b",
-    ]);
-    expect(
-      mergeRaidPrepGeometryItems(cached, [{ id: "b", name: "B" }]),
-    ).toEqual({
+    expect(missingRaidPrepGeometryIds(cached, ["a", "b", "b", ""])).toEqual(["b"]);
+    expect(mergeRaidPrepGeometryItems(cached, [{ id: "b", name: "B" }])).toEqual({
       a: { id: "a", name: "A" },
       b: { id: "b", name: "B" },
     });
     expect(
       hydrateRaidPrepCatalogRows(
-        [{ id: "a", name: "lean" }, { id: "b", name: "lean-b" }],
+        [
+          { id: "a", name: "lean" },
+          { id: "b", name: "lean-b" },
+        ],
         { a: { id: "a", name: "rich" } },
       ),
-    ).toEqual([{ id: "a", name: "rich" }, { id: "b", name: "lean-b" }]);
+    ).toEqual([
+      { id: "a", name: "rich" },
+      { id: "b", name: "lean-b" },
+    ]);
   });
 });
 
@@ -3006,9 +2814,7 @@ describe("filterRaidPrepRows", () => {
         trader_name: "Therapist",
       },
     ];
-    expect(filterRaidPrepRows(rows, { trader: "prapor" }).map((r) => r.id)).toEqual([
-      "a",
-    ]);
+    expect(filterRaidPrepRows(rows, { trader: "prapor" }).map((r) => r.id)).toEqual(["a"]);
     expect(filterRaidPrepRows(rows, { q: "beta" }).map((r) => r.id)).toEqual(["b"]);
   });
 
@@ -3018,12 +2824,8 @@ describe("filterRaidPrepRows", () => {
       { id: "u", name: "Wet USEC", faction_name: "USEC" },
       { id: "b", name: "Wet BEAR", faction_name: "BEAR" },
     ];
-    expect(
-      filterRaidPrepRows(rows, { faction: "usec" }).map((r) => r.id),
-    ).toEqual(["a", "u"]);
-    expect(
-      filterRaidPrepRows(rows, { faction: "BEAR" }).map((r) => r.id),
-    ).toEqual(["a", "b"]);
+    expect(filterRaidPrepRows(rows, { faction: "usec" }).map((r) => r.id)).toEqual(["a", "u"]);
+    expect(filterRaidPrepRows(rows, { faction: "BEAR" }).map((r) => r.id)).toEqual(["a", "b"]);
   });
 });
 
@@ -3050,13 +2852,9 @@ describe("overlay floors", () => {
         { name: "Helipad", extents: [{ height: [19.57, 22.1] }] },
       ],
     });
-    expect(overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "", bands)).toBe(
-      true,
-    );
+    expect(overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "", bands)).toBe(true);
     expect(overlayVisibleOnFloor({ min: 20, max: 20 }, "", bands)).toBe(false);
-    expect(
-      overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "Infirmary", bands),
-    ).toBe(true);
+    expect(overlayVisibleOnFloor({ min: 19.2, max: 19.2 }, "Infirmary", bands)).toBe(true);
   });
 
   it("does not treat shoreline outdoor lows as underground", () => {
@@ -3071,16 +2869,8 @@ describe("overlay floors", () => {
             {
               height: [-1000, -5],
               bounds: [
-                [
-                  [-137, -68],
-                  [-237, -104],
-                  "west wing",
-                ],
-                [
-                  [-234, -134],
-                  [-268, -163],
-                  "admin",
-                ],
+                [[-137, -68], [-237, -104], "west wing"],
+                [[-234, -134], [-268, -163], "admin"],
               ],
             },
           ],
@@ -3092,23 +2882,10 @@ describe("overlay floors", () => {
     expect(overlayFloorForPoint(-6, bands, road)).toBe("");
     expect(overlayFloorForPoint(-6, bands)).toBe("");
     expect(overlayFloorForPoint(-6, bands, westWing)).toBe("Underground");
-    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, road)).toBe(
-      true,
-    );
-    expect(
-      overlayVisibleOnFloor({ min: -6, max: -6 }, "Underground", bands, road),
-    ).toBe(false);
-    expect(
-      overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, westWing),
-    ).toBe(false);
-    expect(
-      overlayVisibleOnFloor(
-        { min: -6, max: -6 },
-        "Underground",
-        bands,
-        westWing,
-      ),
-    ).toBe(true);
+    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, road)).toBe(true);
+    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "Underground", bands, road)).toBe(false);
+    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "", bands, westWing)).toBe(false);
+    expect(overlayVisibleOnFloor({ min: -6, max: -6 }, "Underground", bands, westWing)).toBe(true);
   });
 
   it("matches a later bounded extent, not only the first", () => {
@@ -3130,18 +2907,11 @@ describe("overlay floors", () => {
         },
       ],
     });
-    expect(overlayFloorForPoint(14.5, bands, { x: 420, z: -60 })).toBe(
-      "2nd Floor",
-    );
+    expect(overlayFloorForPoint(14.5, bands, { x: 420, z: -60 })).toBe("2nd Floor");
     expect(overlayFloorForPoint(4, bands, { x: 420, z: -60 })).toBe("");
     expect(overlayFloorForPoint(4, bands, { x: 15, z: 15 })).toBe("2nd Floor");
     expect(
-      overlayVisibleOnFloor(
-        { min: 14.5, max: 14.5 },
-        "2nd Floor",
-        bands,
-        { x: 15, z: 15 },
-      ),
+      overlayVisibleOnFloor({ min: 14.5, max: 14.5 }, "2nd Floor", bands, { x: 15, z: 15 }),
     ).toBe(false);
   });
 
@@ -3149,13 +2919,9 @@ describe("overlay floors", () => {
     const layer = findInteractiveMap("shoreline");
     const bands = mapLayerFloorBands(layer);
     const underground = bands.find((band) => band.name === "Underground");
-    expect(underground?.extents?.some((extent) => extent.bounds?.length)).toBe(
-      true,
-    );
+    expect(underground?.extents?.some((extent) => extent.bounds?.length)).toBe(true);
     expect(overlayFloorForPoint(-6, bands, { x: -355, z: 188 })).toBe("");
-    expect(overlayFloorForPoint(-6, bands, { x: -180, z: -80 })).toBe(
-      "Underground",
-    );
+    expect(overlayFloorForPoint(-6, bands, { x: -180, z: -80 })).toBe("Underground");
   });
 
   it("keeps a tall streets courtyard playground on ground", () => {
@@ -3166,9 +2932,7 @@ describe("overlay floors", () => {
     expect(overlayFloorForSpan(playground, bands, at)).toBe("");
     expect(overlayFloorForPoint(8.23, bands, at)).toBe("");
     expect(overlayVisibleOnFloor(playground, "", bands, at)).toBe(true);
-    expect(overlayVisibleOnFloor(playground, "2nd Floor", bands, at)).toBe(
-      true,
-    );
+    expect(overlayVisibleOnFloor(playground, "2nd Floor", bands, at)).toBe(true);
   });
 
   it("does not promote a ground zone just because the trigger box clips 2nd", () => {
@@ -3188,17 +2952,13 @@ describe("overlay floors", () => {
 describe("colorForTaskIndex", () => {
   it("cycles the palette by selection order", () => {
     expect(colorForTaskIndex(0)).toBe(RAID_PREP_TASK_COLORS[0]);
-    expect(colorForTaskIndex(RAID_PREP_TASK_COLORS.length)).toBe(
-      RAID_PREP_TASK_COLORS[0],
-    );
+    expect(colorForTaskIndex(RAID_PREP_TASK_COLORS.length)).toBe(RAID_PREP_TASK_COLORS[0]);
   });
 });
 
 describe("raidPrepQuestPaintColor", () => {
   it("uses the shared gray for help overlays", () => {
-    expect(raidPrepQuestPaintColor("#e8c36a", true)).toBe(
-      RAID_PREP_QUEST_HELP_COLOR,
-    );
+    expect(raidPrepQuestPaintColor("#e8c36a", true)).toBe(RAID_PREP_QUEST_HELP_COLOR);
     expect(raidPrepQuestPaintColor("#e8c36a", false)).toBe("#e8c36a");
   });
 });
@@ -3215,9 +2975,7 @@ describe("resolveRaidPrepLocatePoints", () => {
         },
         {
           id: "o-main",
-          possible_locations: [
-            { map_slug: "customs", positions: [{ x: 9, z: 8 }] },
-          ],
+          possible_locations: [{ map_slug: "customs", positions: [{ x: 9, z: 8 }] }],
         },
       ],
     };
@@ -3236,15 +2994,11 @@ describe("resolveRaidPrepLocatePoints", () => {
       id: "t-floor",
       objectives: [
         {
-          zones: [
-            { map_slug: "customs", x: 4, z: 5, top: 14, bottom: 16 },
-          ],
+          zones: [{ map_slug: "customs", x: 4, z: 5, top: 14, bottom: 16 }],
         },
       ],
     };
-    expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([
-      { x: 4, z: 5, y: 15 },
-    ]);
+    expect(resolveRaidPrepLocatePoints(task, "customs")).toEqual([{ x: 4, z: 5, y: 15 }]);
   });
 
   it("does not cycle the same truck twice when zone copies repeat", () => {
@@ -3281,13 +3035,9 @@ describe("raidPrepIdsFromTaskProgress", () => {
   });
 
   it("ignores blanks and repeats", () => {
-    expect(
-      raidPrepIdsFromTaskProgress(
-        [" a ", "a", "b"],
-        ["a", " a ", "", "b"],
-        [" b "],
-      ),
-    ).toEqual(["a"]);
+    expect(raidPrepIdsFromTaskProgress([" a ", "a", "b"], ["a", " a ", "", "b"], [" b "])).toEqual([
+      "a",
+    ]);
   });
 });
 
@@ -3326,9 +3076,7 @@ describe("planRaidPrepTaskProgressSync", () => {
     });
     expect(plan.addedIds).toEqual([occupied[0]]);
     expect(plan.nextIds).toEqual([occupied[0]]);
-    expect(plan.hint).toBe(
-      `已勾选 1 个进行中任务（已达 ${RAID_PREP_MAX_SELECTED} 个上限）`,
-    );
+    expect(plan.hint).toBe(`已勾选 1 个进行中任务（已达 ${RAID_PREP_MAX_SELECTED} 个上限）`);
   });
 
   it("explains an empty personal-center started list", () => {
@@ -3354,16 +3102,10 @@ describe("raid prep packing and settle", () => {
     expect(raidPrepTaskProgressStatus("a", ["a"], ["a"])).toBe("done");
     expect(raidPrepTaskProgressStatus("b", ["a"], ["b"])).toBe("active");
     expect(raidPrepTaskProgressStatus("c", ["a"], ["b"])).toBe("todo");
-    expect(
-      raidPrepTaskProgressStatus("b", new Set(["a"]), new Set(["b"])),
-    ).toBe("active");
+    expect(raidPrepTaskProgressStatus("b", new Set(["a"]), new Set(["b"]))).toBe("active");
     expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), true)).toBe(true);
-    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(["s1"]), false)).toBe(
-      true,
-    );
-    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), false)).toBe(
-      false,
-    );
+    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(["s1"]), false)).toBe(true);
+    expect(raidPrepObjectiveCheckedForViewer("s1", new Set(), false)).toBe(false);
     const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
     expect(groupRaidPrepRowsByProgress(rows, ["a"], ["b"])).toEqual({
       active: [{ id: "b" }],
@@ -3371,9 +3113,7 @@ describe("raid prep packing and settle", () => {
       done: [{ id: "a" }],
     });
     // Set 原样收（逐行判状态不再每行复制一份集合）
-    expect(
-      groupRaidPrepRowsByProgress(rows, new Set(["a"]), new Set(["b"])),
-    ).toEqual({
+    expect(groupRaidPrepRowsByProgress(rows, new Set(["a"]), new Set(["b"]))).toEqual({
       active: [{ id: "b" }],
       todo: [{ id: "c" }],
       done: [{ id: "a" }],
@@ -3449,10 +3189,7 @@ describe("raid prep packing and settle", () => {
   });
 
   it("blocks a task only when every required key is missing", () => {
-    const key = (
-      id: string,
-      optional = false,
-    ): RaidPrepNeededItem => ({
+    const key = (id: string, optional = false): RaidPrepNeededItem => ({
       id,
       name: id,
       icon_link: "",
@@ -3466,19 +3203,12 @@ describe("raid prep packing and settle", () => {
     });
     expect(raidPrepTaskKeysUnavailable([], new Set())).toBe(false);
     expect(raidPrepTaskKeysUnavailable([key("k1", true)], new Set())).toBe(false);
-    expect(raidPrepTaskKeysUnavailable([key("k1"), key("k2", true)], new Set())).toBe(
-      true,
-    );
-    expect(
-      raidPrepTaskKeysUnavailable([key("k1"), key("k2")], new Set(["k2"])),
-    ).toBe(false);
+    expect(raidPrepTaskKeysUnavailable([key("k1"), key("k2", true)], new Set())).toBe(true);
+    expect(raidPrepTaskKeysUnavailable([key("k1"), key("k2")], new Set(["k2"]))).toBe(false);
     expect(raidPrepTaskKeysUnavailable([key("k1")], new Set(["k1"]))).toBe(false);
     expect(RAID_PREP_UNAVAILABLE_KEY_HINT).not.toMatch(/隐藏|做不了/);
     expect(
-      raidPrepTaskKeysUnavailable(
-        [{ ...key("any"), anyOf: [key("a"), key("b")] }],
-        new Set(["b"]),
-      ),
+      raidPrepTaskKeysUnavailable([{ ...key("any"), anyOf: [key("a"), key("b")] }], new Set(["b"])),
     ).toBe(false);
   });
 
@@ -3499,10 +3229,7 @@ describe("raid prep packing and settle", () => {
   });
 
   it("shows overlay key names on the map label", () => {
-    expect(formatRaidPrepOverlayKeyLabel(["宿舍 114", "Dorm 105"])).toBe(
-      "宿舍 114、Dorm 105",
-    );
+    expect(formatRaidPrepOverlayKeyLabel(["宿舍 114", "Dorm 105"])).toBe("宿舍 114、Dorm 105");
     expect(formatRaidPrepOverlayKeyLabel([], true)).toBe("不需要钥匙");
   });
 });
-

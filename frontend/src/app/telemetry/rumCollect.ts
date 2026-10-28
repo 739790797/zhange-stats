@@ -40,10 +40,7 @@ export function shouldCollectApiUrl(pathname: string): boolean {
   return !SKIP_API_SUBSTR.some((part) => path.includes(part));
 }
 
-export function axiosRequestPath(config: {
-  baseURL?: string;
-  url?: string;
-}): string {
+export function axiosRequestPath(config: { baseURL?: string; url?: string }): string {
   const url = String(config.url || "");
   if (/^https?:\/\//i.test(url)) {
     try {
@@ -107,9 +104,7 @@ function scheduleFlush() {
 export function enqueueRum(event: RumEvent) {
   if (!enabled || typeof window === "undefined") return;
   if (!Number.isFinite(event.duration_ms)) return;
-  const duration = Math.round(
-    Math.min(MAX_DURATION_MS, Math.max(0, event.duration_ms)),
-  );
+  const duration = Math.round(Math.min(MAX_DURATION_MS, Math.max(0, event.duration_ms)));
   const url = String(event.url || "").slice(0, 512);
   if (!url) return;
   if (event.kind === "api" && !shouldCollectApiUrl(url)) return;
@@ -164,8 +159,7 @@ export function flushRum() {
   }
   if (!buffer.length) return;
   const batch = buffer.splice(0, MAX_BATCH);
-  const page =
-    typeof location !== "undefined" ? String(location.pathname || "").slice(0, 256) : "";
+  const page = typeof location !== "undefined" ? String(location.pathname || "").slice(0, 256) : "";
   postBatch(JSON.stringify({ page, events: batch }));
   if (buffer.length) scheduleFlush();
 }

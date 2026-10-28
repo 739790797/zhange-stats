@@ -67,9 +67,7 @@ router = APIRouter(
 )
 
 
-def _status_out(
-    db: Session, member: Member, *, include_roles: bool, force: bool
-) -> ExiliumStatusOut:
+def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool) -> ExiliumStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -129,9 +127,7 @@ def exilium_bind_sms_send(
     ip = client_ip(request)
     platform_limiter.hit(f"exilium-sms:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"exilium-sms:uid:{user.id}", limit=5, window_sec=600)
-    platform_limiter.hit(
-        f"exilium-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
-    )
+    platform_limiter.hit(f"exilium-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600)
     try:
         send_sms(payload.phone, payload.graph_code)
     except ExiliumNeedGraphCaptcha as exc:
@@ -290,9 +286,7 @@ def exilium_checkin_now(
 ):
     role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(
-            db, member, force=True, role_keys=role_keys
-        )
+        out = run_checkin_for_member(db, member, force=True, role_keys=role_keys)
     except ExiliumApiError as exc:
         raise_api_error(exc, ExiliumApiError)
     return build_checkin_response(

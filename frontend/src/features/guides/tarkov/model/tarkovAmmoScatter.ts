@@ -22,10 +22,7 @@ export function ammoScatterAxisMax(items: TarkovAmmoItem[]): {
   return { x: ceil10(maxPen), y: ceil10(maxDmg) };
 }
 
-export function filterAmmoByIds(
-  items: TarkovAmmoItem[],
-  ids: Iterable<string>,
-): TarkovAmmoItem[] {
+export function filterAmmoByIds(items: TarkovAmmoItem[], ids: Iterable<string>): TarkovAmmoItem[] {
   const set = new Set(Array.from(ids, (id) => id.trim()).filter(Boolean));
   if (!set.size) return [];
   return items.filter((row) => set.has(row.id));

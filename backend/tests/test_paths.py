@@ -25,9 +25,7 @@ from app.core.runtime_cache import (
 from app.core.secret import ensure_secret_key
 
 
-def test_relative_data_dir_uses_install_root_not_cwd(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_relative_data_dir_uses_install_root_not_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = tmp_path / "zhange-stats"
     install.mkdir()
     (install / "VERSION").write_text("0.0.0\n", encoding="utf-8")
@@ -310,9 +308,7 @@ def test_migrate_merges_into_existing_runtime(tmp_path: Path) -> None:
     assert not (install / "var" / "data").exists()
 
 
-def test_pin_library_cache_env_overrides_home_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pin_library_cache_env_overrides_home_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = tmp_path / "zhange-stats"
     install.mkdir()
     leak = Path.home() / ".cache" / "huggingface"
@@ -330,9 +326,7 @@ def test_pin_library_cache_env_overrides_home_dir(
     assert Path(applied["HF_HUB_CACHE"]) == hf / "hub"
 
 
-def test_pin_library_cache_env_keeps_path_inside_install(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pin_library_cache_env_keeps_path_inside_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = tmp_path / "zhange-stats"
     install.mkdir()
     custom = install / "data" / "cache" / "custom-hf"
@@ -350,15 +344,7 @@ def test_migrate_spilled_copies_owned_weights_and_leaves_shared_hf(
     install = tmp_path / "zhange-stats"
     install.mkdir()
     home = tmp_path / "home"
-    snap = (
-        home
-        / ".cache"
-        / "huggingface"
-        / "hub"
-        / "models--OleehyO--TexTeller"
-        / "snapshots"
-        / "abc"
-    )
+    snap = home / ".cache" / "huggingface" / "hub" / "models--OleehyO--TexTeller" / "snapshots" / "abc"
     snap.mkdir(parents=True)
     (snap / "encoder_model.onnx").write_bytes(b"enc")
     (snap / "config.json").write_text("{}\n", encoding="utf-8")
@@ -378,9 +364,7 @@ def test_migrate_spilled_copies_owned_weights_and_leaves_shared_hf(
     assert (models / "texteller" / "encoder_model.onnx").read_bytes() == b"keep"
 
 
-def test_migrate_rewrites_env_var_paths(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_migrate_rewrites_env_var_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = tmp_path / "zhange-stats"
     var_data = install / "var" / "data"
     var_data.mkdir(parents=True)
@@ -395,9 +379,7 @@ def test_migrate_rewrites_env_var_paths(
 
     assert os.environ["DATA_DIR"] == DEFAULT_DATA_DIR
     assert os.environ["UPLOAD_DIR"] == DEFAULT_UPLOAD_DIR
-    assert os.environ["DATABASE_URL"].replace("\\", "/").endswith(
-        "data/runtime/zhange.sqlite"
-    )
+    assert os.environ["DATABASE_URL"].replace("\\", "/").endswith("data/runtime/zhange.sqlite")
 
 
 def test_migrate_merges_backend_uploads(tmp_path: Path) -> None:

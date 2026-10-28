@@ -7,11 +7,9 @@ export const ICP_BEIAN_HREF = "https://beian.miit.gov.cn/";
 export const TARKOV_PUBLIC_DISCLAIMER =
   "本站与 Battlestate Games 无关，不是官方工具，也不提供任何作弊功能。地图与物品数据来自社区 tarkov.dev。联机房间仅供队友协作勾任务与标点。";
 
-export const RAID_ROOM_TITLE_POLICY =
-  "房间名禁止违法、骚扰、歧视或广告内容。";
+export const RAID_ROOM_TITLE_POLICY = "房间名禁止违法、骚扰、歧视或广告内容。";
 
-const TERMS_TAIL_LAW =
-  "请同时遵守《逃离塔科夫》用户协议、B 站等平台规范，以及你所在地的法律。";
+const TERMS_TAIL_LAW = "请同时遵守《逃离塔科夫》用户协议、B 站等平台规范，以及你所在地的法律。";
 
 export type LegalDocId = "terms" | "privacy";
 

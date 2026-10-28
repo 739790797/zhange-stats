@@ -66,107 +66,73 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <AuthGuestShell
-      title="找回密码"
-      subtitle="通过已验证邮箱接收验证码并设置新密码"
-    >
-        {error ? (
-          <Alert
-            type="error"
-            message={error}
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
+    <AuthGuestShell title="找回密码" subtitle="通过已验证邮箱接收验证码并设置新密码">
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          requiredMark={false}
+      <Form form={form} layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Form.Item
+          name="email"
+          label="邮箱"
+          rules={[
+            { required: true, message: "请输入邮箱" },
+            { type: "email", message: "邮箱格式不正确" },
+          ]}
         >
-          <Form.Item
-            name="email"
-            label="邮箱"
-            rules={[
-              { required: true, message: "请输入邮箱" },
-              { type: "email", message: "邮箱格式不正确" },
-            ]}
-          >
-            <Input
-              size="large"
-              placeholder="账号绑定的邮箱"
-              autoComplete="email"
-            />
-          </Form.Item>
+          <Input size="large" placeholder="账号绑定的邮箱" autoComplete="email" />
+        </Form.Item>
 
-          <Form.Item label="验证码" required>
-            <Space.Compact style={{ width: "100%" }}>
-              <Form.Item
-                name="code"
-                noStyle
-                rules={[{ required: true, message: "请输入验证码" }]}
-              >
-                <Input
-                  size="large"
-                  placeholder="6 位验证码"
-                  maxLength={6}
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
-              <Button
+        <Form.Item label="验证码" required>
+          <Space.Compact style={{ width: "100%" }}>
+            <Form.Item name="code" noStyle rules={[{ required: true, message: "请输入验证码" }]}>
+              <Input
                 size="large"
-                loading={sending}
-                disabled={countdown > 0}
-                onClick={onSendCode}
-              >
-                {countdown > 0 ? `${countdown}s` : "发送验证码"}
-              </Button>
-            </Space.Compact>
-          </Form.Item>
+                placeholder="6 位验证码"
+                maxLength={6}
+                style={{ width: "100%" }}
+              />
+            </Form.Item>
+            <Button size="large" loading={sending} disabled={countdown > 0} onClick={onSendCode}>
+              {countdown > 0 ? `${countdown}s` : "发送验证码"}
+            </Button>
+          </Space.Compact>
+        </Form.Item>
 
-          <Form.Item
-            name="password"
-            label="新密码"
-            rules={[
-              { required: true, message: "请输入新密码" },
-              { min: 8, message: "至少 8 位" },
-            ]}
-          >
-            <Input.Password size="large" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            name="confirm"
-            label="确认新密码"
-            dependencies={["password"]}
-            rules={[
-              { required: true, message: "请再次输入新密码" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("password") === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error("两次密码不一致"));
-                },
-              }),
-            ]}
-          >
-            <Input.Password size="large" autoComplete="new-password" />
-          </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            block
-            loading={loading}
-          >
-            重置密码
-          </Button>
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <Link to="/login">返回登录</Link>
-          </div>
-        </Form>
-        <LegalLinks />
+        <Form.Item
+          name="password"
+          label="新密码"
+          rules={[
+            { required: true, message: "请输入新密码" },
+            { min: 8, message: "至少 8 位" },
+          ]}
+        >
+          <Input.Password size="large" autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          name="confirm"
+          label="确认新密码"
+          dependencies={["password"]}
+          rules={[
+            { required: true, message: "请再次输入新密码" },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue("password") === value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error("两次密码不一致"));
+              },
+            }),
+          ]}
+        >
+          <Input.Password size="large" autoComplete="new-password" />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+          重置密码
+        </Button>
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <Link to="/login">返回登录</Link>
+        </div>
+      </Form>
+      <LegalLinks />
     </AuthGuestShell>
   );
 }

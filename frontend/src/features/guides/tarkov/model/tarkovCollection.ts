@@ -4,12 +4,9 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { TarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
 import { textMatchesQuery } from "@/features/guides/tarkov/model/tarkovHomeNav";
 
-export const TARKOV_COLLECTION_OWNS_STORAGE_KEY =
-  "zhange.guides.tarkov.collectionOwns.v1";
-export const TARKOV_COLLECTION_LAYOUT_STORAGE_KEY =
-  "zhange.guides.tarkov.collectionLayout.v2";
-export const TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY =
-  "zhange.guides.tarkov.collectionLayout.v3";
+export const TARKOV_COLLECTION_OWNS_STORAGE_KEY = "zhange.guides.tarkov.collectionOwns.v1";
+export const TARKOV_COLLECTION_LAYOUT_STORAGE_KEY = "zhange.guides.tarkov.collectionLayout.v2";
+export const TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY = "zhange.guides.tarkov.collectionLayout.v3";
 export const COLLECTION_GRID_MIN_WIDTH = 3;
 export const COLLECTION_GRID_MIN_HEIGHT = 3;
 /** T H I C C 物品箱 / Lucky Scav Junkbox 内格：14×14 = 196。 */
@@ -100,9 +97,7 @@ export type CollectionLayout = {
   placements: CollectionPlacement[];
 };
 
-export type CollectionDrop =
-  | { kind: "grid"; col: number; row: number }
-  | { kind: "tray" };
+export type CollectionDrop = { kind: "grid"; col: number; row: number } | { kind: "tray" };
 
 export type CollectionBounds = {
   width: number;
@@ -135,9 +130,7 @@ function emptyOwnsState(): TarkovCollectionOwnsState {
   return { v: 1, pvp: [], pve: [] };
 }
 
-export function parseOwnsState(
-  raw: string | null | undefined,
-): TarkovCollectionOwnsState {
+export function parseOwnsState(raw: string | null | undefined): TarkovCollectionOwnsState {
   if (!raw) return emptyOwnsState();
   try {
     const parsed = JSON.parse(raw) as Partial<TarkovCollectionOwnsState> & {
@@ -157,25 +150,17 @@ export function parseOwnsState(
 
 export function loadOwnedIds(mode: TarkovGameMode): string[] {
   try {
-    const state = parseOwnsState(
-      localStorage.getItem(TARKOV_COLLECTION_OWNS_STORAGE_KEY),
-    );
+    const state = parseOwnsState(localStorage.getItem(TARKOV_COLLECTION_OWNS_STORAGE_KEY));
     return mode === "pve" ? state.pve || [] : state.pvp || [];
   } catch {
     return [];
   }
 }
 
-export function saveOwnedIds(
-  mode: TarkovGameMode,
-  ids: string[],
-  migrated = false,
-): void {
+export function saveOwnedIds(mode: TarkovGameMode, ids: string[], migrated = false): void {
   let state = emptyOwnsState();
   try {
-    state = parseOwnsState(
-      localStorage.getItem(TARKOV_COLLECTION_OWNS_STORAGE_KEY),
-    );
+    state = parseOwnsState(localStorage.getItem(TARKOV_COLLECTION_OWNS_STORAGE_KEY));
   } catch {
     /* keep empty */
   }
@@ -185,10 +170,7 @@ export function saveOwnedIds(
     state.migrated = { ...state.migrated, [mode]: true };
   }
   try {
-    localStorage.setItem(
-      TARKOV_COLLECTION_OWNS_STORAGE_KEY,
-      JSON.stringify(state),
-    );
+    localStorage.setItem(TARKOV_COLLECTION_OWNS_STORAGE_KEY, JSON.stringify(state));
   } catch {
     /* ignore quota / private mode */
   }
@@ -198,17 +180,13 @@ export function markOwnsMigrated(mode: TarkovGameMode, ids: string[]): void {
   saveOwnedIds(mode, ids, true);
 }
 
-export const TARKOV_COLLECTION_OWNS_QUERY_KEY = [
-  "guides-tarkov-collection-owns",
-] as const;
+export const TARKOV_COLLECTION_OWNS_QUERY_KEY = ["guides-tarkov-collection-owns"] as const;
 
 export function collectionOwnsQueryKey(mode: TarkovGameMode) {
   return [...TARKOV_COLLECTION_OWNS_QUERY_KEY, mode] as const;
 }
 
-export const TARKOV_COLLECTION_LAYOUT_QUERY_KEY = [
-  "guides-tarkov-collection-layout",
-] as const;
+export const TARKOV_COLLECTION_LAYOUT_QUERY_KEY = ["guides-tarkov-collection-layout"] as const;
 
 export function collectionLayoutQueryKey(mode: TarkovGameMode) {
   return [...TARKOV_COLLECTION_LAYOUT_QUERY_KEY, mode] as const;
@@ -255,9 +233,7 @@ export function collectionItemSize(
 } {
   const rawW = Math.max(1, Math.trunc(Number(item.width) || 1));
   const rawH = Math.max(1, Math.trunc(Number(item.height) || 1));
-  return rotated
-    ? { width: rawH, height: rawW }
-    : { width: rawW, height: rawH };
+  return rotated ? { width: rawH, height: rawW } : { width: rawW, height: rawH };
 }
 
 export function collectionItemCells(item: TarkovCollectionItem): number {
@@ -293,10 +269,7 @@ export function collectionItemCategory(item: TarkovCollectionItem): {
 export function groupCollectionTrayItems(
   items: readonly TarkovCollectionItem[],
 ): CollectionTrayGroup[] {
-  const groups = new Map<
-    string,
-    CollectionTrayGroup & { order: number }
-  >();
+  const groups = new Map<string, CollectionTrayGroup & { order: number }>();
   for (const item of sortCollectionItemsByCells(items)) {
     const cat = collectionItemCategory(item);
     const existing = groups.get(cat.key);
@@ -341,9 +314,7 @@ function asInt(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function itemsByIdMap(
-  items: readonly TarkovCollectionItem[],
-): Map<string, TarkovCollectionItem> {
+function itemsByIdMap(items: readonly TarkovCollectionItem[]): Map<string, TarkovCollectionItem> {
   const map = new Map<string, TarkovCollectionItem>();
   for (const item of items) map.set(item.id, item);
   return map;
@@ -413,7 +384,9 @@ export function pickCollectionLayoutSource(input: {
   };
 }
 
-export function layoutFromApi(raw: CollectionLayoutApi | null | undefined): CollectionLayout | null {
+export function layoutFromApi(
+  raw: CollectionLayoutApi | null | undefined,
+): CollectionLayout | null {
   if (!raw || !Array.isArray(raw.placements)) return null;
   return parseCollectionLayout({ v: 2, placements: raw.placements });
 }
@@ -489,9 +462,7 @@ export function collectionLayoutFromStorage(
   return current || parseV3Layout(v3Raw, mode);
 }
 
-export function loadCollectionLayout(
-  mode: TarkovGameMode,
-): CollectionLayout | null {
+export function loadCollectionLayout(mode: TarkovGameMode): CollectionLayout | null {
   try {
     return collectionLayoutFromStorage(
       localStorage.getItem(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY),
@@ -503,15 +474,10 @@ export function loadCollectionLayout(
   }
 }
 
-export function saveCollectionLayout(
-  mode: TarkovGameMode,
-  layout: CollectionLayout,
-): void {
+export function saveCollectionLayout(mode: TarkovGameMode, layout: CollectionLayout): void {
   let store: LayoutStore = { v: 2 };
   try {
-    store = parseLayoutStore(
-      localStorage.getItem(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY),
-    );
+    store = parseLayoutStore(localStorage.getItem(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY));
   } catch {
     /* keep empty */
   }
@@ -519,10 +485,7 @@ export function saveCollectionLayout(
   if (mode === "pve") store.pve = next;
   else store.pvp = next;
   try {
-    localStorage.setItem(
-      TARKOV_COLLECTION_LAYOUT_STORAGE_KEY,
-      JSON.stringify(store),
-    );
+    localStorage.setItem(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY, JSON.stringify(store));
   } catch {
     /* ignore quota / private mode */
   }
@@ -545,10 +508,7 @@ function clearV3Layout(mode: TarkovGameMode): void {
       localStorage.removeItem(TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY);
       return;
     }
-    localStorage.setItem(
-      TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY,
-      JSON.stringify(parsed),
-    );
+    localStorage.setItem(TARKOV_COLLECTION_LAYOUT_V3_STORAGE_KEY, JSON.stringify(parsed));
   } catch {
     /* ignore quota / private mode */
   }
@@ -592,10 +552,7 @@ export function canPlaceCollectionItem(
   const item = itemsByIdMap(items).get(itemId);
   if (!item || col < 0 || row < 0) return false;
   const { width, height } = collectionItemSize(item, rotated);
-  if (
-    col + width > COLLECTION_GRID_MAX_WIDTH ||
-    row + height > COLLECTION_GRID_MAX_HEIGHT
-  ) {
+  if (col + width > COLLECTION_GRID_MAX_WIDTH || row + height > COLLECTION_GRID_MAX_HEIGHT) {
     return false;
   }
   const cells = layoutOccupancy(layout, items, itemId);
@@ -656,14 +613,8 @@ export function collectionGridSize(
     maxR = Math.max(maxR, place.row + height);
   }
   return {
-    cols: Math.min(
-      COLLECTION_GRID_MAX_WIDTH,
-      Math.max(COLLECTION_GRID_MIN_WIDTH, maxC + ring),
-    ),
-    rows: Math.min(
-      COLLECTION_GRID_MAX_HEIGHT,
-      Math.max(COLLECTION_GRID_MIN_HEIGHT, maxR + ring),
-    ),
+    cols: Math.min(COLLECTION_GRID_MAX_WIDTH, Math.max(COLLECTION_GRID_MIN_WIDTH, maxC + ring)),
+    rows: Math.min(COLLECTION_GRID_MAX_HEIGHT, Math.max(COLLECTION_GRID_MIN_HEIGHT, maxR + ring)),
   };
 }
 
@@ -709,16 +660,7 @@ export function sanitizeCollectionLayout(
     const item = byId.get(place.itemId);
     if (!item) continue;
     const rotated = Boolean(place.rotated);
-    if (
-      !canPlaceCollectionItem(
-        next,
-        items,
-        item.id,
-        place.col,
-        place.row,
-        rotated,
-      )
-    ) {
+    if (!canPlaceCollectionItem(next, items, item.id, place.col, place.row, rotated)) {
       continue;
     }
     next.placements.push({
@@ -763,9 +705,7 @@ export function layoutToCollectionSlots(
   }
   return {
     slots,
-    uncollected: sortCollectionItemsByCells(
-      items.filter((item) => !placed.has(item.id)),
-    ),
+    uncollected: sortCollectionItemsByCells(items.filter((item) => !placed.has(item.id))),
   };
 }
 
@@ -779,23 +719,13 @@ export function moveCollectionItem(
   const id = itemId.trim();
   if (!id) return null;
   const current = layout.placements.find((row) => row.itemId === id);
-  const nextRotated =
-    rotated !== undefined ? rotated : Boolean(current?.rotated);
+  const nextRotated = rotated !== undefined ? rotated : Boolean(current?.rotated);
   const stripped: CollectionLayout = {
     v: 2,
     placements: layout.placements.filter((row) => row.itemId !== id),
   };
   if (!dest || dest.kind === "tray") return stripped;
-  if (
-    !canPlaceCollectionItem(
-      stripped,
-      items,
-      id,
-      dest.col,
-      dest.row,
-      nextRotated,
-    )
-  ) {
+  if (!canPlaceCollectionItem(stripped, items, id, dest.col, dest.row, nextRotated)) {
     return null;
   }
   return {
@@ -929,12 +859,7 @@ export function collectionDropCell(
   const hoverRow = Math.floor((localY - pad) / stride);
   const colLimit = Math.max(cols, hitCols);
   const rowLimit = Math.max(rows, hitRows);
-  if (
-    hoverCol < 0 ||
-    hoverRow < 0 ||
-    hoverCol >= colLimit ||
-    hoverRow >= rowLimit
-  ) {
+  if (hoverCol < 0 || hoverRow < 0 || hoverCol >= colLimit || hoverRow >= rowLimit) {
     return null;
   }
   return {

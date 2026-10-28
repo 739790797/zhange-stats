@@ -36,9 +36,9 @@ describe("axiosRequestPath", () => {
   });
 
   it("uses pathname of absolute urls", () => {
-    expect(
-      axiosRequestPath({ url: "https://example.test/api/members/1?x=1" }),
-    ).toBe("/api/members/1");
+    expect(axiosRequestPath({ url: "https://example.test/api/members/1?x=1" })).toBe(
+      "/api/members/1",
+    );
   });
 });
 

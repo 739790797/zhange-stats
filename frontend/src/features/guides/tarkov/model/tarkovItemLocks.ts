@@ -23,9 +23,7 @@ export function lockTypeSummary(locks: readonly TarkovItemKeyLock[]): string {
     const label = lockTypeLabel(lock.lock_type) || "锁";
     counts.set(label, (counts.get(label) || 0) + 1);
   }
-  return [...counts.entries()]
-    .map(([label, count]) => `${count} 处${label}`)
-    .join(" · ");
+  return [...counts.entries()].map(([label, count]) => `${count} 处${label}`).join(" · ");
 }
 
 export function lockPointLabel(
@@ -61,7 +59,7 @@ export function lockFocusPoint(
   return {
     x: lock.x,
     z: lock.z,
-    y: span ? (span.min + span.max) / 2 : lock.y ?? undefined,
+    y: span ? (span.min + span.max) / 2 : (lock.y ?? undefined),
   };
 }
 

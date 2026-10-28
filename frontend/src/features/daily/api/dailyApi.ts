@@ -6,9 +6,6 @@ export async function fetchMyDailyTasks(params?: {
   page?: number;
   page_size?: number;
 }) {
-  const { data } = await client.get<UserCheckinTasksPage>(
-    "/profile/daily-tasks",
-    { params },
-  );
+  const { data } = await client.get<UserCheckinTasksPage>("/profile/daily-tasks", { params });
   return data;
 }

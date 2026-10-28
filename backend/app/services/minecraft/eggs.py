@@ -30,10 +30,7 @@ def inspect_current_egg(base: str, token: str, uuid: str) -> dict[str, Any]:
     blob = _blob(
         details.get("command"),
         " ".join(details.get("docker_images") or []),
-        " ".join(
-            f"{row.get('key')}={row.get('value')}"
-            for row in details.get("variables") or []
-        ),
+        " ".join(f"{row.get('key')}={row.get('value')}" for row in details.get("variables") or []),
     )
     images = list(details.get("docker_images") or [])
     return {

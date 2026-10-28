@@ -98,12 +98,7 @@ def test_anonymize_deletes_email_challenges() -> None:
     db.commit()
     anonymize_user_account(db, user, actor_id=user.id)
     db.commit()
-    assert (
-        db.query(RegisterChallenge)
-        .filter(RegisterChallenge.email == "alice@example.com")
-        .count()
-        == 0
-    )
+    assert db.query(RegisterChallenge).filter(RegisterChallenge.email == "alice@example.com").count() == 0
 
 
 def test_anonymize_last_admin_rejected() -> None:

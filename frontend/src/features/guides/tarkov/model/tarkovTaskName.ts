@@ -13,10 +13,7 @@ export function taskFactionLabel(value: string | undefined): string {
   return text;
 }
 
-export function taskLineHintSuffix(
-  hint: string | undefined,
-  factionName?: string,
-): string {
+export function taskLineHintSuffix(hint: string | undefined, factionName?: string): string {
   const text = (hint || "").trim();
   if (!text) return "";
   const faction = (factionName || "").trim();

@@ -44,12 +44,7 @@ def _known_key_ids(db: Session) -> frozenset[str]:
 
 
 def _own_count(db: Session, user_id: int) -> int:
-    return int(
-        db.query(func.count(TarkovUserKeyOwn.item_id))
-        .filter(TarkovUserKeyOwn.user_id == user_id)
-        .scalar()
-        or 0
-    )
+    return int(db.query(func.count(TarkovUserKeyOwn.item_id)).filter(TarkovUserKeyOwn.user_id == user_id).scalar() or 0)
 
 
 def list_item_ids(db: Session, user_id: int) -> list[str]:
@@ -75,14 +70,11 @@ def list_owns_for_users(
     query = db.query(TarkovUserKeyOwn).filter(TarkovUserKeyOwn.user_id.in_(ids))
     if item_ids is not None:
         query = query.filter(TarkovUserKeyOwn.item_id.in_(sorted(item_ids)))
-    return (
-        query.order_by(
-            TarkovUserKeyOwn.created_at.asc(),
-            TarkovUserKeyOwn.user_id.asc(),
-            TarkovUserKeyOwn.item_id.asc(),
-        )
-        .all()
-    )
+    return query.order_by(
+        TarkovUserKeyOwn.created_at.asc(),
+        TarkovUserKeyOwn.user_id.asc(),
+        TarkovUserKeyOwn.item_id.asc(),
+    ).all()
 
 
 def add_own(

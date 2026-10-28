@@ -90,11 +90,7 @@ def prune_checkin_logs(db: Session, *, retention_days: int) -> dict[str, int]:
     deleted: dict[str, int] = {}
     for platform, adapter in get_checkin_adapters().items():
         model = adapter.log_model
-        n = (
-            db.query(model)
-            .filter(model.checkin_date < cutoff)
-            .delete(synchronize_session=False)
-        )
+        n = db.query(model).filter(model.checkin_date < cutoff).delete(synchronize_session=False)
         deleted[platform] = int(n)
     db.flush()
     return deleted

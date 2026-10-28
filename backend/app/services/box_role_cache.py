@@ -21,17 +21,12 @@ from app.services.skland.client import (
 from app.services.taygedo.client import GAME_NTE, GAME_NTE_NAME, TaygedoRole
 
 
-def _arknights_labels_from_checkin_logs(
-    db: Session, member_id: int
-) -> dict[str, tuple[str, str]]:
+def _arknights_labels_from_checkin_logs(db: Session, member_id: int) -> dict[str, tuple[str, str]]:
     """每个 uid 最近一天签到/状态记录里的角色名与渠道（logs 按角色+日唯一）。"""
     log = SklandCheckinLog
     mine = (log.member_id == member_id, log.game_code == GAME_ARKNIGHTS)
     latest = (
-        db.query(log.role_uid, func.max(log.checkin_date).label("day"))
-        .filter(*mine)
-        .group_by(log.role_uid)
-        .subquery()
+        db.query(log.role_uid, func.max(log.checkin_date).label("day")).filter(*mine).group_by(log.role_uid).subquery()
     )
     rows = (
         db.query(log.role_uid, log.role_name, log.channel_name)
@@ -50,9 +45,7 @@ def _arknights_labels_from_checkin_logs(
     return out
 
 
-def skland_arknights_roles_from_raws(
-    db: Session, member_id: int
-) -> list[SklandRole] | None:
+def skland_arknights_roles_from_raws(db: Session, member_id: int) -> list[SklandRole] | None:
     attendance_rows = (
         db.query(
             SklandAttendanceRaw.uid,
@@ -104,9 +97,7 @@ def skland_arknights_roles_from_raws(
     return roles
 
 
-def skland_endfield_roles_from_raws(
-    db: Session, member_id: int
-) -> list[SklandRole] | None:
+def skland_endfield_roles_from_raws(db: Session, member_id: int) -> list[SklandRole] | None:
     rows = (
         db.query(EndfieldBoxRaw.role_id, EndfieldBoxRaw.uid, EndfieldBoxRaw.server_id)
         .filter(EndfieldBoxRaw.member_id == member_id)

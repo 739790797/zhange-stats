@@ -50,15 +50,14 @@ SHORELINE_SEED: list[dict[str, Any]] = [
     {"name": "农场", "x": -622, "z": -202},
 ]
 
+
 def _load_json_seed(name: str) -> Any:
     path = Path(__file__).with_name(name)
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 # 生产库街区手标快照（2026-09-03）。已有「小黄楼」的库不再覆盖。
-STREETS_OF_TARKOV_SEED: list[dict[str, Any]] = _load_json_seed(
-    "place_streets_prod.json"
-)
+STREETS_OF_TARKOV_SEED: list[dict[str, Any]] = _load_json_seed("place_streets_prod.json")
 
 
 def place_seed_rows(
@@ -93,9 +92,7 @@ def place_seed_rows(
 
 
 # 一次性快照：海关 / 工厂 / 立交等上游译名。已有行的图（海岸线、街区）不再覆盖。
-UPSTREAM_PLACE_SEED: dict[str, list[dict[str, Any]]] = _load_json_seed(
-    "place_upstream_seed.json"
-)
+UPSTREAM_PLACE_SEED: dict[str, list[dict[str, Any]]] = _load_json_seed("place_upstream_seed.json")
 
 
 class TarkovMapPlacesError(Exception):
@@ -145,10 +142,7 @@ def _as_optional_float(raw: Any, label: str) -> float | None:
 
 
 def _normalize_name(raw: Any) -> str:
-    lines = [
-        part.strip()
-        for part in str(raw or "").replace("\r\n", "\n").split("\n")
-    ]
+    lines = [part.strip() for part in str(raw or "").replace("\r\n", "\n").split("\n")]
     name = "\n".join(part for part in lines if part)
     if not name:
         raise TarkovMapPlacesError("地点名称不能为空")
@@ -259,11 +253,7 @@ def _parse_item(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _next_sort(db: Session, map_key: str) -> int:
-    current = (
-        db.query(func.max(TarkovMapPlace.sort_order))
-        .filter(TarkovMapPlace.map_key == map_key)
-        .scalar()
-    )
+    current = db.query(func.max(TarkovMapPlace.sort_order)).filter(TarkovMapPlace.map_key == map_key).scalar()
     return int(current or 0) + 1
 
 
@@ -353,11 +343,7 @@ def import_places(
     items: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     key = place_map_key(slug)
-    existing = (
-        db.query(TarkovMapPlace.id)
-        .filter(TarkovMapPlace.map_key == key)
-        .first()
-    )
+    existing = db.query(TarkovMapPlace.id).filter(TarkovMapPlace.map_key == key).first()
     if existing is not None:
         raise TarkovMapPlacesError("此地已有自定义地名", 409)
     if len(items) > IMPORT_MAX:

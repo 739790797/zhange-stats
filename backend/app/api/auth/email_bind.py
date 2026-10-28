@@ -46,10 +46,7 @@ router = APIRouter()
 
 
 def _email_taken(db: Session, email: str, user: User) -> bool:
-    return (
-        db.query(User.id).filter(User.email == email, User.id != user.id).first()
-        is not None
-    )
+    return db.query(User.id).filter(User.email == email, User.id != user.id).first() is not None
 
 
 @router.post("/send-bind-email-code", response_model=RegisterResponse)
@@ -71,9 +68,7 @@ def send_bind_email_code(
     _require_email_delivery(db)
     # 已被占用的邮箱收提醒（可改走「绑已有账号」），响应与可绑邮箱一样，不能拿来探测谁注册过
     notice = NOTICE_BIND_TAKEN if _email_taken(db, email, user) else None
-    _, delivery = _upsert_register_challenge(
-        db, email, purpose=PURPOSE_BIND, notice=notice
-    )
+    _, delivery = _upsert_register_challenge(db, email, purpose=PURPOSE_BIND, notice=notice)
     msg = _delivery_user_message(
         delivery,
         sent="若该邮箱可以绑定，验证码已发送",
@@ -181,9 +176,7 @@ def link_existing_account(
     target = db.query(User).filter(User.email == email).first()
     if target is not None and user_is_anonymized(target):
         target = None
-    password_ok = verify_login_password(
-        body.password, target.password_hash if target else None
-    )
+    password_ok = verify_login_password(body.password, target.password_hash if target else None)
     if target is None or not password_ok:
         record_login_failure(email, ip)
         raise HTTPException(status_code=401, detail="邮箱或密码错误")

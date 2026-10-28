@@ -20,15 +20,15 @@ describe("task feature presentation", () => {
     ]);
   });
   it("adds the external repository name to repository update tasks", () => {
-    expect(
-      taskFeatureDisplayName("skland.arknights.repo_sync", "外部仓库更新"),
-    ).toBe("外部仓库更新-ArknightsGameResource");
-    expect(
-      taskFeatureDisplayName("skland.endfield.repo_sync", "外部仓库更新"),
-    ).toBe("外部仓库更新-EndfieldData");
-    expect(
-      taskFeatureDisplayName("guides.tarkov.svg_repo_sync", "外部仓库更新"),
-    ).toBe("外部仓库更新-tarkov-dev-svg-maps");
+    expect(taskFeatureDisplayName("skland.arknights.repo_sync", "外部仓库更新")).toBe(
+      "外部仓库更新-ArknightsGameResource",
+    );
+    expect(taskFeatureDisplayName("skland.endfield.repo_sync", "外部仓库更新")).toBe(
+      "外部仓库更新-EndfieldData",
+    );
+    expect(taskFeatureDisplayName("guides.tarkov.svg_repo_sync", "外部仓库更新")).toBe(
+      "外部仓库更新-tarkov-dev-svg-maps",
+    );
   });
 
   it("keeps the matching GitHub repository links", () => {

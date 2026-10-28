@@ -2,8 +2,7 @@
 
 import type { TaskListItem } from "@/features/guides/tarkov/model/tarkovTaskTree";
 
-export const TARKOV_TASK_PROGRESS_VIEW_KEY =
-  "zhange.guides.tarkov.taskProgressView.v1";
+export const TARKOV_TASK_PROGRESS_VIEW_KEY = "zhange.guides.tarkov.taskProgressView.v1";
 
 export type TaskProgressView = "list" | "tree";
 
@@ -43,10 +42,7 @@ function asIds(value: readonly string[] | null | undefined): string[] {
   return out;
 }
 
-function inGroupPrereqs<T extends TaskForestItem>(
-  task: T,
-  byId: ReadonlyMap<string, T>,
-): string[] {
+function inGroupPrereqs<T extends TaskForestItem>(task: T, byId: ReadonlyMap<string, T>): string[] {
   return asIds(task.prereq_ids).filter((ident) => byId.has(ident));
 }
 
@@ -107,14 +103,9 @@ function mutexPair<T extends TaskForestItem>(left: T, right: T): boolean {
   return a.has(right.id) && b.has(left.id);
 }
 
-function sortNodes<T extends TaskForestItem>(
-  nodes: TaskForestNode<T>[],
-): TaskForestNode<T>[] {
+function sortNodes<T extends TaskForestItem>(nodes: TaskForestNode<T>[]): TaskForestNode<T>[] {
   return [...nodes].sort((left, right) =>
-    (left.task.name || left.task.id).localeCompare(
-      right.task.name || right.task.id,
-      "zh-CN",
-    ),
+    (left.task.name || left.task.id).localeCompare(right.task.name || right.task.id, "zh-CN"),
   );
 }
 
@@ -176,9 +167,7 @@ export function flowCardRibbonKinds(opts: {
   return out;
 }
 
-export function flowCardRibbonGradient(
-  kinds: readonly FlowRibbonKind[],
-): string {
+export function flowCardRibbonGradient(kinds: readonly FlowRibbonKind[]): string {
   if (!kinds.length) return "transparent";
   if (kinds.length === 1) return FLOW_RIBBON_COLORS[kinds[0]!];
   const slice = 100 / kinds.length;
@@ -208,9 +197,7 @@ export function countForestTasks<T extends TaskForestItem>(
   return total;
 }
 
-export function forestNodeDepth<T extends TaskForestItem>(
-  node: TaskForestNode<T>,
-): number {
+export function forestNodeDepth<T extends TaskForestItem>(node: TaskForestNode<T>): number {
   let deepest = 0;
   for (const child of node.children) {
     deepest = Math.max(deepest, forestChildDepth(child));
@@ -218,18 +205,14 @@ export function forestNodeDepth<T extends TaskForestItem>(
   return 1 + deepest;
 }
 
-export function forestChildDepth<T extends TaskForestItem>(
-  child: TaskForestChild<T>,
-): number {
+export function forestChildDepth<T extends TaskForestItem>(child: TaskForestChild<T>): number {
   if (child.kind === "choice") {
     return Math.max(0, ...child.options.map(forestNodeDepth));
   }
   return forestNodeDepth(child.node);
 }
 
-function childSortKey<T extends TaskForestItem>(
-  child: TaskForestChild<T>,
-): string {
+function childSortKey<T extends TaskForestItem>(child: TaskForestChild<T>): string {
   if (child.kind === "choice") {
     return child.options.map((row) => row.task.name || row.task.id).join(",");
   }
@@ -241,13 +224,9 @@ export type SplitFlowForest<T extends TaskForestItem = TaskForestItem> = {
   isolates: TaskForestChild<T>[];
 };
 
-function isSequencedRoot<T extends TaskForestItem>(
-  child: TaskForestChild<T>,
-): boolean {
+function isSequencedRoot<T extends TaskForestItem>(child: TaskForestChild<T>): boolean {
   if (child.kind === "choice") return true;
-  return (
-    child.node.children.length > 0 || child.node.extraPrereqIds.length > 0
-  );
+  return child.node.children.length > 0 || child.node.extraPrereqIds.length > 0;
 }
 
 /** 有后续、互斥分叉或树外前置的根进有序；无前后续的独立卡进无序。任务线按深度从长到短。 */
@@ -265,9 +244,7 @@ export function splitFlowForest<T extends TaskForestItem>(
     if (byDepth) return byDepth;
     return childSortKey(left).localeCompare(childSortKey(right), "zh-CN");
   });
-  isolates.sort((left, right) =>
-    childSortKey(left).localeCompare(childSortKey(right), "zh-CN"),
-  );
+  isolates.sort((left, right) => childSortKey(left).localeCompare(childSortKey(right), "zh-CN"));
   return { chains, isolates };
 }
 

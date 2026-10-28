@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useMemo, type ReactNode } from "react";
-import { fetchExiliumStatus, triggerExiliumCheckin, updateExiliumRolePref } from "@/features/platforms/exilium/api/exiliumApi";
+import {
+  fetchExiliumStatus,
+  triggerExiliumCheckin,
+  updateExiliumRolePref,
+} from "@/features/platforms/exilium/api/exiliumApi";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
 import { ExiliumBindPanel } from "@/features/platforms/exilium/components/ExiliumBindPanel";
@@ -27,12 +31,9 @@ export default function ExiliumPage() {
     staleTime: LOCAL_QUERY_STALE_MS,
   });
 
-  const featuresReady =
-    featuresQuery.isSuccess && Boolean(featuresQuery.data);
-  const showCheckin =
-    featuresReady && isFeatureOn(featuresQuery.data, "exilium.checkin");
-  const showExchange =
-    featuresReady && isFeatureOn(featuresQuery.data, "exilium.exchange");
+  const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
+  const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "exilium.checkin");
+  const showExchange = featuresReady && isFeatureOn(featuresQuery.data, "exilium.exchange");
 
   const tabItems = useMemo(() => {
     const items: { key: TabKey; label: string; children: ReactNode }[] = [];

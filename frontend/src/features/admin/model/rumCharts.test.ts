@@ -27,36 +27,28 @@ describe("rumBarTooltipTitle", () => {
         error_count: 0,
       },
     ]);
-    expect(rumBarTooltipTitle(bar!)).toBe(
-      "GET /api/&lt;img src=x onerror=alert(1)&gt;",
-    );
-    expect(rumBarTooltipTitle({ label: "GET /api/health" })).toBe(
-      "GET /api/health",
-    );
+    expect(rumBarTooltipTitle(bar!)).toBe("GET /api/&lt;img src=x onerror=alert(1)&gt;");
+    expect(rumBarTooltipTitle({ label: "GET /api/health" })).toBe("GET /api/health");
   });
 });
 
 describe("rumChartLabel", () => {
   it("strips protocol and truncates from the left", () => {
     expect(rumChartLabel("GET /api/health")).toBe("GET /api/health");
-    expect(
-      rumChartLabel("https://assets.tarkov.dev/maps/{map}/**.png", 24),
-    ).toBe("…v.dev/maps/{map}/**.png");
+    expect(rumChartLabel("https://assets.tarkov.dev/maps/{map}/**.png", 24)).toBe(
+      "…v.dev/maps/{map}/**.png",
+    );
   });
 });
 
 describe("rumAtToMs", () => {
   it("parses Beijing naive timestamps", () => {
-    expect(rumAtToMs("2026-09-11 12:00:00")).toBe(
-      Date.parse("2026-09-11T12:00:00+08:00"),
-    );
+    expect(rumAtToMs("2026-09-11 12:00:00")).toBe(Date.parse("2026-09-11T12:00:00+08:00"));
     expect(Number.isNaN(rumAtToMs(""))).toBe(true);
   });
 
   it("does not double-append timezone", () => {
-    expect(rumAtToMs("2026-09-11 12:00:00+08:00")).toBe(
-      Date.parse("2026-09-11T12:00:00+08:00"),
-    );
+    expect(rumAtToMs("2026-09-11 12:00:00+08:00")).toBe(Date.parse("2026-09-11T12:00:00+08:00"));
   });
 });
 
@@ -89,8 +81,28 @@ describe("rumTrendPoints / rumBarPoints", () => {
   it("builds grouped bars and uniquifies labels", () => {
     const bars = rumBarPoints(
       [
-        { url_key: "GET /api/a", host: "", biz: "other", biz_label: "其他", count: 1, avg_ms: 1, p50_ms: 10, p95_ms: 20, error_count: 0 },
-        { url_key: "GET /api/b", host: "", biz: "other", biz_label: "其他", count: 1, avg_ms: 1, p50_ms: 30, p95_ms: 90, error_count: 0 },
+        {
+          url_key: "GET /api/a",
+          host: "",
+          biz: "other",
+          biz_label: "其他",
+          count: 1,
+          avg_ms: 1,
+          p50_ms: 10,
+          p95_ms: 20,
+          error_count: 0,
+        },
+        {
+          url_key: "GET /api/b",
+          host: "",
+          biz: "other",
+          biz_label: "其他",
+          count: 1,
+          avg_ms: 1,
+          p50_ms: 30,
+          p95_ms: 90,
+          error_count: 0,
+        },
       ],
       12,
     );
@@ -99,10 +111,7 @@ describe("rumTrendPoints / rumBarPoints", () => {
   });
 
   it("uses the full window for the x domain", () => {
-    const domain = rumTrendDomain([
-      { at: "2026-09-11 00:00:00" },
-      { at: "2026-09-11 23:00:00" },
-    ]);
+    const domain = rumTrendDomain([{ at: "2026-09-11 00:00:00" }, { at: "2026-09-11 23:00:00" }]);
     expect(domain.max! - domain.min!).toBe(23 * 3600_000);
   });
 });
@@ -147,19 +156,35 @@ describe("rumRowsForBiz / rumBizBarPoints", () => {
   it("filters and keeps p95 order", () => {
     const all = rumRowsForBiz(rows, "all");
     expect(all.map((r) => r.biz)).toEqual(["tarkov", "site", "account"]);
-    expect(rumRowsForBiz(rows, "site").map((r) => r.url_key)).toEqual([
-      "GET /api/setup/status",
-    ]);
+    expect(rumRowsForBiz(rows, "site").map((r) => r.url_key)).toEqual(["GET /api/setup/status"]);
   });
 
   it("builds business summary bars", () => {
     const bars = rumBizBarPoints([
-      { biz: "tarkov", label: "逃离塔科夫", count: 3, avg_ms: 400, p50_ms: 200, p95_ms: 900, error_count: 0 },
-      { biz: "site", label: "站点与运维", count: 8, avg_ms: 40, p50_ms: 30, p95_ms: 80, error_count: 0 },
+      {
+        biz: "tarkov",
+        label: "逃离塔科夫",
+        count: 3,
+        avg_ms: 400,
+        p50_ms: 200,
+        p95_ms: 900,
+        error_count: 0,
+      },
+      {
+        biz: "site",
+        label: "站点与运维",
+        count: 8,
+        avg_ms: 40,
+        p50_ms: 30,
+        p95_ms: 80,
+        error_count: 0,
+      },
     ]);
     expect(bars[0]).toMatchObject({ label: "逃离塔科夫（3）", metric: "p50", ms: 200 });
-    expect(rumBizFilterOptions([
-      { biz: "tarkov", label: "逃离塔科夫", count: 3, avg_ms: 400, error_count: 0 },
-    ])).toEqual([{ label: "逃离塔科夫", value: "tarkov" }]);
+    expect(
+      rumBizFilterOptions([
+        { biz: "tarkov", label: "逃离塔科夫", count: 3, avg_ms: 400, error_count: 0 },
+      ]),
+    ).toEqual([{ label: "逃离塔科夫", value: "tarkov" }]);
   });
 });

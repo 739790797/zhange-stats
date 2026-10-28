@@ -147,12 +147,8 @@ def test_prune_expired_auth_rows() -> None:
                 code="333333",
                 expires_at=now + timedelta(minutes=5),
             ),
-            OAuthExchangeTicket(
-                code="expired", access_token="enc:v1:x", expires_at=now - timedelta(seconds=1)
-            ),
-            OAuthExchangeTicket(
-                code="live", access_token="enc:v1:y", expires_at=now + timedelta(minutes=1)
-            ),
+            OAuthExchangeTicket(code="expired", access_token="enc:v1:x", expires_at=now - timedelta(seconds=1)),
+            OAuthExchangeTicket(code="live", access_token="enc:v1:y", expires_at=now + timedelta(minutes=1)),
         ]
     )
     db.commit()

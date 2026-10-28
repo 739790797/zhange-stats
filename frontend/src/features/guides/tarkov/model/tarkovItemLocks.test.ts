@@ -87,9 +87,7 @@ describe("itemKeyLockMaps", () => {
 
 describe("lockTypeSummary", () => {
   it("counts lock types in Chinese", () => {
-    expect(lockTypeSummary([factoryDoor, customsDoor, truck])).toBe(
-      "2 处门 · 1 处后备箱",
-    );
+    expect(lockTypeSummary([factoryDoor, customsDoor, truck])).toBe("2 处门 · 1 处后备箱");
   });
 });
 
@@ -123,9 +121,7 @@ describe("lockOverlayFloor", () => {
         bottom: 10,
       }),
     ).toEqual({ x: 1, z: 2, y: 12 });
-    expect(
-      lockFocusPoint({ id: "none", lock_type: "door", needs_power: false }),
-    ).toBeNull();
+    expect(lockFocusPoint({ id: "none", lock_type: "door", needs_power: false })).toBeNull();
   });
 });
 

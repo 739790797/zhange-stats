@@ -264,9 +264,7 @@ export const TARKOV_HANDBOOK_ROOTS: TarkovHandbookRoot[] = [
   },
 ];
 
-export function handbookRootBySlug(
-  raw: string | null | undefined,
-): TarkovHandbookRoot | undefined {
+export function handbookRootBySlug(raw: string | null | undefined): TarkovHandbookRoot | undefined {
   const key = (raw || "").trim();
   if (!key) return undefined;
   if (key === "gun" || key === "weapons") {
@@ -287,15 +285,11 @@ export function ammoDetailHref(itemId: string): string {
 }
 
 export function itemTypeHref(key: string): string {
-  const root =
-    handbookRootBySlug(key) ||
-    TARKOV_HANDBOOK_ROOTS.find((r) => r.panel === key);
+  const root = handbookRootBySlug(key) || TARKOV_HANDBOOK_ROOTS.find((r) => r.panel === key);
   return root ? handbookHref(root) : `${ITEMS_BASE_PATH}/${key}`;
 }
 
-export function resolveItemTypeKey(
-  raw: string | null | undefined,
-): string | null {
+export function resolveItemTypeKey(raw: string | null | undefined): string | null {
   const root = handbookRootBySlug(raw);
   return root?.slug ?? null;
 }
@@ -339,9 +333,7 @@ export function findHandbookChild(
   return undefined;
 }
 
-export function handbookChildLabels(
-  nodes: readonly TarkovHandbookChild[] | undefined,
-): string[] {
+export function handbookChildLabels(nodes: readonly TarkovHandbookChild[] | undefined): string[] {
   const labels: string[] = [];
   walkHandbookChildren(nodes, (node) => {
     labels.push(node.label);
@@ -503,15 +495,10 @@ export function handbookRootToPage(root: TarkovHandbookRoot): TarkovItemPage {
 }
 
 export function allItemPages(): TarkovItemPage[] {
-  return [
-    ...TARKOV_HANDBOOK_ROOTS.map(handbookRootToPage),
-    ...TARKOV_ITEM_LEAVES,
-  ];
+  return [...TARKOV_HANDBOOK_ROOTS.map(handbookRootToPage), ...TARKOV_ITEM_LEAVES];
 }
 
-export function itemPageBySlug(
-  raw: string | null | undefined,
-): TarkovItemPage | undefined {
+export function itemPageBySlug(raw: string | null | undefined): TarkovItemPage | undefined {
   const key = (raw || "").trim();
   if (!key) return undefined;
   if (key === "gun" || key === "weapons") {
@@ -520,18 +507,13 @@ export function itemPageBySlug(
   return allItemPages().find((p) => p.slug === key);
 }
 
-export function leafPageForCategoryId(
-  id: string | null | undefined,
-): TarkovItemPage | undefined {
+export function leafPageForCategoryId(id: string | null | undefined): TarkovItemPage | undefined {
   const key = (id || "").trim();
   if (!key) return undefined;
   return TARKOV_ITEM_LEAVES.find((page) => page.categoryIds.includes(key));
 }
 
-export function catalogPresetSlug(
-  page: TarkovItemPage,
-  child: TarkovHandbookChild | null,
-): string {
+export function catalogPresetSlug(page: TarkovItemPage, child: TarkovHandbookChild | null): string {
   if (child) {
     const leaf = leafPageForCategoryId(child.id);
     if (leaf) return leaf.slug;
@@ -558,9 +540,7 @@ export function itemBrowseKind(
   child: TarkovHandbookChild | null,
 ): ItemBrowseKind {
   if (page.panel === "ammo") {
-    return leafPageForCategoryId(child?.id)?.slug === "ammo-packs"
-      ? "catalog"
-      : "ammo";
+    return leafPageForCategoryId(child?.id)?.slug === "ammo-packs" ? "catalog" : "ammo";
   }
   if (page.panel === "guns") {
     const slug = leafPageForCategoryId(child?.id)?.slug;
@@ -620,16 +600,11 @@ export function itemSlugFromTypes(types: string[] | undefined): string {
 }
 
 /** 按物品 types 猜手册路径；详情页按 itemId 加载，slug 只影响面包屑。 */
-export function itemHrefFromTypes(
-  itemId: string,
-  types: string[] | undefined,
-): string {
+export function itemHrefFromTypes(itemId: string, types: string[] | undefined): string {
   return itemDetailHref(itemSlugFromTypes(types), itemId);
 }
 
-export function itemTypeLabelFromTypes(
-  types: string[] | undefined,
-): string {
+export function itemTypeLabelFromTypes(types: string[] | undefined): string {
   const set = new Set((types || []).map((t) => String(t).trim()));
   for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
     if (!set.has(type)) continue;
@@ -639,9 +614,7 @@ export function itemTypeLabelFromTypes(
   return "";
 }
 
-export function itemTypeHrefFromTypes(
-  types: string[] | undefined,
-): string | null {
+export function itemTypeHrefFromTypes(types: string[] | undefined): string | null {
   const set = new Set((types || []).map((t) => String(t).trim()));
   for (const [type, slug] of TYPE_TO_ITEM_SLUG) {
     if (set.has(type)) return itemListingHref(slug);
@@ -670,9 +643,7 @@ export type HandbookCategoryHit = {
 export function handbookCategoryFromIds(
   ids: readonly string[] | null | undefined,
 ): HandbookCategoryHit | null {
-  const set = new Set(
-    (ids || []).map((id) => String(id).trim()).filter(Boolean),
-  );
+  const set = new Set((ids || []).map((id) => String(id).trim()).filter(Boolean));
   if (!set.size) return null;
   let childHit: HandbookCategoryHit | null = null;
   let childDepth = -1;

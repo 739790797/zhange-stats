@@ -60,13 +60,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["profile"])
 
+
 @router.get("/profile/qq/oauth/start", response_model=QqOAuthStartResponse)
 def qq_oauth_start(
     request: Request,
     response: Response,
-    member_id: int | None = Query(
-        default=None, description="管理员可为指定成员发起绑定"
-    ),
+    member_id: int | None = Query(default=None, description="管理员可为指定成员发起绑定"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> QqOAuthStartResponse:
@@ -90,12 +89,7 @@ def qq_oauth_start(
     if member_id is not None:
         if not _is_admin_user(user):
             raise HTTPException(status_code=403, detail="仅管理员可为其他成员绑定")
-        member = (
-            db.query(Member)
-            .options(joinedload(Member.user))
-            .filter(Member.id == member_id)
-            .first()
-        )
+        member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == member_id).first()
         if not member or not member.user:
             raise HTTPException(status_code=404, detail="成员不存在")
         target_member_id = member.id
@@ -117,9 +111,7 @@ def qq_oauth_start(
         url = build_qq_authorize_url(state=state, backend=backend)
     except QqOAuthError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
-    set_qq_oauth_nonce_cookie(
-        response, request, nonce, max_age=STATE_TTL_MINUTES * 60
-    )
+    set_qq_oauth_nonce_cookie(response, request, nonce, max_age=STATE_TTL_MINUTES * 60)
     return QqOAuthStartResponse(url=url)
 
 
@@ -191,17 +183,12 @@ def qq_oauth_callback(
         try:
             profile = exchange_code_for_profile(code, backend=backend)
             member = (
-                db.query(Member)
-                .options(joinedload(Member.user))
-                .filter(Member.qq_openid == profile.openid)
-                .first()
+                db.query(Member).options(joinedload(Member.user)).filter(Member.qq_openid == profile.openid).first()
             )
             if member and member.user:
                 user = member.user
                 member.qq_unionid = profile.unionid or member.qq_unionid
-                member.qq_nickname = (
-                    strip_markup_chars(profile.nickname).strip() or member.qq_nickname
-                )
+                member.qq_nickname = strip_markup_chars(profile.nickname).strip() or member.qq_nickname
                 member.qq_avatar_url = profile.avatar_url or member.qq_avatar_url
                 if profile.avatar_url and not is_custom_avatar_url(member.avatar_url):
                     member.avatar_url = profile.avatar_url
@@ -268,22 +255,13 @@ def qq_oauth_callback(
     if not actor:
         return _fail("/profile", "user_not_found", f"uid={actor_id}")
 
-    member = (
-        db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id == target_member_id)
-        .first()
-    )
+    member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == target_member_id).first()
     if not member:
         return _fail("/profile", "member_not_found", f"mid={target_member_id}")
     if member.user_id != actor.id and not _is_admin_user(actor):
         return _fail("/profile", "forbidden", f"uid={actor_id} mid={member.id}")
 
-    path = (
-        "/profile"
-        if member.user_id == actor.id
-        else f"/members/{member.id}/profile"
-    )
+    path = "/profile" if member.user_id == actor.id else f"/members/{member.id}/profile"
 
     if not code:
         return _fail(path, "missing_code", "缺少 code")
@@ -346,5 +324,3 @@ def unbind_qq(
     db.commit()
     db.refresh(member)
     return _profile_from_member(member, viewer=user)
-
-

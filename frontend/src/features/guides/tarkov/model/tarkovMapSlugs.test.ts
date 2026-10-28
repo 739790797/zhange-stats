@@ -10,10 +10,7 @@ import {
 
 describe("mapSlugKeys", () => {
   it("expands equivalence groups and ignores unknown slugs", () => {
-    expect([...mapSlugKeys("streets")].sort()).toEqual([
-      "streets",
-      "streets-of-tarkov",
-    ]);
+    expect([...mapSlugKeys("streets")].sort()).toEqual(["streets", "streets-of-tarkov"]);
     expect([...mapSlugKeys("bigmap")].sort()).toEqual(["bigmap", "customs"]);
     expect([...mapSlugKeys("unknown-map")]).toEqual(["unknown-map"]);
     expect([...mapSlugKeys("")]).toEqual([]);

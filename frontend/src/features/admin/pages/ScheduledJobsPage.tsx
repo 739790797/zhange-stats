@@ -1,26 +1,9 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
-import {
-  Alert,
-  Button,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Modal, Select, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type Key,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type Key, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
 import { buildCheckinTaskScheduleColumns } from "@/features/daily/components/checkinTaskColumns";
@@ -30,7 +13,12 @@ import {
   communityGameRank,
   platformRank,
 } from "@/features/daily/model/checkinDisplay";
-import { fetchJobFilterMembers, fetchUserCheckinTasks, triggerScheduledJob, type JobTriggerResult } from "@/features/admin/api/jobsApi";
+import {
+  fetchJobFilterMembers,
+  fetchUserCheckinTasks,
+  triggerScheduledJob,
+  type JobTriggerResult,
+} from "@/features/admin/api/jobsApi";
 import { type UserCheckinTask } from "@/features/daily/api/types";
 import { useAuthStore } from "@/features/auth/model/authStore";
 
@@ -94,10 +82,7 @@ function countLeaves(nodes: Array<GameGroupRow | RoleLeaf>): number {
   return n;
 }
 
-function buildPlatformTree(
-  tasks: UserCheckinTask[],
-  memberId: number,
-): PlatformGroupRow[] {
+function buildPlatformTree(tasks: UserCheckinTask[], memberId: number): PlatformGroupRow[] {
   const byPlatform = new Map<string, UserCheckinTask[]>();
   for (const task of tasks) {
     const list = byPlatform.get(task.platform) || [];
@@ -105,9 +90,7 @@ function buildPlatformTree(
     byPlatform.set(task.platform, list);
   }
 
-  const platforms = [...byPlatform.keys()].sort(
-    (a, b) => platformRank(a) - platformRank(b),
-  );
+  const platforms = [...byPlatform.keys()].sort((a, b) => platformRank(a) - platformRank(b));
 
   return platforms.map((platform) => {
     const list = byPlatform.get(platform) || [];
@@ -123,10 +106,7 @@ function buildPlatformTree(
     }
 
     const gameChildren: GameGroupRow[] = [...byGame.entries()]
-      .sort(
-        ([a], [b]) =>
-          communityGameRank(a) - communityGameRank(b) || a.localeCompare(b),
-      )
+      .sort(([a], [b]) => communityGameRank(a) - communityGameRank(b) || a.localeCompare(b))
       .map(([gameCode, roles]) => ({
         rowKey: `game:${memberId}:${platform}:${gameCode}`,
         rowType: "game" as const,
@@ -153,18 +133,14 @@ function buildPlatformTree(
       rowKey: `platform:${memberId}:${platform}`,
       rowType: "platform" as const,
       platform,
-      platform_name:
-        CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform,
+      platform_name: CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform,
       member_id: memberId,
       children: [...gameChildren, ...legacyLeaves],
     };
   });
 }
 
-function buildUserGroups(
-  tasks: UserCheckinTask[],
-  selfMemberId: number | null,
-): UserGroupRow[] {
+function buildUserGroups(tasks: UserCheckinTask[], selfMemberId: number | null): UserGroupRow[] {
   const byMember = new Map<number, UserCheckinTask[]>();
   for (const task of tasks) {
     const list = byMember.get(task.member_id) || [];
@@ -227,9 +203,7 @@ export default function ScheduledJobsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [triggeringKey, setTriggeringKey] = useState<string | null>(null);
-  const [exchangeDialog, setExchangeDialog] = useState<ExchangeDialog | null>(
-    null,
-  );
+  const [exchangeDialog, setExchangeDialog] = useState<ExchangeDialog | null>(null);
 
   const membersQuery = useQuery({
     queryKey: ["job-filter-members"],
@@ -311,9 +285,7 @@ export default function ScheduledJobsPage() {
       const isRoleSync = Boolean(vars.game_code && vars.role_uid);
       if (isRoleSync) {
         setExchangeDialog({
-          title: vars.roleLabel
-            ? `执行原文 · ${vars.roleLabel}`
-            : "执行原文",
+          title: vars.roleLabel ? `执行原文 · ${vars.roleLabel}` : "执行原文",
           summary: data.summary || data.message,
           ok: data.ok,
           exchanges: data.exchanges || [],
@@ -411,9 +383,7 @@ export default function ScheduledJobsPage() {
             <CheckinTreeNameLabel
               kind="platform"
               platform={row.platform}
-              label={
-                CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name
-              }
+              label={CHECKIN_PLATFORM_LABELS[row.platform] || row.platform_name}
             />
           );
         }
@@ -435,9 +405,7 @@ export default function ScheduledJobsPage() {
             </Typography.Text>
           );
         }
-        return (
-          <Typography.Text type="secondary">未选择角色的平台任务</Typography.Text>
-        );
+        return <Typography.Text type="secondary">未选择角色的平台任务</Typography.Text>;
       },
     },
     ...beforeAwardCols,
@@ -543,9 +511,7 @@ export default function ScheduledJobsPage() {
           childrenColumnName: "children",
           indentSize: 20,
         }}
-        rowClassName={(row) =>
-          row.rowType === "user" ? "jobs-user-group-row" : ""
-        }
+        rowClassName={(row) => (row.rowType === "user" ? "jobs-user-group-row" : "")}
       />
 
       <Modal
@@ -563,11 +529,7 @@ export default function ScheduledJobsPage() {
             {exchangeDialog.summary ? (
               <Alert
                 type={
-                  exchangeDialog.ok === false
-                    ? "error"
-                    : exchangeDialog.ok
-                      ? "success"
-                      : "info"
+                  exchangeDialog.ok === false ? "error" : exchangeDialog.ok ? "success" : "info"
                 }
                 showIcon
                 message={exchangeDialog.summary}
@@ -594,9 +556,7 @@ export default function ScheduledJobsPage() {
                       </Typography.Text>
                     ) : null}
                   </Space>
-                  <pre style={preStyle}>
-                    {firstExchange.upstream_request || "（无请求原文）"}
-                  </pre>
+                  <pre style={preStyle}>{firstExchange.upstream_request || "（无请求原文）"}</pre>
                 </div>
                 <div>
                   <Space
@@ -617,9 +577,7 @@ export default function ScheduledJobsPage() {
                       </Typography.Text>
                     ) : null}
                   </Space>
-                  <pre style={preStyle}>
-                    {firstExchange.upstream_response || "（无响应原文）"}
-                  </pre>
+                  <pre style={preStyle}>{firstExchange.upstream_response || "（无响应原文）"}</pre>
                 </div>
               </>
             ) : (

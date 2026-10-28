@@ -14,9 +14,7 @@ class ExastrisBoxRaw(Base):
     """异环 yh/characters 原始 JSON（按角色保留最新一份）。"""
 
     __tablename__ = "exastris_box_raws"
-    __table_args__ = (
-        UniqueConstraint("member_id", "role_id", name="uq_exastris_box_raw_member_role"),
-    )
+    __table_args__ = (UniqueConstraint("member_id", "role_id", name="uq_exastris_box_raw_member_role"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(

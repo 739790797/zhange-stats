@@ -116,6 +116,4 @@ const appTree = queryPersister ? (
 rememberAssistantEmbed();
 startOverlayScrollbars();
 startRum();
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>{appTree}</StrictMode>,
-);
+createRoot(document.getElementById("root")!).render(<StrictMode>{appTree}</StrictMode>);

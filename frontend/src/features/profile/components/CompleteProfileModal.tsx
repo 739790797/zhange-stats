@@ -52,11 +52,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
     }
   };
 
-  const onBindEmail = async (values: {
-    email: string;
-    code: string;
-    password?: string;
-  }) => {
+  const onBindEmail = async (values: { email: string; code: string; password?: string }) => {
     setSaving(true);
     try {
       const res = await bindEmail({
@@ -117,15 +113,9 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
             children: (
               <>
                 <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                  为当前 QQ 账号绑定邮箱以便找回；密码可选，不设则继续用 QQ
-                  登录。
+                  为当前 QQ 账号绑定邮箱以便找回；密码可选，不设则继续用 QQ 登录。
                 </Typography.Paragraph>
-                <Form
-                  form={bindForm}
-                  layout="vertical"
-                  onFinish={onBindEmail}
-                  requiredMark={false}
-                >
+                <Form form={bindForm} layout="vertical" onFinish={onBindEmail} requiredMark={false}>
                   <Form.Item
                     name="email"
                     label="邮箱"
@@ -134,11 +124,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
                       { type: "email", message: "邮箱格式不正确" },
                     ]}
                   >
-                    <Input
-                      size="large"
-                      placeholder="用于登录与找回"
-                      autoComplete="email"
-                    />
+                    <Input size="large" placeholder="用于登录与找回" autoComplete="email" />
                   </Form.Item>
                   <Form.Item label="验证码" required>
                     <Space.Compact style={{ width: "100%" }}>
@@ -186,13 +172,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
                       autoComplete="new-password"
                     />
                   </Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    size="large"
-                    block
-                    loading={saving}
-                  >
+                  <Button type="primary" htmlType="submit" size="large" block loading={saving}>
                     完成
                   </Button>
                 </Form>
@@ -205,8 +185,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
             children: (
               <>
                 <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                  若你以前用邮箱注册过，可验证后把当前 QQ
-                  挂到老账号（临时号将被删除）。
+                  若你以前用邮箱注册过，可验证后把当前 QQ 挂到老账号（临时号将被删除）。
                 </Typography.Paragraph>
                 <Form
                   form={linkForm}
@@ -222,11 +201,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
                       { type: "email", message: "邮箱格式不正确" },
                     ]}
                   >
-                    <Input
-                      size="large"
-                      placeholder="原账号邮箱"
-                      autoComplete="email"
-                    />
+                    <Input size="large" placeholder="原账号邮箱" autoComplete="email" />
                   </Form.Item>
                   <Form.Item
                     name="password"
@@ -239,13 +214,7 @@ export function CompleteProfileModal({ open, onClose, onCompleted }: Props) {
                       autoComplete="current-password"
                     />
                   </Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    size="large"
-                    block
-                    loading={linking}
-                  >
+                  <Button type="primary" htmlType="submit" size="large" block loading={linking}>
                     合并到已有账号
                   </Button>
                 </Form>

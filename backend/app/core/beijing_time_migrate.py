@@ -76,9 +76,7 @@ class UtcEraUpgradeMarker:
         self._first_step_seen = False
         self._pending = False
 
-    def __call__(
-        self, *, ctx: MigrationContext, step: MigrationInfo, heads: set, run_args: dict
-    ) -> None:
+    def __call__(self, *, ctx: MigrationContext, step: MigrationInfo, heads: set, run_args: dict) -> None:
         if ctx.as_sql or not step.is_upgrade or step.is_stamp:
             return
         if not self._first_step_seen:
@@ -112,10 +110,7 @@ def _shift_to_beijing(db: Session, engine: Engine) -> None:
             if col not in existing:
                 continue
             db.execute(
-                text(
-                    f"UPDATE `{table}` SET `{col}` = DATE_ADD(`{col}`, INTERVAL 8 HOUR) "
-                    f"WHERE `{col}` IS NOT NULL"
-                )
+                text(f"UPDATE `{table}` SET `{col}` = DATE_ADD(`{col}`, INTERVAL 8 HOUR) WHERE `{col}` IS NOT NULL")
             )
 
 

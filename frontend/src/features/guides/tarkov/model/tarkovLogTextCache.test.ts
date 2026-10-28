@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  logTextGrownFrom,
-  readTarkovLogText,
-  type TarkovLogTextEntry,
-} from "./tarkovLogTextCache";
+import { logTextGrownFrom, readTarkovLogText, type TarkovLogTextEntry } from "./tarkovLogTextCache";
 
 const encoder = new TextEncoder();
 
@@ -95,7 +91,9 @@ describe("readTarkovLogText", () => {
   });
 
   it("reads only the bytes after the last full line when the file grows", async () => {
-    const prefix = Array.from({ length: 400 }, (_, i) => `2024-02-05 19:00:${i}|line ${i}\n`).join("");
+    const prefix = Array.from({ length: 400 }, (_, i) => `2024-02-05 19:00:${i}|line ${i}\n`).join(
+      "",
+    );
     const first = await step(bytesOf(prefix, "partial"), 1);
     const grown = bytesOf(prefix, "partial line done\nnext");
     const second = await step(grown, 2, first.entry);
@@ -134,7 +132,11 @@ describe("readTarkovLogText", () => {
     expect(truncated.reads).toEqual([0]);
     expect(logTextGrownFrom(truncated.entry.read)).toBeUndefined();
 
-    const rewritten = await step(bytesOf(long.replace("row 49", "ROW 49"), "more\n"), 3, first.entry);
+    const rewritten = await step(
+      bytesOf(long.replace("row 49", "ROW 49"), "more\n"),
+      3,
+      first.entry,
+    );
     expect(rewritten.entry.read.text).toBe(rewritten.expected);
     expect(rewritten.reads[rewritten.reads.length - 1]).toBe(0);
 
@@ -144,8 +146,7 @@ describe("readTarkovLogText", () => {
   });
 
   it("keeps only GameStopping lines from output.log and never slurps the whole file", async () => {
-    const stop = (at: string) =>
-      `${at}|1|Info|application|EFT.NetworkGame\`1:GameStopping()`;
+    const stop = (at: string) => `${at}|1|Info|application|EFT.NetworkGame\`1:GameStopping()`;
     const noise = "n".repeat(300 * 1024);
     const firstText = `${noise}\n${stop("2026-10-13 08:09:59.000 +01:00")}\n${noise}\n`;
     const firstBytes = encoder.encode(firstText);
@@ -172,7 +173,10 @@ describe("readTarkovLogText", () => {
       expect(to - from).toBeLessThanOrEqual(256 * 1024);
     }
 
-    const rewritten = trackedOutput(encoder.encode(`${stop("2026-10-13 09:00:00.000 +01:00")}\n`), 3);
+    const rewritten = trackedOutput(
+      encoder.encode(`${stop("2026-10-13 09:00:00.000 +01:00")}\n`),
+      3,
+    );
     const third = await readTarkovLogText("output_1.log", rewritten.file, second);
     expect(third.read.text).toBe(`${stop("2026-10-13 09:00:00.000 +01:00")}\n`);
     expect(logTextGrownFrom(third.read)).toBeUndefined();
@@ -194,7 +198,7 @@ describe("readTarkovLogText", () => {
       "\n",
       "plain ascii without newline ",
       "\uFEFF",
-      "Got notification | ChatMessageReceived\n{ \"type\": 10 }\n",
+      'Got notification | ChatMessageReceived\n{ "type": 10 }\n',
     ];
     for (let round = 0; round < 20; round += 1) {
       const chunks: number[] = [];

@@ -80,10 +80,7 @@ export function MinecraftTextFileFormModal({
           {onBrowse ? (
             <Space.Compact style={{ width: "100%" }}>
               <Form.Item name="name" noStyle rules={nameRules}>
-                <Input
-                  disabled={nameDisabled}
-                  placeholder="config.json"
-                />
+                <Input disabled={nameDisabled} placeholder="config.json" />
               </Form.Item>
               <Button onClick={onBrowse} disabled={!directory}>
                 浏览
@@ -99,8 +96,7 @@ export function MinecraftTextFileFormModal({
           <Input.TextArea
             rows={18}
             style={{
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
               fontSize: 13,
             }}
           />

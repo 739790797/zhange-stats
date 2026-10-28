@@ -21,9 +21,7 @@ def _user(db, username: str, display_name: str) -> User:
 
 
 def test_sync_counts_created_renamed_and_orphan_members() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine, autoflush=False)()
     renamed = _user(db, "renamed", "新名字")

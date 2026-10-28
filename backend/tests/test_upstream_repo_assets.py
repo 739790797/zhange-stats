@@ -58,9 +58,7 @@ def test_arknights_catalog_reads_local_files(tmp_path: Path, monkeypatch) -> Non
     assert operators[0].avatar_url == "/api/skland/arknights/assets/avatar/char_fixture.png"
 
 
-def test_arknights_asset_route_distinguishes_missing_and_unavailable(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_arknights_asset_route_distinguishes_missing_and_unavailable(tmp_path: Path, monkeypatch) -> None:
     root = _local_repo(tmp_path, monkeypatch, upstream_repos.REPO_ARKNIGHTS)
     avatar = root / "avatar" / "char_fixture.png"
     avatar.parent.mkdir()
@@ -85,9 +83,7 @@ def test_arknights_asset_route_distinguishes_missing_and_unavailable(
     assert unavailable.value.status_code == 503
 
 
-def test_tarkov_svg_route_reads_local_clone_and_maps_errors(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_tarkov_svg_route_reads_local_clone_and_maps_errors(tmp_path: Path, monkeypatch) -> None:
     root = _local_repo(tmp_path, monkeypatch, upstream_repos.REPO_TARKOV_SVG)
     svg = root / "custom.svg"
     svg.write_text("<svg/>", encoding="utf-8")

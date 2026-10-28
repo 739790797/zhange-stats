@@ -15,11 +15,7 @@ const TREE: CommandNodeSpec[] = [
       {
         id: "shape",
         kind: "enum",
-        options: [
-          { value: "square" },
-          { value: "circle" },
-          { value: "diamond" },
-        ],
+        options: [{ value: "square" }, { value: "circle" }, { value: "diamond" }],
       },
     ],
   },
@@ -42,24 +38,29 @@ const WORLDS = ["world", "minecraft:overworld", "minecraft:the_nether"];
 
 describe("suggestionsForLine", () => {
   it("lists first-level commands on empty / click preview", () => {
-    expect(suggestionsForLine("", TREE, WORLDS).map((row) => row.token)).toEqual(
-      ["world", "shape", "center", "worldborder", "spawn", "trim"],
-    );
+    expect(suggestionsForLine("", TREE, WORLDS).map((row) => row.token)).toEqual([
+      "world",
+      "shape",
+      "center",
+      "worldborder",
+      "spawn",
+      "trim",
+    ]);
   });
 
   it("filters first-level commands while typing", () => {
-    expect(
-      suggestionsForLine("wo", TREE, WORLDS).map((row) => row.token),
-    ).toEqual(["world", "worldborder"]);
+    expect(suggestionsForLine("wo", TREE, WORLDS).map((row) => row.token)).toEqual([
+      "world",
+      "worldborder",
+    ]);
   });
 
   it("suggests world names after a completed command", () => {
-    expect(
-      suggestionsForLine("world ", TREE, WORLDS).map((row) => row.token),
-    ).toEqual(WORLDS);
-    expect(
-      suggestionsForLine("world minecraft:", TREE, WORLDS).map((row) => row.line),
-    ).toEqual(["world minecraft:overworld", "world minecraft:the_nether"]);
+    expect(suggestionsForLine("world ", TREE, WORLDS).map((row) => row.token)).toEqual(WORLDS);
+    expect(suggestionsForLine("world minecraft:", TREE, WORLDS).map((row) => row.line)).toEqual([
+      "world minecraft:overworld",
+      "world minecraft:the_nether",
+    ]);
   });
 
   it("suggests map ids for map arguments", () => {
@@ -68,17 +69,13 @@ describe("suggestionsForLine", () => {
       { id: "force-update" },
     ];
     expect(
-      suggestionsForLine("freeze ", tree, WORLDS, ["world_nether"]).map(
-        (row) => row.token,
-      ),
+      suggestionsForLine("freeze ", tree, WORLDS, ["world_nether"]).map((row) => row.token),
     ).toEqual(["world_nether"]);
     expect(completeLine("for", tree, WORLDS)).toBe("force-update");
   });
 
   it("suggests raw enum values, not translated labels", () => {
-    expect(
-      suggestionsForLine("shape c", TREE, WORLDS).map((row) => row.token),
-    ).toEqual(["circle"]);
+    expect(suggestionsForLine("shape c", TREE, WORLDS).map((row) => row.token)).toEqual(["circle"]);
   });
 });
 

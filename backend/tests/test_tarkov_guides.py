@@ -35,9 +35,7 @@ def _payload() -> dict:
                                 "attributes": {"foundInRaid": True},
                             }
                         ],
-                        "stationLevelRequirements": [
-                            {"station": "station-generator", "level": 1}
-                        ],
+                        "stationLevelRequirements": [{"station": "station-generator", "level": 1}],
                         "traderRequirements": [{"trader": PRAPOR, "level": 2}],
                         "skillRequirements": [{"skill": "hideout_mgmt", "level": 3}],
                         "bonuses": [

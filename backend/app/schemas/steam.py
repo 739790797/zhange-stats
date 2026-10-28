@@ -176,4 +176,3 @@ class SteamOverviewResponse(BaseModel):
     now_playing: list[SteamNowItem]
     recent_sessions: list[SteamSessionBrief]
     visibility: SteamVisibilityMeta | None = None
-

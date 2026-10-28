@@ -11,32 +11,20 @@ import {
 describe("isTarkovCatalogGet", () => {
   it("accepts map and raid-prep catalog GETs", () => {
     expect(isTarkovCatalogGet("get", "/guides/tarkov/maps/factory")).toBe(true);
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/maps/factory/loot")).toBe(
-      true,
-    );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/maps/factory/loot")).toBe(true);
     expect(isTarkovCatalogGet("GET", "/guides/tarkov/raid-prep")).toBe(true);
     expect(isTarkovCatalogGet("get", "/guides/tarkov/ammo")).toBe(true);
   });
 
   it("skips rooms, search, and user progress", () => {
     expect(isTarkovCatalogGet("get", "/guides/tarkov/raid-rooms")).toBe(false);
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/raid-rooms/mine")).toBe(
-      false,
-    );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/raid-rooms/mine")).toBe(false);
     expect(isTarkovCatalogGet("get", "/guides/tarkov/search")).toBe(false);
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/raid-prep/state")).toBe(
-      false,
-    );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/raid-prep/state")).toBe(false);
     expect(isTarkovCatalogGet("get", "/guides/tarkov/key-owns")).toBe(false);
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-owns")).toBe(
-      false,
-    );
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-layout")).toBe(
-      false,
-    );
-    expect(isTarkovCatalogGet("get", "/guides/tarkov/hideout-levels")).toBe(
-      false,
-    );
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-owns")).toBe(false);
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/collection-layout")).toBe(false);
+    expect(isTarkovCatalogGet("get", "/guides/tarkov/hideout-levels")).toBe(false);
     expect(isTarkovCatalogGet("get", "/guides/tarkov/profile")).toBe(false);
     expect(isTarkovCatalogGet("post", "/guides/tarkov/maps")).toBe(false);
   });
@@ -71,13 +59,9 @@ describe("catalogBodyKeysToEvict", () => {
   });
 
   it("treats map loot URLs as map files", () => {
-    expect(
-      catalogCacheKeyIsMapFile(
-        '/guides/tarkov/maps/factory/loot::{"loot_loose":true}',
-      ),
-    ).toBe(true);
-    expect(
-      catalogCacheKeyIsMapFile('/guides/tarkov/ammo::{"game_mode":"pvp"}'),
-    ).toBe(false);
+    expect(catalogCacheKeyIsMapFile('/guides/tarkov/maps/factory/loot::{"loot_loose":true}')).toBe(
+      true,
+    );
+    expect(catalogCacheKeyIsMapFile('/guides/tarkov/ammo::{"game_mode":"pvp"}')).toBe(false);
   });
 });

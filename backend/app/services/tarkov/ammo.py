@@ -226,9 +226,7 @@ def parse_graphql_ammo(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 damage=raw.get("damage"),
                 penetration=raw.get("penetrationPower"),
                 armor_damage=raw.get("armorDamage"),
-                icon_link=item.get("baseImageLink")
-                or item.get("iconLink")
-                or "",
+                icon_link=item.get("baseImageLink") or item.get("iconLink") or "",
                 initial_speed=raw.get("initialSpeed"),
                 accuracy_modifier=raw.get("accuracyModifier"),
                 recoil_modifier=raw.get("recoilModifier"),
@@ -283,17 +281,13 @@ def parse_json_api_ammo(
                     or raw.get("shortName")
                     or ""
                 ),
-                short_name=str(
-                    locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
-                ),
+                short_name=str(locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""),
                 caliber_raw=props.get("caliber"),
                 ammo_type_raw=props.get("ammoType") or raw.get("ammoType"),
                 damage=props.get("damage"),
                 penetration=props.get("penetrationPower"),
                 armor_damage=props.get("armorDamage"),
-                icon_link=raw.get("baseImageLink")
-                or raw.get("iconLink")
-                or "",
+                icon_link=raw.get("baseImageLink") or raw.get("iconLink") or "",
                 initial_speed=props.get("initialSpeed"),
                 accuracy_modifier=props.get("accuracyModifier"),
                 recoil_modifier=props.get("recoilModifier"),
@@ -331,9 +325,7 @@ def download_json_api_ammo(*, lang: str = "zh") -> AmmoUpstreamBundle:
     """json.tarkov.dev items dump；locale 挂在 payload 上，persist 时另写 lang=zh。"""
     from app.services.tarkov import upstream as upstream_svc
 
-    payload = upstream_svc.download_resource_with_locale(
-        "items", lang=lang, timeout=180, error_cls=TarkovAmmoError
-    )
+    payload = upstream_svc.download_resource_with_locale("items", lang=lang, timeout=180, error_cls=TarkovAmmoError)
     rows = parse_ammo_raw(SOURCE_JSON_API, payload)
     if not rows:
         raise TarkovAmmoError("json.tarkov.dev 未解析到弹药")
@@ -440,11 +432,7 @@ def ammo_tracer_unpopulated(db: Session) -> bool:
     """已有派生行但曳光尚未投影（新列默认 false）。json dump 里总会有曳光弹。"""
     if ammo_count(db) == 0:
         return False
-    tagged = (
-        db.query(TarkovAmmo)
-        .filter(TarkovAmmo.mode_id == raw_row_id(), TarkovAmmo.tracer.is_(True))
-        .count()
-    )
+    tagged = db.query(TarkovAmmo).filter(TarkovAmmo.mode_id == raw_row_id(), TarkovAmmo.tracer.is_(True)).count()
     return tagged == 0
 
 

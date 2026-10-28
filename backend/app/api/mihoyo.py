@@ -75,9 +75,7 @@ router = APIRouter(
 )
 
 
-def _status_out(
-    db: Session, member: Member, *, include_roles: bool, force: bool
-) -> MihoyoStatusOut:
+def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool) -> MihoyoStatusOut:
     bind = get_bind_for_member(db, member.id)
     return build_checkin_status(
         db=db,
@@ -123,9 +121,7 @@ def mihoyo_bind_sms_send(
     ip = client_ip(request)
     platform_limiter.hit(f"mihoyo-sms:ip:{ip}", limit=10, window_sec=600)
     platform_limiter.hit(f"mihoyo-sms:uid:{user.id}", limit=5, window_sec=600)
-    platform_limiter.hit(
-        f"mihoyo-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600
-    )
+    platform_limiter.hit(f"mihoyo-sms:phone:{payload.phone.strip()}", limit=5, window_sec=600)
     try:
         out = send_sms_for_bind(
             payload.phone,
@@ -209,9 +205,7 @@ def mihoyo_qr_poll(
     member: Member = Depends(require_user_member),
 ):
     try:
-        out = poll_qr_bind(
-            db, user_id=user.id, member=member, scan_id=payload.scan_id
-        )
+        out = poll_qr_bind(db, user_id=user.id, member=member, scan_id=payload.scan_id)
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)
     return MihoyoQrPollResponse(
@@ -349,9 +343,7 @@ def mihoyo_checkin_now(
 ):
     role_keys = role_keys_from_now_body(body)
     try:
-        out = run_checkin_for_member(
-            db, member, force=True, role_keys=role_keys
-        )
+        out = run_checkin_for_member(db, member, force=True, role_keys=role_keys)
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)
     return build_checkin_response(
@@ -448,14 +440,12 @@ def mihoyo_attendance_calendar(
 ):
     """游戏福利签到周期日历（第 N 天奖励，非公历）；默认读库，force 回源。"""
     try:
-        parsed, role, roles, synced_at, stale = (
-            get_mihoyo_attendance_calendar_for_member(
-                db,
-                member,
-                game_code=game_code,
-                role_uid=role_uid,
-                force=force,
-            )
+        parsed, role, roles, synced_at, stale = get_mihoyo_attendance_calendar_for_member(
+            db,
+            member,
+            game_code=game_code,
+            role_uid=role_uid,
+            force=force,
         )
     except MihoyoApiError as exc:
         raise_api_error(exc, MihoyoApiError)

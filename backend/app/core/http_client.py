@@ -60,9 +60,7 @@ def _timeout(
     connect: float | int | None = None,
 ) -> httpx.Timeout:
     read = float(DEFAULT_READ_TIMEOUT_SEC if read_sec is None else read_sec)
-    connect_sec = (
-        float(connect) if connect is not None else min(CONNECT_TIMEOUT_SEC, read)
-    )
+    connect_sec = float(connect) if connect is not None else min(CONNECT_TIMEOUT_SEC, read)
     return httpx.Timeout(read, connect=connect_sec)
 
 

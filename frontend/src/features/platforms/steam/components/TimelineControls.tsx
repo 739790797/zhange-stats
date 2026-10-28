@@ -49,10 +49,7 @@ export function TimelineControls({
               value={anchor}
               allowClear={false}
               onChange={(d) =>
-                d &&
-                onAnchorChange(
-                  parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"),
-                )
+                d && onAnchorChange(parseBeijing(d.format("YYYY-MM-DD")).startOf("isoWeek"))
               }
               style={{ width: 180 }}
             />
@@ -75,9 +72,7 @@ export function TimelineControls({
               onChange={(d) => {
                 if (!d) return;
                 onDayStartHourReset();
-                onAnchorChange(
-                  parseBeijing(d.format("YYYY-MM-DD")).startOf("day"),
-                );
+                onAnchorChange(parseBeijing(d.format("YYYY-MM-DD")).startOf("day"));
               }}
               style={{ width: 220, maxWidth: "100%" }}
             />

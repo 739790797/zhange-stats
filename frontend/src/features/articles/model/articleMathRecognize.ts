@@ -10,10 +10,7 @@ export function rejectMathRecognizeFile(file: { size: number; type?: string }): 
 }
 
 /** RGBA：近白当空白，灰色笔画算有内容。 */
-export function isNearWhiteCanvas(
-  data: ArrayLike<number>,
-  whiteMin = 250,
-): boolean {
+export function isNearWhiteCanvas(data: ArrayLike<number>, whiteMin = 250): boolean {
   if (data.length < 4) return true;
   for (let i = 0; i < data.length; i += 4) {
     const alpha = data[i + 3] ?? 255;

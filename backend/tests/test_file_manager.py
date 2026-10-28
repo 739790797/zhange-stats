@@ -239,9 +239,7 @@ def test_file_manager_stays_inside_install_root(tmp_path: Path) -> None:
 
     inside_backup = ctx.data_root / "backups"
     inside_backup.mkdir()
-    ctx_in = fm.FileManagerContext(
-        **{**ctx.__dict__, "backup_dir": inside_backup}
-    )
+    ctx_in = fm.FileManagerContext(**{**ctx.__dict__, "backup_dir": inside_backup})
     assert "site_backup" in {row.id for row in fm.catalog_buckets(ctx_in)}
 
 
@@ -594,9 +592,7 @@ def test_live_sqlite_rels_cover_database_and_sidecars(tmp_path: Path) -> None:
     assert fm.live_sqlite_rels(install, "") == frozenset()
 
 
-def test_context_locks_the_configured_sqlite_database(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_context_locks_the_configured_sqlite_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core.config import get_settings
     from app.core.file_config import write_json
 

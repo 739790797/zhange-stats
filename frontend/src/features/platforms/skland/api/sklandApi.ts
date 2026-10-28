@@ -1,6 +1,20 @@
 import { client } from "../../../../shared/api/http";
 import type { components } from "../../../../shared/api/generated/schema";
-import type { ArknightsAttendanceCalendar, ArknightsBoxCompare, ArknightsCompareCandidate, ArknightsRogue, EndfieldBox, EndfieldBoxCompare, EndfieldAttendanceCalendar, EndfieldCompareCandidate, GameScheduleCalendar, SklandCheckinResponse, SklandQrPoll, SklandQrStart, SklandStatus } from "@/features/platforms/skland/api/types";
+import type {
+  ArknightsAttendanceCalendar,
+  ArknightsBoxCompare,
+  ArknightsCompareCandidate,
+  ArknightsRogue,
+  EndfieldBox,
+  EndfieldBoxCompare,
+  EndfieldAttendanceCalendar,
+  EndfieldCompareCandidate,
+  GameScheduleCalendar,
+  SklandCheckinResponse,
+  SklandQrPoll,
+  SklandQrStart,
+  SklandStatus,
+} from "@/features/platforms/skland/api/types";
 
 /** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
 export async function fetchSklandStatus(includeRoles = true, force = true) {
@@ -42,23 +56,17 @@ export async function fetchEndfieldBoxCompare(
       .filter(([, uid]) => Boolean(uid))
       .map(([memberId, uid]) => `${memberId}:${uid}`)
       .join(",");
-  const { data } = await client.get<EndfieldBoxCompare>(
-    "/skland/endfield/box/compare",
-    {
-      params: {
-        member_ids: memberIds.join(","),
-        ...(roleUidParam ? { role_uids: roleUidParam } : {}),
-      },
-      timeout: 120000,
+  const { data } = await client.get<EndfieldBoxCompare>("/skland/endfield/box/compare", {
+    params: {
+      member_ids: memberIds.join(","),
+      ...(roleUidParam ? { role_uids: roleUidParam } : {}),
     },
-  );
+    timeout: 120000,
+  });
   return data;
 }
 
-export async function fetchEndfieldAttendanceCalendar(
-  uid?: string,
-  force = false,
-) {
+export async function fetchEndfieldAttendanceCalendar(uid?: string, force = false) {
   const { data } = await client.get<EndfieldAttendanceCalendar>(
     "/skland/endfield/attendance-calendar",
     {
@@ -89,23 +97,17 @@ export async function fetchArknightsBoxCompare(
       .filter(([, uid]) => Boolean(uid))
       .map(([memberId, uid]) => `${memberId}:${uid}`)
       .join(",");
-  const { data } = await client.get<ArknightsBoxCompare>(
-    "/skland/arknights/box/compare",
-    {
-      params: {
-        member_ids: memberIds.join(","),
-        ...(roleUidParam ? { role_uids: roleUidParam } : {}),
-      },
-      timeout: 120000,
+  const { data } = await client.get<ArknightsBoxCompare>("/skland/arknights/box/compare", {
+    params: {
+      member_ids: memberIds.join(","),
+      ...(roleUidParam ? { role_uids: roleUidParam } : {}),
     },
-  );
+    timeout: 120000,
+  });
   return data;
 }
 
-export async function fetchArknightsAttendanceCalendar(
-  uid?: string,
-  force = false,
-) {
+export async function fetchArknightsAttendanceCalendar(uid?: string, force = false) {
   const { data } = await client.get<ArknightsAttendanceCalendar>(
     "/skland/arknights/attendance-calendar",
     {
@@ -120,36 +122,23 @@ export async function fetchArknightsAttendanceCalendar(
 }
 
 /** 活动日历（game-schedule 代理）；force 回源。 */
-export async function fetchSklandGameEvents(
-  game: "arknights" | "endfield",
-  force = false,
-) {
-  const { data } = await client.get<GameScheduleCalendar>(
-    "/skland/game-events",
-    {
-      params: { game, force },
-      timeout: 60000,
-    },
-  );
+export async function fetchSklandGameEvents(game: "arknights" | "endfield", force = false) {
+  const { data } = await client.get<GameScheduleCalendar>("/skland/game-events", {
+    params: { game, force },
+    timeout: 60000,
+  });
   return data;
 }
 
-export async function fetchArknightsRogue(
-  uid?: string,
-  topicId?: string,
-  force = false,
-) {
-  const { data } = await client.get<ArknightsRogue>(
-    "/skland/arknights/rogue",
-    {
-      params: {
-        ...(uid ? { uid } : {}),
-        ...(topicId ? { topic_id: topicId } : {}),
-        force,
-      },
-      timeout: 60000,
+export async function fetchArknightsRogue(uid?: string, topicId?: string, force = false) {
+  const { data } = await client.get<ArknightsRogue>("/skland/arknights/rogue", {
+    params: {
+      ...(uid ? { uid } : {}),
+      ...(topicId ? { topic_id: topicId } : {}),
+      force,
     },
-  );
+    timeout: 60000,
+  });
   return data;
 }
 
@@ -162,10 +151,7 @@ export async function bindSklandPassword(phone: string, password: string) {
 }
 
 export async function sendSklandSms(phone: string) {
-  const { data } = await client.post<{ message: string }>(
-    "/skland/bind/sms/send",
-    { phone },
-  );
+  const { data } = await client.post<{ message: string }>("/skland/bind/sms/send", { phone });
   return data;
 }
 
@@ -189,13 +175,8 @@ export async function updateSklandRolePref(
   return data;
 }
 
-export async function triggerSklandCheckin(
-  payload?: components["schemas"]["CheckinNowBody"],
-) {
-  const { data } = await client.post<SklandCheckinResponse>(
-    "/skland/checkin",
-    payload ?? {},
-  );
+export async function triggerSklandCheckin(payload?: components["schemas"]["CheckinNowBody"]) {
+  const { data } = await client.post<SklandCheckinResponse>("/skland/checkin", payload ?? {});
   return data;
 }
 

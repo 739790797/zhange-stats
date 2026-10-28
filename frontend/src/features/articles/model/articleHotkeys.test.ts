@@ -1,4 +1,4 @@
-/** @vitest-environment happy-dom */
+/** @vitest-environment jsdom */
 import {
   bindArticleHotkeys,
   hasArticleHotkeyMod,
@@ -31,9 +31,7 @@ describe("articleHotkeys", () => {
   it("requires a modifier", () => {
     expect(hasArticleHotkeyMod(ev("s", { ctrlKey: false }))).toBe(false);
     expect(matchArticleHotkey(ev("s", { ctrlKey: false }))).toBeNull();
-    expect(matchArticleHotkey(ev("s", { ctrlKey: false, metaKey: true }))).toBe(
-      "save",
-    );
+    expect(matchArticleHotkey(ev("s", { ctrlKey: false, metaKey: true }))).toBe("save");
   });
 
   it("maps save find and formatting", () => {
@@ -47,18 +45,12 @@ describe("articleHotkeys", () => {
     expect(matchArticleHotkey(ev("k"))).toBe("link");
     expect(matchArticleHotkey(ev("f"))).toBe("find");
     expect(matchArticleHotkey(ev("s", { shiftKey: true }))).toBe("strike");
-    expect(matchArticleHotkey(ev("8", { shiftKey: true, code: "Digit8" }))).toBe(
-      "bullet",
-    );
-    expect(matchArticleHotkey(ev("7", { shiftKey: true, code: "Digit7" }))).toBe(
-      "ordered",
-    );
+    expect(matchArticleHotkey(ev("8", { shiftKey: true, code: "Digit8" }))).toBe("bullet");
+    expect(matchArticleHotkey(ev("7", { shiftKey: true, code: "Digit7" }))).toBe("ordered");
   });
 
   it("maps headings and alignment instead of browser chrome", () => {
-    expect(matchArticleHotkey(ev("2", { altKey: true, code: "Digit2" }))).toBe(
-      "heading2",
-    );
+    expect(matchArticleHotkey(ev("2", { altKey: true, code: "Digit2" }))).toBe("heading2");
     expect(matchArticleHotkey(ev("l"))).toBe("alignLeft");
     expect(matchArticleHotkey(ev("e"))).toBe("alignCenter");
     expect(matchArticleHotkey(ev("r"))).toBe("alignRight");

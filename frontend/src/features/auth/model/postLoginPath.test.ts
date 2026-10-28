@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  consumePostLoginPath,
-  postLoginPath,
-  rememberPostLoginPath,
-} from "./postLoginPath";
+import { consumePostLoginPath, postLoginPath, rememberPostLoginPath } from "./postLoginPath";
 
 describe("postLoginPath", () => {
   it("falls back to home", () => {
@@ -15,9 +11,9 @@ describe("postLoginPath", () => {
 
   it("keeps in-app deep links", () => {
     expect(postLoginPath({ pathname: "/skland" })).toBe("/skland");
-    expect(
-      postLoginPath({ pathname: "/guides/tarkov", search: "?q=ammo" }),
-    ).toBe("/guides/tarkov?q=ammo");
+    expect(postLoginPath({ pathname: "/guides/tarkov", search: "?q=ammo" })).toBe(
+      "/guides/tarkov?q=ammo",
+    );
   });
 
   it("rejects protocol-relative and off-site targets", () => {

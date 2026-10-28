@@ -43,9 +43,7 @@ def _session_end(session: PlaySession, now_dt: datetime | None = None) -> dateti
     return max(end, now_dt)
 
 
-def _overlap_seconds(
-    start: datetime, end: datetime, window_start: datetime, window_end: datetime
-) -> int:
+def _overlap_seconds(start: datetime, end: datetime, window_start: datetime, window_end: datetime) -> int:
     s = max(start, window_start)
     e = min(end, window_end)
     if e <= s:
@@ -131,14 +129,9 @@ def build_calendar(
     window_start, _ = _day_bounds(range_start)
     _, window_end = _day_bounds(range_end)
 
-    sessions = _sessions_in_window(
-        db, window_start, window_end, member_ids=visible_ids
-    )
+    sessions = _sessions_in_window(db, window_start, window_end, member_ids=visible_ids)
     member_map = {
-        m.id: m
-        for m in db.query(Member).filter(
-            Member.id.in_({s.member_id for s in sessions} or [-1])
-        ).all()
+        m.id: m for m in db.query(Member).filter(Member.id.in_({s.member_id for s in sessions} or [-1])).all()
     }
 
     # date -> totals; (member_id, date) -> seconds
@@ -157,9 +150,7 @@ def build_calendar(
     for s in sessions:
         mid = s.member_id
         if mid not in member_meta:
-            pres = member_steam_presentation(
-                member_map.get(mid), fallback_id=mid
-            )
+            pres = member_steam_presentation(member_map.get(mid), fallback_id=mid)
             member_meta[mid] = {
                 "member_id": mid,
                 "member_nickname": pres["member_nickname"],
@@ -173,9 +164,7 @@ def build_calendar(
         last = min(sess_end, range_end)
         while d <= last:
             day_start, day_end = _day_bounds(d)
-            sec = _overlap_seconds(
-                _to_aware(s.started_at), _session_end(s), day_start, day_end
-            )
+            sec = _overlap_seconds(_to_aware(s.started_at), _session_end(s), day_start, day_end)
             if sec > 0:
                 key = d.isoformat()
                 day_seconds[key] += sec
@@ -230,10 +219,7 @@ def build_calendar(
                     "member_id": m.id,
                     "member_nickname": pres["member_nickname"],
                     "avatar_url": pres["avatar_url"],
-                    "cells": [
-                        {"date": k, "total_seconds": 0, "session_count": 0}
-                        for k in day_seconds
-                    ],
+                    "cells": [{"date": k, "total_seconds": 0, "session_count": 0} for k in day_seconds],
                     "total_seconds": 0,
                 }
             )
@@ -309,9 +295,7 @@ def build_range_detail(
     _, window_end = _day_bounds(range_end)
     span_seconds = int((window_end - window_start).total_seconds())
     now_dt = now()
-    sessions = _sessions_in_window(
-        db, window_start, window_end, member_ids=visible_ids
-    )
+    sessions = _sessions_in_window(db, window_start, window_end, member_ids=visible_ids)
     sessions = sorted(sessions, key=lambda s: _to_aware(s.started_at))
 
     presence_rows = (
@@ -335,15 +319,13 @@ def build_range_detail(
     # 读路径只用库内缓存；商店名由轮询补全，不在请求里打 Steam 商店
     name_map = resolve_app_names(
         db,
-        [s.steam_app_id for s in sessions]
-        + [seg.steam_app_id for seg in presence_rows],
+        [s.steam_app_id for s in sessions] + [seg.steam_app_id for seg in presence_rows],
         fetch_missing=False,
     )
     # 热路径只用库内缓存；client icon 由前端异步 /apps/{id}/icon 补全
     icon_map = resolve_app_icons(
         db,
-        [s.steam_app_id for s in sessions]
-        + [seg.steam_app_id for seg in presence_rows],
+        [s.steam_app_id for s in sessions] + [seg.steam_app_id for seg in presence_rows],
     )
 
     items: list[dict] = []
@@ -351,17 +333,13 @@ def build_range_detail(
     total_seconds = 0
 
     for s in sessions:
-        duration = _overlap_seconds(
-            _to_aware(s.started_at), _session_end(s), window_start, window_end
-        )
+        duration = _overlap_seconds(_to_aware(s.started_at), _session_end(s), window_start, window_end)
         if duration <= 0:
             continue
         total_seconds += duration
         member = s.member
         game_name = _localize(s.steam_app_id, s.game_name, name_map)
-        pres = member_steam_presentation(
-            member, fallback_id=s.member_id
-        )
+        pres = member_steam_presentation(member, fallback_id=s.member_id)
         item = {
             "id": s.id,
             "member_id": s.member_id,
@@ -392,9 +370,7 @@ def build_range_detail(
         if game_name and game_name not in summary["games"]:
             summary["games"].append(game_name)
 
-    member_list = sorted(
-        by_member.values(), key=lambda x: x["total_seconds"], reverse=True
-    )
+    member_list = sorted(by_member.values(), key=lambda x: x["total_seconds"], reverse=True)
 
     steam_members = (
         db.query(Member)
@@ -423,19 +399,13 @@ def build_range_detail(
         start: datetime,
         end: datetime,
     ) -> None:
-        clipped = _clip_to_window(
-            start, end, window_start, window_end, span_seconds=span_seconds
-        )
+        clipped = _clip_to_window(start, end, window_start, window_end, span_seconds=span_seconds)
         if not clipped:
             return
         start_sec, end_sec = clipped
         if member_id not in segments_by_member:
             segments_by_member[member_id] = []
-        localized = (
-            _localize( app_id, game_name, name_map)
-            if status == "playing"
-            else game_name
-        )
+        localized = _localize(app_id, game_name, name_map) if status == "playing" else game_name
         segments_by_member[member_id].append(
             {
                 "status": status,
@@ -543,16 +513,12 @@ def list_now_playing(db: Session, viewer: User) -> list[dict]:
         .all()
     )
     now_dt = now()
-    name_map = resolve_app_names(
-        db, [s.steam_app_id for s in sessions], fetch_missing=False
-    )
+    name_map = resolve_app_names(db, [s.steam_app_id for s in sessions], fetch_missing=False)
     icon_map = resolve_app_icons(db, [s.steam_app_id for s in sessions])
     result = []
     for s in sessions:
         start = _to_aware(s.started_at)
-        pres = member_steam_presentation(
-            s.member, fallback_id=s.member_id
-        )
+        pres = member_steam_presentation(s.member, fallback_id=s.member_id)
         result.append(
             {
                 "id": s.id,
@@ -579,31 +545,19 @@ def build_overview(db: Session, viewer: User) -> dict:
     _, window_end = _day_bounds(today_d)
 
     members = (
-        db.query(Member)
-        .filter(Member.id.in_(visible_ids), Member.user_id.isnot(None))
-        .all()
-        if visible_ids
-        else []
+        db.query(Member).filter(Member.id.in_(visible_ids), Member.user_id.isnot(None)).all() if visible_ids else []
     )
     member_count = len(members)
     steam_bound_count = sum(1 for m in members if m.steam_id)
 
-    week_sessions = _sessions_in_window(
-        db, window_start, window_end, member_ids=visible_ids
-    )
+    week_sessions = _sessions_in_window(db, window_start, window_end, member_ids=visible_ids)
     week_seconds = 0
     for s in week_sessions:
-        week_seconds += _overlap_seconds(
-            _to_aware(s.started_at), _session_end(s), window_start, window_end
-        )
+        week_seconds += _overlap_seconds(_to_aware(s.started_at), _session_end(s), window_start, window_end)
 
     now_playing = list_now_playing(db, viewer)
 
-    recent_q = (
-        db.query(PlaySession)
-        .options(joinedload(PlaySession.member))
-        .filter(PlaySession.source == "steam")
-    )
+    recent_q = db.query(PlaySession).options(joinedload(PlaySession.member)).filter(PlaySession.source == "steam")
     if visible_ids:
         recent_q = recent_q.filter(PlaySession.member_id.in_(visible_ids))
     else:
@@ -611,9 +565,7 @@ def build_overview(db: Session, viewer: User) -> dict:
     recent = recent_q.order_by(PlaySession.started_at.desc()).limit(20).all()
     recent_sessions = []
     now_dt = now()
-    name_map = resolve_app_names(
-        db, [s.steam_app_id for s in recent], fetch_missing=False
-    )
+    name_map = resolve_app_names(db, [s.steam_app_id for s in recent], fetch_missing=False)
     for s in recent:
         end = _session_end(s)
         start = _to_aware(s.started_at)
@@ -621,9 +573,7 @@ def build_overview(db: Session, viewer: User) -> dict:
             duration = max(0, int((now_dt - start).total_seconds()))
         else:
             duration = max(0, int((end - start).total_seconds()))
-        pres = member_steam_presentation(
-            s.member, fallback_id=s.member_id
-        )
+        pres = member_steam_presentation(s.member, fallback_id=s.member_id)
         recent_sessions.append(
             {
                 "id": s.id,

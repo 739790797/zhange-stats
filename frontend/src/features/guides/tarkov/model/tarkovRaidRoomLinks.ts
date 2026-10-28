@@ -7,21 +7,17 @@ export const RAID_ROOM_SLOT_COUNT = 5;
 const RAID_ROOM_PUBLIC_ID_RE = /^(?:(?:pve-)?[1-5]|[a-z0-9]{8,16})$/i;
 
 /** 旧的 1–5 / pve-N 席位号：新房间改用随机码，但旧房间码仍要能粘进输入框。 */
-export function raidRoomSlotPublicId(
-  slot: number,
-  gameMode: string = "pvp",
-): string {
+export function raidRoomSlotPublicId(slot: number, gameMode: string = "pvp"): string {
   const n = Math.trunc(slot);
   if (n < 1 || n > RAID_ROOM_SLOT_COUNT) return "";
-  return String(gameMode || "").trim().toLowerCase() === "pve"
+  return String(gameMode || "")
+    .trim()
+    .toLowerCase() === "pve"
     ? `pve-${n}`
     : String(n);
 }
 
-export function parseRaidRoomPublicId(
-  raw: string,
-  gameMode?: string,
-): string {
+export function parseRaidRoomPublicId(raw: string, gameMode?: string): string {
   const text = (raw || "").trim();
   if (!text) return "";
   const fromPath = text.match(/raid-prep\/rooms\/([a-zA-Z0-9-]+)/i);
@@ -42,10 +38,7 @@ export function normalizeRaidRoomPublicId(raw: string): string {
 
 /** 当前入座的那一桌；未入座返回空。已在该房间页时也返回空（不必再「回去」）。 */
 export function raidRoomReturnHref(
-  items:
-    | readonly { is_member?: boolean; public_id?: string | null }[]
-    | null
-    | undefined,
+  items: readonly { is_member?: boolean; public_id?: string | null }[] | null | undefined,
   pathname: string,
 ): string {
   const seated = (items || []).find((row) => row.is_member);

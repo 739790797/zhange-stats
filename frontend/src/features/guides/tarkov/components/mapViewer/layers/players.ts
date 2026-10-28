@@ -3,9 +3,11 @@
 import { escapeHtml } from "@/shared/lib/escapeHtml";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import { pos } from "@/features/guides/tarkov/model/tarkovMapCrs";
-import { mapLayerFloorBands, overlayFloorForPoint } from "@/features/guides/tarkov/model/tarkovRaidPrep";
+import {
+  mapLayerFloorBands,
+  overlayFloorForPoint,
+} from "@/features/guides/tarkov/model/tarkovRaidPrep";
 import {
   RAID_ROOM_OTHER_FLOOR_OPACITY,
   playerFixMarkerCaption,
@@ -34,9 +36,7 @@ function playerHeadingCssDeg(
   if (map) {
     const step = gameForwardXZ(mark.yaw);
     const from = map.latLngToLayerPoint(L.latLng(pos({ x: mark.x, z: mark.z })));
-    const to = map.latLngToLayerPoint(
-      L.latLng(pos({ x: mark.x + step.x, z: mark.z + step.z })),
-    );
+    const to = map.latLngToLayerPoint(L.latLng(pos({ x: mark.x + step.x, z: mark.z + step.z })));
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     if (dx !== 0 || dy !== 0) return screenDeltaToCssDeg(dx, dy);
@@ -60,9 +60,7 @@ function playerFixMarkerHtml(
     yaw == null
       ? `<span class="${styles.playerDot}"></span>`
       : `<span class="${styles.playerArrow}" style="transform:rotate(${yaw}deg)"></span>`;
-  const label = name
-    ? `<span class="${styles.playerName}">${name}</span>`
-    : "";
+  const label = name ? `<span class="${styles.playerName}">${name}</span>` : "";
   return {
     name,
     html: `<span class="${styles.playerMark}" style="color:${color};opacity:${current ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY}"><span class="${styles.playerGlow}"></span>${pip}${label}</span>`,
@@ -206,9 +204,7 @@ export function syncRemoteDrafts(
   drafts: RaidRoomDraftStroke[],
   floor: string,
 ) {
-  const keep = new Set(
-    drafts.map((row) => row.userId).filter((id): id is number => Boolean(id)),
-  );
+  const keep = new Set(drafts.map((row) => row.userId).filter((id): id is number => Boolean(id)));
   for (const [userId, layer] of [...runtime.draftLayers.entries()]) {
     if (keep.has(userId)) continue;
     runtime.remote.removeLayer(layer);
@@ -228,13 +224,7 @@ export function syncRemoteDrafts(
       runtime.remote.removeLayer(existing);
       runtime.draftLayers.delete(userId);
     }
-    const painted = addStrokeLayer(
-      runtime.remote,
-      draft.points,
-      draft.color,
-      current,
-      false,
-    );
+    const painted = addStrokeLayer(runtime.remote, draft.points, draft.color, current, false);
     if (painted) runtime.draftLayers.set(userId, painted);
   }
 }

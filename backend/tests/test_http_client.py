@@ -91,11 +91,7 @@ def test_default_deadline_scales_with_the_read_timeout() -> None:
 
 
 def test_http_download_streams_progress(serve) -> None:
-    serve(
-        lambda _req: httpx.Response(
-            200, headers={"content-length": "5"}, stream=_Chunks([b"he", b"llo"])
-        )
-    )
+    serve(lambda _req: httpx.Response(200, headers={"content-length": "5"}, stream=_Chunks([b"he", b"llo"])))
     seen: list[tuple[int, int | None]] = []
     status, body, _headers = http_download(
         "GET",
@@ -109,9 +105,7 @@ def test_http_download_streams_progress(serve) -> None:
 
 def test_http_download_returns_error_bodies(serve) -> None:
     serve(lambda _req: httpx.Response(503, content=b"busy"))
-    status, body, _headers = http_download(
-        "GET", "https://example.test/x", on_bytes=lambda *_a: None
-    )
+    status, body, _headers = http_download("GET", "https://example.test/x", on_bytes=lambda *_a: None)
     assert (status, body) == (503, b"busy")
 
 
@@ -127,9 +121,7 @@ def test_http_stream_yields_response(serve) -> None:
 
 def test_same_host_redirect_keeps_custom_headers(serve) -> None:
     seen = serve(
-        lambda req: _redirect("/v2/sign")
-        if req.url.path == "/v1/sign"
-        else httpx.Response(200, json={"ok": 1})
+        lambda req: _redirect("/v2/sign") if req.url.path == "/v1/sign" else httpx.Response(200, json={"ok": 1})
     )
     resp = http_request("GET", "https://zonai.skland.com/v1/sign", headers={"cred": "c-1"})
     assert resp.json() == {"ok": 1}
@@ -140,35 +132,33 @@ def test_same_host_redirect_keeps_custom_headers(serve) -> None:
 def test_cross_host_redirect_carrying_a_credential_header_is_refused(serve) -> None:
     seen = serve(lambda _req: _redirect("https://collector.example/steal"))
     with pytest.raises(HttpRequestError, match="collector.example") as exc_info:
-        http_request(
-            "GET", "https://api.kurobbs.com/user/mineV2", headers={"token": "secret-token"}
-        )
+        http_request("GET", "https://api.kurobbs.com/user/mineV2", headers={"token": "secret-token"})
     assert [r.url.host for r in seen] == ["api.kurobbs.com"]
     assert "secret-token" not in str(exc_info.value)
 
 
 def test_cross_host_redirect_without_credentials_is_followed(serve) -> None:
     seen = serve(
-        lambda req: _redirect("https://cdn.example/table.json")
-        if req.url.host == "raw.example"
-        else httpx.Response(200, content=b"{}")
+        lambda req: (
+            _redirect("https://cdn.example/table.json")
+            if req.url.host == "raw.example"
+            else httpx.Response(200, content=b"{}")
+        )
     )
-    resp = http_request(
-        "GET", "https://raw.example/table.json", headers={"User-Agent": "zhange-stats/1.0"}
-    )
+    resp = http_request("GET", "https://raw.example/table.json", headers={"User-Agent": "zhange-stats/1.0"})
     assert resp.content == b"{}"
     assert [r.url.host for r in seen] == ["raw.example", "cdn.example"]
 
 
 def test_cross_host_redirect_drops_authorization_instead_of_refusing(serve) -> None:
     seen = serve(
-        lambda req: _redirect("https://cdn.example/model.onnx")
-        if req.url.host == "hub.example"
-        else httpx.Response(200, content=b"weights")
+        lambda req: (
+            _redirect("https://cdn.example/model.onnx")
+            if req.url.host == "hub.example"
+            else httpx.Response(200, content=b"weights")
+        )
     )
-    resp = http_request(
-        "GET", "https://hub.example/resolve/model.onnx", headers={"Authorization": "Bearer x"}
-    )
+    resp = http_request("GET", "https://hub.example/resolve/model.onnx", headers={"Authorization": "Bearer x"})
     assert resp.content == b"weights"
     assert "authorization" not in seen[1].headers
 
@@ -250,9 +240,7 @@ def test_cap_counts_decompressed_bytes(serve) -> None:
     serve(handler)
     with pytest.raises(HttpResponseTooLarge):
         http_request("GET", "https://example.test/bomb", max_bytes=16 * 1024)
-    assert http_request("GET", "https://example.test/bomb", max_bytes=None).content == (
-        b"\0" * 65536
-    )
+    assert http_request("GET", "https://example.test/bomb", max_bytes=None).content == (b"\0" * 65536)
 
 
 def test_default_cap_is_8_mib_and_can_be_lifted(serve) -> None:
@@ -261,9 +249,7 @@ def test_default_cap_is_8_mib_and_can_be_lifted(serve) -> None:
         http_download("GET", "https://example.test/items.json", on_bytes=lambda *_a: None)
     with pytest.raises(HttpResponseTooLarge):
         http_request("GET", "https://example.test/items.json")
-    assert len(http_request("GET", "https://example.test/items.json", max_bytes=None).content) == (
-        9 * MIB
-    )
+    assert len(http_request("GET", "https://example.test/items.json", max_bytes=None).content) == (9 * MIB)
     serve(lambda _req: httpx.Response(200, stream=_Chunks([b"x" * MIB] * 8)))
     assert len(http_request("GET", "https://example.test/items.json").content) == 8 * MIB
 

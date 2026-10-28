@@ -110,10 +110,7 @@ def _copy_trade_row(row: dict[str, Any], *, product_key: str) -> dict[str, Any]:
     product = row.get(product_key)
     return {
         **row,
-        "required_items": [
-            dict(req) if isinstance(req, dict) else req
-            for req in (row.get("required_items") or [])
-        ],
+        "required_items": [dict(req) if isinstance(req, dict) else req for req in (row.get("required_items") or [])],
         product_key: dict(product) if isinstance(product, dict) else product,
     }
 
@@ -194,10 +191,7 @@ def _merge_task_relation_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             continue
         if tid not in merged:
             copied = dict(row)
-            copied["steps"] = [
-                dict(step) if isinstance(step, dict) else step
-                for step in (row.get("steps") or [])
-            ]
+            copied["steps"] = [dict(step) if isinstance(step, dict) else step for step in (row.get("steps") or [])]
             merged[tid] = copied
             order.append(tid)
             continue
@@ -274,18 +268,10 @@ def collect_item_sources(
             continue
         start_count = _reward_count_for_item(raw.get("startRewards"), ident)
         if start_count is not None:
-            out["quest_rewards"].append(
-                _quest_reward_row(
-                    raw, loc, kind=QUEST_KIND_START, count=start_count
-                )
-            )
+            out["quest_rewards"].append(_quest_reward_row(raw, loc, kind=QUEST_KIND_START, count=start_count))
         finish_count = _reward_count_for_item(raw.get("finishRewards"), ident)
         if finish_count is not None:
-            out["quest_rewards"].append(
-                _quest_reward_row(
-                    raw, loc, kind=QUEST_KIND_FINISH, count=finish_count
-                )
-            )
+            out["quest_rewards"].append(_quest_reward_row(raw, loc, kind=QUEST_KIND_FINISH, count=finish_count))
 
     out["barters"].sort(
         key=lambda row: (
@@ -622,9 +608,7 @@ def _enrich_sources(db: Session, sources: dict[str, Any]) -> dict[str, Any]:
                 for req in (row.get("required_items") or [])
                 if isinstance(req, dict)
             ],
-            "offered_item": guides_svc._enrich_item(
-                row.get("offered_item") or {}, items
-            ),
+            "offered_item": guides_svc._enrich_item(row.get("offered_item") or {}, items),
         }
         for row in (sources.get("barters") or [])
         if isinstance(row, dict)
@@ -637,9 +621,7 @@ def _enrich_sources(db: Session, sources: dict[str, Any]) -> dict[str, Any]:
                 for req in (row.get("required_items") or [])
                 if isinstance(req, dict)
             ],
-            "product_item": guides_svc._enrich_item(
-                row.get("product_item") or {}, items
-            ),
+            "product_item": guides_svc._enrich_item(row.get("product_item") or {}, items),
         }
         for row in (sources.get("crafts") or [])
         if isinstance(row, dict)
@@ -659,9 +641,7 @@ def _load_guide_rows(
         return [], [], []
     barters = parsed.get("barters") if isinstance(parsed.get("barters"), list) else []
     crafts = parsed.get("crafts") if isinstance(parsed.get("crafts"), list) else []
-    stations = (
-        parsed.get("stations") if isinstance(parsed.get("stations"), list) else []
-    )
+    stations = parsed.get("stations") if isinstance(parsed.get("stations"), list) else []
     return barters, crafts, stations
 
 

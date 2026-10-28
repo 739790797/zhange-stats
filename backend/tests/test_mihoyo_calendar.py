@@ -102,8 +102,6 @@ def test_parse_today_awards_prefers_home_icons() -> None:
 
 
 def test_parse_today_awards_empty_without_home() -> None:
-    text, items = parse_today_mihoyo_awards(
-        {"is_sign": True, "total_sign_day": 5, "today": "5"}
-    )
+    text, items = parse_today_mihoyo_awards({"is_sign": True, "total_sign_day": 5, "today": "5"})
     assert text is None
     assert items == []

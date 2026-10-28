@@ -37,9 +37,7 @@ from app.services.user_files.store import (
 
 def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(
-        bind=engine, tables=[User.__table__, Member.__table__, UserFile.__table__]
-    )
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, Member.__table__, UserFile.__table__])
     return sessionmaker(bind=engine)()
 
 
@@ -108,9 +106,7 @@ def test_store_bytes_registers_serial(tmp_path: Path, monkeypatch: pytest.Monkey
         store_bytes(db, namespace="avatars", raw=b"x", ext=".jpg", root=tmp_path)
 
 
-def test_store_unlinks_when_insert_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_store_unlinks_when_insert_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     db = _session()
 
@@ -124,9 +120,7 @@ def test_store_unlinks_when_insert_fails(
     assert not any(p.is_file() for p in leftover)
 
 
-def test_backfill_articles_nested_dirs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_backfill_articles_nested_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     monkeypatch.setattr("app.services.user_files.backfill.upload_root", lambda: tmp_path)
     (tmp_path / "articles" / "2026" / "09").mkdir(parents=True)
@@ -163,9 +157,7 @@ def _user(db: Session, username: str = "alice") -> User:
     return user
 
 
-def test_replace_bytes_overwrites_same_serial(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_replace_bytes_overwrites_same_serial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     db = _session()
     user = _user(db)
@@ -203,9 +195,7 @@ def test_replace_bytes_overwrites_same_serial(
     assert disk.read_bytes() == b"jpeg-two-longer"
 
 
-def test_mark_deleted_then_replace_revives_row(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_mark_deleted_then_replace_revives_row(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     db = _session()
     replace_bytes(
@@ -233,9 +223,7 @@ def test_mark_deleted_then_replace_revives_row(
     assert (tmp_path / "avatars" / "3.jpg").read_bytes() == b"new"
 
 
-def test_backfill_avatars_resolves_owner(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_backfill_avatars_resolves_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     monkeypatch.setattr("app.services.user_files.backfill.upload_root", lambda: tmp_path)
     db = _session()
@@ -266,9 +254,7 @@ def test_backfill_avatars_resolves_owner(
     assert again == {"added": 0, "skipped": 2}
 
 
-def test_ensure_registers_and_fills_existing_avatar_owner(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ensure_registers_and_fills_existing_avatar_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.services.user_files.store.upload_root", lambda: tmp_path)
     monkeypatch.setattr("app.services.user_files.backfill.upload_root", lambda: tmp_path)
     db = _session()

@@ -186,14 +186,7 @@ function FirMark() {
   return (
     <span className={styles.fir} title="战局内找到">
       <svg viewBox="0 0 16 16" aria-hidden>
-        <circle
-          cx="8"
-          cy="8"
-          r="6.2"
-          fill="rgba(0,0,0,.5)"
-          stroke="#f2f0e6"
-          strokeWidth="1.35"
-        />
+        <circle cx="8" cy="8" r="6.2" fill="rgba(0,0,0,.5)" stroke="#f2f0e6" strokeWidth="1.35" />
         <path
           d="M4.55 8.2l2.2 2.25 4.75-5.05"
           fill="none"
@@ -262,9 +255,7 @@ function CollectionItemCard({
   const size = collectionItemSize(item, rotated);
   return (
     <div
-      className={`${styles.item} ${styles.trayItem}${
-        dragging ? ` ${styles.itemDragging}` : ""
-      }`}
+      className={`${styles.item} ${styles.trayItem}${dragging ? ` ${styles.itemDragging}` : ""}`}
       style={
         {
           "--w": size.width,
@@ -293,9 +284,7 @@ export function TarkovCollectionPanel() {
   const queryClient = useQueryClient();
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [layout, setLayout] = useState<CollectionLayout | null>(null);
-  const [unplacedRotated, setUnplacedRotated] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [unplacedRotated, setUnplacedRotated] = useState<Record<string, boolean>>({});
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const layoutRef = useRef<CollectionLayout | null>(null);
@@ -333,11 +322,7 @@ export function TarkovCollectionPanel() {
   const persistLayout = useCallback(
     (next: CollectionLayout) => {
       saveCollectionLayout(gameMode, next);
-      applyTarkovCollectionOwnsCache(
-        queryClient,
-        gameMode,
-        collectedIdsFromLayout(next),
-      );
+      applyTarkovCollectionOwnsCache(queryClient, gameMode, collectedIdsFromLayout(next));
       queryClient.setQueryData(collectionLayoutQueryKey(gameMode), {
         ...layoutToApi(next),
         saved: true,
@@ -365,14 +350,11 @@ export function TarkovCollectionPanel() {
     if (layoutQuery.isLoading) return;
     const key = `${gameMode}:${layoutQuery.dataUpdatedAt}`;
     if (hydratedKey.current === key && layoutRef.current) return;
-    const remote = layoutQuery.isSuccess
-      ? layoutFromApi(layoutQuery.data)
-      : null;
+    const remote = layoutQuery.isSuccess ? layoutFromApi(layoutQuery.data) : null;
     const local = loadCollectionLayout(gameMode);
     const picked = pickCollectionLayoutSource({
       saved:
-        layoutQuery.isSuccess &&
-        typeof layoutQuery.data?.saved === "boolean"
+        layoutQuery.isSuccess && typeof layoutQuery.data?.saved === "boolean"
           ? layoutQuery.data.saved
           : undefined,
       remote,
@@ -407,12 +389,7 @@ export function TarkovCollectionPanel() {
     (itemId: string, rotated = false) => {
       const current = layoutRef.current;
       if (!current) return;
-      const next = toggleCollectionItem(
-        current,
-        itemsRef.current,
-        itemId,
-        rotated,
-      );
+      const next = toggleCollectionItem(current, itemsRef.current, itemId, rotated);
       if (!next) return;
       commitLayout(next);
       setUnplacedRotated((prev) => {
@@ -431,10 +408,7 @@ export function TarkovCollectionPanel() {
     return layoutToCollectionSlots(layout, items || []);
   }, [layout, items]);
 
-  const trayGroups = useMemo(
-    () => groupCollectionTrayItems(uncollected),
-    [uncollected],
-  );
+  const trayGroups = useMemo(() => groupCollectionTrayItems(uncollected), [uncollected]);
 
   const bounds = useMemo(
     () =>
@@ -509,23 +483,13 @@ export function TarkovCollectionPanel() {
     [],
   );
 
-  const dropValid = useCallback(
-    (itemId: string, dest: CollectionDrop | null, rotated: boolean) => {
-      const current = layoutRef.current;
-      const catalog = itemsRef.current;
-      if (!current || !dest) return false;
-      if (dest.kind === "tray") return true;
-      return canPlaceCollectionItem(
-        current,
-        catalog,
-        itemId,
-        dest.col,
-        dest.row,
-        rotated,
-      );
-    },
-    [],
-  );
+  const dropValid = useCallback((itemId: string, dest: CollectionDrop | null, rotated: boolean) => {
+    const current = layoutRef.current;
+    const catalog = itemsRef.current;
+    if (!current || !dest) return false;
+    if (dest.kind === "tray") return true;
+    return canPlaceCollectionItem(current, catalog, itemId, dest.col, dest.row, rotated);
+  }, []);
 
   const beginDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -579,12 +543,7 @@ export function TarkovCollectionPanel() {
       const dy = event.clientY - current.startY;
       const moved = current.moved || Math.hypot(dx, dy) >= DRAG_THRESHOLD;
       const hover = moved
-        ? hitDrop(
-            event.clientX,
-            event.clientY,
-            current.anchorCol,
-            current.anchorRow,
-          )
+        ? hitDrop(event.clientX, event.clientY, current.anchorCol, current.anchorRow)
         : null;
       const next = {
         ...current,
@@ -633,12 +592,7 @@ export function TarkovCollectionPanel() {
       );
       const rotated = !current.rotated;
       const hover = current.moved
-        ? hitDrop(
-            current.x,
-            current.y,
-            nextGrab.anchorCol,
-            nextGrab.anchorRow,
-          )
+        ? hitDrop(current.x, current.y, nextGrab.anchorCol, nextGrab.anchorRow)
         : current.hover;
       const next = {
         ...current,
@@ -665,38 +619,28 @@ export function TarkovCollectionPanel() {
     };
   }, [commitLayout, dropValid, hitDrop]);
 
-  const draggingItem = drag
-    ? itemsRef.current.find((item) => item.id === drag.itemId)
-    : undefined;
-  const dragSize = draggingItem
-    ? collectionItemSize(draggingItem, drag?.rotated)
-    : null;
+  const draggingItem = drag ? itemsRef.current.find((item) => item.id === drag.itemId) : undefined;
+  const dragSize = draggingItem ? collectionItemSize(draggingItem, drag?.rotated) : null;
   const snappedGhost =
     drag && dragSize
       ? snappedGhostRect(drag.hover, gridEl.current, dragSize.width, dragSize.height)
       : null;
   const ghostMetrics = gridEl.current ? readGridMetrics(gridEl.current) : null;
   const floatingGhost = dragSize
-    ? ghostSize(
-        dragSize.width,
-        dragSize.height,
-        ghostMetrics?.cell || 40,
-        ghostMetrics?.gap || 2,
-      )
+    ? ghostSize(dragSize.width, dragSize.height, ghostMetrics?.cell || 40, ghostMetrics?.gap || 2)
     : null;
-  const ghost = snappedGhost || (drag && floatingGhost
-    ? {
-        left: drag.x - drag.grabX,
-        top: drag.y - drag.grabY,
-        width: floatingGhost.width,
-        height: floatingGhost.height,
-      }
-    : null);
+  const ghost =
+    snappedGhost ||
+    (drag && floatingGhost
+      ? {
+          left: drag.x - drag.grabX,
+          top: drag.y - drag.grabY,
+          width: floatingGhost.width,
+          height: floatingGhost.height,
+        }
+      : null);
 
-  if (
-    (catalogQuery.isLoading && !catalogQuery.data) ||
-    (layoutQuery.isLoading && !layout)
-  ) {
+  if ((catalogQuery.isLoading && !catalogQuery.data) || (layoutQuery.isLoading && !layout)) {
     return (
       <div className={trade.status}>
         <Spin />
@@ -722,9 +666,7 @@ export function TarkovCollectionPanel() {
       className={`${styles.page}${drag?.moved ? ` ${styles.dragging}` : ""}`}
       style={{ "--cell": `${cellPx}px` } as CSSProperties}
     >
-      {!task ? (
-        <p className={styles.empty}>当前赛季目录里没有收藏家任务。</p>
-      ) : null}
+      {!task ? <p className={styles.empty}>当前赛季目录里没有收藏家任务。</p> : null}
       {task && !items?.length ? (
         <p className={styles.empty}>这份收藏家任务暂时没有需上交的道具。</p>
       ) : null}
@@ -821,9 +763,7 @@ export function TarkovCollectionPanel() {
                 ))}
               </div>
               {!slots.length && total ? (
-                <p className={styles.boardHint}>
-                  从右侧拖入，或 Ctrl+点击自动落入
-                </p>
+                <p className={styles.boardHint}>从右侧拖入，或 Ctrl+点击自动落入</p>
               ) : null}
             </div>
           </div>
@@ -863,9 +803,7 @@ export function TarkovCollectionPanel() {
                 </section>
               ))
             ) : (
-              <p className={styles.empty}>
-                道具都在格子里。拖回这里即未收集。
-              </p>
+              <p className={styles.empty}>道具都在格子里。拖回这里即未收集。</p>
             )}
           </div>
         </section>
@@ -886,10 +824,7 @@ export function TarkovCollectionPanel() {
         >
           {collectionItemImageUrl(draggingItem.icon_link, draggingItem.id) ||
           inventoryThumbUrl(draggingItem.icon_link, draggingItem.id) ? (
-            <CollectionItemImage
-              item={draggingItem}
-              className={itemIconClass(drag.rotated)}
-            />
+            <CollectionItemImage item={draggingItem} className={itemIconClass(drag.rotated)} />
           ) : (
             <span>{itemLabel(draggingItem)}</span>
           )}

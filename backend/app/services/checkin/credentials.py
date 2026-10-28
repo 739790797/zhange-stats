@@ -110,8 +110,6 @@ def refresh_creds_locked(
         stored = StoredCreds.snapshot(bind, load(bind))
         db.commit()
         stored = stored.with_creds(refresh(stored.creds))
-        stored = store_creds_if_changed(
-            db, bind, stored, extra=extra(stored.creds) if extra else None
-        )
+        stored = store_creds_if_changed(db, bind, stored, extra=extra(stored.creds) if extra else None)
         db.commit()
     return stored

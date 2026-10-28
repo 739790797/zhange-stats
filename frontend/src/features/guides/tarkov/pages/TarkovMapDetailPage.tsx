@@ -21,8 +21,7 @@ export default function TarkovMapDetailPage() {
   const gameMode = useTarkovGameMode();
   const known = TARKOV_MAPS.find(
     (item) =>
-      item.id === mapSlug ||
-      tarkovMapHref(item.id).endsWith(`/${encodeURIComponent(mapSlug)}`),
+      item.id === mapSlug || tarkovMapHref(item.id).endsWith(`/${encodeURIComponent(mapSlug)}`),
   );
   const detailQuery = useQuery({
     queryKey: ["guides-tarkov-map", gameMode, mapSlug],

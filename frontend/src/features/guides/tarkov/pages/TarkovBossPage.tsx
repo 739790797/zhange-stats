@@ -22,8 +22,7 @@ export default function TarkovBossPage() {
   const gameMode = useTarkovGameMode();
   const known = TARKOV_BOSSES.find(
     (item) =>
-      item.id === bossSlug ||
-      tarkovBossHref(item.id).endsWith(`/${encodeURIComponent(bossSlug)}`),
+      item.id === bossSlug || tarkovBossHref(item.id).endsWith(`/${encodeURIComponent(bossSlug)}`),
   );
   const detailQuery = useQuery({
     queryKey: ["guides-tarkov-boss", gameMode, bossSlug],
@@ -33,14 +32,8 @@ export default function TarkovBossPage() {
     enabled: Boolean(bossSlug),
   });
   const crumbLabel = detailQuery.data?.name || known?.label || bossSlug;
-  const hubSection = bossHubSectionForRow(
-    detailQuery.data?.id,
-    detailQuery.data?.parent_ids,
-  );
-  const parentId = namedBossParentId(
-    detailQuery.data?.parent_ids,
-    detailQuery.data?.id,
-  );
+  const hubSection = bossHubSectionForRow(detailQuery.data?.id, detailQuery.data?.parent_ids);
+  const parentId = namedBossParentId(detailQuery.data?.parent_ids, detailQuery.data?.id);
   const catalogQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,

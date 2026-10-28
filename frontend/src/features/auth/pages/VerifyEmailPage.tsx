@@ -10,10 +10,7 @@ export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const initialEmail = useMemo(
-    () => params.get("email") || "",
-    [params],
-  );
+  const initialEmail = useMemo(() => params.get("email") || "", [params]);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,67 +53,49 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <AuthGuestShell
-      title="验证邮箱"
-      subtitle="输入邮箱收到的 6 位验证码"
-      showVersion={false}
-    >
-        {error ? (
-          <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />
-        ) : null}
-        {hint ? (
-          <Alert type="info" message={hint} showIcon style={{ marginBottom: 16 }} />
-        ) : null}
+    <AuthGuestShell title="验证邮箱" subtitle="输入邮箱收到的 6 位验证码" showVersion={false}>
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
+      {hint ? <Alert type="info" message={hint} showIcon style={{ marginBottom: 16 }} /> : null}
 
-        <Form
-          layout="vertical"
-          onFinish={onFinish}
-          requiredMark={false}
-          initialValues={{ email: initialEmail }}
+      <Form
+        layout="vertical"
+        onFinish={onFinish}
+        requiredMark={false}
+        initialValues={{ email: initialEmail }}
+      >
+        <Form.Item
+          name="email"
+          label="邮箱"
+          rules={[
+            { required: true, message: "请输入邮箱" },
+            { type: "email", message: "邮箱格式不正确" },
+          ]}
         >
-          <Form.Item
-            name="email"
-            label="邮箱"
-            rules={[
-              { required: true, message: "请输入邮箱" },
-              { type: "email", message: "邮箱格式不正确" },
-            ]}
-          >
-            <Input size="large" />
-          </Form.Item>
-          <Form.Item
-            name="code"
-            label="验证码"
-            rules={[{ required: true, message: "请输入验证码" }]}
-          >
-            <Input size="large" placeholder="6 位数字" maxLength={6} />
-          </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            block
-            loading={loading}
-          >
-            完成验证
-          </Button>
-          <Form.Item shouldUpdate noStyle>
-            {({ getFieldValue }) => (
-              <Button
-                size="large"
-                block
-                style={{ marginTop: 12 }}
-                loading={resending}
-                onClick={() => onResend(getFieldValue("email"))}
-              >
-                重新发送验证码
-              </Button>
-            )}
-          </Form.Item>
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <Link to="/login">返回登录</Link>
-          </div>
-        </Form>
+          <Input size="large" />
+        </Form.Item>
+        <Form.Item name="code" label="验证码" rules={[{ required: true, message: "请输入验证码" }]}>
+          <Input size="large" placeholder="6 位数字" maxLength={6} />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+          完成验证
+        </Button>
+        <Form.Item shouldUpdate noStyle>
+          {({ getFieldValue }) => (
+            <Button
+              size="large"
+              block
+              style={{ marginTop: 12 }}
+              loading={resending}
+              onClick={() => onResend(getFieldValue("email"))}
+            >
+              重新发送验证码
+            </Button>
+          )}
+        </Form.Item>
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <Link to="/login">返回登录</Link>
+        </div>
+      </Form>
     </AuthGuestShell>
   );
 }

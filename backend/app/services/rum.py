@@ -85,9 +85,7 @@ _IMG_HOST_MARKERS: tuple[tuple[str, str], ...] = (
     ("hypergryph.com", "skland"),
 )
 
-_UUID_RE = re.compile(
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _HEX24_RE = re.compile(r"[0-9a-fA-F]{24}")
 _HEX40_RE = re.compile(r"[0-9a-fA-F]{40,}")
 _NUMERIC_SEG_RE = re.compile(r"/\d+(?=/|$)")
@@ -321,11 +319,7 @@ def ingest_rum_events(
 
 def prune_rum_samples(db: Session, *, now: datetime | None = None) -> int:
     cutoff = (now or now_naive()) - timedelta(days=KEEP_DAYS)
-    deleted = (
-        db.query(RumSample)
-        .filter(RumSample.recorded_at < cutoff)
-        .delete(synchronize_session=False)
-    )
+    deleted = db.query(RumSample).filter(RumSample.recorded_at < cutoff).delete(synchronize_session=False)
     db.flush()
     return int(deleted)
 
@@ -363,9 +357,7 @@ def _row_out(
         "p95_ms": percentile_nearest(durs, 0.95),
         "max_ms": max(durs) if durs else None,
         "error_count": acc.errors if kind == KIND_API else 0,
-        "avg_transfer": (
-            int(round(acc.transfer_sum / acc.transfer_n)) if acc.transfer_n else None
-        ),
+        "avg_transfer": (int(round(acc.transfer_sum / acc.transfer_n)) if acc.transfer_n else None),
     }
     return out
 
@@ -569,7 +561,5 @@ def summarize_rum(
         "img": _kind_rows(KIND_IMG),
         "api_biz": _kind_biz(KIND_API),
         "img_biz": _kind_biz(KIND_IMG),
-        "series": _series_points(
-            since=since, moment=moment, step=step, buckets=buckets
-        ),
+        "series": _series_points(since=since, moment=moment, step=step, buckets=buckets),
     }

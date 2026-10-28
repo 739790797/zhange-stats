@@ -34,14 +34,10 @@ class _FakeQuery:
             right = getattr(expr, "right", None)
             value = getattr(right, "value", right)
             if key == "icon_link":
-                self._rows = [
-                    r for r in self._rows if str(getattr(r, "icon_link", "") or "")
-                ]
+                self._rows = [r for r in self._rows if str(getattr(r, "icon_link", "") or "")]
                 continue
             if key == "tracer":
-                self._rows = [
-                    r for r in self._rows if bool(getattr(r, "tracer", False))
-                ]
+                self._rows = [r for r in self._rows if bool(getattr(r, "tracer", False))]
                 continue
             if key in ("id", "mode_id"):
                 try:
@@ -51,9 +47,7 @@ class _FakeQuery:
             if key == "lang":
                 value = value or ""
             if key:
-                self._rows = [
-                    r for r in self._rows if getattr(r, key, None) == value
-                ]
+                self._rows = [r for r in self._rows if getattr(r, key, None) == value]
         return self
 
     def order_by(self, *_a, **_k):  # noqa: ANN001
@@ -64,9 +58,7 @@ class _FakeQuery:
 
     def delete(self):
         drop = {id(r) for r in self._rows}
-        self.session.store[self.model] = [
-            r for r in self.session.store.get(self.model, []) if id(r) not in drop
-        ]
+        self.session.store[self.model] = [r for r in self.session.store.get(self.model, []) if id(r) not in drop]
         self._rows = []
 
     def one_or_none(self):
@@ -188,9 +180,7 @@ def test_sync_json_once_writes_both(monkeypatch: pytest.MonkeyPatch):
     assert result["ammo_count"] == 1
     assert result["gun_count"] == 1
     assert db.committed is True
-    assert {
-        row.mode_id for row in db.store[TarkovItemsRaw] if not (row.lang or "")
-    } == {1, 2}
+    assert {row.mode_id for row in db.store[TarkovItemsRaw] if not (row.lang or "")} == {1, 2}
     assert {row.mode_id for row in db.store[TarkovAmmo]} == {1, 2}
     assert {row.mode_id for row in db.store[TarkovGun]} == {1, 2}
 

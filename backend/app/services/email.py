@@ -150,11 +150,7 @@ def _send_with_config(
     purpose: str = "register",
 ) -> dict:
     label = _purpose_label(purpose)
-    body = (
-        f"您的{label}验证码是：{code}\n\n"
-        f"有效期 {code_expire_minutes(cfg)} 分钟。"
-        "如非本人操作请忽略。"
-    )
+    body = f"您的{label}验证码是：{code}\n\n有效期 {code_expire_minutes(cfg)} 分钟。如非本人操作请忽略。"
     return _deliver(
         cfg,
         to_email,

@@ -184,9 +184,7 @@ async def run_console_session(client: WebSocket) -> None:
         return
     jwt = access_token_from_websocket(client, first)
     try:
-        panel_base, client_token, server_uuid = await asyncio.to_thread(
-            _load_console_session, jwt
-        )
+        panel_base, client_token, server_uuid = await asyncio.to_thread(_load_console_session, jwt)
     except PermissionError as exc:
         code = str(exc)
         if code == "forbidden" or code == "feature":
@@ -200,9 +198,7 @@ async def run_console_session(client: WebSocket) -> None:
         return
 
     async def fetch_creds() -> tuple[str, str]:
-        return await asyncio.to_thread(
-            pelican.get_websocket, panel_base, client_token, server_uuid
-        )
+        return await asyncio.to_thread(pelican.get_websocket, panel_base, client_token, server_uuid)
 
     try:
         socket_url, wings_token = await fetch_creds()
@@ -219,9 +215,7 @@ async def run_console_session(client: WebSocket) -> None:
         "disk_limit_mb": 0,
     }
     try:
-        server = await asyncio.to_thread(
-            pelican.get_server, panel_base, client_token, server_uuid
-        )
+        server = await asyncio.to_thread(pelican.get_server, panel_base, client_token, server_uuid)
         meta = pelican.parse_server_meta(server)
     except pelican.PelicanError:
         pass

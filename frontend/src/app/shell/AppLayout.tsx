@@ -57,20 +57,25 @@ import {
 } from "@/features/admin/model/adminHub";
 import { shouldPromptCompleteProfile } from "@/features/profile/model/completeProfile";
 import { isAdminUser } from "@/features/auth/model/isAdminUser";
-import { GUIDE_LEAF_PATHS, GUIDE_NAV, type GuideNavNode } from "@/features/guides/shared/model/guideNav";
+import {
+  GUIDE_LEAF_PATHS,
+  GUIDE_NAV,
+  type GuideNavNode,
+} from "@/features/guides/shared/model/guideNav";
 import {
   PLATFORM_NAV,
   firstEnabledPlatformPath,
   isFeatureOn,
   platformFeatureMenuKey,
 } from "@/features/platforms/shared/model/platformFeatures";
-import {
-  loadAppSiderCollapsed,
-  saveAppSiderCollapsed,
-} from "@/app/lib/appSiderPrefs";
+import { loadAppSiderCollapsed, saveAppSiderCollapsed } from "@/app/lib/appSiderPrefs";
 import { focusWithoutVisibleRing } from "@/shared/lib/focusRouteTarget";
 import { LOCAL_QUERY_STALE_MS } from "@/shared/lib/queryCache";
-import { TAVERN_ADMIN_PATH, TAVERN_FEATURE_ID, TAVERN_PATH } from "@/features/articles/model/tavernNav";
+import {
+  TAVERN_ADMIN_PATH,
+  TAVERN_FEATURE_ID,
+  TAVERN_PATH,
+} from "@/features/articles/model/tavernNav";
 import { useAuthStore } from "@/features/auth/model/authStore";
 
 const { Header, Sider, Content } = Layout;
@@ -260,47 +265,37 @@ export function AppLayout() {
     if (location.pathname.startsWith("/daily")) return "/daily";
     if (location.pathname.startsWith("/guides/")) {
       const hit = GUIDE_LEAF_KEYS.filter(
-        (key) =>
-          location.pathname === key || location.pathname.startsWith(`${key}/`),
+        (key) => location.pathname === key || location.pathname.startsWith(`${key}/`),
       ).sort((a, b) => b.length - a.length)[0];
       if (hit) return hit;
     }
     const platform = PLATFORM_NAV.find(
-      (item) =>
-        location.pathname === item.path ||
-        location.pathname.startsWith(item.path + "/"),
+      (item) => location.pathname === item.path || location.pathname.startsWith(item.path + "/"),
     );
     if (platform) {
       const requestedTab = new URLSearchParams(location.search).get("tab");
       const child = platform.children?.find((item) => item.key === requestedTab);
-      return child
-        ? platformFeatureMenuKey(platform.path, child.key)
-        : platform.path;
+      return child ? platformFeatureMenuKey(platform.path, child.key) : platform.path;
     }
     return (
       leafKeys.find((key) =>
         key === "/steam"
           ? location.pathname === "/steam" ||
             location.pathname === "/" ||
-            (location.pathname.startsWith("/members") &&
-              !location.pathname.endsWith("/profile"))
+            (location.pathname.startsWith("/members") && !location.pathname.endsWith("/profile"))
           : location.pathname.startsWith(key),
       ) || "/steam"
     );
   }, [location.pathname, location.search]);
 
   const selectedPlatformParent = PLATFORM_NAV.find((item) =>
-    item.children?.some(
-      (child) => platformFeatureMenuKey(item.path, child.key) === selected,
-    ),
+    item.children?.some((child) => platformFeatureMenuKey(item.path, child.key) === selected),
   )?.path;
 
   useEffect(() => {
     if (!selectedPlatformParent) return;
     setOpenKeys((current) =>
-      current.includes(selectedPlatformParent)
-        ? current
-        : [...current, selectedPlatformParent],
+      current.includes(selectedPlatformParent) ? current : [...current, selectedPlatformParent],
     );
   }, [selectedPlatformParent]);
 
@@ -318,33 +313,29 @@ export function AppLayout() {
   });
   const hasAppUpdate = Boolean(appUpdateQuery.data?.has_new_version);
 
-  const platformItems = PLATFORM_NAV.filter((item) =>
-    isFeatureOn(features, item.featureId),
-  ).map((item) => {
-    const children = (item.children || [])
-      .filter((child) => isFeatureOn(features, child.featureId))
-      .map((child) => ({
-        key: platformFeatureMenuKey(item.path, child.key),
-        icon:
-          child.icon === "exchange" ? (
-            <SwapOutlined />
-          ) : child.icon ? (
-            <PlatformIcon name={child.icon} />
-          ) : undefined,
-        label: (
-          <Link to={platformFeatureMenuKey(item.path, child.key)}>
-            {child.label}
-          </Link>
-        ),
-      }));
+  const platformItems = PLATFORM_NAV.filter((item) => isFeatureOn(features, item.featureId)).map(
+    (item) => {
+      const children = (item.children || [])
+        .filter((child) => isFeatureOn(features, child.featureId))
+        .map((child) => ({
+          key: platformFeatureMenuKey(item.path, child.key),
+          icon:
+            child.icon === "exchange" ? (
+              <SwapOutlined />
+            ) : child.icon ? (
+              <PlatformIcon name={child.icon} />
+            ) : undefined,
+          label: <Link to={platformFeatureMenuKey(item.path, child.key)}>{child.label}</Link>,
+        }));
 
-    return {
-      key: item.path,
-      icon: <PlatformIcon name={item.icon} />,
-      label: <Link to={item.path}>{item.label}</Link>,
-      ...(children.length ? { children } : {}),
-    };
-  });
+      return {
+        key: item.path,
+        icon: <PlatformIcon name={item.icon} />,
+        label: <Link to={item.path}>{item.label}</Link>,
+        ...(children.length ? { children } : {}),
+      };
+    },
+  );
 
   const guideItems = useMemo(() => {
     const mapNode = (node: GuideNavNode): NonNullable<MenuProps["items"]>[number] | null => {
@@ -372,9 +363,7 @@ export function AppLayout() {
         children,
       };
     };
-    return GUIDE_NAV.map(mapNode).filter(
-      (x): x is NonNullable<typeof x> => x != null,
-    );
+    return GUIDE_NAV.map(mapNode).filter((x): x is NonNullable<typeof x> => x != null);
   }, [features, loggedIn]);
 
   const communityItems = [
@@ -417,15 +406,11 @@ export function AppLayout() {
     ...(communityItems.length
       ? [{ type: "group" as const, label: "社区", children: communityItems }]
       : []),
-    ...(loggedIn
-      ? [{ type: "group" as const, label: "我的", children: mineItems }]
-      : []),
+    ...(loggedIn ? [{ type: "group" as const, label: "我的", children: mineItems }] : []),
     ...(platformItems.length
       ? [{ type: "group" as const, label: "平台", children: platformItems }]
       : []),
-    ...(guideItems.length
-      ? [{ type: "group" as const, label: "游戏", children: guideItems }]
-      : []),
+    ...(guideItems.length ? [{ type: "group" as const, label: "游戏", children: guideItems }] : []),
     ...(isAdmin
       ? [
           {
@@ -449,14 +434,10 @@ export function AppLayout() {
           !location.pathname.endsWith("/profile")),
     );
     if (!hit) return;
-    if (
-      featuresQuery.isError ||
-      !isFeatureOn(features, hit.featureId)
-    ) {
-      navigate(
-        firstEnabledPlatformPath(featuresQuery.isError ? null : features),
-        { replace: true },
-      );
+    if (featuresQuery.isError || !isFeatureOn(features, hit.featureId)) {
+      navigate(firstEnabledPlatformPath(featuresQuery.isError ? null : features), {
+        replace: true,
+      });
     }
   }, [
     features,
@@ -473,8 +454,7 @@ export function AppLayout() {
     user?.display_name ||
     user?.email ||
     "用户";
-  const avatarUrl =
-    profileQuery.data?.avatar_url || user?.avatar_url || undefined;
+  const avatarUrl = profileQuery.data?.avatar_url || user?.avatar_url || undefined;
   const roleLabel = isAdmin ? "管理员" : null;
 
   const homeHref = TAVERN_PATH;
@@ -513,10 +493,7 @@ export function AppLayout() {
         <div className="app-sider-brand-top">
           <Link to={homeHref} className="app-sider-brand-link">
             <BrandLogo size={32} color="#e8b86d" />
-            <Typography.Text
-              strong
-              style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}
-            >
+            <Typography.Text strong style={{ color: "#e8b86d", fontSize: 16, letterSpacing: 1 }}>
               战鸽数据
             </Typography.Text>
           </Link>
@@ -545,23 +522,23 @@ export function AppLayout() {
           flexDirection: "column",
         }}
       >
-      <Menu
-        theme="dark"
-        mode="inline"
-        className="sider-menu"
-        selectedKeys={[selected]}
-        openKeys={openKeys}
-        onOpenChange={setOpenKeys}
-        items={menuItems}
-        style={{
-          background: BRAND_NAVY,
-          borderInlineEnd: "none",
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          paddingTop: 8,
-        }}
-      />
+        <Menu
+          theme="dark"
+          mode="inline"
+          className="sider-menu"
+          selectedKeys={[selected]}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
+          items={menuItems}
+          style={{
+            background: BRAND_NAVY,
+            borderInlineEnd: "none",
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            paddingTop: 8,
+          }}
+        />
       </nav>
       <div
         style={{
@@ -631,12 +608,7 @@ export function AppLayout() {
                 state={{ from: location }}
                 style={{ display: "block", width: "100%" }}
               >
-                <Button
-                  type="primary"
-                  block
-                  size="small"
-                  icon={<LoginOutlined />}
-                >
+                <Button type="primary" block size="small" icon={<LoginOutlined />}>
                   登录
                 </Button>
               </Link>
@@ -741,9 +713,7 @@ export function AppLayout() {
           tabIndex={isFullBleedGuide ? undefined : -1}
           className={[
             isFullBleedGuide ? "app-main-canvas" : "app-main-scroll",
-            !assistantEmbed && !isMobile && siderCollapsed
-              ? "app-main--sider-collapsed"
-              : "",
+            !assistantEmbed && !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -757,9 +727,7 @@ export function AppLayout() {
                   margin: pageGutter,
                   overflowX: "hidden",
                   overflowY: "auto",
-                  ...(contentShell === "flush"
-                    ? { background: token.colorBgLayout }
-                    : {}),
+                  ...(contentShell === "flush" ? { background: token.colorBgLayout } : {}),
                 }
           }
         >
@@ -772,9 +740,7 @@ export function AppLayout() {
           ) : (
             <div
               className={
-                contentShell
-                  ? `app-page-shell app-page-shell--${contentShell}`
-                  : undefined
+                contentShell ? `app-page-shell app-page-shell--${contentShell}` : undefined
               }
               style={
                 contentShell === "flush"

@@ -113,17 +113,11 @@ def _download_json(url: str) -> dict[str, Any]:
 def download_json_guides(*, lang: str = "zh") -> GuidesUpstreamBundle:
     from app.services.tarkov import upstream as upstream_svc
 
-    hideout_payload = upstream_svc.download_resource_with_locale(
-        "hideout", lang=lang, error_cls=TarkovGuidesError
-    )
+    hideout_payload = upstream_svc.download_resource_with_locale("hideout", lang=lang, error_cls=TarkovGuidesError)
     hideout = hideout_payload.get("data")
     if not isinstance(hideout, dict) or not hideout:
         raise TarkovGuidesError("json.tarkov.dev hideout 为空")
-    locale = (
-        hideout_payload.get("locale")
-        if isinstance(hideout_payload.get("locale"), dict)
-        else {}
-    )
+    locale = hideout_payload.get("locale") if isinstance(hideout_payload.get("locale"), dict) else {}
 
     barters_payload = _download_json(json_resource_url("barters"))
     barters = barters_payload.get("data")
@@ -178,11 +172,7 @@ def parse_hideout_stations(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for level in raw.get("levels") or []:
             if not isinstance(level, dict):
                 continue
-            item_reqs = [
-                req
-                for req in (_item_req(x) for x in (level.get("itemRequirements") or []))
-                if req
-            ]
+            item_reqs = [req for req in (_item_req(x) for x in (level.get("itemRequirements") or [])) if req]
             station_reqs: list[dict[str, Any]] = []
             for req in level.get("stationLevelRequirements") or []:
                 if not isinstance(req, dict):
@@ -230,9 +220,7 @@ def parse_hideout_stations(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 skill_key = str(raw_bonus.get("skill") or "")
                 slot_raw = raw_bonus.get("slotItems") or []
                 slot_ids = [
-                    str(item).strip()
-                    for item in (slot_raw if isinstance(slot_raw, list) else [])
-                    if str(item).strip()
+                    str(item).strip() for item in (slot_raw if isinstance(slot_raw, list) else []) if str(item).strip()
                 ]
                 bonuses.append(
                     {
@@ -296,11 +284,7 @@ def parse_barters(payload: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         trader_id = _id_of(raw.get("trader"))
         slug, tname = TRADER_BY_ID.get(trader_id, ("", trader_id))
-        required = [
-            req
-            for req in (_item_req(x) for x in (raw.get("requiredItems") or []))
-            if req
-        ]
+        required = [req for req in (_item_req(x) for x in (raw.get("requiredItems") or [])) if req]
         offered = _item_req(raw.get("offeredItem")) or {}
         if not offered.get("id"):
             continue
@@ -323,21 +307,14 @@ def parse_crafts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     blob = payload.get("crafts")
     if not isinstance(blob, list):
         return []
-    stations = {
-        str(s.get("id") or ""): s
-        for s in parse_hideout_stations(payload)
-    }
+    stations = {str(s.get("id") or ""): s for s in parse_hideout_stations(payload)}
     rows: list[dict[str, Any]] = []
     for raw in blob:
         if not isinstance(raw, dict):
             continue
         station_id = _id_of(raw.get("station"))
         station = stations.get(station_id) or {}
-        required = [
-            req
-            for req in (_item_req(x) for x in (raw.get("requiredItems") or []))
-            if req
-        ]
+        required = [req for req in (_item_req(x) for x in (raw.get("requiredItems") or [])) if req]
         product = _item_req(raw.get("productItem")) or {}
         if not product.get("id"):
             continue
@@ -385,9 +362,7 @@ def guides_cache_token(db: Session) -> str:
         return memo[memo_key]
     parts: list[str] = []
     for resource in ("hideout", "barters", "crafts"):
-        _source, synced, _note = upstream_svc.raw_row_header(
-            upstream_svc.load_raw_row(db, resource)
-        )
+        _source, synced, _note = upstream_svc.raw_row_header(upstream_svc.load_raw_row(db, resource))
         parts.append(synced or "")
         parts.append(upstream_svc.locale_synced(db, resource))
     _items_source, items_synced, _items_note = items_svc.items_raw_header(db)
@@ -410,10 +385,7 @@ def assemble_guides_envelope(
     if (
         isinstance(unwrapped, dict)
         and isinstance(unwrapped.get("hideout"), dict)
-        and (
-            isinstance(unwrapped.get("barters"), list)
-            or isinstance(unwrapped.get("crafts"), list)
-        )
+        and (isinstance(unwrapped.get("barters"), list) or isinstance(unwrapped.get("crafts"), list))
     ):
         envelope = {
             "hideout": unwrapped["hideout"],
@@ -658,10 +630,7 @@ def list_hideout(db: Session) -> dict[str, Any]:
             levels.append(
                 {
                     **level,
-                    "item_requirements": [
-                        _enrich_item(req, items)
-                        for req in (level.get("item_requirements") or [])
-                    ],
+                    "item_requirements": [_enrich_item(req, items) for req in (level.get("item_requirements") or [])],
                     "bonuses": bonuses,
                 }
             )
@@ -727,10 +696,7 @@ def _barter_haystack(row: dict[str, Any], items: dict[str, dict[str, Any]]) -> s
         [
             str(row.get("trader_name") or ""),
             _ref_display_name(row.get("offered_item") or {}, items),
-            *(
-                _ref_display_name(req, items)
-                for req in (row.get("required_items") or [])
-            ),
+            *(_ref_display_name(req, items) for req in (row.get("required_items") or [])),
         ]
     ).lower()
 
@@ -751,7 +717,8 @@ def list_barters(
         rows = [
             r
             for r in rows
-            if trader_key in {
+            if trader_key
+            in {
                 str(r.get("trader_slug") or "").lower(),
                 str(r.get("trader_id") or "").lower(),
             }
@@ -803,7 +770,8 @@ def list_crafts(
         rows = [
             r
             for r in rows
-            if station_key in {
+            if station_key
+            in {
                 str(r.get("station_slug") or "").lower(),
                 str(r.get("station_id") or "").lower(),
             }
@@ -848,4 +816,3 @@ def list_crafts(
         "synced_at": synced_at,
         "note": note,
     }
-

@@ -64,9 +64,7 @@ class ArticleCategory(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     admin_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     chip_color: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
 
     articles = relationship(
         "Article",
@@ -81,9 +79,7 @@ class ArticleTag(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String(191), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
 
     articles = relationship(
         "Article",
@@ -111,12 +107,8 @@ class Article(Base):
         nullable=True,
         index=True,
     )
-    published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=now_naive,
@@ -173,9 +165,7 @@ class ArticleComment(Base):
         nullable=True,
         index=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
 
     article = relationship("Article", back_populates="comments")
     user = relationship("User")
@@ -202,18 +192,14 @@ class ArticleAuthor(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
 
     user = relationship("User")
 
 
 class ArticleVersion(Base):
     __tablename__ = "article_versions"
-    __table_args__ = (
-        UniqueConstraint("article_id", "version_no", name="uq_article_versions_no"),
-    )
+    __table_args__ = (UniqueConstraint("article_id", "version_no", name="uq_article_versions_no"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     article_id: Mapped[int] = mapped_column(
@@ -234,9 +220,7 @@ class ArticleVersion(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_naive, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_naive, nullable=False)
 
     article = relationship("Article", back_populates="versions")
     created_by = relationship("User")

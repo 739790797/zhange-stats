@@ -106,9 +106,7 @@ def test_draft_has_no_versions_until_publish() -> None:
         2,
         1,
     ]
-    articles_svc.update_article(
-        db, published.id, actor=author, status=articles_svc.STATUS_DRAFT
-    )
+    articles_svc.update_article(db, published.id, actor=author, status=articles_svc.STATUS_DRAFT)
     assert [v["version_no"] for v in articles_svc.list_versions(db, published.id, author)] == [
         2,
         1,
@@ -368,13 +366,9 @@ def test_author_cannot_assign_admin_only_category() -> None:
     listed = articles_svc.article_to_list_item(posted)
     assert listed["categories"][0]["admin_only"] is True
     assert listed["categories"][0]["chip_color"] == "#c41d7f"
-    row = articles_svc.create_article(
-        db, author=author, title="攻略", body="x", category_ids=[guides_id]
-    )
+    row = articles_svc.create_article(db, author=author, title="攻略", body="x", category_ids=[guides_id])
     with pytest.raises(ArticleError) as exc:
-        articles_svc.update_article(
-            db, row.id, actor=author, category_ids=[notice_id]
-        )
+        articles_svc.update_article(db, row.id, actor=author, category_ids=[notice_id])
     assert exc.value.status_code == 403
 
 
@@ -472,9 +466,7 @@ def test_prune_versions_keeps_newest_without_scanning_bodies(
     db = _session()
     author = _user(db, "ann")
     articles_svc.set_authors(db, [author.id])
-    row = articles_svc.create_article(
-        db, author=author, title="T", body="body-1", status=articles_svc.STATUS_PUBLISHED
-    )
+    row = articles_svc.create_article(db, author=author, title="T", body="body-1", status=articles_svc.STATUS_PUBLISHED)
     for n in range(2, 6):
         articles_svc.update_article(db, row.id, actor=author, body=f"body-{n}")
     monkeypatch.setattr(articles_svc, "MAX_VERSIONS", 2)

@@ -84,8 +84,7 @@ def _drain_locked(now: float) -> tuple[object, ...]:
     global _overflow
     total = sum(_counts.values()) + _overflow
     top = "; ".join(
-        f"{directive} {blocked} x{count}"
-        for (directive, blocked), count in _counts.most_common(TOP_IN_SUMMARY)
+        f"{directive} {blocked} x{count}" for (directive, blocked), count in _counts.most_common(TOP_IN_SUMMARY)
     )
     summary = (
         "csp_report reports=%d distinct=%d window=%.0fs other=%d top=%s",

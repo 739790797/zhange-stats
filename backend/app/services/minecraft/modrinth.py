@@ -125,9 +125,7 @@ def list_versions(
     for version in data:
         if not isinstance(version, dict):
             continue
-        pin = pin_from_version(
-            version, project_id=pid, project_title=project_title, slug=slug
-        )
+        pin = pin_from_version(version, project_id=pid, project_title=project_title, slug=slug)
         if pin:
             out.append(pin)
     return out

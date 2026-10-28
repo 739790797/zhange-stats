@@ -134,9 +134,7 @@ def test_render_custom_uses_backend(index: wb.WorkbenchIndex, monkeypatch: pytes
     assert any(row["_tpl"] == "grip2" for row in items)
 
 
-def test_render_custom_falls_back_when_backend_fails(
-    index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch
-):
+def test_render_custom_falls_back_when_backend_fails(index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch):
     class Fake:
         busy = False
         last_error = "down"
@@ -156,9 +154,7 @@ def test_render_custom_falls_back_when_backend_fails(
     assert out["busy"] is False
 
 
-def test_render_respects_env_disable(
-    index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch
-):
+def test_render_respects_env_disable(index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch):
     class Boom:
         busy = False
         last_error = None
@@ -180,9 +176,7 @@ def test_render_respects_env_disable(
     assert out["enabled"] is False
 
 
-def test_render_busy_returns_without_waiting(
-    index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch
-):
+def test_render_busy_returns_without_waiting(index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch):
     class Busy:
         busy = True
         last_error = None
@@ -202,22 +196,16 @@ def test_render_busy_returns_without_waiting(
 
 
 def test_accept_generated_image_url_is_same_origin():
-    assert img.accept_generated_image_url("/gen.png") == (
-        "https://image-gen.tarkov-changes.com/gen.png"
-    )
+    assert img.accept_generated_image_url("/gen.png") == ("https://image-gen.tarkov-changes.com/gen.png")
     assert (
-        img.accept_generated_image_url(
-            "https://image-gen.tarkov-changes.com/gen.png"
-        )
+        img.accept_generated_image_url("https://image-gen.tarkov-changes.com/gen.png")
         == "https://image-gen.tarkov-changes.com/gen.png"
     )
     assert img.accept_generated_image_url("https://evil.example/x.png") is None
     assert img.accept_generated_image_url("//evil.example/x.png") is None
 
 
-def test_render_custom_rejects_off_origin_url(
-    index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch
-):
+def test_render_custom_rejects_off_origin_url(index: wb.WorkbenchIndex, monkeypatch: pytest.MonkeyPatch):
     class Fake:
         busy = False
         last_error = None

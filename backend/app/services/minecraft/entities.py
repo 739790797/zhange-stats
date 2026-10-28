@@ -162,9 +162,7 @@ def entity_category(entity_id: str) -> str:
     return "other"
 
 
-def _merge_counts(
-    dest: dict[str, int], rows: list[dict[str, Any]]
-) -> dict[str, int]:
+def _merge_counts(dest: dict[str, int], rows: list[dict[str, Any]]) -> dict[str, int]:
     for row in rows:
         entity_id = str(row.get("id") or "").strip().lower()
         if not entity_id:
@@ -194,11 +192,7 @@ def summarize_entities(
     for row in types:
         key = str(row["category"])
         buckets[key] = buckets.get(key, 0) + int(row["count"])
-    categories = [
-        {"key": key, "count": buckets[key]}
-        for key in CATEGORY_ORDER
-        if buckets.get(key)
-    ]
+    categories = [{"key": key, "count": buckets[key]} for key in CATEGORY_ORDER if buckets.get(key)]
     total = sum(int(row["count"]) for row in types)
     return {
         "total": total,

@@ -20,9 +20,7 @@ def clock(monkeypatch):
 
 
 def _report(blocked: str, directive: str = "script-src-elem") -> bytes:
-    return json.dumps(
-        {"csp-report": {"blocked-uri": blocked, "effective-directive": directive}}
-    ).encode("utf-8")
+    return json.dumps({"csp-report": {"blocked-uri": blocked, "effective-directive": directive}}).encode("utf-8")
 
 
 def _warnings(caplog) -> list[logging.LogRecord]:

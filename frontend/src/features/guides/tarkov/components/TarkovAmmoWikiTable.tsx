@@ -100,10 +100,7 @@ function renderChancePct(value: number | null | undefined) {
 }
 
 /** polarity: "accuracy" 增绿减红；"recoil" 增红减绿 */
-function renderSignedModifier(
-  value: number | null | undefined,
-  polarity: "accuracy" | "recoil",
-) {
+function renderSignedModifier(value: number | null | undefined, polarity: "accuracy" | "recoil") {
   const n = Number(value);
   const text = formatModifierPct(n);
   if (!Number.isFinite(n) || n === 0) {
@@ -111,11 +108,7 @@ function renderSignedModifier(
   }
   const positiveIsGood = polarity === "accuracy";
   const good = positiveIsGood ? n > 0 : n < 0;
-  return (
-    <span style={{ color: good ? "#8bc34a" : "#e07070", fontWeight: 600 }}>
-      {text}
-    </span>
-  );
+  return <span style={{ color: good ? "#8bc34a" : "#e07070", fontWeight: 600 }}>{text}</span>;
 }
 
 function formatInitialSpeed(value: number | null | undefined): string {
@@ -128,11 +121,7 @@ function ArmorEffectStrip({ row }: { row: TarkovAmmoItem }) {
   return (
     <div className={styles.armorStrip}>
       {[1, 2, 3, 4, 5, 6].map((armorClass) => {
-        const level = armorEffectLevel(
-          row.penetration,
-          armorClass,
-          row.armor_damage,
-        );
+        const level = armorEffectLevel(row.penetration, armorClass, row.armor_damage);
         const { bg, fg } = ARMOR_EFFECT_COLORS[level];
         return (
           <span
@@ -149,15 +138,7 @@ function ArmorEffectStrip({ row }: { row: TarkovAmmoItem }) {
   );
 }
 
-function AmmoThumb({
-  src,
-  hd,
-  size,
-}: {
-  src: string;
-  hd: string;
-  size: number;
-}) {
+function AmmoThumb({ src, hd, size }: { src: string; hd: string; size: number }) {
   return (
     <Image
       src={src}
@@ -245,11 +226,7 @@ export function TarkovAmmoWikiTable({
     onCell: () => ({ className: styles.statTd }),
   };
 
-  const onTableChange: TableProps<TarkovAmmoItem>["onChange"] = (
-    _pagination,
-    _filters,
-    sorter,
-  ) => {
+  const onTableChange: TableProps<TarkovAmmoItem>["onChange"] = (_pagination, _filters, sorter) => {
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     const key = s?.columnKey;
     if (SORT_KEYS.includes(key as SortKey)) {
@@ -368,9 +345,7 @@ export function TarkovAmmoWikiTable({
       sortOrder: sortKey === "penetration" ? sortOrder : null,
     },
     {
-      title: (
-        <HeaderHint label="护甲伤害" hint={AMMO_COLUMN_HINTS.armorDamage} />
-      ),
+      title: <HeaderHint label="护甲伤害" hint={AMMO_COLUMN_HINTS.armorDamage} />,
       dataIndex: "armor_damage",
       key: "armor_damage",
       ...statCol,
@@ -378,9 +353,7 @@ export function TarkovAmmoWikiTable({
       sortOrder: sortKey === "armor_damage" ? sortOrder : null,
     },
     {
-      title: (
-        <HeaderHint label="碎弹%" hint={AMMO_COLUMN_HINTS.fragmentation} />
-      ),
+      title: <HeaderHint label="碎弹%" hint={AMMO_COLUMN_HINTS.fragmentation} />,
       dataIndex: "fragmentation_chance",
       key: "fragmentation_chance",
       ...statCol,
@@ -467,18 +440,14 @@ export function TarkovAmmoWikiTable({
       align: "center",
       onHeaderCell: () => ({ className: styles.armorTh }),
       onCell: () => ({ className: styles.armorTd }),
-      render: (_: unknown, row: TarkovAmmoItem) => (
-        <ArmorEffectStrip row={row} />
-      ),
+      render: (_: unknown, row: TarkovAmmoItem) => <ArmorEffectStrip row={row} />,
     },
   ];
 
   const hiddenKeys = compact
     ? new Set(["caliber", "fragmentation_chance", "ricochet_chance"])
     : new Set<string>();
-  const visibleColumns = columns.filter(
-    (col) => !hiddenKeys.has(String(col.key ?? "")),
-  );
+  const visibleColumns = columns.filter((col) => !hiddenKeys.has(String(col.key ?? "")));
 
   return (
     <Table<TarkovAmmoItem>
@@ -504,9 +473,7 @@ export function TarkovAmmoWikiTable({
             })
           : undefined
       }
-      rowClassName={(row) =>
-        hoverId && row.id === hoverId ? styles.hoverRow : ""
-      }
+      rowClassName={(row) => (hoverId && row.id === hoverId ? styles.hoverRow : "")}
     />
   );
 }

@@ -108,10 +108,7 @@ export default function MyDailyPage() {
     () => overlayDailyLiveStatus(included, liveByPlatform),
     [included, liveByPlatform],
   );
-  const groups = useMemo(
-    () => buildDailyPlatformGroups(overlaid),
-    [overlaid],
-  );
+  const groups = useMemo(() => buildDailyPlatformGroups(overlaid), [overlaid]);
   const summary = useMemo(() => summarizeDailyTasks(overlaid), [overlaid]);
   const todayLabel = nowBeijing().format("M月D日 dddd");
   const statusFetching = statusQueries.some((query) => query.isFetching);

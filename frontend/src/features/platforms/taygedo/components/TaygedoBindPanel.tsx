@@ -1,7 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { message } from "antd";
 import { useRef } from "react";
-import { bindTaygedoPassword, bindTaygedoSms, sendTaygedoSms } from "@/features/platforms/taygedo/api/taygedoApi";
+import {
+  bindTaygedoPassword,
+  bindTaygedoSms,
+  sendTaygedoSms,
+} from "@/features/platforms/taygedo/api/taygedoApi";
 import { PhoneAuthBindTemplate } from "@/features/auth/components/PhoneAuthBindTemplate";
 import { useRoleMembershipPicker } from "@/features/profile/hooks/useRoleMembershipPicker";
 

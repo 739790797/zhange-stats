@@ -6,10 +6,7 @@ import { PageHeader } from "@/shared/ui/PageHeader";
 import { MotionIn } from "@/shared/ui/PageMotion";
 import { PanelFallback } from "@/shared/ui/PanelFallback";
 import type { ExchangeBindStatus } from "@/features/platforms/shared/components/ExchangePageTemplate";
-import {
-  bindTokenErrorMessage,
-  isBindTokenBroken,
-} from "@/features/daily/model/checkinStatus";
+import { bindTokenErrorMessage, isBindTokenBroken } from "@/features/daily/model/checkinStatus";
 import { isInitialQueryPending } from "@/shared/lib/queryCache";
 import {
   resolvePlatformFeaturePageTitle,
@@ -61,17 +58,9 @@ export function PlatformFeatureTabsPage({
 }: PlatformFeatureTabsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const activeTab = resolvePlatformFeatureTabKey(
-    tabItems,
-    requestedTab,
-    defaultTab ?? "checkin",
-  );
+  const activeTab = resolvePlatformFeatureTabKey(tabItems, requestedTab, defaultTab ?? "checkin");
   const activeItem = tabItems.find((item) => item.key === activeTab);
-  const pageTitle = resolvePlatformFeaturePageTitle(
-    title,
-    activeItem,
-    defaultTab ?? "checkin",
-  );
+  const pageTitle = resolvePlatformFeaturePageTitle(title, activeItem, defaultTab ?? "checkin");
 
   const statusQuery = useQuery({
     queryKey: statusQueryKey,
@@ -81,11 +70,7 @@ export function PlatformFeatureTabsPage({
   });
 
   useEffect(() => {
-    if (
-      !featuresReady ||
-      !requestedTab ||
-      tabItems.some((item) => item.key === requestedTab)
-    ) {
+    if (!featuresReady || !requestedTab || tabItems.some((item) => item.key === requestedTab)) {
       return;
     }
     const next = new URLSearchParams(searchParams);
@@ -95,8 +80,7 @@ export function PlatformFeatureTabsPage({
 
   const bound = Boolean(statusQuery.data?.bound);
   const tokenBroken = isBindTokenBroken(statusQuery.data);
-  const needsBind =
-    (!bound || tokenBroken) && !isInitialQueryPending(statusQuery);
+  const needsBind = (!bound || tokenBroken) && !isInitialQueryPending(statusQuery);
 
   return (
     <div>
@@ -116,15 +100,12 @@ export function PlatformFeatureTabsPage({
               showIcon
               style={{ marginBottom: 16 }}
               message={
-                tokenBroken
-                  ? `${bindName}凭证可能已失效`
-                  : unboundMessage || `尚未绑定${bindName}`
+                tokenBroken ? `${bindName}凭证可能已失效` : unboundMessage || `尚未绑定${bindName}`
               }
               description={
                 tokenBroken
                   ? [
-                      bindTokenErrorMessage(statusQuery.data) ||
-                        "请重新绑定后再试。",
+                      bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。",
                       bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
                     ]
                       .filter(Boolean)

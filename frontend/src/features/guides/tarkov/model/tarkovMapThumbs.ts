@@ -52,10 +52,7 @@ export function isStaleTarkovDevMapThumb(url: string | null | undefined): boolea
   return STALE_TARKOV_DEV_THUMB.test((url || "").trim());
 }
 
-export function tarkovMapThumbUrl(
-  slug: string,
-  apiThumb?: string | null,
-): string {
+export function tarkovMapThumbUrl(slug: string, apiThumb?: string | null): string {
   const api = (apiThumb || "").trim();
   if (api && !isStaleTarkovDevMapThumb(api)) return api;
   const key = canonicalMapSlug(slug);

@@ -140,10 +140,7 @@ function firstSighting(
   return at;
 }
 
-function latestProfile(
-  identities: readonly TarkovLogIdentity[],
-  gameMode: TarkovGameMode,
-): string {
+function latestProfile(identities: readonly TarkovLogIdentity[], gameMode: TarkovGameMode): string {
   let found: TarkovLogIdentity | null = null;
   for (const row of identities) {
     if (!(row.profileId || "").trim()) continue;

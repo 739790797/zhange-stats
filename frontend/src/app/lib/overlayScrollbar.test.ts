@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  intersectBox,
-  scrollForThumbOffset,
-  thumbMetrics,
-  thumbSize,
-} from "./overlayScrollbar";
+import { intersectBox, scrollForThumbOffset, thumbMetrics, thumbSize } from "./overlayScrollbar";
 
 describe("thumbMetrics", () => {
   it("stays empty when the content fits", () => {

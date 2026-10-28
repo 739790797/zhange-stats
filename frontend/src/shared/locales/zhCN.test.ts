@@ -12,15 +12,7 @@ describe("zhCN locale", () => {
     expect(datePickerLocale).not.toHaveProperty("default");
     expect(datePickerLocale.lang.locale).toBe("zh_CN");
     expect(datePickerLocale.lang.ok).toBe("确定");
-    expect(datePickerLocale.lang.shortWeekDays).toEqual([
-      "日",
-      "一",
-      "二",
-      "三",
-      "四",
-      "五",
-      "六",
-    ]);
+    expect(datePickerLocale.lang.shortWeekDays).toEqual(["日", "一", "二", "三", "四", "五", "六"]);
     expect(datePickerLocale.lang.shortMonths?.[11]).toBe("12月");
   });
 });

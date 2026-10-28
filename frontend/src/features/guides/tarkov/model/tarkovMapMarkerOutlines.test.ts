@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
-import {
-  hazardOutlineColor,
-  usableOutlinePoints,
-} from "./tarkovMapMarkerOutlines";
+import { hazardOutlineColor, usableOutlinePoints } from "./tarkovMapMarkerOutlines";
 
 describe("tarkov map marker outlines", () => {
   it("needs at least three finite x/z points", () => {
     expect(usableOutlinePoints(undefined)).toEqual([]);
-    expect(usableOutlinePoints([{ x: 1, z: 2 }, { x: 3, z: 4 }])).toEqual([]);
+    expect(
+      usableOutlinePoints([
+        { x: 1, z: 2 },
+        { x: 3, z: 4 },
+      ]),
+    ).toEqual([]);
     expect(
       usableOutlinePoints([
         { x: 1, z: 2 },

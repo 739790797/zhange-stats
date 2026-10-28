@@ -33,9 +33,7 @@ describe("articleDraft", () => {
     expect(articleDraftsEqual(a, b)).toBe(true);
     expect(articleDraftsEqual(a, c)).toBe(false);
     expect(canAutosaveDraft(articleDraftSnapshot({}))).toBe(false);
-    expect(canAutosaveDraft(articleDraftSnapshot({ body: "  hi  " }))).toBe(
-      true,
-    );
+    expect(canAutosaveDraft(articleDraftSnapshot({ body: "  hi  " }))).toBe(true);
   });
 
   it("fills untitled drafts", () => {
@@ -72,9 +70,7 @@ describe("articleDraft", () => {
 
   it("treats empty drafts as not dirty", () => {
     expect(articleDraftIsDirty(articleDraftSnapshot({}), null)).toBe(false);
-    expect(
-      articleDraftIsDirty(articleDraftSnapshot({ body: "x" }), null),
-    ).toBe(true);
+    expect(articleDraftIsDirty(articleDraftSnapshot({ body: "x" }), null)).toBe(true);
     const saved = articleDraftSnapshot({ title: "A", body: "x" });
     expect(articleDraftIsDirty(saved, saved)).toBe(false);
   });

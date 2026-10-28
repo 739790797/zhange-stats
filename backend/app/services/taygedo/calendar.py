@@ -13,12 +13,7 @@ def _reward_award(item: dict[str, Any]) -> dict[str, Any]:
     parsed = _item_award_dict(item)
     if parsed:
         return parsed
-    name = str(
-        item.get("name")
-        or item.get("rewardName")
-        or item.get("awardName")
-        or "奖励"
-    ).strip() or "奖励"
+    name = str(item.get("name") or item.get("rewardName") or item.get("awardName") or "奖励").strip() or "奖励"
     try:
         count = int(item.get("num") if item.get("num") is not None else item.get("count") or 1)
     except (TypeError, ValueError):
@@ -39,11 +34,7 @@ def parse_taygedo_attendance_calendar(
     """
     state = raw.get("state") if isinstance(raw.get("state"), dict) else {}
     rewards_raw = raw.get("rewards")
-    rewards = (
-        [x for x in rewards_raw if isinstance(x, dict)]
-        if isinstance(rewards_raw, list)
-        else []
-    )
+    rewards = [x for x in rewards_raw if isinstance(x, dict)] if isinstance(rewards_raw, list) else []
 
     try:
         claimed_days = max(0, int(state.get("days") or 0))

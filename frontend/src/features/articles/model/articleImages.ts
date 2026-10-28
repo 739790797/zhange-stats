@@ -59,11 +59,7 @@ function escapeAttr(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export function articleImageMarkup(
-  url: string,
-  format: ArticleBodyFormat,
-  alt = "",
-): string {
+export function articleImageMarkup(url: string, format: ArticleBodyFormat, alt = ""): string {
   if (format === "html") {
     return `<figure><img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}"></figure>\n`;
   }
@@ -123,9 +119,7 @@ export function classifyArticleUpload(file: File): ArticleUploadKind | null {
   return null;
 }
 
-export function filesFromList(
-  files: ArrayLike<File> | null | undefined,
-): File[] {
+export function filesFromList(files: ArrayLike<File> | null | undefined): File[] {
   if (!files?.length) return [];
   return Array.from(files);
 }
@@ -143,9 +137,7 @@ export function filesFromClipboard(data: DataTransfer | null): File[] {
   return out;
 }
 
-export function imageFilesFromList(
-  files: ArrayLike<File> | null | undefined,
-): File[] {
+export function imageFilesFromList(files: ArrayLike<File> | null | undefined): File[] {
   return filesFromList(files).filter(isArticleImageFile);
 }
 

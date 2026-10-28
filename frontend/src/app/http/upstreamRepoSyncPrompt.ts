@@ -13,9 +13,7 @@ export function isUpstreamRepoNotSyncedError(error: unknown): boolean {
   const response = (error as ApiErrorLike).response;
   const detailCode = response?.data?.detail?.code;
   const repoState = response?.headers?.["x-upstream-repo-state"];
-  return (
-    detailCode === UPSTREAM_REPO_NOT_SYNCED_CODE || repoState === "not-synced"
-  );
+  return detailCode === UPSTREAM_REPO_NOT_SYNCED_CODE || repoState === "not-synced";
 }
 
 export function upstreamRepoForResourcePath(pathname: string): string | null {

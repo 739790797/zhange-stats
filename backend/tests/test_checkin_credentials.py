@@ -242,9 +242,7 @@ def _platform(name: str) -> SimpleNamespace:
 
 @pytest.mark.parametrize("rebind", [False, True], ids=["refresh", "rebind"])
 @pytest.mark.parametrize("platform", ["mihoyo", "exilium", "kujiequ"])
-def test_checkin_writes_back_refreshed_token_unless_rebound(
-    monkeypatch, make_db, platform, rebind
-) -> None:
+def test_checkin_writes_back_refreshed_token_unless_rebound(monkeypatch, make_db, platform, rebind) -> None:
     from app.services.checkin.common import CheckinResult
     from app.services.checkin.orchestrator import run_checkin_for_bind
 

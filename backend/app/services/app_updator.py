@@ -69,9 +69,7 @@ PROTECTED_PREFIXES: tuple[str, ...] = (
 
 # 目录同步（增删改文件，保留 node_modules / dist 等运行时）。
 MERGE_TREES: tuple[str, ...] = ("frontend",)
-TREE_SKIP_NAMES: frozenset[str] = frozenset(
-    {"node_modules", "dist", ".git", ".venv", "__pycache__"}
-)
+TREE_SKIP_NAMES: frozenset[str] = frozenset({"node_modules", "dist", ".git", ".venv", "__pycache__"})
 
 _state_lock = threading.Lock()
 _progress: dict[str, Any] = {
@@ -430,9 +428,7 @@ async def fetch_releases(limit: int = 20, proxy: str | None = None) -> list[Rele
 async def fetch_release_by_tag(version: str, proxy: str | None = None) -> ReleaseInfo:
     ver = (version or "").strip()
     tag = ver if ver.startswith("v") else f"v{ver}"
-    data = await _fetch_github_json(
-        f"{_releases_api_url()}/tags/{quote(tag, safe='')}", proxy=proxy
-    )
+    data = await _fetch_github_json(f"{_releases_api_url()}/tags/{quote(tag, safe='')}", proxy=proxy)
     if not isinstance(data, dict) or not data.get("tag_name"):
         raise RuntimeError("GitHub Release 响应格式异常")
     rel = _parse_release(data)
@@ -495,11 +491,7 @@ async def check_update(
     settings = get_settings()
     releases = await fetch_releases(proxy=proxy)
     newest = latest_stable_release(releases)
-    latest = (
-        newest
-        if newest is not None and compare_version(newest.tag_name, settings.APP_VERSION) > 0
-        else None
-    )
+    latest = newest if newest is not None and compare_version(newest.tag_name, settings.APP_VERSION) > 0 else None
     if not (proxy or "").strip():
         _write_check_cache(latest, releases)
     return latest, releases
@@ -647,8 +639,7 @@ def _format_download_error(exc: BaseException) -> str:
         code = exc.response.status_code
         if code == 403:
             return (
-                "GitHub API 拒绝（403，常见于未登录限流）。"
-                "可在管理端「集成密钥」填写 GitHub Token 后重试，或稍后再试。"
+                "GitHub API 拒绝（403，常见于未登录限流）。可在管理端「集成密钥」填写 GitHub Token 后重试，或稍后再试。"
             )
         if code == 404:
             return "未找到 GitHub Release（404）。请确认 UPDATE_GITHUB_REPO 与目标 tag。"
@@ -657,8 +648,7 @@ def _format_download_error(exc: BaseException) -> str:
     if text.startswith("从 GitHub 下载被中断"):
         return text
     looks_truncated = isinstance(exc, IncompleteDownload) or any(
-        s in text.lower()
-        for s in ("incomplete", "peer closed", "connection reset", "connection aborted")
+        s in text.lower() for s in ("incomplete", "peer closed", "connection reset", "connection aborted")
     )
     if not looks_truncated:
         return text
@@ -876,9 +866,7 @@ async def download_release_files(
             )
         else:
             await _download(sums_asset.url, sums_path, proxy=proxy)
-        sums = parse_sha256sums(
-            await asyncio.to_thread(sums_path.read_text, encoding="utf-8", errors="replace")
-        )
+        sums = parse_sha256sums(await asyncio.to_thread(sums_path.read_text, encoding="utf-8", errors="replace"))
 
     static_name = _static_asset_name(target.tag_name)
     static_asset = target.assets.get(static_name)
@@ -1043,9 +1031,7 @@ def load_update_paths_from_extracted(
     merge = _union_rel_paths(parsed_merge or (), MERGE_TREES)
     merge_set = {p.rstrip("/") for p in merge}
     whitelist = tuple(
-        p
-        for p in _union_rel_paths(parsed_source or (), SOURCE_WHITELIST)
-        if p.rstrip("/") not in merge_set
+        p for p in _union_rel_paths(parsed_source or (), SOURCE_WHITELIST) if p.rstrip("/") not in merge_set
     )
     return whitelist, merge
 
@@ -1138,9 +1124,7 @@ def apply_source_tree(
 
 def apply_source_zip(zip_path: Path, install_dir: Path) -> list[str]:
     """Extract a source archive, then add/replace/delete whitelist paths in install_dir."""
-    with tempfile.TemporaryDirectory(
-        prefix="zhange-src-", dir=str(runtime_tmp_dir(install_dir))
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix="zhange-src-", dir=str(runtime_tmp_dir(install_dir))) as tmp:
         src_root = extract_source_archive(zip_path, Path(tmp) / "src")
         whitelist, merge = load_update_paths_from_extracted(src_root)
         return apply_source_tree(src_root, install_dir, whitelist, merge)
@@ -1276,10 +1260,7 @@ def run_install_migrations(install_dir: Path) -> None:
         return
     detail = (proc.stderr or proc.stdout or "").strip() or f"exit={proc.returncode}"
     logger.error("pre-restart migrate failed:\n%s", detail)
-    raise RuntimeError(
-        "数据库迁移失败，已中止重启以免服务挂死。"
-        f"详情: {detail[:2000]}"
-    )
+    raise RuntimeError(f"数据库迁移失败，已中止重启以免服务挂死。详情: {detail[:2000]}")
 
 
 def resolve_static_dir(install_dir: Path) -> Path:
@@ -1382,11 +1363,7 @@ def _run_pip(cmd: list[str], *, cwd: Path, progress_prefix: str) -> None:
 
 def requirements_stamp(backend_dir: Path) -> str:
     """``sha256sum``-format lines for requirements + constraints (host scripts write the same)."""
-    lines = [
-        f"{sha256_file(backend_dir / name)}  {name}"
-        for name in PIP_STAMP_FILES
-        if (backend_dir / name).is_file()
-    ]
+    lines = [f"{sha256_file(backend_dir / name)}  {name}" for name in PIP_STAMP_FILES if (backend_dir / name).is_file()]
     return "".join(f"{line}\n" for line in lines)
 
 
@@ -1432,10 +1409,7 @@ def pip_install_requirements(install_dir: Path, source_backend: Path | None = No
     subprocess.run(retired_pip_uninstall_cmd(python), check=False, cwd=str(backend))
 
 
-_HOST_REPAIR_HINT = (
-    "若库结构已半更新、管理端也无法再升，请在主机执行 "
-    "scripts/linux/update.sh 或 scripts/win/update.ps1"
-)
+_HOST_REPAIR_HINT = "若库结构已半更新、管理端也无法再升，请在主机执行 scripts/linux/update.sh 或 scripts/win/update.ps1"
 
 
 async def _apply_update_core(
@@ -1500,23 +1474,17 @@ async def _apply_update_core(
 
         whitelist, merge = load_update_paths_from_extracted(src_root)
         _set_progress(busy=True, phase="snapshot", message="备份当前代码（失败可回滚）…")
-        await asyncio.to_thread(
-            snapshot_source_paths, install_dir, rollback_dir, whitelist, merge
-        )
+        await asyncio.to_thread(snapshot_source_paths, install_dir, rollback_dir, whitelist, merge)
         try:
             _set_progress(busy=True, phase="apply", message="覆盖代码（白名单）…")
-            applied = await asyncio.to_thread(
-                apply_source_tree, src_root, install_dir, whitelist, merge
-            )
+            applied = await asyncio.to_thread(apply_source_tree, src_root, install_dir, whitelist, merge)
             logger.info("applied source paths: %s", applied)
             _set_progress(busy=True, phase="migrate", message="应用数据库迁移…")
             await asyncio.to_thread(run_install_migrations, install_dir)
         except Exception as exc:
             logger.exception("update apply/migrate failed; restoring previous source")
             try:
-                await asyncio.to_thread(
-                    restore_source_paths, install_dir, rollback_dir, whitelist, merge
-                )
+                await asyncio.to_thread(restore_source_paths, install_dir, rollback_dir, whitelist, merge)
             except Exception:
                 logger.exception("source rollback failed after update error")
                 msg = f"更新失败且代码回滚也失败: {exc}。{_HOST_REPAIR_HINT}"
@@ -1584,9 +1552,7 @@ async def apply_update(
     try:
         _set_progress(busy=True, phase="check", message="检查版本…", error="", target_version="")
         releases = await fetch_releases(proxy=proxy)
-        resolved = _resolve_target_release(
-            releases, version, settings.APP_VERSION, force=force
-        )
+        resolved = _resolve_target_release(releases, version, settings.APP_VERSION, force=force)
         if isinstance(resolved, UpdateResult):
             return resolved
         return await _apply_update_core(
@@ -1724,12 +1690,8 @@ async def install_static_only(*, proxy: str | None = None) -> UpdateResult:
     try:
         release = await fetch_release_by_tag(version, proxy=proxy)
         static_dir = resolve_static_dir(install_dir)
-        with tempfile.TemporaryDirectory(
-            prefix="zhange-static-", dir=str(runtime_tmp_dir(install_dir))
-        ) as tmp:
-            _, static_path = await download_release_files(
-                release, Path(tmp), proxy=proxy, need_source=False
-            )
+        with tempfile.TemporaryDirectory(prefix="zhange-static-", dir=str(runtime_tmp_dir(install_dir))) as tmp:
+            _, static_path = await download_release_files(release, Path(tmp), proxy=proxy, need_source=False)
             await asyncio.to_thread(apply_static_tar, static_path, static_dir)
         return UpdateResult(
             ok=True,

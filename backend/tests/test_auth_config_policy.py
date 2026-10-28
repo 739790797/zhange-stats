@@ -23,9 +23,7 @@ def test_effective_reject_explicit_false(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.setenv("APP_ENV", "production")
     get_settings.cache_clear()
-    assert not effective_reject_weak_admin_password(
-        {"reject_weak_admin_password": False}
-    )
+    assert not effective_reject_weak_admin_password({"reject_weak_admin_password": False})
     get_settings.cache_clear()
 
 

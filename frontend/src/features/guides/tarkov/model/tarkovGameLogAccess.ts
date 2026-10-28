@@ -26,7 +26,10 @@ import {
   isAssistantDir,
 } from "@/features/guides/tarkov/model/assistantTarkovDir";
 import { notifyTarkovLiveDirsChanged } from "@/features/guides/tarkov/model/tarkovLiveWatch";
-import { readTarkovLogText, type TarkovLogTextEntry } from "@/features/guides/tarkov/model/tarkovLogTextCache";
+import {
+  readTarkovLogText,
+  type TarkovLogTextEntry,
+} from "@/features/guides/tarkov/model/tarkovLogTextCache";
 
 const DB_NAME = "zhange-tarkov-game-logs";
 const DB_VERSION = 1;
@@ -130,10 +133,7 @@ type PickerWindow = Window & {
 type FileSystemObserverCtor = new (
   callback: (records: readonly FileSystemChangeRecord[]) => void,
 ) => {
-  observe: (
-    handle: ReadableDir,
-    opts?: { recursive?: boolean },
-  ) => void | Promise<void>;
+  observe: (handle: ReadableDir, opts?: { recursive?: boolean }) => void | Promise<void>;
   disconnect: () => void;
 };
 
@@ -162,8 +162,7 @@ export type TarkovScreenshotStub = {
 export function isFileSystemAccessSupported(): boolean {
   if (typeof window === "undefined") return false;
   return (
-    typeof (window as PickerWindow).showDirectoryPicker === "function" ||
-    hasAssistantTarkovFiles()
+    typeof (window as PickerWindow).showDirectoryPicker === "function" || hasAssistantTarkovFiles()
   );
 }
 
@@ -196,10 +195,7 @@ async function idbSet(key: string, value: unknown): Promise<void> {
   const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
-      const req = db
-        .transaction(STORE, "readwrite")
-        .objectStore(STORE)
-        .put(value, key);
+      const req = db.transaction(STORE, "readwrite").objectStore(STORE).put(value, key);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error || new Error("保存授权目录失败"));
     });
@@ -288,10 +284,7 @@ export async function saveScreenshotsDisplayPath(path: string): Promise<void> {
   await idbSet(SHOTS_PATH_KEY, path);
 }
 
-async function queryDirPermission(
-  handle: ReadableDir,
-  mode: FsMode,
-): Promise<FsPermission> {
+async function queryDirPermission(handle: ReadableDir, mode: FsMode): Promise<FsPermission> {
   if (typeof handle.queryPermission !== "function") return "granted";
   try {
     return await handle.queryPermission({ mode });
@@ -300,46 +293,33 @@ async function queryDirPermission(
   }
 }
 
-async function requestDirPermission(
-  handle: ReadableDir,
-  mode: FsMode,
-): Promise<FsPermission> {
+async function requestDirPermission(handle: ReadableDir, mode: FsMode): Promise<FsPermission> {
   if (typeof handle.requestPermission !== "function") return "granted";
   return handle.requestPermission({ mode });
 }
 
-export async function queryLogsDirPermission(
-  handle: ReadableDir,
-): Promise<FsPermission> {
+export async function queryLogsDirPermission(handle: ReadableDir): Promise<FsPermission> {
   return queryDirPermission(handle, "read");
 }
 
-export async function requestLogsDirPermission(
-  handle: ReadableDir,
-): Promise<FsPermission> {
+export async function requestLogsDirPermission(handle: ReadableDir): Promise<FsPermission> {
   return requestDirPermission(handle, "read");
 }
 
 /** 截图目录要能删已读文件；旧授权只有读权限时仍可定位。 */
-export async function queryScreenshotsDirPermission(
-  handle: ReadableDir,
-): Promise<FsPermission> {
+export async function queryScreenshotsDirPermission(handle: ReadableDir): Promise<FsPermission> {
   const write = await queryDirPermission(handle, "readwrite");
   if (write === "granted") return write;
   return queryDirPermission(handle, "read");
 }
 
-export async function requestScreenshotsDirPermission(
-  handle: ReadableDir,
-): Promise<FsPermission> {
+export async function requestScreenshotsDirPermission(handle: ReadableDir): Promise<FsPermission> {
   const write = await requestDirPermission(handle, "readwrite");
   if (write === "granted") return write;
   return requestDirPermission(handle, "read");
 }
 
-export async function screenshotsDirCanWrite(
-  handle: ReadableDir,
-): Promise<boolean> {
+export async function screenshotsDirCanWrite(handle: ReadableDir): Promise<boolean> {
   return (await queryDirPermission(handle, "readwrite")) === "granted";
 }
 
@@ -351,9 +331,7 @@ function requirePicker() {
   return picker;
 }
 
-export async function pickLogsDirectory(
-  startIn?: ReadableDir | null,
-): Promise<ReadableDir> {
+export async function pickLogsDirectory(startIn?: ReadableDir | null): Promise<ReadableDir> {
   if (assistantLogsBinding()) {
     if (!(await rebindAssistantLogs())) {
       throw new Error("请在战鸽助手里更换日志目录。");
@@ -369,9 +347,7 @@ export async function pickLogsDirectory(
   });
 }
 
-export async function pickScreenshotsDirectory(
-  startIn?: ReadableDir | null,
-): Promise<ReadableDir> {
+export async function pickScreenshotsDirectory(startIn?: ReadableDir | null): Promise<ReadableDir> {
   if (assistantScreenshotsBinding()) {
     if (!(await rebindAssistantScreenshots())) {
       throw new Error("请在战鸽助手里更换截图目录。");
@@ -402,8 +378,7 @@ export async function observeDirectory(
     for (const record of records) {
       const type = String(record.type || "");
       if (type && type !== "appeared" && type !== "modified") continue;
-      const name =
-        record.relativePathComponents?.[0] || record.changedHandle?.name || "";
+      const name = record.relativePathComponents?.[0] || record.changedHandle?.name || "";
       if (name && !isScreenshotFileName(name)) continue;
       if (name) appeared.push(name);
     }
@@ -504,9 +479,7 @@ async function walkDirectory(
   for (const wanted of segments) {
     const children = await listDirEntries(current);
     const hit = children.find(
-      (child) =>
-        child.kind === "directory" &&
-        child.name.toLowerCase() === wanted.toLowerCase(),
+      (child) => child.kind === "directory" && child.name.toLowerCase() === wanted.toLowerCase(),
     );
     if (!hit) return null;
     current = await current.getDirectoryHandle(hit.name);
@@ -533,9 +506,7 @@ export async function resolveLogsDir(handle: ReadableDir): Promise<ReadableDir> 
   return (await resolveLogsDirDetailed(handle)).dir;
 }
 
-export async function resolveLogsDirDetailed(
-  handle: ReadableDir,
-): Promise<ResolvedTarkovDir> {
+export async function resolveLogsDirDetailed(handle: ReadableDir): Promise<ResolvedTarkovDir> {
   const children = await listDirEntries(handle);
   const names = children.map((child) => child.name);
   const kind = classifyLogsRoot(names);
@@ -557,14 +528,10 @@ export async function resolveScreenshotsDirDetailed(
 ): Promise<ResolvedTarkovDir> {
   const children = await listDirEntries(handle);
   const names = children.map((child) => child.name);
-  const found = await resolveByWalks(
-    handle,
-    screenshotWalkCandidatesFrom(names),
-    (inner, walk) => {
-      if (inner.some((name) => isScreenshotFileName(name))) return true;
-      return (walk[walk.length - 1] || "").toLowerCase() === "screenshots";
-    },
-  );
+  const found = await resolveByWalks(handle, screenshotWalkCandidatesFrom(names), (inner, walk) => {
+    if (inner.some((name) => isScreenshotFileName(name))) return true;
+    return (walk[walk.length - 1] || "").toLowerCase() === "screenshots";
+  });
   if (found) return found;
   throw new Error(
     "这个目录里找不到截图。常见位置是「文档\\Escape from Tarkov\\Screenshots」。选择器会打开「文档」，选文档或 Escape from Tarkov 即可。",
@@ -708,9 +675,10 @@ function joinFingerprint(parts: string[]): string {
  * 一轮的快照：浏览器授权目录要 getFile 取 size/lastModified；战鸽助手的 list 已经给了这两项，
  * 就不再经桥读整份正文（2 秒一次轮询时读的正是整份日志）。
  */
-async function statSessionFile(
-  row: { handle: ReadableFile; listed?: ListedFileMeta },
-): Promise<TarkovLogSessionStat["files"][number]> {
+async function statSessionFile(row: {
+  handle: ReadableFile;
+  listed?: ListedFileMeta;
+}): Promise<TarkovLogSessionStat["files"][number]> {
   const { handle, listed } = row;
   if (listed?.size != null && listed.lastModified != null) {
     return {
@@ -849,10 +817,7 @@ export async function readScreenshotByName(
   }
 }
 
-async function listedFileMeta(
-  dir: ReadableDir,
-  name: string,
-): Promise<ListedFileMeta | null> {
+async function listedFileMeta(dir: ReadableDir, name: string): Promise<ListedFileMeta | null> {
   try {
     const entries = await listDirEntries(dir);
     const hit = entries.find((entry) => entry.kind === "file" && entry.name === name);
@@ -888,9 +853,7 @@ export async function listScreenshotFiles(
     .map((entry) => ({ name: entry.name, listed: entry.listed }));
 }
 
-export async function listScreenshotFileNames(
-  dir: ReadableDir,
-): Promise<string[]> {
+export async function listScreenshotFileNames(dir: ReadableDir): Promise<string[]> {
   return (await listScreenshotFiles(dir)).map((row) => row.name);
 }
 

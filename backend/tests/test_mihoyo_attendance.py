@@ -182,9 +182,7 @@ def test_query_game_signed_fills_awards_from_home(monkeypatch):
         "app.services.mihoyo.attendance.call_with_cookie_refresh",
         lambda _c, fn: fn(_c),
     )
-    signed, text, items = _query_game_signed(
-        _creds(), GAME_BIZ_META["hk4e_cn"], "cn_gf01", "123"
-    )
+    signed, text, items = _query_game_signed(_creds(), GAME_BIZ_META["hk4e_cn"], "cn_gf01", "123")
     assert signed is True
     assert text == "原石×20"
     assert items[0]["icon_url"] == "https://example.com/p.png"

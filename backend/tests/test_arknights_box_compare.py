@@ -207,9 +207,7 @@ def test_compare_rejects_malformed_params(db, monkeypatch, params) -> None:
 def test_compare_params_are_length_capped(db, monkeypatch) -> None:
     viewer, _me = _member(db, "me")
     client = _client(monkeypatch, db, viewer)
-    resp = client.get(
-        "/api/skland/arknights/box/compare", params={"member_ids": ",".join(["1"] * 200)}
-    )
+    resp = client.get("/api/skland/arknights/box/compare", params={"member_ids": ",".join(["1"] * 200)})
     assert resp.status_code == 422
 
 

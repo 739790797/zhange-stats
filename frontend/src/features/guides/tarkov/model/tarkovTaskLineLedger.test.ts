@@ -36,28 +36,14 @@ describe("setTaskLineStatus", () => {
 
   it("drops descendants from done/started when failing or clearing", () => {
     expect(
-      setTaskLineStatus(
-        ["pre", "child", "grand"],
-        ["side"],
-        "child",
-        "failed",
-        [],
-        line,
-      ),
+      setTaskLineStatus(["pre", "child", "grand"], ["side"], "child", "failed", [], line),
     ).toEqual({
       done: ["pre"],
       started: ["side"],
       failed: ["child"],
     });
     expect(
-      setTaskLineStatus(
-        ["pre", "child", "grand"],
-        ["child"],
-        "pre",
-        "todo",
-        ["unrelated"],
-        line,
-      ),
+      setTaskLineStatus(["pre", "child", "grand"], ["child"], "pre", "todo", ["unrelated"], line),
     ).toEqual({
       done: [],
       started: [],
@@ -66,16 +52,12 @@ describe("setTaskLineStatus", () => {
   });
 
   it("keeps only one mutex winner and drops blocked follow-ups", () => {
-    expect(
-      setTaskLineStatus(["chem", "curio", "big"], [], "chem", "done", [], line),
-    ).toEqual({
+    expect(setTaskLineStatus(["chem", "curio", "big"], [], "chem", "done", [], line)).toEqual({
       done: ["chem"],
       started: [],
       failed: ["curio", "big"],
     });
-    expect(
-      setTaskLineStatus(["price2"], ["bat1"], "bat1", "done", [], line),
-    ).toEqual({
+    expect(setTaskLineStatus(["price2"], ["bat1"], "bat1", "done", [], line)).toEqual({
       done: ["bat1"],
       started: [],
       failed: [],
@@ -85,28 +67,19 @@ describe("setTaskLineStatus", () => {
 
 describe("dropBlockedProgress", () => {
   it("removes tasks whose blockers are done or started", () => {
-    expect(
-      dropBlockedProgress(["price2", "keep"], [], ["price2"], line.blockedById),
-    ).toEqual({
+    expect(dropBlockedProgress(["price2", "keep"], [], ["price2"], line.blockedById)).toEqual({
       done: ["price2", "keep"],
       started: [],
       failed: ["price2"],
     });
     expect(
-      dropBlockedProgress(
-        ["bat1", "price2", "keep"],
-        [],
-        ["price2"],
-        line.blockedById,
-      ),
+      dropBlockedProgress(["bat1", "price2", "keep"], [], ["price2"], line.blockedById),
     ).toEqual({
       done: ["bat1", "keep"],
       started: [],
       failed: [],
     });
-    expect(
-      applyTaskLineLedger(["bat1", "price2"], ["price2"], ["price2"], line),
-    ).toEqual({
+    expect(applyTaskLineLedger(["bat1", "price2"], ["price2"], ["price2"], line)).toEqual({
       done: ["bat1"],
       started: [],
       failed: [],

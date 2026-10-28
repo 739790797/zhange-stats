@@ -1,7 +1,4 @@
-import {
-  parseFilterGroupsCollapsed,
-  type TarkovMapFilterGroupId,
-} from "./tarkovMapFilterGroups";
+import { parseFilterGroupsCollapsed, type TarkovMapFilterGroupId } from "./tarkovMapFilterGroups";
 import {
   defaultExtractKindFlags,
   TARKOV_EXTRACT_KINDS,
@@ -25,25 +22,19 @@ const STORAGE_KEY = "zhange.guides.tarkov.mapViewer.v1";
 export type TarkovMapOverlayMode = "all" | "boss-spawns" | "locks";
 
 /** 互动地图侧栏始终给出战利品父级开关；Boss/门锁 overlay 不提供。 */
-export function mapLootLayerTogglesVisible(
-  overlayMode: TarkovMapOverlayMode = "all",
-): boolean {
+export function mapLootLayerTogglesVisible(overlayMode: TarkovMapOverlayMode = "all"): boolean {
   return overlayMode === "all";
 }
 
 /** overlay 模式的固定开关要引用稳定，否则地图按开关重建图层的 effect 每次渲染都会跑。 */
-const OVERLAY_EXTRACTS_OFF: TarkovExtractKindFlags = Object.freeze(
-  defaultExtractKindFlags(false),
-);
+const OVERLAY_EXTRACTS_OFF: TarkovExtractKindFlags = Object.freeze(defaultExtractKindFlags(false));
 const OVERLAY_SPAWNS_BOSS_ONLY: TarkovSpawnKindFlags = Object.freeze({
   pmc: false,
   scav: false,
   sniper: false,
   boss: true,
 });
-const OVERLAY_SPAWNS_OFF: TarkovSpawnKindFlags = Object.freeze(
-  defaultSpawnKindFlags(false),
-);
+const OVERLAY_SPAWNS_OFF: TarkovSpawnKindFlags = Object.freeze(defaultSpawnKindFlags(false));
 
 export function overlayFlagsForMode(
   prefs: TarkovMapViewerPrefs,
@@ -197,10 +188,7 @@ function parseFloorsByMap(raw: unknown): Record<string, string> {
   return out;
 }
 
-function parseExtractKinds(
-  raw: unknown,
-  legacyShowExtracts: unknown,
-): TarkovExtractKindFlags {
+function parseExtractKinds(raw: unknown, legacyShowExtracts: unknown): TarkovExtractKindFlags {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const row = raw as Record<string, unknown>;
     const out = defaultExtractKindFlags(true);
@@ -213,10 +201,7 @@ function parseExtractKinds(
   return defaultExtractKindFlags(asBool(legacyShowExtracts, true));
 }
 
-function parseSpawnKinds(
-  raw: unknown,
-  legacyShowBosses: unknown,
-): TarkovSpawnKindFlags {
+function parseSpawnKinds(raw: unknown, legacyShowBosses: unknown): TarkovSpawnKindFlags {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const row = raw as Record<string, unknown>;
     const out = defaultSpawnKindFlags(true);
@@ -244,9 +229,7 @@ function emptyPrefs(): TarkovMapViewerPrefs {
   };
 }
 
-export function parseTarkovMapViewerPrefs(
-  raw: string | null,
-): TarkovMapViewerPrefs {
+export function parseTarkovMapViewerPrefs(raw: string | null): TarkovMapViewerPrefs {
   if (!raw) return emptyPrefs();
   try {
     const parsed = JSON.parse(raw) as Partial<TarkovMapViewerPrefs> & {
@@ -262,51 +245,22 @@ export function parseTarkovMapViewerPrefs(
         parsed.filterPanelOpen,
         DEFAULT_TARKOV_MAP_VIEWER_PREFS.filterPanelOpen,
       ),
-      filterGroupsCollapsed: parseFilterGroupsCollapsed(
-        parsed.filterGroupsCollapsed,
-      ),
+      filterGroupsCollapsed: parseFilterGroupsCollapsed(parsed.filterGroupsCollapsed),
       floorsByMap: parseFloorsByMap(parsed.floorsByMap),
-      extractKinds: parseExtractKinds(
-        parsed.extractKinds,
-        parsed.showExtracts,
-      ),
+      extractKinds: parseExtractKinds(parsed.extractKinds, parsed.showExtracts),
       spawnKinds: parseSpawnKinds(parsed.spawnKinds, parsed.showBosses),
-      showLabels: asBool(
-        parsed.showLabels,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLabels,
-      ),
-      showQuests: asBool(
-        parsed.showQuests,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showQuests,
-      ),
-      showLocks: asBool(
-        parsed.showLocks,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLocks,
-      ),
-      showHazards: asBool(
-        parsed.showHazards,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showHazards,
-      ),
-      showSwitches: asBool(
-        parsed.showSwitches,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showSwitches,
-      ),
-      showStationary: asBool(
-        parsed.showStationary,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showStationary,
-      ),
-      showBtrStops: asBool(
-        parsed.showBtrStops,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showBtrStops,
-      ),
+      showLabels: asBool(parsed.showLabels, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLabels),
+      showQuests: asBool(parsed.showQuests, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showQuests),
+      showLocks: asBool(parsed.showLocks, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLocks),
+      showHazards: asBool(parsed.showHazards, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showHazards),
+      showSwitches: asBool(parsed.showSwitches, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showSwitches),
+      showStationary: asBool(parsed.showStationary, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showStationary),
+      showBtrStops: asBool(parsed.showBtrStops, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showBtrStops),
       showLootContainers: asBool(
         parsed.showLootContainers,
         DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootContainers,
       ),
-      showLootLoose: asBool(
-        parsed.showLootLoose,
-        DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootLoose,
-      ),
+      showLootLoose: asBool(parsed.showLootLoose, DEFAULT_TARKOV_MAP_VIEWER_PREFS.showLootLoose),
       hazardKinds: parseKindFlags(parsed.hazardKinds),
       lootContainerKinds: parseKindFlags(parsed.lootContainerKinds),
       lootLooseKinds: parseKindFlags(parsed.lootLooseKinds),
@@ -355,9 +309,7 @@ export function resolveMapStyle(
 export function defaultShownFloorName(
   layers?: Array<{ name?: string; show?: boolean }> | null,
 ): string {
-  const shown = (layers || []).find(
-    (layer) => layer.show && (layer.name || "").trim(),
-  );
+  const shown = (layers || []).find((layer) => layer.show && (layer.name || "").trim());
   return (shown?.name || "").trim();
 }
 

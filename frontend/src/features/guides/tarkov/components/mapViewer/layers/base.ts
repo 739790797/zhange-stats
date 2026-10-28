@@ -3,12 +3,20 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { fetchTarkovMapSvg } from "@/features/guides/tarkov/api/guidesApi";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import { getBounds } from "@/features/guides/tarkov/model/tarkovMapCrs";
-import { mapBaseOffLevel, svgFloorGroupClasses } from "@/features/guides/tarkov/model/tarkovMapFloors";
-import { svgFallbackUrl, type TarkovDevMapLayer } from "@/features/guides/tarkov/model/tarkovMapImages";
+import {
+  mapBaseOffLevel,
+  svgFloorGroupClasses,
+} from "@/features/guides/tarkov/model/tarkovMapFloors";
+import {
+  svgFallbackUrl,
+  type TarkovDevMapLayer,
+} from "@/features/guides/tarkov/model/tarkovMapImages";
 import { sanitizeTarkovMapSvg } from "@/features/guides/tarkov/model/tarkovMapSvg";
-import { svgBasemapZoomLimit, svgOverlayScale } from "@/features/guides/tarkov/model/tarkovMapSvgOverlay";
+import {
+  svgBasemapZoomLimit,
+  svgOverlayScale,
+} from "@/features/guides/tarkov/model/tarkovMapSvgOverlay";
 import styles from "../../TarkovMapViewer.module.css";
 import { type MapRuntime, SVG_BASE_PANE } from "../runtime";
 
@@ -20,10 +28,7 @@ export function setSvgFloor(
 ) {
   const inner = root?.children[0];
   if (!root || !inner) return;
-  root.classList.toggle(
-    "off-level",
-    mapBaseOffLevel(floorId, keepBaseOpaque),
-  );
+  root.classList.toggle("off-level", mapBaseOffLevel(floorId, keepBaseOpaque));
   for (const child of Array.from(inner.children)) {
     if (child.nodeName.toLowerCase() !== "g") continue;
     const group = child as SVGGElement;
@@ -96,12 +101,7 @@ export function applyBasemapZoomCap(
   if (svg) {
     const nw = map.project(bounds.getNorthWest(), 0);
     const se = map.project(bounds.getSouthEast(), 0);
-    limit = svgBasemapZoomLimit(
-      Math.abs(se.x - nw.x),
-      Math.abs(se.y - nw.y),
-      tileMaxZoom,
-      minZoom,
-    );
+    limit = svgBasemapZoomLimit(Math.abs(se.x - nw.x), Math.abs(se.y - nw.y), tileMaxZoom, minZoom);
   }
   if (Math.abs(map.getMaxZoom() - limit) > 1e-6) map.setMaxZoom(limit);
   if (map.getZoom() > limit + 1e-6) map.setZoom(limit, { animate: false });
@@ -204,10 +204,7 @@ async function loadSvgElement(svgPath: string): Promise<SVGSVGElement> {
   throw lastError instanceof Error ? lastError : new Error("无法加载 SVG 地图");
 }
 
-export function setSvgBakedTextHidden(
-  root: SVGSVGElement | undefined,
-  hidden: boolean,
-) {
+export function setSvgBakedTextHidden(root: SVGSVGElement | undefined, hidden: boolean) {
   if (!root) return;
   if (hidden) root.setAttribute("data-hide-baked-text", "1");
   else root.removeAttribute("data-hide-baked-text");
@@ -218,9 +215,7 @@ export function attachPanPerfGuards(map: L.Map, wrapEl: HTMLElement) {
     /* 拖动中关掉气泡即可；Leaflet 在尚未 bind tooltip / 初次 fitBounds 时
        closeTooltip() 会读到 undefined.close，把整张底图初始化打崩。 */
     try {
-      const tooltip = (
-        map as unknown as { _tooltip?: { _close?: () => void } | null }
-      )._tooltip;
+      const tooltip = (map as unknown as { _tooltip?: { _close?: () => void } | null })._tooltip;
       if (tooltip && typeof tooltip._close === "function") {
         tooltip._close();
       }

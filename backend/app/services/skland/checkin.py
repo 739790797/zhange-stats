@@ -74,10 +74,10 @@ def _looks_like_skland_auth_error(message: str | None) -> bool:
     if not text:
         return False
     low = text.lower()
-    return any(
-        k in text
-        for k in ("未登录", "登录", "凭证", "cred", "token", "授权", "过期", "失效")
-    ) or "unauthorized" in low
+    return (
+        any(k in text for k in ("未登录", "登录", "凭证", "cred", "token", "授权", "过期", "失效"))
+        or "unauthorized" in low
+    )
 
 
 def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
@@ -110,9 +110,7 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
     return bind
 
 
-def bind_skland_with_password(
-    db: Session, member: Member, phone: str, password: str
-) -> SklandBind:
+def bind_skland_with_password(db: Session, member: Member, phone: str, password: str) -> SklandBind:
     from app.services.skland.client import token_by_phone_password
 
     return bind_skland(db, member, token_by_phone_password(phone, password))
@@ -237,9 +235,7 @@ def get_arknights_attendance_calendar_for_member(
 
         roles = skland_arknights_roles_from_raws(db, member.id)
     if roles is None:
-        roles = [
-            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS
-        ]
+        roles = [r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS]
     if not roles:
         raise SklandApiError("未找到明日方舟绑定角色")
     target_uid = str(uid or "").strip()
@@ -314,9 +310,7 @@ def get_arknights_attendance_calendar_for_member(
     if not isinstance(resp, dict):
         raise SklandApiError("签到日历数据格式异常，请刷新重试")
 
-    log_today, log_awards = _arknights_today_log_hint(
-        db, member_id=member.id, role_uid=role.uid
-    )
+    log_today, log_awards = _arknights_today_log_hint(db, member_id=member.id, role_uid=role.uid)
     parsed = parse_arknights_attendance_calendar(
         resp,
         fallback_has_today=True if log_today else None,
@@ -325,21 +319,15 @@ def get_arknights_attendance_calendar_for_member(
     return parsed, role, roles, row.synced_at, stale
 
 
-def invalidate_arknights_attendance_raws(
-    db: Session, member_id: int, *, uids: list[str] | None = None
-) -> None:
+def invalidate_arknights_attendance_raws(db: Session, member_id: int, *, uids: list[str] | None = None) -> None:
     """签到成功后丢弃日历 raw，下次打开页回源。"""
-    q = db.query(SklandAttendanceRaw).filter(
-        SklandAttendanceRaw.member_id == member_id
-    )
+    q = db.query(SklandAttendanceRaw).filter(SklandAttendanceRaw.member_id == member_id)
     if uids:
         q = q.filter(SklandAttendanceRaw.uid.in_(uids))
     q.delete(synchronize_session=False)
 
 
-def _endfield_today_log_hint(
-    db: Session, *, member_id: int, role_uid: str
-) -> bool:
+def _endfield_today_log_hint(db: Session, *, member_id: int, role_uid: str) -> bool:
     """今日本地签到日志是否已成功（供日历 hasToday 回退）。"""
     from app.services.checkin.common import SUCCESS_STATUSES
 
@@ -381,20 +369,14 @@ def get_endfield_attendance_calendar_for_member(
 
         roles = skland_endfield_roles_from_raws(db, member.id)
     if roles is None:
-        roles = [
-            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD
-        ]
+        roles = [r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD]
     if not roles:
         raise SklandApiError("未找到终末地绑定角色")
     target_uid = str(uid or "").strip()
     role = None
     if target_uid:
         role = next(
-            (
-                r
-                for r in roles
-                if r.uid == target_uid or r.role_id == target_uid
-            ),
+            (r for r in roles if r.uid == target_uid or r.role_id == target_uid),
             None,
         )
     else:
@@ -475,9 +457,7 @@ def get_endfield_attendance_calendar_for_member(
     if not isinstance(resp, dict):
         raise SklandApiError("签到日历数据格式异常，请刷新重试")
 
-    log_today = _endfield_today_log_hint(
-        db, member_id=member.id, role_uid=role.uid
-    )
+    log_today = _endfield_today_log_hint(db, member_id=member.id, role_uid=role.uid)
     parsed = parse_endfield_attendance_calendar(
         resp,
         fallback_has_today=True if log_today else None,
@@ -485,13 +465,9 @@ def get_endfield_attendance_calendar_for_member(
     return parsed, role, roles, row.synced_at, stale
 
 
-def invalidate_endfield_attendance_raws(
-    db: Session, member_id: int, *, uids: list[str] | None = None
-) -> None:
+def invalidate_endfield_attendance_raws(db: Session, member_id: int, *, uids: list[str] | None = None) -> None:
     """签到成功后丢弃终末地日历 raw，下次打开页回源。"""
-    q = db.query(EndfieldAttendanceRaw).filter(
-        EndfieldAttendanceRaw.member_id == member_id
-    )
+    q = db.query(EndfieldAttendanceRaw).filter(EndfieldAttendanceRaw.member_id == member_id)
     if uids:
         q = q.filter(EndfieldAttendanceRaw.uid.in_(uids))
     q.delete(synchronize_session=False)
@@ -518,20 +494,14 @@ def get_endfield_box_for_member(
 
         roles = skland_endfield_roles_from_raws(db, member.id)
     if roles is None:
-        roles = [
-            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD
-        ]
+        roles = [r for r in list_roles(_ensure_session()) if r.game_code == GAME_ENDFIELD]
     if not roles:
         raise SklandApiError("未找到终末地绑定角色")
     target_uid = str(uid or "").strip()
     role = None
     if target_uid:
         role = next(
-            (
-                r
-                for r in roles
-                if r.uid == target_uid or r.role_id == target_uid
-            ),
+            (r for r in roles if r.uid == target_uid or r.role_id == target_uid),
             None,
         )
     else:
@@ -636,9 +606,7 @@ def get_arknights_rogue_for_member(
 
         roles = skland_arknights_roles_from_raws(db, member.id)
     if roles is None:
-        roles = [
-            r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS
-        ]
+        roles = [r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS]
     if not roles:
         raise SklandApiError("未找到明日方舟绑定角色")
     target_uid = str(uid or "").strip()
@@ -759,9 +727,7 @@ def _lazy_session(db: Session, bind: SklandBind) -> Callable[[], SklandSession]:
     return get
 
 
-_EMPTY_ROLES_MSG = (
-    "未找到可签到的游戏角色（请确认已在森空岛绑定明日方舟 / 终末地）"
-)
+_EMPTY_ROLES_MSG = "未找到可签到的游戏角色（请确认已在森空岛绑定明日方舟 / 终末地）"
 
 
 class SklandCheckinAdapter(CheckinAdapterBase):
@@ -797,11 +763,7 @@ class SklandCheckinAdapter(CheckinAdapterBase):
     ) -> CheckinRunOutcome:
         roles = list_roles(session)
         if role_keys is not None:
-            roles = [
-                r
-                for r in roles
-                if matches_role_filter(r.game_code, r.uid, role_keys)
-            ]
+            roles = [r for r in roles if matches_role_filter(r.game_code, r.uid, role_keys)]
         if not roles:
             return CheckinRunOutcome(
                 session=session,
@@ -843,9 +805,7 @@ class SklandCheckinAdapter(CheckinAdapterBase):
                 already = "请勿重复签到" in msg or "重复签到" in msg
                 if already:
                     # B 服方舟：GET records 常空，重复签到不再回源补奖
-                    if role.game_code == GAME_ARKNIGHTS and _is_arknights_bilibili(
-                        role
-                    ):
+                    if role.game_code == GAME_ARKNIGHTS and _is_arknights_bilibili(role):
                         result = CheckinResult(
                             game_code=role.game_code,
                             game_name=role.game_name,
@@ -868,17 +828,12 @@ class SklandCheckinAdapter(CheckinAdapterBase):
                                 channel_name=role.channel_name,
                                 status="already",
                                 message=(
-                                    (result.awards_text or "")
-                                    if role.game_code == GAME_ARKNIGHTS
-                                    else "今日已签到"
+                                    (result.awards_text or "") if role.game_code == GAME_ARKNIGHTS else "今日已签到"
                                 ),
                                 awards_text=result.awards_text,
                                 awards=result.awards,
                             )
-                        elif (
-                            role.game_code == GAME_ARKNIGHTS
-                            and is_success_status(result.status)
-                        ):
+                        elif role.game_code == GAME_ARKNIGHTS and is_success_status(result.status):
                             # 方舟执行落库只保留 award
                             result = CheckinResult(
                                 game_code=result.game_code,
@@ -915,32 +870,18 @@ class SklandCheckinAdapter(CheckinAdapterBase):
             results.append(result)
         return CheckinRunOutcome(session=session, results=results)
 
-    def after_checkin(
-        self, db: Session, bind: SklandBind, results: list[CheckinResult]
-    ) -> None:
-        ak_uids = [
-            r.role_uid
-            for r in results
-            if r.game_code == GAME_ARKNIGHTS and is_success_status(r.status)
-        ]
+    def after_checkin(self, db: Session, bind: SklandBind, results: list[CheckinResult]) -> None:
+        ak_uids = [r.role_uid for r in results if r.game_code == GAME_ARKNIGHTS and is_success_status(r.status)]
         if ak_uids:
-            invalidate_arknights_attendance_raws(
-                db, bind.member_id, uids=ak_uids
-            )
-        ef_uids = [
-            r.role_uid
-            for r in results
-            if r.game_code == GAME_ENDFIELD and is_success_status(r.status)
-        ]
+            invalidate_arknights_attendance_raws(db, bind.member_id, uids=ak_uids)
+        ef_uids = [r.role_uid for r in results if r.game_code == GAME_ENDFIELD and is_success_status(r.status)]
         if ef_uids:
             invalidate_endfield_attendance_raws(db, bind.member_id, uids=ef_uids)
 
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)
 
-    def renew_session_after_auth_error(
-        self, db: Session, bind: SklandBind, exc: Exception
-    ) -> bool:
+    def renew_session_after_auth_error(self, db: Session, bind: SklandBind, exc: Exception) -> bool:
         # 缓存 cred 可能已被别处换票顶掉，hg token 仍可用：作废缓存，下一次 load_session 换票
         if not _looks_like_skland_auth_error(getattr(exc, "message", None) or str(exc)):
             return False
@@ -949,9 +890,7 @@ class SklandCheckinAdapter(CheckinAdapterBase):
         invalidate_skland_session(bind.member_id)
         return True
 
-    def prepare_cached_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult] | None:
+    def prepare_cached_results(self, results: list[CheckinResult]) -> list[CheckinResult] | None:
         from app.services.skland.awards import (
             arknights_result_needs_award_icons,
             enrich_arknights_award_icons,
@@ -972,18 +911,14 @@ class SklandCheckinAdapter(CheckinAdapterBase):
                 r.channel_name = localize_arknights_channel_name(r.channel_name)
         return sort_skland_results(results)
 
-    def normalize_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult]:
+    def normalize_results(self, results: list[CheckinResult]) -> list[CheckinResult]:
         return sort_skland_results(results)
 
 
 skland_adapter = SklandCheckinAdapter()
 
 
-def query_today_for_bind(
-    db: Session, bind: SklandBind, *, force: bool = False
-) -> dict[str, Any]:
+def query_today_for_bind(db: Session, bind: SklandBind, *, force: bool = False) -> dict[str, Any]:
     """今日签到状态（编排层）。
 
     用户展示路径应传 force=True（打开页始终回源官方）；force=False 时调度可读今日
@@ -1005,9 +940,7 @@ def run_checkin_for_bind(
 
     role_keys: 仅签这些 (game_code, role_uid)；None 表示全部（手动立即签到）。
     """
-    return _orch_run_checkin(
-        skland_adapter, db, bind, force=force, role_keys=role_keys
-    )
+    return _orch_run_checkin(skland_adapter, db, bind, force=force, role_keys=role_keys)
 
 
 def run_checkin_for_member(

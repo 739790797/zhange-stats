@@ -127,10 +127,7 @@ class SteamAdapter(BaseGameAdapter):
                 "steamids": ",".join(steam_ids),
             }
         )
-        url = (
-            "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
-            f"?{params}"
-        )
+        url = f"https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?{params}"
         try:
             resp = http_request(
                 "GET",
@@ -172,10 +169,7 @@ class SteamAdapter(BaseGameAdapter):
                 "format": "json",
             }
         )
-        url = (
-            "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
-            f"?{params}"
-        )
+        url = f"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?{params}"
         try:
             resp = http_request(
                 "GET",
@@ -200,8 +194,7 @@ class SteamAdapter(BaseGameAdapter):
             if not app_id or not icon_hash:
                 continue
             result[app_id] = (
-                "https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/"
-                f"{app_id}/{icon_hash}.jpg"
+                f"https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/{app_id}/{icon_hash}.jpg"
             )
         return result
 
@@ -216,9 +209,7 @@ class SteamAdapter(BaseGameAdapter):
                     persona_state=_int_or_none(p.get("personastate")),
                     game_id=str(game_id) if game_id else None,
                     game_extra_info=p.get("gameextrainfo"),
-                    avatar_url=p.get("avatarfull")
-                    or p.get("avatarmedium")
-                    or p.get("avatar"),
+                    avatar_url=p.get("avatarfull") or p.get("avatarmedium") or p.get("avatar"),
                 )
             )
         return result

@@ -306,11 +306,7 @@ def _require_room_locks(*public_ids: str) -> None:
     if not _in_room_tx():
         return
     held = _held_room_keys()
-    missing = {
-        key
-        for key in (normalize_public_id(pid) for pid in public_ids)
-        if key and key not in held
-    }
+    missing = {key for key in (normalize_public_id(pid) for pid in public_ids) if key and key not in held}
     if missing:
         raise _MissingRoomLocks(missing)
 
@@ -395,11 +391,7 @@ def slot_index(public_id: str) -> int:
     return int(matched.group(1)) if matched else 0
 
 
-SLOT_PUBLIC_IDS = tuple(
-    slot_public_id(n, mode)
-    for mode in SLOT_MODES
-    for n in range(1, SLOT_COUNT + 1)
-)
+SLOT_PUBLIC_IDS = tuple(slot_public_id(n, mode) for mode in SLOT_MODES for n in range(1, SLOT_COUNT + 1))
 
 
 def is_slot_public_id(public_id: str) -> bool:
@@ -449,9 +441,7 @@ def _clip_lobby_page(page: int | None, page_size: int | None) -> tuple[int, int]
     p = 1 if page is None else int(page)
     if p < 1:
         p = 1
-    size = (
-        LOBBY_PAGE_SIZE_DEFAULT if page_size is None else int(page_size)
-    )
+    size = LOBBY_PAGE_SIZE_DEFAULT if page_size is None else int(page_size)
     if size < 1:
         size = 1
     if size > LOBBY_PAGE_SIZE_MAX:
@@ -459,9 +449,7 @@ def _clip_lobby_page(page: int | None, page_size: int | None) -> tuple[int, int]
     return p, size
 
 
-def _clean_create_visibility(
-    listed: bool, password: str | None
-) -> tuple[bool, str]:
+def _clean_create_visibility(listed: bool, password: str | None) -> tuple[bool, str]:
     raw = (password or "").strip()
     if listed:
         if raw:
@@ -543,11 +531,7 @@ def _overlap_payload(
     overlap_input: list[dict[str, Any]] = []
     for row in occupants:
         uploaded, started = _load_started_ids(row)
-        visible = (
-            [tid for tid in started if tid in catalog_ids]
-            if catalog_ids is not None
-            else started
-        )
+        visible = [tid for tid in started if tid in catalog_ids] if catalog_ids is not None else started
         progress.append(
             {
                 "user_id": row.user_id,
@@ -563,11 +547,7 @@ def _overlap_payload(
                 "started_ids": visible if uploaded else [],
             }
         )
-    overlap = (
-        build_raid_room_map_overlap(overlap_input, catalogs, map_order)
-        if map_order
-        else []
-    )
+    overlap = build_raid_room_map_overlap(overlap_input, catalogs, map_order) if map_order else []
     return progress, overlap
 
 
@@ -867,11 +847,7 @@ def allocate_public_id(db: Session) -> str:
         pid = secrets.token_hex(PUBLIC_ID_LEN // 2)
         if pid in RESERVED_PUBLIC_IDS or is_slot_public_id(pid):
             continue
-        exists = (
-            db.query(TarkovRaidRoom.id)
-            .filter(TarkovRaidRoom.public_id == pid)
-            .first()
-        )
+        exists = db.query(TarkovRaidRoom.id).filter(TarkovRaidRoom.public_id == pid).first()
         if exists is None:
             return pid
     raise RaidRoomError("无法分配房间号", 503)
@@ -1000,9 +976,7 @@ def _map_key_scope(db: Session, game_mode: str, slug: str) -> set[str]:
         if hit is not None:
             return set(hit)
     with game_mode_scope(parse_game_mode(game_mode)):
-        ids = frozenset(map_key_ids(db, slug)) | frozenset(
-            raid_prep_key_ids_for_map(db, slug) or ()
-        )
+        ids = frozenset(map_key_ids(db, slug)) | frozenset(raid_prep_key_ids_for_map(db, slug) or ())
     if memo is not None:
         memo[key] = ids
     return set(ids)
@@ -1035,19 +1009,11 @@ def view_map_is_new(public_id: str, user_id: int) -> bool:
     slug = hub.view_map_of(public_id, int(user_id))
     if not slug:
         return False
-    return not any(
-        row["map_slug"] == slug
-        for row in hub.view_maps(public_id)
-        if int(row["user_id"]) != int(user_id)
-    )
+    return not any(row["map_slug"] == slug for row in hub.view_maps(public_id) if int(row["user_id"]) != int(user_id))
 
 
 def _wipe_board(db: Session, room_id: int) -> None:
-    (
-        db.query(TarkovRaidRoomMark)
-        .filter(TarkovRaidRoomMark.room_id == room_id)
-        .delete(synchronize_session=False)
-    )
+    (db.query(TarkovRaidRoomMark).filter(TarkovRaidRoomMark.room_id == room_id).delete(synchronize_session=False))
     (
         db.query(TarkovRaidRoomKeyBring)
         .filter(TarkovRaidRoomKeyBring.room_id == room_id)
@@ -1074,11 +1040,7 @@ def _dissolve_room(
     """最后一人离开或房主清空：擦掉画板/声明后删行，不留空桌。commit 后关掉房间所有 socket。"""
     _queue_close(db, room.public_id, final_event)
     _wipe_board(db, room.id)
-    (
-        db.query(TarkovRaidRoomMember)
-        .filter(TarkovRaidRoomMember.room_id == room.id)
-        .delete(synchronize_session=False)
-    )
+    (db.query(TarkovRaidRoomMember).filter(TarkovRaidRoomMember.room_id == room.id).delete(synchronize_session=False))
     room.host_user_id = None
     room.host_display_name = ""
     room.map_slug = ""
@@ -1091,12 +1053,7 @@ def _dissolve_room(
 
 
 def _room_alive(db: Session, room: TarkovRaidRoom) -> bool:
-    return (
-        db.query(TarkovRaidRoom.id)
-        .filter(TarkovRaidRoom.id == room.id)
-        .first()
-        is not None
-    )
+    return db.query(TarkovRaidRoom.id).filter(TarkovRaidRoom.id == room.id).first() is not None
 
 
 def _assign_host(room: TarkovRaidRoom, user: User) -> None:
@@ -1267,9 +1224,7 @@ def _serialize_room_preview(
     }
 
 
-def _with_view_map(
-    rows: list[dict[str, Any]], user_id: int, map_slug: str
-) -> list[dict[str, Any]]:
+def _with_view_map(rows: list[dict[str, Any]], user_id: int, map_slug: str) -> list[dict[str, Any]]:
     """把某人的查看图换成新值后重排；payload 与 hub 自己返回的形状一致。"""
     out = [row for row in rows if int(row["user_id"]) != int(user_id)]
     if map_slug:
@@ -1359,11 +1314,7 @@ def serialize_room(
             view_maps = _with_view_map(view_maps, int(viewer_id), viewer_map)
         else:
             viewer_map = next(
-                (
-                    str(row.get("map_slug") or "")
-                    for row in view_maps
-                    if int(row["user_id"]) == int(viewer_id)
-                ),
+                (str(row.get("map_slug") or "") for row in view_maps if int(row["user_id"]) == int(viewer_id)),
                 "",
             )
     can_edit = is_member and bool(viewer_map)
@@ -1384,9 +1335,7 @@ def serialize_room(
         "has_password": _room_password_set(room),
         "host_user_id": room.host_user_id,
         "host_display_name": (
-            names.get(room.host_user_id) or room.host_display_name
-            if room.host_user_id is not None
-            else ""
+            names.get(room.host_user_id) or room.host_display_name if room.host_user_id is not None else ""
         ),
         "created_at": _iso(room.created_at),
         "member_count": len(occupants),
@@ -1452,10 +1401,7 @@ def serialize_room(
             }
             for row in objective_dones
         ],
-        "marks": [
-            serialize_mark(row, names.get(row.author_user_id) or f"用户{row.author_user_id}")
-            for row in marks
-        ],
+        "marks": [serialize_mark(row, names.get(row.author_user_id) or f"用户{row.author_user_id}") for row in marks],
         "task_progress": progress,
         "map_overlap": map_overlap,
     }
@@ -1490,9 +1436,7 @@ def _lobby_occupant(
     }
 
 
-def _seated_members_by_room(
-    db: Session, room_ids: list[int]
-) -> dict[int, list[TarkovRaidRoomMember]]:
+def _seated_members_by_room(db: Session, room_ids: list[int]) -> dict[int, list[TarkovRaidRoomMember]]:
     """一次 IN 查询拿多间房的在座成员，按入座顺序（大厅列表以前每间房查一遍）。"""
     if not room_ids:
         return {}
@@ -1538,12 +1482,9 @@ def serialize_lobby_item(
     from app.services.tarkov.raid_room_hub import hub
 
     view_by_user = {
-        int(row.get("user_id") or 0): str(row.get("map_slug") or "")
-        for row in hub.view_maps(room.public_id)
+        int(row.get("user_id") or 0): str(row.get("map_slug") or "") for row in hub.view_maps(room.public_id)
     }
-    phase_by_user = {
-        int(row.get("user_id") or 0): row for row in hub.log_phases(room.public_id)
-    }
+    phase_by_user = {int(row.get("user_id") or 0): row for row in hub.log_phases(room.public_id)}
     return {
         "public_id": room.public_id,
         "title": room_display_title(room),
@@ -1614,9 +1555,7 @@ def _remove_member(db: Session, room: TarkovRaidRoom, row: TarkovRaidRoomMember)
     _queue_evict(db, room.public_id, uid)
 
 
-def _settle_room(
-    db: Session, room: TarkovRaidRoom, *, departed: Iterable[int]
-) -> dict[str, Any] | None:
+def _settle_room(db: Session, room: TarkovRaidRoom, *, departed: Iterable[int]) -> dict[str, Any] | None:
     """有人离座后：房主走了交给最早入座的人，没人了就解散。解散时返回最后一份快照。"""
     if not _room_alive(db, room):
         return None
@@ -1672,9 +1611,7 @@ def _vacate_other_slots(
             continue
         _remove_member(db, room, row)
         dissolved = _settle_room(db, room, departed=[user.id])
-        vacated.append(
-            dissolved if dissolved is not None else serialize_room(db, room, viewer=None)
-        )
+        vacated.append(dissolved if dissolved is not None else serialize_room(db, room, viewer=None))
     return vacated
 
 
@@ -1709,9 +1646,7 @@ def touch_member(
         if row is None:
             return
         seen = to_naive(row.last_seen_at) if row.last_seen_at else None
-        if seen is not None and stamp - seen < timedelta(
-            seconds=MEMBER_TOUCH_MIN_INTERVAL_SEC
-        ):
+        if seen is not None and stamp - seen < timedelta(seconds=MEMBER_TOUCH_MIN_INTERVAL_SEC):
             return
         row.last_seen_at = stamp
         db.flush()
@@ -1769,12 +1704,7 @@ def get_my_live_room(
     room_ids = _live_member_room_ids(db, viewer.id)
     if not room_ids:
         return None
-    rows = (
-        db.query(TarkovRaidRoom)
-        .filter(TarkovRaidRoom.id.in_(room_ids))
-        .order_by(TarkovRaidRoom.id.asc())
-        .all()
-    )
+    rows = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.id.in_(room_ids)).order_by(TarkovRaidRoom.id.asc()).all()
     # 一次 IN 查询数完所有房，再按顺序挑第一个还有人的（以前每行查一次 count）。
     counts = _active_member_counts(db, [int(row.id) for row in rows])
     live = [row for row in rows if counts.get(int(row.id), 0) > 0]
@@ -1819,11 +1749,7 @@ def prune_idle_rooms(
     if not room_ids:
         return
     online_map = online_by_public_id or {}
-    rows = (
-        db.query(TarkovRaidRoom)
-        .filter(TarkovRaidRoom.id.in_(room_ids))
-        .all()
-    )
+    rows = db.query(TarkovRaidRoom).filter(TarkovRaidRoom.id.in_(room_ids)).all()
     for row in rows:
         with room_lock(row.public_id):
             _prune_room_members(
@@ -1855,10 +1781,7 @@ def list_live_rooms(
             now=stamp,
             online_by_public_id=online_map,
         )
-    has_occupant = (
-        exists()
-        .where(TarkovRaidRoomMember.room_id == TarkovRaidRoom.id)
-    )
+    has_occupant = exists().where(TarkovRaidRoomMember.room_id == TarkovRaidRoom.id)
     q = db.query(TarkovRaidRoom).filter(
         TarkovRaidRoom.listed.is_(True),
         TarkovRaidRoom.game_mode == mode,
@@ -1870,12 +1793,7 @@ def list_live_rooms(
     )
     total = int(q.count())
     start = (page_n - 1) * size_n
-    sliced = (
-        q.order_by(TarkovRaidRoom.created_at.desc(), TarkovRaidRoom.id.desc())
-        .offset(start)
-        .limit(size_n)
-        .all()
-    )
+    sliced = q.order_by(TarkovRaidRoom.created_at.desc(), TarkovRaidRoom.id.desc()).offset(start).limit(size_n).all()
     mine_ids = _live_member_room_ids(db, viewer.id) if viewer is not None else set()
     counts = _active_member_counts(db, [int(row.id) for row in sliced])
     grouped = _seated_members_by_room(db, [int(row.id) for row in sliced])
@@ -1924,11 +1842,7 @@ def _room_key_owns(db: Session, room: TarkovRaidRoom) -> list[dict[str, Any]]:
     members = _seated_members(db, room.id)
     fallback = {int(row.user_id): row.display_name for row in members}
     names = _user_names(db, set(fallback), fallback)
-    brings = (
-        db.query(TarkovRaidRoomKeyBring.item_id)
-        .filter(TarkovRaidRoomKeyBring.room_id == room.id)
-        .all()
-    )
+    brings = db.query(TarkovRaidRoomKeyBring.item_id).filter(TarkovRaidRoomKeyBring.room_id == room.id).all()
     scope = _key_own_scope(
         db,
         room,
@@ -2150,10 +2064,7 @@ def join_room(
 def _locked_member_count(db: Session, room_id: int) -> int:
     """锁定读：多 worker 时也能数到别人刚提交的座位（SQLite 忽略 FOR UPDATE）。"""
     return len(
-        db.query(TarkovRaidRoomMember.user_id)
-        .filter(TarkovRaidRoomMember.room_id == room_id)
-        .with_for_update()
-        .all()
+        db.query(TarkovRaidRoomMember.user_id).filter(TarkovRaidRoomMember.room_id == room_id).with_for_update().all()
     )
 
 
@@ -2281,9 +2192,7 @@ def set_room_map(
     if not slug:
         raise RaidRoomError("地图无效")
     if _in_room_tx():
-        return serialize_room(
-            db, room, viewer=user, view_map_pending=(int(user.id), slug)
-        )
+        return serialize_room(db, room, viewer=user, view_map_pending=(int(user.id), slug))
     apply_view_map(room.public_id, user.id, slug)
     return serialize_room(db, room, viewer=user)
 
@@ -2314,6 +2223,7 @@ def claim_task(
     added = _insert_claim(db, room, user.id, tid, stamp, map_ids=map_ids)
     return serialize_room(db, room, viewer=user), added
 
+
 def claim_tasks(
     db: Session,
     public_id: str,
@@ -2342,9 +2252,7 @@ def claim_tasks(
         if map_ids is not None and tid not in map_ids:
             raise RaidRoomError("任务不属于本地图")
         try:
-            was = _insert_claim(
-                db, room, user.id, tid, stamp, map_ids=map_ids, state=state
-            )
+            was = _insert_claim(db, room, user.id, tid, stamp, map_ids=map_ids, state=state)
         except RaidRoomError as exc:
             if exc.status_code == 409 and "已满" in exc.message:
                 continue
@@ -2389,9 +2297,7 @@ class _ClaimState:
             .filter(TarkovRaidRoomTaskClaim.room_id == room_id)
             .all()
         )
-        self.pairs: set[tuple[str, int]] = {
-            (str(task_id), int(user_id)) for task_id, user_id in rows
-        }
+        self.pairs: set[tuple[str, int]] = {(str(task_id), int(user_id)) for task_id, user_id in rows}
         self.tasks: set[str] = {task_id for task_id, _user_id in self.pairs}
         self.map_ids = map_ids
         self.unique = self._count_unique()
@@ -2584,12 +2490,9 @@ def mark_objectives_done(
         .all()
     )
     mine: set[tuple[str, str, int]] = {
-        (str(task_id), str(objective_id), int(user_id))
-        for task_id, objective_id, user_id in rows
+        (str(task_id), str(objective_id), int(user_id)) for task_id, objective_id, user_id in rows
     }
-    unique_pairs: set[tuple[str, str]] = {
-        (task_id, objective_id) for task_id, objective_id, _user_id in mine
-    }
+    unique_pairs: set[tuple[str, str]] = {(task_id, objective_id) for task_id, objective_id, _user_id in mine}
     unique = len(unique_pairs)
     for tid, oid in cleaned:
         if (tid, oid, user.id) in mine:
@@ -2624,9 +2527,7 @@ def mark_objective_done(
     *,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    snap, added = mark_objectives_done(
-        db, public_id, user, [(task_id, objective_id)], now=now
-    )
+    snap, added = mark_objectives_done(db, public_id, user, [(task_id, objective_id)], now=now)
     return snap, bool(added)
 
 
@@ -2707,10 +2608,7 @@ def add_mark(
     if mark_kind == MARK_TEXT and _mark_count(db, room.id, MARK_TEXT, slug) >= MAX_TEXTS:
         raise RaidRoomError("文字已满", 409)
     if (
-        db.query(func.count())
-        .select_from(TarkovRaidRoomMark)
-        .filter(TarkovRaidRoomMark.room_id == room.id)
-        .scalar()
+        db.query(func.count()).select_from(TarkovRaidRoomMark).filter(TarkovRaidRoomMark.room_id == room.id).scalar()
         or 0
     ) >= MAX_ROOM_MARKS:
         # 分图上限之外再加整房总量，否则每换一张图都能把画板堆满，快照随地图数膨胀。

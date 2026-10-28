@@ -143,8 +143,7 @@ export default function AuthSettingsPage() {
   };
 
   const submitPolicy = async (values: PolicyForm) => {
-    const reject =
-      values.reject_mode === "follow" ? null : values.reject_mode === "reject";
+    const reject = values.reject_mode === "follow" ? null : values.reject_mode === "reject";
     const payload: AuthSettingsUpdate = {
       min_password_length: values.min_password_length,
       reject_weak_admin_password: reject,
@@ -171,7 +170,8 @@ export default function AuthSettingsPage() {
       content: (
         <>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
-            保存后以下 {demoted.length} 名管理员会被降为普通用户；之后再给别人提权，也会自动降级其他管理员。
+            保存后以下 {demoted.length}{" "}
+            名管理员会被降为普通用户；之后再给别人提权，也会自动降级其他管理员。
           </Typography.Paragraph>
           <ul style={{ paddingLeft: 20, margin: 0 }}>
             {demoted.map((a) => (
@@ -258,11 +258,7 @@ export default function AuthSettingsPage() {
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={saveSession.isPending}
-          >
+          <Button type="primary" htmlType="submit" loading={saveSession.isPending}>
             保存
           </Button>
           {data ? (
@@ -299,9 +295,7 @@ export default function AuthSettingsPage() {
             extra={
               data
                 ? `当前生效：${
-                    data.reject_weak_admin_password_effective
-                      ? "拒绝启动"
-                      : "仅警告"
+                    data.reject_weak_admin_password_effective ? "拒绝启动" : "仅警告"
                   }（环境 ${data.app_env || "development"}）`
                 : undefined
             }
@@ -325,11 +319,7 @@ export default function AuthSettingsPage() {
           >
             <Switch />
           </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={savePolicy.isPending}
-          >
+          <Button type="primary" htmlType="submit" loading={savePolicy.isPending}>
             保存策略
           </Button>
         </Form>
@@ -352,17 +342,9 @@ export default function AuthSettingsPage() {
             extra="展示在全站页脚（登录页与工作台各页），点进工信部查询页。留空则不展示。自托管请填本站自己的号。"
             rules={[{ max: 64, message: "最多 64 字" }]}
           >
-            <Input
-              placeholder="例如 浙ICP备xxxxxxxx号"
-              maxLength={64}
-              allowClear
-            />
+            <Input placeholder="例如 浙ICP备xxxxxxxx号" maxLength={64} allowClear />
           </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={saveSite.isPending}
-          >
+          <Button type="primary" htmlType="submit" loading={saveSite.isPending}>
             保存备案号
           </Button>
         </Form>
@@ -374,11 +356,7 @@ export default function AuthSettingsPage() {
         style={cardStyle}
         extra={
           <Space size={8}>
-            <Button
-              size="small"
-              loading={weakChecking}
-              onClick={() => void recheckWeak()}
-            >
+            <Button size="small" loading={weakChecking} onClick={() => void recheckWeak()}>
               重新检查弱口令
             </Button>
             <Link to="/settings/users">用户管理</Link>
@@ -417,9 +395,7 @@ export default function AuthSettingsPage() {
               )}
             </div>
           ))}
-          {!admins.length ? (
-            <Typography.Text type="secondary">暂无管理员</Typography.Text>
-          ) : null}
+          {!admins.length ? <Typography.Text type="secondary">暂无管理员</Typography.Text> : null}
         </Space>
       </Card>
     </div>

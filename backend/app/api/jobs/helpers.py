@@ -37,11 +37,7 @@ def _fmt_dt(value: datetime | None) -> str | None:
 
 def _describe_trigger(trigger: Any) -> tuple[str, str]:
     if isinstance(trigger, CronTrigger):
-        fields = {
-            f.name: str(f)
-            for f in trigger.fields
-            if f.name in {"hour", "minute", "day", "day_of_week", "month"}
-        }
+        fields = {f.name: str(f) for f in trigger.fields if f.name in {"hour", "minute", "day", "day_of_week", "month"}}
         hour = fields.get("hour", "*")
         minute = fields.get("minute", "*")
         if hour.isdigit() and minute.isdigit():
@@ -61,20 +57,13 @@ def _describe_trigger(trigger: Any) -> tuple[str, str]:
         else:
             schedule = f"每 {seconds} 秒"
         return "interval", schedule
-    return type(trigger).__name__.replace("Trigger", "").lower() or "unknown", str(
-        trigger
-    )
+    return type(trigger).__name__.replace("Trigger", "").lower() or "unknown", str(trigger)
 
 
 def _last_runs_by_key(db: Session, keys: list[str]) -> dict[str, JobRun]:
     out: dict[str, JobRun] = {}
     for key in dict.fromkeys(keys):
-        row = (
-            db.query(JobRun)
-            .filter(JobRun.job_key == key)
-            .order_by(desc(JobRun.started_at), desc(JobRun.id))
-            .first()
-        )
+        row = db.query(JobRun).filter(JobRun.job_key == key).order_by(desc(JobRun.started_at), desc(JobRun.id)).first()
         if row is not None:
             out[key] = row
     return out
@@ -106,12 +95,7 @@ def _bind_model(platform: str):
 def _member_label(member) -> str:
     user = getattr(member, "user", None)
     if user is not None:
-        return (
-            user.display_name
-            or user.email
-            or user.username
-            or f"user#{user.id}"
-        )
+        return user.display_name or user.email or user.username or f"user#{user.id}"
     return member.nickname or f"member#{member.id}"
 
 
@@ -139,11 +123,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         kind = str(meta.get("kind") or "cron")
         platform = str(meta.get("platform") or "") or None
         feature_id = JOB_FEATURE_IDS.get(job_id)
-        enabled = (
-            is_feature_enabled(db, feature_id)
-            if feature_id
-            else bool(job_cfg.get("enabled"))
-        )
+        enabled = is_feature_enabled(db, feature_id) if feature_id else bool(job_cfg.get("enabled"))
         if job_id == "steam_presence" and enabled and not steam_key:
             pass
         elif kind == "user_schedule":
@@ -165,10 +145,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         interval_out = None
         timeout_out = None
         if job_id in UPSTREAM_REPO_JOB_IDS:
-            timeout_out = int(
-                job_cfg.get("timeout_minutes")
-                or DEFAULT_REPO_SYNC_TIMEOUT_MINUTES
-            )
+            timeout_out = int(job_cfg.get("timeout_minutes") or DEFAULT_REPO_SYNC_TIMEOUT_MINUTES)
         if kind == "interval":
             default = 3 if job_id == "steam_presence" else 1
             interval_out = int(job_cfg.get("interval_minutes") or default)
@@ -184,11 +161,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
                 kind=kind,
                 platform=platform,
                 sync_category=meta.get("sync_category") or category_for_job(job_id),
-                cli_command=(
-                    f"python -m app.cli run-job {job_id}"
-                    if category_for_job(job_id) is not None
-                    else None
-                ),
+                cli_command=(f"python -m app.cli run-job {job_id}" if category_for_job(job_id) is not None else None),
                 executor_id=APP_EXECUTOR_ID,
                 registered=job is not None,
                 scheduler_running=running,
@@ -226,11 +199,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
             )
         )
 
-    platforms = [
-        ExecutorOut(id=str(m["platform"]), name=str(m["name"]))
-        for m in JOB_CATALOG
-        if m.get("platform")
-    ]
+    platforms = [ExecutorOut(id=str(m["platform"]), name=str(m["name"])) for m in JOB_CATALOG if m.get("platform")]
 
     return ScheduledJobsOut(
         scheduler_running=running,

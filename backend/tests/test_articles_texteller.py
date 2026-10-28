@@ -107,18 +107,18 @@ def test_ensure_skips_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_hf_endpoint_defaults_to_mirror() -> None:
     assert texteller_svc.resolve_hf_endpoint("") == "https://hf-mirror.com"
     assert texteller_svc.resolve_hf_endpoint("  ") == "https://hf-mirror.com"
-    assert (
-        texteller_svc.resolve_hf_endpoint("https://huggingface.co/")
-        == "https://huggingface.co"
-    )
+    assert texteller_svc.resolve_hf_endpoint("https://huggingface.co/") == "https://huggingface.co"
     assert texteller_svc.hf_model_api_url("https://hf-mirror.com") == (
         "https://hf-mirror.com/api/models/OleehyO/TexTeller"
     )
-    assert texteller_svc.hf_file_url(
-        "https://hf-mirror.com",
-        "abc",
-        "encoder_model.onnx",
-    ) == "https://hf-mirror.com/OleehyO/TexTeller/resolve/abc/encoder_model.onnx"
+    assert (
+        texteller_svc.hf_file_url(
+            "https://hf-mirror.com",
+            "abc",
+            "encoder_model.onnx",
+        )
+        == "https://hf-mirror.com/OleehyO/TexTeller/resolve/abc/encoder_model.onnx"
+    )
 
 
 def test_fetch_remote_revision_uses_json(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,9 +146,7 @@ def test_fetch_remote_revision_keeps_reason(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_progress_helpers() -> None:
-    assert texteller_svc.parse_tqdm_filename("Downloading encoder_model.onnx") == (
-        "encoder_model.onnx"
-    )
+    assert texteller_svc.parse_tqdm_filename("Downloading encoder_model.onnx") == ("encoder_model.onnx")
     assert texteller_svc.parse_tqdm_filename("foo/bar.onnx: 12%") == "bar.onnx"
     assert (
         texteller_svc.compute_download_percent(
@@ -263,18 +261,14 @@ def test_hf_get_json_maps_http_status(monkeypatch: pytest.MonkeyPatch) -> None:
         def json(self):
             return {}
 
-    monkeypatch.setattr(
-        texteller_svc, "http_request", lambda *_a, **_k: _Resp()
-    )
+    monkeypatch.setattr(texteller_svc, "http_request", lambda *_a, **_k: _Resp())
     with pytest.raises(ArticleError) as exc:
         texteller_svc.hf_get_json("https://example.test/api")
     assert exc.value.status_code == 502
     assert "HTTP 502" in exc.value.message
 
 
-def test_download_progress_never_double_counts_finished_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_download_progress_never_double_counts_finished_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from contextlib import contextmanager
 
     bodies = {"a.bin": [b"ab", b"cd"], "b.bin": [b"efg", b"hij"]}
@@ -293,15 +287,11 @@ def test_download_progress_never_double_counts_finished_files(
         yield _Resp(bodies[url.rsplit("/", 1)[-1]])
 
     monkeypatch.setattr(texteller_svc, "apply_hf_endpoint", lambda: "https://hf.test")
-    monkeypatch.setattr(
-        texteller_svc, "fetch_remote_meta", lambda _rev: ("sha", [("a.bin", 4), ("b.bin", 6)])
-    )
+    monkeypatch.setattr(texteller_svc, "fetch_remote_meta", lambda _rev: ("sha", [("a.bin", 4), ("b.bin", 6)]))
     monkeypatch.setattr(texteller_svc, "hf_file_url", lambda _ep, _rev, name: f"https://hf.test/{name}")
     monkeypatch.setattr(texteller_svc, "http_stream", fake_stream)
     seen: list[int] = []
-    texteller_svc.download_models(
-        "sha", tmp_path, progress=lambda _msg, stats: seen.append(int(stats["bytes"]))
-    )
+    texteller_svc.download_models("sha", tmp_path, progress=lambda _msg, stats: seen.append(int(stats["bytes"])))
     assert (tmp_path / "b.bin").read_bytes() == b"efghij"
     assert max(seen) == 10
     assert seen == sorted(seen)
@@ -326,9 +316,7 @@ def test_recognize_takes_single_slot_before_decoding(monkeypatch: pytest.MonkeyP
     texteller_svc._RECOGNIZE_SLOTS.release()
 
 
-def test_onnx_runtime_builds_once_under_concurrency(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_onnx_runtime_builds_once_under_concurrency(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import threading
     import time
 

@@ -50,12 +50,7 @@ class KujiequCredentials:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> KujiequCredentials:
-        token = str(
-            data.get("token")
-            or data.get("access_token")
-            or data.get("user_token")
-            or ""
-        ).strip()
+        token = str(data.get("token") or data.get("access_token") or data.get("user_token") or "").strip()
         if not token:
             raise KujiequApiError("缺少 token，请粘贴库街区登录 token")
         return cls(
@@ -63,12 +58,8 @@ class KujiequCredentials:
             user_id=str(data.get("user_id") or data.get("userId") or "").strip(),
             user_name=str(data.get("user_name") or data.get("userName") or "").strip(),
             phone=str(data.get("phone") or data.get("mobile") or "").strip(),
-            refresh_token=str(
-                data.get("refresh_token") or data.get("refreshToken") or ""
-            ).strip(),
-            distinct_id=str(
-                data.get("distinct_id") or data.get("distinctId") or ""
-            ).strip(),
+            refresh_token=str(data.get("refresh_token") or data.get("refreshToken") or "").strip(),
+            distinct_id=str(data.get("distinct_id") or data.get("distinctId") or "").strip(),
             dev_code=str(data.get("dev_code") or data.get("devCode") or "").strip(),
         )
 
@@ -135,9 +126,7 @@ def _post_form(
     timeout: int = 25,
 ) -> dict[str, Any]:
     url = f"{API_BASE}{path}"
-    body = urllib.parse.urlencode(
-        {k: "" if v is None else str(v) for k, v in form.items()}
-    ).encode("utf-8")
+    body = urllib.parse.urlencode({k: "" if v is None else str(v) for k, v in form.items()}).encode("utf-8")
     try:
         resp = http_request(
             "POST",
@@ -241,9 +230,7 @@ def login_with_sms(phone: str, code: str) -> KujiequCredentials:
 
 
 def login_with_token(token: str, *, phone: str = "") -> KujiequCredentials:
-    creds = _ensure_device(
-        KujiequCredentials(token=(token or "").strip(), phone=(phone or "").strip())
-    )
+    creds = _ensure_device(KujiequCredentials(token=(token or "").strip(), phone=(phone or "").strip()))
     if not creds.token:
         raise KujiequApiError("请填写 token")
     mine = fetch_mine(creds)
@@ -407,9 +394,7 @@ def _parse_commodity(row: dict[str, Any]) -> CommodityItem | None:
         commodity_name=name,
         commodity_price=_to_int(row.get("commodityPrice") or row.get("commodity_price"), 0),
         commodity_type=_to_int(row.get("commodityType") or row.get("commodity_type"), 0),
-        commodity_status=_to_int(
-            row.get("commodityStatus") or row.get("commodity_status"), 0
-        ),
+        commodity_status=_to_int(row.get("commodityStatus") or row.get("commodity_status"), 0),
         game_id=game_id,
         game_name=str(
             row.get("gameName")
@@ -418,28 +403,17 @@ def _parse_commodity(row: dict[str, Any]) -> CommodityItem | None:
             or (f"游戏{game_id}" if game_id else "库街区")
         ).strip(),
         picture_url=str(row.get("pictureUrl") or row.get("picture_url") or "").strip(),
-        commodity_desc=str(
-            row.get("commodityDesc") or row.get("commodity_desc") or ""
-        ).strip(),
-        commodity_limit=_to_int(
-            row.get("commodityLimit") or row.get("commodity_limit"), 0
-        ),
+        commodity_desc=str(row.get("commodityDesc") or row.get("commodity_desc") or "").strip(),
+        commodity_limit=_to_int(row.get("commodityLimit") or row.get("commodity_limit"), 0),
         current_user_limit_buy=_to_int(
             row.get("currentUserLimitBuy") or row.get("current_user_limit_buy"),
             0,
         ),
         total_stock=_to_int(row.get("totalStock") or row.get("total_stock"), 0),
-        total_surplus_stock=_to_int(
-            row.get("totalSurplusStock") or row.get("total_surplus_stock"), 0
-        ),
+        total_surplus_stock=_to_int(row.get("totalSurplusStock") or row.get("total_surplus_stock"), 0),
         is_sellout=bool(row.get("isSellout") or row.get("is_sellout")),
-        sale_time_ms=(
-            _to_int(row.get("saleTime") or row.get("sale_time"), 0) or None
-        ),
-        off_shelve_time_ms=(
-            _to_int(row.get("offShelveTime") or row.get("off_shelve_time"), 0)
-            or None
-        ),
+        sale_time_ms=(_to_int(row.get("saleTime") or row.get("sale_time"), 0) or None),
+        off_shelve_time_ms=(_to_int(row.get("offShelveTime") or row.get("off_shelve_time"), 0) or None),
     )
 
 
@@ -480,11 +454,7 @@ def list_commodities(
                 )
                 break
             payload = data.get("data") or {}
-            rows = (
-                payload.get("commodityList")
-                if isinstance(payload, dict)
-                else None
-            )
+            rows = payload.get("commodityList") if isinstance(payload, dict) else None
             if not isinstance(rows, list) or not rows:
                 break
             for row in rows:

@@ -2,7 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
 import { Modal, message } from "antd";
 import { useState } from "react";
-import { exchangeExiliumItem, fetchExiliumExchange, fetchExiliumStatus } from "@/features/platforms/exilium/api/exiliumApi";
+import {
+  exchangeExiliumItem,
+  fetchExiliumExchange,
+  fetchExiliumStatus,
+} from "@/features/platforms/exilium/api/exiliumApi";
 import type { ExiliumExchangeItem } from "@/features/platforms/exilium/api/types";
 import { ExiliumBindPanel } from "@/features/platforms/exilium/components/ExiliumBindPanel";
 import { ExchangeGoodsCard } from "@/features/platforms/shared/components/ExchangeGoodsCard";
@@ -104,8 +108,7 @@ export function ExiliumExchangePanel() {
         });
         return sorted.map((item) => {
           const soldOut =
-            item.max_exchange_count > 0 &&
-            item.exchange_count >= item.max_exchange_count;
+            item.max_exchange_count > 0 && item.exchange_count >= item.max_exchange_count;
           const notEnough = score < item.use_score;
           const cycleLabel = CYCLE_LABEL[item.cycle] || "限购";
           const remain = formatRemain(item.remain_seconds);
@@ -120,11 +123,7 @@ export function ExiliumExchangePanel() {
               loading={pendingId === item.exchange_id}
               buttonColor="#4a4a4a"
               buttonLabel={
-                soldOut
-                  ? "已兑完"
-                  : notEnough
-                    ? `积分不足 · ${item.use_score}`
-                    : item.use_score
+                soldOut ? "已兑完" : notEnough ? `积分不足 · ${item.use_score}` : item.use_score
               }
               onClick={() => confirmExchange(item, score)}
             />

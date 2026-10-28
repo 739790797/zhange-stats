@@ -20,8 +20,17 @@ import {
   message,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
-import { fetchJobRuns, fetchScheduledJobs, triggerScheduledJob, type JobRun } from "@/features/admin/api/jobsApi";
-import { fetchPlatformFeaturesAdmin, updatePlatformFeatures, type PlatformFeatureNode } from "@/features/platforms/shared/api/platformFeaturesApi";
+import {
+  fetchJobRuns,
+  fetchScheduledJobs,
+  triggerScheduledJob,
+  type JobRun,
+} from "@/features/admin/api/jobsApi";
+import {
+  fetchPlatformFeaturesAdmin,
+  updatePlatformFeatures,
+  type PlatformFeatureNode,
+} from "@/features/platforms/shared/api/platformFeaturesApi";
 import { JobRunResultModal } from "@/features/admin/components/JobRunResultModal";
 import { JobRunHistoryModal } from "@/features/admin/components/JobRunHistoryModal";
 import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
@@ -60,10 +69,7 @@ function collectFlags(nodes: PlatformFeatureNode[], out: DraftFlags = {}) {
   return out;
 }
 
-function collectReservedIds(
-  nodes: PlatformFeatureNode[],
-  out: Set<string> = new Set(),
-) {
+function collectReservedIds(nodes: PlatformFeatureNode[], out: Set<string> = new Set()) {
   for (const node of nodes) {
     if (node.reserved) out.add(node.id);
     if (node.children?.length) collectReservedIds(node.children, out);
@@ -126,8 +132,7 @@ function FeatureRow({
   const canEdit = parentOk && !reserved;
   const jobDraft = node.job_id ? jobs[node.job_id] : undefined;
   const executing = Boolean(
-    node.job_id &&
-      (runningJobIds.has(node.job_id) || triggeringJobId === node.job_id),
+    node.job_id && (runningJobIds.has(node.job_id) || triggeringJobId === node.job_id),
   );
   const icon = featureTreeIcon(node.id, node.kind);
   const externalRepo = EXTERNAL_REPOSITORIES[node.id];
@@ -405,15 +410,11 @@ export default function TaskConfigPage() {
   }, [pendingRun, scheduledJobs.data]);
 
   const save = useMutation({
-    mutationFn: (payload: PlatformFeaturesUpdate) =>
-      updatePlatformFeatures(payload),
+    mutationFn: (payload: PlatformFeaturesUpdate) => updatePlatformFeatures(payload),
     onSuccess: (data) => {
       message.success("任务配置已保存并应用");
       queryClient.setQueryData(["platform-features-admin"], data);
-      queryClient.setQueryData(
-        ["platform-features-effective"],
-        data.effective,
-      );
+      queryClient.setQueryData(["platform-features-effective"], data.effective);
       setDraft(null);
       void queryClient.invalidateQueries({ queryKey: ["scheduled-jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["user-checkin-tasks"] });
@@ -422,13 +423,7 @@ export default function TaskConfigPage() {
   });
 
   const manualRun = useMutation({
-    mutationFn: async ({
-      jobId,
-      jobName,
-    }: {
-      jobId: string;
-      jobName: string;
-    }) => {
+    mutationFn: async ({ jobId, jobName }: { jobId: string; jobName: string }) => {
       let sinceRunId = 0;
       try {
         const page = await fetchJobRuns(jobId, { page: 1, page_size: 1 });
@@ -582,9 +577,7 @@ export default function TaskConfigPage() {
                     },
                   })
                 }
-                onManualRun={(jobId, jobName) =>
-                  manualRun.mutate({ jobId, jobName })
-                }
+                onManualRun={(jobId, jobName) => manualRun.mutate({ jobId, jobName })}
                 onHistory={openRunHistory}
                 onCopyCommand={(jobId) => void copyCliCommand(jobId)}
               />
@@ -606,7 +599,8 @@ export default function TaskConfigPage() {
                 Git 仓库同步超时
               </Typography.Text>
               <Typography.Text type="secondary" style={{ display: "block", marginTop: 4 }}>
-                默认 {DEFAULT_REPO_SYNC_TIMEOUT_MINUTES} 分钟，可按仓库体量分别调整（1–{MAX_REPO_SYNC_TIMEOUT_MINUTES} 分钟）。超时会终止当前 Git 命令。
+                默认 {DEFAULT_REPO_SYNC_TIMEOUT_MINUTES} 分钟，可按仓库体量分别调整（1–
+                {MAX_REPO_SYNC_TIMEOUT_MINUTES} 分钟）。超时会终止当前 Git 命令。
               </Typography.Text>
             </div>
             <div
@@ -645,7 +639,10 @@ export default function TaskConfigPage() {
                       aria-label={`${repo.label}同步超时（分钟）`}
                       value={jobs[repo.jobId]?.timeout_minutes ?? DEFAULT_REPO_SYNC_TIMEOUT_MINUTES}
                       onChange={(value) => {
-                        const timeout = typeof value === "number" ? Math.trunc(value) : DEFAULT_REPO_SYNC_TIMEOUT_MINUTES;
+                        const timeout =
+                          typeof value === "number"
+                            ? Math.trunc(value)
+                            : DEFAULT_REPO_SYNC_TIMEOUT_MINUTES;
                         setDraft({
                           flags: { ...flags },
                           jobs: {

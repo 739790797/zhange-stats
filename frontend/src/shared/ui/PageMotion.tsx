@@ -25,11 +25,5 @@ type MotionInProps = {
 
 /** 组件挂载淡入（绑定门禁、空态等非路由切换）。 */
 export function MotionIn({ children, className }: MotionInProps) {
-  return (
-    <div
-      className={["app-motion-in", className].filter(Boolean).join(" ")}
-    >
-      {children}
-    </div>
-  );
+  return <div className={["app-motion-in", className].filter(Boolean).join(" ")}>{children}</div>;
 }

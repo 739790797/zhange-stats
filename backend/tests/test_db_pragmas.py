@@ -38,9 +38,7 @@ def _pragmas(conn) -> dict[str, object]:
 
 def _count_sessions(conn, member_id: int) -> int:
     table = PlaySession.__table__
-    return conn.execute(
-        select(func.count()).select_from(table).where(table.c.member_id == member_id)
-    ).scalar_one()
+    return conn.execute(select(func.count()).select_from(table).where(table.c.member_id == member_id)).scalar_one()
 
 
 def test_file_engine_enables_foreign_keys_and_wal_on_every_connection(tmp_path: Path) -> None:
@@ -72,9 +70,7 @@ def test_memory_engine_enables_foreign_keys_without_wal() -> None:
         engine.dispose()
 
 
-def test_read_only_file_keeps_rollback_journal_and_warns_once(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_read_only_file_keeps_rollback_journal_and_warns_once(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     path = tmp_path / "readonly.sqlite"
     sqlite3.connect(path).close()
     clear_log_until_change()
@@ -90,9 +86,7 @@ def test_read_only_file_keeps_rollback_journal_and_warns_once(
     finally:
         engine.dispose()
         clear_log_until_change()
-    warnings = [
-        r for r in caplog.records if r.name == "zhange.db" and r.levelno == logging.WARNING
-    ]
+    warnings = [r for r in caplog.records if r.name == "zhange.db" and r.levelno == logging.WARNING]
     assert len(warnings) == 1
     assert "WAL unavailable" in warnings[0].getMessage()
 

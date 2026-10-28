@@ -102,16 +102,12 @@ def test_outcome_success_records_nothing() -> None:
 
 
 def test_outcome_skipped_is_done_for_the_day() -> None:
-    att.record_checkin_outcome(
-        PLATFORM, 1, {ROLE}, {"skipped": True, "ok": True, "results": []}, now=_at(0, 5)
-    )
+    att.record_checkin_outcome(PLATFORM, 1, {ROLE}, {"skipped": True, "ok": True, "results": []}, now=_at(0, 5))
     assert att.load_attempts(PLATFORM, 1, now=_at(0, 5))["arknights/1"].terminal == att.TERMINAL_DONE
 
 
 def test_outcome_no_targets_and_vanished_role_are_terminal() -> None:
-    att.record_checkin_outcome(
-        PLATFORM, 1, None, {"ok": False, "no_targets": True, "results": []}, now=_at(0, 5)
-    )
+    att.record_checkin_outcome(PLATFORM, 1, None, {"ok": False, "no_targets": True, "results": []}, now=_at(0, 5))
     assert att.load_attempts(PLATFORM, 1, now=_at(0, 5))["*"].terminal == att.TERMINAL_NO_ROLES
 
     other = ("endfield", "9")
@@ -236,9 +232,7 @@ def test_collect_due_targets_skips_backoff_and_terminal_members() -> None:
     db.commit()
     now = _at(0, 34)
     att.record_checkin_attempt(PLATFORM, 1, {("arknights", "1")}, now=_at(0, 34))
-    att.record_checkin_attempt(
-        PLATFORM, 2, {("arknights", "2")}, now=_at(0, 20), terminal=att.TERMINAL_AUTH
-    )
+    att.record_checkin_attempt(PLATFORM, 2, {("arknights", "2")}, now=_at(0, 20), terminal=att.TERMINAL_AUTH)
 
     assert _due(db, now) == {3: {("arknights", "3")}}
 

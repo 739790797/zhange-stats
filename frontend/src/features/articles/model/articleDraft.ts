@@ -38,8 +38,7 @@ export function articleEditorFormValues(initial: {
     ),
     body_format: "html",
     status: initial.status === "published" ? "published" : "draft",
-    category_ids:
-      initial.category_ids ?? (initial.categories || []).map((row) => row.id),
+    category_ids: initial.category_ids ?? (initial.categories || []).map((row) => row.id),
     tag_ids: initial.tag_ids ?? (initial.tags || []).map((row) => row.id),
     cover_url: initial.cover_url || "",
   };
@@ -68,8 +67,7 @@ export function articleDraftSnapshot(input: {
   categories?: { id: number }[] | null;
   tags?: { id: number }[] | null;
 }): ArticleDraftSnapshot {
-  const categoryIds =
-    input.category_ids ?? (input.categories || []).map((row) => row.id);
+  const categoryIds = input.category_ids ?? (input.categories || []).map((row) => row.id);
   const tagIds = input.tag_ids ?? (input.tags || []).map((row) => row.id);
   return {
     title: (input.title || "").trim(),
@@ -107,8 +105,6 @@ export function autosaveTitle(title: string): string {
   return title.trim() || UNTITLED_DRAFT_TITLE;
 }
 
-export function autosaveWriteStatus(
-  current: string | null | undefined,
-): "draft" | "published" {
+export function autosaveWriteStatus(current: string | null | undefined): "draft" | "published" {
   return current === "published" ? "published" : "draft";
 }

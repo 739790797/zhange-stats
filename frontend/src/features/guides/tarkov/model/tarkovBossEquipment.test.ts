@@ -18,20 +18,15 @@ describe("groupBossGearSlots", () => {
       { key: "mystery", label: "未知" },
     ]);
     expect(grouped.map((row) => row.id)).toEqual(["wear", "arms", "carry"]);
-    expect(grouped[0]?.slots.map((row) => row.key)).toEqual([
-      "headwear",
-      "armor",
-    ]);
+    expect(grouped[0]?.slots.map((row) => row.key)).toEqual(["headwear", "armor"]);
     expect(grouped[1]?.slots.map((row) => row.key)).toEqual(["gun"]);
     expect(grouped[2]?.slots.map((row) => row.key)).toEqual(["keys", "mystery"]);
   });
 
   it("omits empty groups", () => {
-    expect(
-      groupBossGearSlots([{ key: "meds", label: "医疗物品" }]).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["carry"]);
+    expect(groupBossGearSlots([{ key: "meds", label: "医疗物品" }]).map((row) => row.id)).toEqual([
+      "carry",
+    ]);
   });
 });
 
@@ -48,9 +43,7 @@ describe("bossGearItemLabel", () => {
   });
 
   it("prefixes count when more than one", () => {
-    expect(
-      bossGearItemLabel({ name: "F-1", short_name: "F-1", count: 3 }),
-    ).toBe("3× F-1");
+    expect(bossGearItemLabel({ name: "F-1", short_name: "F-1", count: 3 })).toBe("3× F-1");
   });
 });
 
@@ -141,8 +134,10 @@ describe("bossGearAmmoStats", () => {
   });
 
   it("reads damage / penetration / armor damage", () => {
-    expect(
-      bossGearAmmoStats({ damage: 52, penetration: 38, armor_damage: 44 }),
-    ).toEqual({ damage: 52, penetration: 38, armorDamage: 44 });
+    expect(bossGearAmmoStats({ damage: 52, penetration: 38, armor_damage: 44 })).toEqual({
+      damage: 52,
+      penetration: 38,
+      armorDamage: 44,
+    });
   });
 });

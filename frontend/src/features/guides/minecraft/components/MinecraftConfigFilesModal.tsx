@@ -85,9 +85,7 @@ function MinecraftFileBrowser({
       },
     ];
     extra.forEach((part, index) => {
-      const path = normalizeMinecraftPath(
-        `${jailRoot}/${extra.slice(0, index + 1).join("/")}`,
-      );
+      const path = normalizeMinecraftPath(`${jailRoot}/${extra.slice(0, index + 1).join("/")}`);
       items.push({
         title: (
           <Button
@@ -192,9 +190,7 @@ export function MinecraftConfigFilesModal({
   const pickDir = Boolean(onPickDirectory);
   const jailOptions = useMemo(() => {
     if (pickDir) return ["/"];
-    const rows = (roots?.length ? roots : [root || "/"]).map(
-      normalizeMinecraftPath,
-    );
+    const rows = (roots?.length ? roots : [root || "/"]).map(normalizeMinecraftPath);
     return rows.length ? rows : ["/"];
   }, [pickDir, roots, root]);
   const initialJail = jailOptions[0];
@@ -263,10 +259,7 @@ export function MinecraftConfigFilesModal({
         />
       </Modal>
       {onPick || onPickDirectory ? null : (
-        <MinecraftPathFileEditor
-          path={editorPath}
-          onClose={() => setEditorPath(null)}
-        />
+        <MinecraftPathFileEditor path={editorPath} onClose={() => setEditorPath(null)} />
       )}
     </>
   );
@@ -308,15 +301,12 @@ export function MinecraftModConfigModal({
   }, [directories, activeRoot]);
 
   const saveDirs = useMutation({
-    mutationFn: (next: string[]) =>
-      saveMinecraftModToolPreset(toolId, { directories: next }),
+    mutationFn: (next: string[]) => saveMinecraftModToolPreset(toolId, { directories: next }),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({
         queryKey: ["minecraft-mod-preset", toolId],
       });
-      message.success(
-        res.directories?.length ? "已更新配置目录" : "已清空配置目录",
-      );
+      message.success(res.directories?.length ? "已更新配置目录" : "已清空配置目录");
     },
     onError: (e: unknown) => message.error(apiError(e, "保存配置目录失败")),
   });
@@ -403,10 +393,7 @@ export function MinecraftModConfigModal({
         onClose={() => setAdding(false)}
         onPickDirectory={addDirectory}
       />
-      <MinecraftPathFileEditor
-        path={editorPath}
-        onClose={() => setEditorPath(null)}
-      />
+      <MinecraftPathFileEditor path={editorPath} onClose={() => setEditorPath(null)} />
     </>
   );
 }

@@ -3,10 +3,7 @@ import { useCallback, useState } from "react";
 const STORAGE_KEY = "zhange.guides.tarkov.raidDock.v1";
 export const TARKOV_RAID_DOCK_DESKTOP_MQ = "(min-width: 981px)";
 
-export function parseTarkovRaidDockOpen(
-  raw: string | null,
-  fallback = true,
-): boolean {
+export function parseTarkovRaidDockOpen(raw: string | null, fallback = true): boolean {
   if (raw === "1" || raw === "true") return true;
   if (raw === "0" || raw === "false") return false;
   if (!raw) return fallback;
@@ -44,10 +41,7 @@ export function saveTarkovRaidDockOpen(open: boolean) {
 }
 
 export function isTarkovRaidDockDesktop(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia(TARKOV_RAID_DOCK_DESKTOP_MQ).matches
-  );
+  return typeof window !== "undefined" && window.matchMedia(TARKOV_RAID_DOCK_DESKTOP_MQ).matches;
 }
 
 /** 桌面记住开关；窄屏仍默认收起（底部抽屉）。 */
@@ -64,15 +58,12 @@ export function persistTarkovRaidDockOpen(open: boolean) {
 
 export function useTarkovRaidDockOpen() {
   const [dockOpen, setDockOpenState] = useState(initialTarkovRaidDockOpen);
-  const setDockOpen = useCallback(
-    (next: boolean | ((prev: boolean) => boolean)) => {
-      setDockOpenState((prev) => {
-        const value = typeof next === "function" ? next(prev) : next;
-        persistTarkovRaidDockOpen(value);
-        return value;
-      });
-    },
-    [],
-  );
+  const setDockOpen = useCallback((next: boolean | ((prev: boolean) => boolean)) => {
+    setDockOpenState((prev) => {
+      const value = typeof next === "function" ? next(prev) : next;
+      persistTarkovRaidDockOpen(value);
+      return value;
+    });
+  }, []);
   return [dockOpen, setDockOpen] as const;
 }

@@ -15,14 +15,10 @@ import {
 
 describe("formatPollClock", () => {
   it("prints Beijing YYYY-MM-DD HH:mm:ss or a dash", () => {
-    expect(formatPollClock("2026-08-30 20:11:02.100")).toBe(
-      "2026-08-30 20:11:02",
-    );
+    expect(formatPollClock("2026-08-30 20:11:02.100")).toBe("2026-08-30 20:11:02");
     expect(formatPollClock(null)).toBe("—");
     expect(formatPollClock("")).toBe("—");
-    expect(formatLiveWatchShotLine("2026-08-30 21:04:33")).toBe(
-      "最近截图：2026-08-30 21:04:33",
-    );
+    expect(formatLiveWatchShotLine("2026-08-30 21:04:33")).toBe("最近截图：2026-08-30 21:04:33");
     expect(formatLiveWatchLogLine(null)).toBe("最近日志：—");
   });
 });
@@ -31,9 +27,7 @@ describe("formatLogSyncActionLabel", () => {
   it("matches the personal-center sync-log button", () => {
     expect(formatLogSyncActionLabel(false)).toBe("同步日志");
     expect(formatLogSyncActionLabel(true)).toBe("正在同步日志…");
-    expect(formatLogSyncActionLabel(true, { done: 2, total: 9 })).toBe(
-      "正在读取 2 / 9",
-    );
+    expect(formatLogSyncActionLabel(true, { done: 2, total: 9 })).toBe("正在读取 2 / 9");
     expect(formatLogSyncActionLabel(false, null, true)).toBe("正在查看目录…");
   });
 });
@@ -97,15 +91,18 @@ describe("planLogSessionReads", () => {
       skip: false,
       folders: ["a"],
     });
-    expect(
-      planLogSessionReads("a", "f1", { folder: "a", fingerprint: "f1" }),
-    ).toEqual({ skip: true, folders: [] });
-    expect(
-      planLogSessionReads("a", "f2", { folder: "a", fingerprint: "f1" }),
-    ).toEqual({ skip: false, folders: ["a"] });
-    expect(
-      planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" }),
-    ).toEqual({ skip: false, folders: ["a", "b"] });
+    expect(planLogSessionReads("a", "f1", { folder: "a", fingerprint: "f1" })).toEqual({
+      skip: true,
+      folders: [],
+    });
+    expect(planLogSessionReads("a", "f2", { folder: "a", fingerprint: "f1" })).toEqual({
+      skip: false,
+      folders: ["a"],
+    });
+    expect(planLogSessionReads("b", "f2", { folder: "a", fingerprint: "f1" })).toEqual({
+      skip: false,
+      folders: ["a", "b"],
+    });
   });
 });
 
@@ -370,16 +367,12 @@ describe("logStampFromParsed", () => {
         {
           events: [{ kind: "raid_started", at: "2026-08-30 20:00:00.000" }],
           raids: [],
-          quests: [
-            { kind: "started", taskId: "q", at: "2026-08-30 20:11:02.100" },
-          ],
+          quests: [{ kind: "started", taskId: "q", at: "2026-08-30 20:11:02.100" }],
         },
         [1],
       ),
     ).toBe("2026-08-30 20:11:02.100");
-    expect(logStampFromParsed({ events: [], raids: [] }, [10, 30, 20])).toBe(
-      30,
-    );
+    expect(logStampFromParsed({ events: [], raids: [] }, [10, 30, 20])).toBe(30);
     expect(logStampFromParsed(null, [])).toBeNull();
   });
 });

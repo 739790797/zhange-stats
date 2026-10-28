@@ -1,10 +1,7 @@
 import { Button, Popconfirm } from "antd";
 import { PlatformIcon } from "@/features/platforms/shared/components/PlatformIcon";
 import { BindActionSlots } from "@/features/profile/components/BindActionSlots";
-import {
-  BIND_ROW_ICON_SIZE,
-  BindStatusTitle,
-} from "@/features/profile/components/BindStatusTitle";
+import { BIND_ROW_ICON_SIZE, BindStatusTitle } from "@/features/profile/components/BindStatusTitle";
 import type { PlatformIconName } from "@/features/platforms/shared/model/platformIcons";
 
 type PlatformBindRowProps = {
@@ -60,11 +57,7 @@ export function PlatformBindRow({
       <BindActionSlots
         roles={
           bound && onOpenRoles ? (
-            <Button
-              block
-              disabled={!!errMsg || invalid}
-              onClick={onOpenRoles}
-            >
+            <Button block disabled={!!errMsg || invalid} onClick={onOpenRoles}>
               加入角色
             </Button>
           ) : undefined

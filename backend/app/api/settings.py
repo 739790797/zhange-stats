@@ -173,9 +173,7 @@ class AuthSettingsOut(BaseModel):
 
 
 class AuthSettingsUpdate(BaseModel):
-    access_token_expire_minutes: int | None = Field(
-        default=None, ge=5, le=MAX_ACCESS_TOKEN_MINUTES
-    )
+    access_token_expire_minutes: int | None = Field(default=None, ge=5, le=MAX_ACCESS_TOKEN_MINUTES)
     min_password_length: int | None = Field(default=None, ge=6, le=72)
     reject_weak_admin_password: bool | None = None
     enforce_single_admin: bool | None = None
@@ -196,9 +194,7 @@ def _integrations_out(db: Session, request: Request) -> dict:
     try:
         data["qq_callback_url"] = qq_redirect_uri(backend) if backend else ""
     except Exception:  # noqa: BLE001
-        data["qq_callback_url"] = (
-            f"{backend}/api/auth/qq/callback" if backend else ""
-        )
+        data["qq_callback_url"] = f"{backend}/api/auth/qq/callback" if backend else ""
     return data
 
 
@@ -225,8 +221,7 @@ def update_email_settings(
         if not body.smtp_port:
             raise HTTPException(status_code=400, detail="请填写端口号")
         has_pwd = not body.clear_smtp_password and bool(
-            (body.smtp_password and body.smtp_password.strip())
-            or current.get("smtp_password")
+            (body.smtp_password and body.smtp_password.strip()) or current.get("smtp_password")
         )
         if not has_pwd:
             raise HTTPException(status_code=400, detail="请填写密码")
@@ -538,11 +533,7 @@ def update_platform_features(
     from app.main import scheduler
 
     try:
-        flags = (
-            save_feature_flags(db, body.features, commit=False)
-            if body.features
-            else load_feature_flags(db)
-        )
+        flags = save_feature_flags(db, body.features, commit=False) if body.features else load_feature_flags(db)
 
         job_payload: dict[str, Any] = {}
         for job_id, item in body.jobs.items():
@@ -676,9 +667,7 @@ def _merge_redis_url(submitted: str, stored: str) -> str:
         return text
     userinfo = old_parts.netloc.rpartition("@")[0]
     netloc = f"{userinfo}@{new_parts.netloc}" if userinfo else new_parts.netloc
-    return urllib.parse.urlunsplit(
-        (new_parts.scheme, netloc, new_parts.path, old_parts.query, "")
-    )
+    return urllib.parse.urlunsplit((new_parts.scheme, netloc, new_parts.path, old_parts.query, ""))
 
 
 def _redis_canonical(url: str) -> str:
@@ -874,8 +863,7 @@ def update_runtime_env(
             {
                 _RUNTIME_ENV_FIELDS.get(field, "DATABASE_URL")
                 for field, value in payload.items()
-                if field in locked
-                and not _runtime_env_unchanged(field, value, effective)
+                if field in locked and not _runtime_env_unchanged(field, value, effective)
             }
         )
         if blocked:
@@ -977,4 +965,3 @@ def test_runtime_redis(
         message=result.message,
         latency_ms=result.latency_ms,
     )
-

@@ -4,14 +4,16 @@
 
 ## 技术栈
 
-| 端 | 技术 |
-|---|---|
-| 前端 | React 18 · TypeScript · Vite · Ant Design 5 · TanStack Query · Zustand |
+| 端   | 技术                                                                          |
+| ---- | ----------------------------------------------------------------------------- |
+| 前端 | React 18 · TypeScript · Vite · Ant Design 5 · TanStack Query · Zustand        |
 | 后端 | FastAPI · SQLAlchemy 2 · Alembic · APScheduler · MySQL · httpx · JWT / bcrypt |
 
 ## Windows 本地开发
 
 需要 Python 3.11+、Node 22.12+（Vitest 5 / Vite 8）。**不必预先安装数据库**：`install` / `run` 只装 Python/前端依赖。首次打开站点进入 **安装向导**，可选本机 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。本机 MariaDB 若仍需要，可手工跑 `scripts/common/provision_mariadb.py`。
+
+前端共用设计系统由 `frontend/vendor/zhange-base` 子模块提供。新克隆仓库时使用 `git clone --recurse-submodules`；已有克隆则先在仓库根运行 `git submodule update --init --recursive`，再执行前端 `npm ci`。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\install.ps1
@@ -74,6 +76,8 @@ CLI 和定时任务共用任务实现、运行记录与执行锁；日志会同�
 - **管理端一键更新仅面向 `APP_ENV=production`（LXC）**；本机默认 `development`，不会出现该入口
 
 本地假 Steam 数据见 [`backend/local_dev/README.md`](../backend/local_dev/README.md)。
+
+格式检查由 CI 执行：前端从 `frontend/` 运行 `npm run format:check`，Ruff 从 `backend/` 运行 `python -m ruff format --check app tests ../scripts`。应用 `npm run format` 或 `python -m ruff format app tests ../scripts` 前确认 `.prettierignore` / Ruff 排除规则没有包含生成契约、子模块、运行时数据或构建产物。
 
 ## 工程
 

@@ -1,5 +1,10 @@
 import { client } from "../../../../shared/api/http";
-import type { SteamDayData, SteamNowItem, SteamPollResult, SteamAppStoreCard } from "@/features/platforms/steam/api/types";
+import type {
+  SteamDayData,
+  SteamNowItem,
+  SteamPollResult,
+  SteamAppStoreCard,
+} from "@/features/platforms/steam/api/types";
 
 export async function fetchSteamDay(date: string, end?: string) {
   const { data } = await client.get<SteamDayData>("/steam/day", {

@@ -19,9 +19,7 @@ import {
   type RaidPrepSkipMap,
   type RaidPrepTaskLike,
 } from "@/features/guides/tarkov/model/tarkovRaidPrep";
-import {
-  type RaidPrepParticipant,
-} from "@/features/guides/tarkov/components/TarkovRaidPrepSummary";
+import { type RaidPrepParticipant } from "@/features/guides/tarkov/components/TarkovRaidPrepSummary";
 import { TarkovRaidPrepObjectiveProgress } from "@/features/guides/tarkov/components/TarkovRaidPrepObjectiveHint";
 import { TarkovTraderThumb } from "@/features/guides/tarkov/components/TarkovTraderThumb";
 import { traderDisplayName } from "@/features/guides/tarkov/model/tarkovHomeNav";
@@ -51,11 +49,7 @@ type Props = {
   onActiveIdChange?: (taskId: string) => void;
 };
 
-function ParticipantLine({
-  people,
-}: {
-  people: readonly RaidPrepParticipant[];
-}) {
+function ParticipantLine({ people }: { people: readonly RaidPrepParticipant[] }) {
   if (!people.length) {
     return <span className={styles.summaryNone}>—</span>;
   }
@@ -71,9 +65,7 @@ function ParticipantLine({
             className={styles.memberDot}
             style={{
               background:
-                person.userId != null
-                  ? colorForUserId(person.userId)
-                  : colorForTaskId(person.name),
+                person.userId != null ? colorForUserId(person.userId) : colorForTaskId(person.name),
             }}
           />
           <span className={styles.summaryPersonName}>{person.name}</span>
@@ -182,8 +174,7 @@ export function TarkovRaidPrepGuideOverview({
                       taskDone={Boolean(guideId && doneIdSet.has(guideId))}
                       onToggle={
                         onToggleObjective && guideId
-                          ? (objectiveId) =>
-                              onToggleObjective(guideId, objectiveId)
+                          ? (objectiveId) => onToggleObjective(guideId, objectiveId)
                           : undefined
                       }
                     />
@@ -209,16 +200,12 @@ export function TarkovRaidPrepGuideOverview({
                       type="button"
                       role="tab"
                       aria-selected={on}
-                      className={`${styles.guideSideRow} ${
-                        on ? styles.guideSideRowOn : ""
-                      }`}
+                      className={`${styles.guideSideRow} ${on ? styles.guideSideRowOn : ""}`}
                       title={label}
                       onClick={() => setActiveId(row.id)}
                     >
                       <div className={styles.guideSidePeople}>
-                        <ParticipantLine
-                          people={participantsByTask?.get(row.id) || []}
-                        />
+                        <ParticipantLine people={participantsByTask?.get(row.id) || []} />
                       </div>
                       <div className={styles.guideSideTask}>
                         <span
@@ -263,12 +250,7 @@ export function TarkovRaidPrepGuideOverview({
                 {activeUrl ? (
                   <>
                     {" · "}
-                    <a
-                      className={styles.wiki}
-                      href={activeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a className={styles.wiki} href={activeUrl} target="_blank" rel="noreferrer">
                       新标签打开
                     </a>
                   </>
@@ -288,9 +270,7 @@ export function TarkovRaidPrepGuideOverview({
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               ) : (
-                <div className={styles.summaryEmpty}>
-                  当前任务暂无 eftarkov 攻略链接
-                </div>
+                <div className={styles.summaryEmpty}>当前任务暂无 eftarkov 攻略链接</div>
               )}
             </div>
           </div>

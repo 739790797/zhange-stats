@@ -25,9 +25,7 @@ import { TarkovThemed } from "@/features/guides/tarkov/components/TarkovThemed";
 import { IcpBeianFooter } from "@/features/site/components/IcpBeianLink";
 import { TarkovMeHeaderLink } from "@/features/guides/tarkov/components/TarkovMeHeaderLink";
 import { TarkovRaidRoomHeaderLink } from "@/features/guides/tarkov/components/TarkovRaidRoomHeaderLink";
-import {
-  TarkovLiveWatchProvider,
-} from "@/features/guides/tarkov/providers/tarkovLiveWatchContext";
+import { TarkovLiveWatchProvider } from "@/features/guides/tarkov/providers/tarkovLiveWatchContext";
 import { useTarkovLiveWatch } from "@/features/guides/tarkov/hooks/useTarkovLiveWatch";
 import { useTarkovGuestProgressImport } from "@/features/guides/tarkov/hooks/useTarkovGuestProgressImport";
 import { TarkovGoonTrackerProvider } from "@/features/guides/tarkov/providers/tarkovGoonTrackerLive";
@@ -41,7 +39,6 @@ import {
   useTarkovGameModeControls,
 } from "@/features/guides/tarkov/model/tarkovGameMode";
 import styles from "./TarkovGuideShell.module.css";
-import "./tarkovFonts.css";
 
 export function TarkovSoonMark({ status }: { status: TarkovNavStatus }) {
   if (status === "ready") return null;
@@ -52,12 +49,7 @@ export function TarkovSoonMark({ status }: { status: TarkovNavStatus }) {
 function TarkovGameLogo() {
   return (
     <span className={styles.gameLogo} aria-hidden>
-      <svg
-        className={styles.gameHex}
-        viewBox="0 0 36 36"
-        width="32"
-        height="32"
-      >
+      <svg className={styles.gameHex} viewBox="0 0 36 36" width="32" height="32">
         <polygon
           points="18,2 32.5,10.25 32.5,25.75 18,34 3.5,25.75 3.5,10.25"
           fill="#1a1b14"
@@ -79,17 +71,9 @@ function TarkovGameLogo() {
           strokeWidth="1.5"
           strokeLinejoin="round"
         />
-        <path
-          d="M18 15.4 L21.6 21.8 H14.4 Z"
-          fill="#c8932a"
-        />
+        <path d="M18 15.4 L21.6 21.8 H14.4 Z" fill="#c8932a" />
       </svg>
-      <svg
-        className={styles.gameWordmark}
-        viewBox="0 0 132 32"
-        width="132"
-        height="32"
-      >
+      <svg className={styles.gameWordmark} viewBox="0 0 132 32" width="132" height="32">
         <text
           x="0"
           y="9"
@@ -119,20 +103,8 @@ function TarkovGameLogo() {
 
 function NavCaret() {
   return (
-    <svg
-      className={styles.caret}
-      width="8"
-      height="5"
-      viewBox="0 0 8 5"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M1 1L4 4L7 1"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
+    <svg className={styles.caret} width="8" height="5" viewBox="0 0 8 5" fill="none" aria-hidden>
+      <path d="M1 1L4 4L7 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -199,9 +171,7 @@ export function TarkovGuideShell({ children }: Props) {
   const adminActive = isTarkovAdminPath(pathname, searchParams.toString());
   const qParam = (searchParams.get("q") || "").trim();
   const [draft, setDraft] = useState(
-    pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`
-      ? qParam
-      : "",
+    pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/` ? qParam : "",
   );
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLElement>(null);
@@ -223,11 +193,7 @@ export function TarkovGuideShell({ children }: Props) {
       }
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        target?.isContentEditable
-      ) {
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
         return;
       }
       event.preventDefault();
@@ -243,8 +209,7 @@ export function TarkovGuideShell({ children }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [pathname]);
-  const meBody =
-    isAssistantBodyPane() && pathname.replace(/\/$/, "") === TARKOV_ME_PATH;
+  const meBody = isAssistantBodyPane() && pathname.replace(/\/$/, "") === TARKOV_ME_PATH;
   const searchPane =
     isAssistantSearchPane() &&
     (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`);
@@ -257,169 +222,163 @@ export function TarkovGuideShell({ children }: Props) {
   });
   const navItems = useMemo(() => {
     const groups = buildTarkovBossNavGroups(bossesQuery.data?.items);
-    return TARKOV_TOP_NAV.map((item) =>
-      item.id === "bosses" ? { ...item, groups } : item,
-    );
+    return TARKOV_TOP_NAV.map((item) => (item.id === "bosses" ? { ...item, groups } : item));
   }, [bossesQuery.data]);
 
   const fills = tarkovGuideShellFills(pathname, searchParams.get("tab"));
   return (
     <TarkovThemed>
-    {/* 换人或导入访客进度后整棵重挂：各面板的 state 是从本机进度初始化的，不能沿用上一位的 */}
-    <TarkovLiveWatchProvider key={`${me?.id ?? "guest"}:${progressGen}`}>
-    <TarkovGoonTrackerProvider>
-    <div className={styles.shell}>
-      <a className={styles.skipLink} href="#tarkov-main">
-        跳到正文
-      </a>
-      {meBody || searchPane ? null : (
-      <header className={styles.topbar}>
-        <div className={styles.topbarInner}>
-          <div className={styles.topLeft}>
-            <Link
-              to={TARKOV_HOME_PATH}
-              className={styles.brand}
-              aria-label="逃离塔科夫"
-            >
-              <TarkovGameLogo />
-            </Link>
-            <TarkovRaidRoomHeaderLink />
-            <TarkovLiveWatchStatus />
-          </div>
-          <nav className={styles.nav} aria-label="攻略栏目">
-            {navItems.map((item) => {
-              const extraHrefs = (item.groups ?? []).flatMap((g) =>
-                g.items.map((link) => link.href),
-              );
-              const active =
-                item.id === "maps" && maintainMode
-                  ? false
-                  : isTarkovTopNavActive(item.href, pathname, extraHrefs);
-              const bossMenu = item.id === "bosses";
-              return (
-                <div key={item.id} className={styles.navItem}>
-                  <Link
-                    to={item.href}
-                    className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
-                    aria-current={active ? "page" : undefined}
-                    aria-haspopup={item.groups ? "menu" : undefined}
-                  >
-                    {item.label}
-                    {item.groups ? <NavCaret /> : null}
-                  </Link>
-                  {item.groups ? (
-                    <div className={styles.dropdown} role="menu">
-                      {item.groups.map((group) => (
-                        <div
-                          key={group.id}
-                          className={`${styles.dropCol} ${
-                            bossMenu ? styles.dropColBosses : ""
-                          }`}
-                        >
-                          <p className={styles.dropHead}>{group.label}</p>
-                          {group.items.map((link) =>
-                            link.status === "soon" ? (
-                              <span
-                                key={link.id}
-                                className={`${styles.dropLink} ${styles.dropLinkSoon}`}
-                                aria-disabled="true"
-                              >
-                                {link.label}
-                                <TarkovSoonMark status={link.status} />
-                              </span>
-                            ) : (
-                              <Link
-                                key={link.id}
-                                to={link.href}
-                                className={styles.dropLink}
-                                role="menuitem"
-                              >
-                                {link.label}
-                              </Link>
-                            ),
-                          )}
+      {/* 换人或导入访客进度后整棵重挂：各面板的 state 是从本机进度初始化的，不能沿用上一位的 */}
+      <TarkovLiveWatchProvider key={`${me?.id ?? "guest"}:${progressGen}`}>
+        <TarkovGoonTrackerProvider>
+          <div className={`${styles.shell} zhange-theme-tarkov`}>
+            <a className={styles.skipLink} href="#tarkov-main">
+              跳到正文
+            </a>
+            {meBody || searchPane ? null : (
+              <header className={styles.topbar}>
+                <div className={styles.topbarInner}>
+                  <div className={styles.topLeft}>
+                    <Link to={TARKOV_HOME_PATH} className={styles.brand} aria-label="逃离塔科夫">
+                      <TarkovGameLogo />
+                    </Link>
+                    <TarkovRaidRoomHeaderLink />
+                    <TarkovLiveWatchStatus />
+                  </div>
+                  <nav className={styles.nav} aria-label="攻略栏目">
+                    {navItems.map((item) => {
+                      const extraHrefs = (item.groups ?? []).flatMap((g) =>
+                        g.items.map((link) => link.href),
+                      );
+                      const active =
+                        item.id === "maps" && maintainMode
+                          ? false
+                          : isTarkovTopNavActive(item.href, pathname, extraHrefs);
+                      const bossMenu = item.id === "bosses";
+                      return (
+                        <div key={item.id} className={styles.navItem}>
+                          <Link
+                            to={item.href}
+                            className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
+                            aria-current={active ? "page" : undefined}
+                            aria-haspopup={item.groups ? "menu" : undefined}
+                          >
+                            {item.label}
+                            {item.groups ? <NavCaret /> : null}
+                          </Link>
+                          {item.groups ? (
+                            <div className={styles.dropdown} role="menu">
+                              {item.groups.map((group) => (
+                                <div
+                                  key={group.id}
+                                  className={`${styles.dropCol} ${
+                                    bossMenu ? styles.dropColBosses : ""
+                                  }`}
+                                >
+                                  <p className={styles.dropHead}>{group.label}</p>
+                                  {group.items.map((link) =>
+                                    link.status === "soon" ? (
+                                      <span
+                                        key={link.id}
+                                        className={`${styles.dropLink} ${styles.dropLinkSoon}`}
+                                        aria-disabled="true"
+                                      >
+                                        {link.label}
+                                        <TarkovSoonMark status={link.status} />
+                                      </span>
+                                    ) : (
+                                      <Link
+                                        key={link.id}
+                                        to={link.href}
+                                        className={styles.dropLink}
+                                        role="menuitem"
+                                      >
+                                        {link.label}
+                                      </Link>
+                                    ),
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-            {isAdmin ? (
-              <div className={styles.navItem}>
-                <Link
-                  to={TARKOV_ADMIN_NAV.href}
-                  className={`${styles.navLink} ${adminActive ? styles.navLinkActive : ""}`}
-                  aria-current={adminActive ? "page" : undefined}
-                  aria-haspopup="menu"
-                >
-                  {TARKOV_ADMIN_NAV.label}
-                  <NavCaret />
-                </Link>
-                <div className={styles.dropdown} role="menu">
-                  {(TARKOV_ADMIN_NAV.groups ?? []).map((group) => (
-                    <div key={group.id} className={styles.dropCol}>
-                      <p className={styles.dropHead}>{group.label}</p>
-                      {group.items.map((link) => (
+                      );
+                    })}
+                    {isAdmin ? (
+                      <div className={styles.navItem}>
                         <Link
-                          key={link.id}
-                          to={link.href}
-                          className={styles.dropLink}
-                          role="menuitem"
+                          to={TARKOV_ADMIN_NAV.href}
+                          className={`${styles.navLink} ${adminActive ? styles.navLinkActive : ""}`}
+                          aria-current={adminActive ? "page" : undefined}
+                          aria-haspopup="menu"
                         >
-                          {link.label}
+                          {TARKOV_ADMIN_NAV.label}
+                          <NavCaret />
                         </Link>
-                      ))}
+                        <div className={styles.dropdown} role="menu">
+                          {(TARKOV_ADMIN_NAV.groups ?? []).map((group) => (
+                            <div key={group.id} className={styles.dropCol}>
+                              <p className={styles.dropHead}>{group.label}</p>
+                              {group.items.map((link) => (
+                                <Link
+                                  key={link.id}
+                                  to={link.href}
+                                  className={styles.dropLink}
+                                  role="menuitem"
+                                >
+                                  {link.label}
+                                </Link>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </nav>
+                  <div className={styles.topRight}>
+                    <TarkovGameModeSwitch />
+                    <form
+                      className={styles.topSearch}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const next = draft.trim();
+                        navigate(
+                          next
+                            ? `${TARKOV_HOME_PATH}?q=${encodeURIComponent(next)}`
+                            : TARKOV_HOME_PATH,
+                        );
+                      }}
+                    >
+                      <input
+                        ref={searchRef}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        placeholder="搜索…"
+                        aria-label="全站搜索攻略"
+                        autoComplete="off"
+                        enterKeyHint="search"
+                      />
+                      <kbd className={styles.topKbd}>/</kbd>
+                    </form>
+                    <div className={styles.tracker}>
+                      <TarkovMeHeaderLink />
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </nav>
-          <div className={styles.topRight}>
-            <TarkovGameModeSwitch />
-            <form
-              className={styles.topSearch}
-              onSubmit={(event) => {
-                event.preventDefault();
-                const next = draft.trim();
-                navigate(
-                  next
-                    ? `${TARKOV_HOME_PATH}?q=${encodeURIComponent(next)}`
-                    : TARKOV_HOME_PATH,
-                );
-              }}
+              </header>
+            )}
+            <main
+              ref={bodyRef}
+              id="tarkov-main"
+              tabIndex={-1}
+              className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}${searchPane ? ` ${styles.bodySearch}` : ""}`}
             >
-              <input
-                ref={searchRef}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="搜索…"
-                aria-label="全站搜索攻略"
-                autoComplete="off"
-                enterKeyHint="search"
-              />
-              <kbd className={styles.topKbd}>/</kbd>
-            </form>
-            <div className={styles.tracker}>
-              <TarkovMeHeaderLink />
-            </div>
+              <div className={styles.bodyPage}>{children}</div>
+              {fills || meBody || searchPane ? null : <IcpBeianFooter variant="tarkov" />}
+            </main>
           </div>
-        </div>
-      </header>
-      )}
-      <main
-        ref={bodyRef}
-        id="tarkov-main"
-        tabIndex={-1}
-        className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}${searchPane ? ` ${styles.bodySearch}` : ""}`}
-      >
-        <div className={styles.bodyPage}>{children}</div>
-        {fills || meBody || searchPane ? null : <IcpBeianFooter variant="tarkov" />}
-      </main>
-    </div>
-    </TarkovGoonTrackerProvider>
-    </TarkovLiveWatchProvider>
+        </TarkovGoonTrackerProvider>
+      </TarkovLiveWatchProvider>
     </TarkovThemed>
   );
 }

@@ -105,15 +105,10 @@ def load_attempts(platform: str, member_id: int, *, now: datetime) -> dict[str, 
     return out
 
 
-def _save_attempts(
-    platform: str, member_id: int, states: dict[str, AttemptState], *, now: datetime
-) -> None:
+def _save_attempts(platform: str, member_id: int, states: dict[str, AttemptState], *, now: datetime) -> None:
     t = ensure(now)
     _, day_end = day_bounds(t.date())
-    payload = {
-        part: {"n": s.attempts, "next": s.next_at, "terminal": s.terminal}
-        for part, s in states.items()
-    }
+    payload = {part: {"n": s.attempts, "next": s.next_at, "terminal": s.terminal} for part, s in states.items()}
     ephemeral_set(
         _kv_key(platform, member_id, t),
         json.dumps(payload, separators=(",", ":")),
@@ -160,33 +155,20 @@ def record_checkin_outcome(
         record_checkin_attempt(platform, member_id, role_keys, now=now, terminal=TERMINAL_DONE)
         return
     if out.get("no_targets"):
-        record_checkin_attempt(
-            platform, member_id, role_keys, now=now, terminal=TERMINAL_NO_ROLES
-        )
+        record_checkin_attempt(platform, member_id, role_keys, now=now, terminal=TERMINAL_NO_ROLES)
         return
     results = [r for r in out.get("results") or [] if isinstance(r, dict)]
     if role_keys is None:
         if out.get("ok"):
             return
         errors = [r.get("message") for r in results if r.get("status") == "error"]
-        record_checkin_attempt(
-            platform, member_id, None, now=now, terminal=classify_terminal_failure(errors)
-        )
+        record_checkin_attempt(platform, member_id, None, now=now, terminal=classify_terminal_failure(errors))
         return
-    by_key = {
-        role_key(str(r.get("game_code") or ""), str(r.get("role_uid") or "")): r
-        for r in results
-    }
+    by_key = {role_key(str(r.get("game_code") or ""), str(r.get("role_uid") or "")): r for r in results}
     missing = {k for k in role_keys if k not in by_key}
-    failed = {
-        k
-        for k in role_keys
-        if k in by_key and not is_success_status(by_key[k].get("status"))
-    }
+    failed = {k for k in role_keys if k in by_key and not is_success_status(by_key[k].get("status"))}
     if missing:
-        record_checkin_attempt(
-            platform, member_id, missing, now=now, terminal=TERMINAL_NO_ROLES
-        )
+        record_checkin_attempt(platform, member_id, missing, now=now, terminal=TERMINAL_NO_ROLES)
     failed_by_terminal: dict[str | None, set[RoleKey]] = {}
     for k in failed:
         terminal = classify_terminal_failure([by_key[k].get("message")])
@@ -199,9 +181,7 @@ def clear_checkin_attempts(platform: str, member_id: int, *, now: datetime | Non
     ephemeral_delete(_kv_key(platform, member_id, now or now_beijing()))
 
 
-def filter_retry_ready(
-    platform: str, items: list[CheckinQueueItem], *, now: datetime
-) -> list[CheckinQueueItem]:
+def filter_retry_ready(platform: str, items: list[CheckinQueueItem], *, now: datetime) -> list[CheckinQueueItem]:
     """去掉退避中 / 当日已终止的条目，其余带上已尝试次数供队列排序。"""
     cache: dict[int, dict[str, AttemptState]] = {}
     out: list[CheckinQueueItem] = []

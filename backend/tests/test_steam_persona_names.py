@@ -14,9 +14,7 @@ from app.services.steam.display import (
 
 
 def _member(name: str | None = None) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=7, user=None, steam_persona_name=name, steam_avatar_url=None
-    )
+    return SimpleNamespace(id=7, user=None, steam_persona_name=name, steam_avatar_url=None)
 
 
 def test_apply_steam_profile_stores_names_without_angle_brackets() -> None:
@@ -80,11 +78,7 @@ def test_player_profile_persona_is_cleaned(monkeypatch) -> None:
         adapter,
         "fetch_summaries",
         lambda ids: {
-            "response": {
-                "players": [
-                    {"steamid": ids[0], "personaname": "a<b>c", "communityvisibilitystate": 3}
-                ]
-            }
+            "response": {"players": [{"steamid": ids[0], "personaname": "a<b>c", "communityvisibilitystate": 3}]}
         },
     )
 

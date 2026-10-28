@@ -73,12 +73,7 @@ def sync_users_and_members(db: Session) -> dict[str, int]:
 
     # 同一用户若误绑多个成员（理论上 unique），保留最早的
     for user in users:
-        members = (
-            db.query(Member)
-            .filter(Member.user_id == user.id)
-            .order_by(Member.id.asc())
-            .all()
-        )
+        members = db.query(Member).filter(Member.user_id == user.id).order_by(Member.id.asc()).all()
         for extra in members[1:]:
             extra.user_id = None
             delete_member_cascade(db, extra)

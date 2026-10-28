@@ -76,9 +76,7 @@ def test_sync_role_checkin_returns_exchanges(monkeypatch) -> None:
 
 def _sync_error(db, job_id: str = "skland_checkin") -> HTTPException:
     with pytest.raises(HTTPException) as ei:
-        _run_sync_role_checkin(
-            db, job_id=job_id, member_id=1, game_code="arknights", role_uid="u1"
-        )
+        _run_sync_role_checkin(db, job_id=job_id, member_id=1, game_code="arknights", role_uid="u1")
     return ei.value
 
 
@@ -99,9 +97,7 @@ def test_sync_role_checkin_reports_unbound_platform(monkeypatch) -> None:
 
 
 def test_sync_role_checkin_maps_upstream_error_to_400(monkeypatch) -> None:
-    monkeypatch.setattr(
-        skland_adapter, "get_bind", lambda _db, _mid: SimpleNamespace(member_id=1, id=5)
-    )
+    monkeypatch.setattr(skland_adapter, "get_bind", lambda _db, _mid: SimpleNamespace(member_id=1, id=5))
 
     def _fail(*_a, **_k):
         raise SklandApiError("凭证可能已失效，请重新绑定森空岛（用户未登录）")
@@ -167,9 +163,7 @@ def test_sync_trigger_returns_server_run_id_and_category(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "app.api.jobs.trigger_runs.launch_sync_job_process",
-        lambda job_id, run_id, *, on_finish: (
-            calls.append((job_id, run_id)), completion.append(on_finish)
-        ),
+        lambda job_id, run_id, *, on_finish: (calls.append((job_id, run_id)), completion.append(on_finish)),
     )
     monkeypatch.setattr(
         "app.api.jobs.trigger_runs.release_manual_trigger",
@@ -205,12 +199,8 @@ def test_sync_trigger_marks_run_failed_when_child_cannot_start(monkeypatch) -> N
     releases: list[str] = []
     monkeypatch.setattr("app.api.jobs.trigger_runs._job_has_running_run", lambda *_: False)
     monkeypatch.setattr("app.api.jobs.trigger_runs.try_acquire_manual_trigger", lambda *_: True)
-    monkeypatch.setattr(
-        "app.api.jobs.trigger_runs.release_manual_trigger", lambda job_id: releases.append(job_id)
-    )
-    monkeypatch.setattr(
-        "app.api.jobs.trigger_runs.resolve_sync_job_handler", lambda *_a, **_k: lambda: None
-    )
+    monkeypatch.setattr("app.api.jobs.trigger_runs.release_manual_trigger", lambda job_id: releases.append(job_id))
+    monkeypatch.setattr("app.api.jobs.trigger_runs.resolve_sync_job_handler", lambda *_a, **_k: lambda: None)
     monkeypatch.setattr(
         "app.api.jobs.trigger_runs.create_queued_job_run",
         lambda *_a, **_k: SimpleNamespace(id=81),
@@ -221,9 +211,7 @@ def test_sync_trigger_marks_run_failed_when_child_cannot_start(monkeypatch) -> N
     )
     monkeypatch.setattr(
         "app.api.jobs.trigger_runs.write_job_run",
-        lambda run_id, job_id, **kwargs: writes.append(
-            {"run_id": run_id, "job_id": job_id, **kwargs}
-        ),
+        lambda run_id, job_id, **kwargs: writes.append({"run_id": run_id, "job_id": job_id, **kwargs}),
     )
 
     with pytest.raises(HTTPException) as error:

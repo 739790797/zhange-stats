@@ -17,16 +17,10 @@ export function CheckinStatusTag({
     return <Typography.Text type="secondary">-</Typography.Text>;
   }
   const tag = (
-    <Tag color={checkinStatusTagColor(status)}>
-      {checkinStatusLabel(status, statusLabel)}
-    </Tag>
+    <Tag color={checkinStatusTagColor(status)}>{checkinStatusLabel(status, statusLabel)}</Tag>
   );
   if (status === CHECKIN_STATUS.UNKNOWN) {
-    return (
-      <Tooltip title="上游未返回明确状态，可手动点签到确认">
-        {tag}
-      </Tooltip>
-    );
+    return <Tooltip title="上游未返回明确状态，可手动点签到确认">{tag}</Tooltip>;
   }
   return tag;
 }

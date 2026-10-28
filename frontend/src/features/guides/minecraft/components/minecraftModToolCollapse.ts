@@ -17,10 +17,7 @@ export function parseModToolExpandedMap(raw: string | null): Record<string, bool
   }
 }
 
-export function resolveModToolExpanded(
-  present: boolean,
-  saved: boolean | undefined,
-): boolean {
+export function resolveModToolExpanded(present: boolean, saved: boolean | undefined): boolean {
   if (!present) return false;
   if (saved === undefined) return true;
   return saved;

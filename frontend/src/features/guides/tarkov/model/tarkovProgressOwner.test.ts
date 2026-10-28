@@ -46,22 +46,16 @@ describe("planTarkovProgressOwner", () => {
   it("keeps the same owner and adopts data written before owners existed", () => {
     expect(planTarkovProgressOwner({ stored: userA, next: userA })).toBe("keep");
     expect(planTarkovProgressOwner({ stored: null, next: userA })).toBe("adopt");
-    expect(planTarkovProgressOwner({ stored: "", next: TARKOV_GUEST_OWNER })).toBe(
-      "adopt",
-    );
+    expect(planTarkovProgressOwner({ stored: "", next: TARKOV_GUEST_OWNER })).toBe("adopt");
   });
 
   it("clears an account's progress on logout or when someone else signs in", () => {
-    expect(planTarkovProgressOwner({ stored: userA, next: TARKOV_GUEST_OWNER })).toBe(
-      "clear",
-    );
+    expect(planTarkovProgressOwner({ stored: userA, next: TARKOV_GUEST_OWNER })).toBe("clear");
     expect(planTarkovProgressOwner({ stored: userA, next: userB })).toBe("clear");
   });
 
   it("stashes guest progress instead of merging it into the account", () => {
-    expect(planTarkovProgressOwner({ stored: TARKOV_GUEST_OWNER, next: userA })).toBe(
-      "stash",
-    );
+    expect(planTarkovProgressOwner({ stored: TARKOV_GUEST_OWNER, next: userA })).toBe("stash");
     expect(
       planTarkovProgressOwner({
         stored: TARKOV_GUEST_OWNER,
@@ -79,9 +73,7 @@ describe("planTarkovProgressOwner", () => {
         leaving: userA,
       }),
     ).toBe("clear");
-    expect(
-      planTarkovProgressOwner({ stored: userB, next: userB, leaving: userB }),
-    ).toBe("keep");
+    expect(planTarkovProgressOwner({ stored: userB, next: userB, leaving: userB })).toBe("keep");
   });
 });
 

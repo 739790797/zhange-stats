@@ -1,4 +1,8 @@
-import { MAPS_HREF, TARKOV_MAPS, tarkovMapHref } from "@/features/guides/tarkov/model/tarkovHomeNav";
+import {
+  MAPS_HREF,
+  TARKOV_MAPS,
+  tarkovMapHref,
+} from "@/features/guides/tarkov/model/tarkovHomeNav";
 import { logTextGrownFrom } from "@/features/guides/tarkov/model/tarkovLogTextCache";
 import { parseTarkovScreenshotTime } from "@/features/guides/tarkov/model/tarkovScreenshotPos";
 
@@ -6,7 +10,7 @@ import { parseTarkovScreenshotTime } from "@/features/guides/tarkov/model/tarkov
 const LOCATION_TO_MAP: Record<string, string> = {
   factory: "factory",
   factory4_day: "factory",
-  "factory4_day_preset": "factory",
+  factory4_day_preset: "factory",
   factory4_night: "night-factory",
   "factory (night)": "night-factory",
   bigmap: "customs",
@@ -50,8 +54,7 @@ const SCENE_TO_MAP: Record<string, string> = {
   icebreaker: "icebreaker",
 };
 
-const TS_RE =
-  /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(?:\s*([+-])(\d{2}):(\d{2}))?\|/;
+const TS_RE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(?:\s*([+-])(\d{2}):(\d{2}))?\|/;
 const CLOCK_PARTS_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})$/;
 const BEIJING_OFFSET_MIN = 8 * 60;
 
@@ -64,19 +67,13 @@ function pad(n: number, width = 2): string {
  * 回放下限、清空时刻、账号上的时间都按北京墙钟比，所以带偏移的一律换算。
  * 不带偏移的老格式原样当北京墙钟（与以前一致）。纯算术，不依赖运行环境的时区。
  */
-export function logClockToBeijing(
-  clock: string,
-  sign?: string,
-  hh?: string,
-  mm?: string,
-): string {
+export function logClockToBeijing(clock: string, sign?: string, hh?: string, mm?: string): string {
   if (!sign || hh == null || mm == null) return clock;
   const offsetMin = (sign === "-" ? -1 : 1) * (Number(hh) * 60 + Number(mm));
   if (offsetMin === BEIJING_OFFSET_MIN) return clock;
   const m = CLOCK_PARTS_RE.exec(clock);
   if (!m) return clock;
-  const utcMs =
-    Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]) - offsetMin * 60_000;
+  const utcMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]) - offsetMin * 60_000;
   const d = new Date(utcMs + BEIJING_OFFSET_MIN * 60_000);
   return (
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
@@ -85,8 +82,7 @@ export function logClockToBeijing(
   );
 }
 
-const FOLDER_TS_RE =
-  /(?:^|log_)(\d{4})\.(\d{2})\.(\d{2})_(\d{1,2})-(\d{2})-(\d{2})/i;
+const FOLDER_TS_RE = /(?:^|log_)(\d{4})\.(\d{2})\.(\d{2})_(\d{1,2})-(\d{2})-(\d{2})/i;
 const LOCATION_RE = /Location:\s*([^,]+)/i;
 const SHORT_ID_RE = /shortId:\s*([A-Z0-9]{6})/;
 const RAID_MODE_RE = /RaidMode:\s*(\w+)/i;
@@ -208,11 +204,7 @@ export type TarkovLogHistoryRaid = TarkovLogRaid & {
 };
 
 export function normalizeLogLocationKey(raw: string): string {
-  return (raw || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+  return (raw || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
 
 export function mapLogLocationToMapId(raw: string): string {
@@ -269,25 +261,16 @@ export function isOutputLogFileName(name: string): boolean {
 
 export function isReadableTarkovLogFileName(name: string): boolean {
   return (
-    isApplicationLogFileName(name) ||
-    isNotificationsLogFileName(name) ||
-    isOutputLogFileName(name)
+    isApplicationLogFileName(name) || isNotificationsLogFileName(name) || isOutputLogFileName(name)
   );
 }
 
-export function classifyLogSessionMode(
-  raw: string | undefined,
-): TarkovLogSessionKind | "" {
+export function classifyLogSessionMode(raw: string | undefined): TarkovLogSessionKind | "" {
   const key = (raw || "").trim().toLowerCase();
   if (!key) return "";
   if (key === "pve") return "pve";
   if (key === "pvp" || key === "regular") return "pvp";
-  if (
-    key === "seasonal" ||
-    key === "pvp-season" ||
-    key === "pvpseason" ||
-    key === "szn"
-  ) {
+  if (key === "seasonal" || key === "pvp-season" || key === "pvpseason" || key === "szn") {
     return "seasonal";
   }
   return "unknown";
@@ -346,10 +329,7 @@ export function sessionStubInBeijing(
   return startedAt === stub.startedAt ? stub : { ...stub, startedAt };
 }
 
-export function matchNamedDir(
-  names: readonly string[],
-  wanted: string,
-): string | null {
+export function matchNamedDir(names: readonly string[], wanted: string): string | null {
   const key = (wanted || "").toLowerCase();
   if (!key) return null;
   return names.find((name) => name.toLowerCase() === key) ?? null;
@@ -357,10 +337,7 @@ export function matchNamedDir(
 
 /** Steam / BSG 安装目录常见文件夹名。 */
 export function matchTarkovGameDir(names: readonly string[]): string | null {
-  return (
-    matchNamedDir(names, "Escape from Tarkov") ||
-    matchNamedDir(names, "EscapeFromTarkov")
-  );
+  return matchNamedDir(names, "Escape from Tarkov") || matchNamedDir(names, "EscapeFromTarkov");
 }
 
 export function isScreenshotFileName(name: string): boolean {
@@ -376,8 +353,7 @@ export const TARKOV_SCREENSHOT_POLL_MS = 2000;
 export const TARKOV_SCREENSHOT_PRUNE_BATCH = 40;
 
 export const TARKOV_SCREENSHOT_PRUNE_EVENT = "zhange-tarkov-screenshot-prune";
-export const TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY =
-  "zhange.guides.tarkov.screenshotPrune.v1";
+export const TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY = "zhange.guides.tarkov.screenshotPrune.v1";
 export const TARKOV_SCREENSHOT_PRUNE_KEEP_DEFAULT = 20;
 export const TARKOV_SCREENSHOT_PRUNE_KEEP_MIN = 1;
 export const TARKOV_SCREENSHOT_PRUNE_KEEP_MAX = 200;
@@ -395,10 +371,7 @@ const DEFAULT_SCREENSHOT_PRUNE_PREF: TarkovScreenshotPrunePref = {
 export function clampScreenshotPruneKeep(value: unknown): number {
   const n = Math.floor(Number(value));
   if (!Number.isFinite(n)) return TARKOV_SCREENSHOT_PRUNE_KEEP_DEFAULT;
-  return Math.min(
-    TARKOV_SCREENSHOT_PRUNE_KEEP_MAX,
-    Math.max(TARKOV_SCREENSHOT_PRUNE_KEEP_MIN, n),
-  );
+  return Math.min(TARKOV_SCREENSHOT_PRUNE_KEEP_MAX, Math.max(TARKOV_SCREENSHOT_PRUNE_KEEP_MIN, n));
 }
 
 export function parseScreenshotPrunePref(
@@ -441,10 +414,7 @@ export function saveScreenshotPrunePref(
   };
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(
-        TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY,
-        JSON.stringify(next),
-      );
+      window.localStorage.setItem(TARKOV_SCREENSHOT_PRUNE_STORAGE_KEY, JSON.stringify(next));
       unsavedScreenshotPrunePref = null;
     } catch {
       unsavedScreenshotPrunePref = { ...next };
@@ -454,10 +424,10 @@ export function saveScreenshotPrunePref(
   return next;
 }
 
-export function screenshotPruneVerifyResult(opts: {
-  pruneEnabled: boolean;
-  canWrite: boolean;
-}): { ok: boolean; text: string } {
+export function screenshotPruneVerifyResult(opts: { pruneEnabled: boolean; canWrite: boolean }): {
+  ok: boolean;
+  text: string;
+} {
   if (!opts.pruneEnabled) {
     return { ok: true, text: "截图目录校验通过" };
   }
@@ -476,9 +446,7 @@ export type TarkovScreenshotStamp = {
 };
 
 export function isTarkovGameScreenshotName(name: string): boolean {
-  return (
-    isScreenshotFileName(name) && TARKOV_SCREENSHOT_STAMP_RE.test(name || "")
-  );
+  return isScreenshotFileName(name) && TARKOV_SCREENSHOT_STAMP_RE.test(name || "");
 }
 
 /** 只有名字时 lastModified 记 0，比较退回文件名。 */
@@ -494,10 +462,7 @@ function listingStamp(row: TarkovScreenshotListing): TarkovScreenshotStamp {
  * 截图新旧：先比文件名里的日期时刻（只到分钟，小时可能是一位数，不能按字符串比），
  * 同一分钟再比修改时间（有的话），最后比文件名（数字按数值比）。不带日期的名字算最旧。
  */
-export function compareScreenshotAge(
-  a: TarkovScreenshotStamp,
-  b: TarkovScreenshotStamp,
-): number {
+export function compareScreenshotAge(a: TarkovScreenshotStamp, b: TarkovScreenshotStamp): number {
   const ta = parseTarkovScreenshotTime(a.name) || "";
   const tb = parseTarkovScreenshotTime(b.name) || "";
   if (ta !== tb) return ta < tb ? -1 : 1;
@@ -513,9 +478,7 @@ function screenshotPool(rows: readonly TarkovScreenshotListing[]): TarkovScreens
 }
 
 /** 最新一张：按文件名里的拍摄时刻，同一分钟再看修改时间。 */
-export function latestScreenshotName(
-  rows: readonly TarkovScreenshotListing[],
-): string | null {
+export function latestScreenshotName(rows: readonly TarkovScreenshotListing[]): string | null {
   const pool = screenshotPool(rows);
   return pool[pool.length - 1]?.name ?? null;
 }
@@ -554,12 +517,13 @@ export function screenshotNamesToPrune(
   keepMax: number,
   batch = TARKOV_SCREENSHOT_PRUNE_BATCH,
 ): string[] {
-  const dated = rows
-    .map(listingStamp)
-    .filter((row) => isTarkovGameScreenshotName(row.name));
+  const dated = rows.map(listingStamp).filter((row) => isTarkovGameScreenshotName(row.name));
   const cap = clampScreenshotPruneKeep(keepMax);
   if (dated.length <= cap) return [];
-  const newestFirst = dated.sort(compareScreenshotAge).reverse().map((row) => row.name);
+  const newestFirst = dated
+    .sort(compareScreenshotAge)
+    .reverse()
+    .map((row) => row.name);
   const keep = new Set(newestFirst.slice(0, cap));
   if (keepLatest) keep.add(keepLatest);
   const out: string[] = [];
@@ -587,9 +551,7 @@ function uniqueWalks(walks: string[][]): string[][] {
  * 从当前目录往下找 Logs。优先 Steam 的 `build/Logs`。
  * `[]` 表示当前目录已经是 Logs。
  */
-export function logWalkCandidatesFrom(
-  childNames: readonly string[],
-): string[][] {
+export function logWalkCandidatesFrom(childNames: readonly string[]): string[][] {
   if (childNames.some((name) => isSessionFolderName(name))) return [[]];
   const lower = new Set(childNames.map((name) => name.toLowerCase()));
   const game = matchTarkovGameDir(childNames);
@@ -614,9 +576,7 @@ export function logWalkCandidatesFrom(
 /**
  * 从当前目录往下找截图。常见是「文档 / Escape from Tarkov / Screenshots」。
  */
-export function screenshotWalkCandidatesFrom(
-  childNames: readonly string[],
-): string[][] {
+export function screenshotWalkCandidatesFrom(childNames: readonly string[]): string[][] {
   const lower = new Set(childNames.map((name) => name.toLowerCase()));
   const game = matchTarkovGameDir(childNames);
   const walks: string[][] = [];
@@ -710,10 +670,7 @@ export function mergeBindPath(previous: string, next: string): string {
   if (bindPartsEndWith(prevParts, nextParts)) return joinBindPath(prevParts);
   const overlap = bindLeadingOverlap(prevParts, nextParts);
   if (overlap > 0) {
-    return joinBindPath([
-      ...prevParts.slice(0, prevParts.length - overlap),
-      ...nextParts,
-    ]);
+    return joinBindPath([...prevParts.slice(0, prevParts.length - overlap), ...nextParts]);
   }
   const index = prevParts.findIndex((part) => bindPartsEqual(part, nextParts[0]));
   if (index >= 0) {
@@ -775,12 +732,7 @@ export function sessionModeLabel(mode: string): string {
   const key = (mode || "").trim().toLowerCase();
   if (key === "pve") return "PvE";
   if (key === "regular" || key === "pvp") return "正式";
-  if (
-    key === "seasonal" ||
-    key === "pvp-season" ||
-    key === "pvpseason" ||
-    key === "szn"
-  ) {
+  if (key === "seasonal" || key === "pvp-season" || key === "pvpseason" || key === "szn") {
     return "赛季";
   }
   return mode.trim();
@@ -848,9 +800,7 @@ function applyRaidFields(raid: TarkovLogRaid, event: TarkovLogEvent) {
   }
 }
 
-export function buildRaidsFromEvents(
-  events: readonly TarkovLogEvent[],
-): TarkovLogRaid[] {
+export function buildRaidsFromEvents(events: readonly TarkovLogEvent[]): TarkovLogRaid[] {
   const raids: TarkovLogRaid[] = [];
   let current: TarkovLogRaid | null = null;
   /** UserMatchOver / 取消匹配之后，回菜单的 GameStarted 不算新一局。 */
@@ -871,11 +821,7 @@ export function buildRaidsFromEvents(
     if (event.kind === "session_mode" || event.kind === "profile") continue;
     if (event.kind === "match_found") {
       awaitNewMatch = false;
-      if (
-        current?.raidId &&
-        event.raidId &&
-        current.raidId === event.raidId
-      ) {
+      if (current?.raidId && event.raidId && current.raidId === event.raidId) {
         current.reconnected = true;
         applyRaidFields(current, event);
         continue;
@@ -905,7 +851,11 @@ export function buildRaidsFromEvents(
       applyRaidFields(current, event);
       continue;
     }
-    if (event.kind === "raid_starting" || event.kind === "map_loading" || event.kind === "matching") {
+    if (
+      event.kind === "raid_starting" ||
+      event.kind === "map_loading" ||
+      event.kind === "matching"
+    ) {
       if (awaitNewMatch && !current) {
         // 战后 hideout 的 LocationLoaded / GameStarted 仍跳过；
         // 选了新图的 scene preset 要开下一局，否则离线/无 match_found 永远不切图。
@@ -921,11 +871,7 @@ export function buildRaidsFromEvents(
       continue;
     }
     if (event.kind === "raid_exited") {
-      if (
-        current?.raidId &&
-        event.raidId &&
-        current.raidId !== event.raidId
-      ) {
+      if (current?.raidId && event.raidId && current.raidId !== event.raidId) {
         flush();
       }
       if (!current) current = emptyRaid();
@@ -939,11 +885,7 @@ export function buildRaidsFromEvents(
   return raids;
 }
 
-function extractJsonObject(
-  text: string,
-  from: number,
-  maxLen = 8000,
-): string | null {
+function extractJsonObject(text: string, from: number, maxLen = 8000): string | null {
   const start = text.indexOf("{", from);
   if (start < 0 || start - from > 240) return null;
   let depth = 0;
@@ -960,10 +902,10 @@ function extractJsonObject(
         escape = true;
         continue;
       }
-      if (ch === "\"") inStr = false;
+      if (ch === '"') inStr = false;
       continue;
     }
-    if (ch === "\"") {
+    if (ch === '"') {
       inStr = true;
       continue;
     }
@@ -1004,10 +946,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function pickUnknown(
-  rec: Record<string, unknown> | null,
-  keys: readonly string[],
-): unknown {
+function pickUnknown(rec: Record<string, unknown> | null, keys: readonly string[]): unknown {
   if (!rec) return undefined;
   for (const key of keys) {
     if (rec[key] !== undefined) return rec[key];
@@ -1031,20 +970,10 @@ function questKindFromMessageType(raw: unknown): TarkovLogQuestKind | "" {
 function questEventFromMessage(raw: unknown, at: string): TarkovLogQuestEvent | null {
   const root = asRecord(raw);
   const message = asRecord(pickUnknown(root, ["message", "Message"])) || root;
-  const kind = questKindFromMessageType(
-    pickUnknown(message, ["type", "Type", "status", "Status"]),
-  );
+  const kind = questKindFromMessageType(pickUnknown(message, ["type", "Type", "status", "Status"]));
   if (!kind) return null;
   const taskId = taskIdFromQuestTemplate(
-    String(
-      pickUnknown(message, [
-        "templateId",
-        "TemplateId",
-        "questId",
-        "QuestId",
-        "tid",
-      ]) || "",
-    ),
+    String(pickUnknown(message, ["templateId", "TemplateId", "questId", "QuestId", "tid"]) || ""),
   );
   if (!taskId) return null;
   return { kind, at, taskId };
@@ -1083,9 +1012,7 @@ type LogSessionIdentity = {
   version: string;
 };
 
-function logSessionIdentityTimeline(
-  events: readonly TarkovLogEvent[],
-): LogSessionIdentity[] {
+function logSessionIdentityTimeline(events: readonly TarkovLogEvent[]): LogSessionIdentity[] {
   const timeline: LogSessionIdentity[] = [];
   let sessionMode = "";
   let profileId = "";
@@ -1195,11 +1122,7 @@ function nextLogLineIndex(text: string, from: number): number {
   return match < 0 ? text.length : from + match;
 }
 
-function parseUserMatchOver(
-  text: string,
-  lineStart: number,
-  at: string,
-): TarkovLogEvent | null {
+function parseUserMatchOver(text: string, lineStart: number, at: string): TarkovLogEvent | null {
   const until = nextLogLineIndex(text, lineStart + 1);
   const block = text.slice(lineStart, until);
   const jsonText = extractJsonObject(block, 0);
@@ -1261,14 +1184,14 @@ function scanLogLines(st: LogScanState, text: string, outputOnly: boolean): void
     const clock = ts ? logClockToBeijing(ts[1]!, ts[2], ts[3], ts[4]) : "";
     if (outputOnly) {
       if (!line.includes(GAME_STOPPING_MARKER)) continue;
-      st.events.push({ kind: "raid_exited", at: clock || st.events[st.events.length - 1]?.at || "" });
+      st.events.push({
+        kind: "raid_exited",
+        at: clock || st.events[st.events.length - 1]?.at || "",
+      });
       continue;
     }
     const at =
-      clock ||
-      st.events[st.events.length - 1]?.at ||
-      st.quests[st.quests.length - 1]?.at ||
-      "";
+      clock || st.events[st.events.length - 1]?.at || st.quests[st.quests.length - 1]?.at || "";
     st.version = versionFromLogLine(line, st.version);
     if (line.includes(GAME_STOPPING_MARKER)) {
       st.events.push({ kind: "raid_exited", at });
@@ -1276,7 +1199,12 @@ function scanLogLines(st: LogScanState, text: string, outputOnly: boolean): void
     }
     if (SESSION_MODE_RE.test(line)) {
       st.sessionMode = (SESSION_MODE_RE.exec(line)?.[1] || "").trim();
-      st.events.push({ kind: "session_mode", at, sessionMode: st.sessionMode, version: st.version || undefined });
+      st.events.push({
+        kind: "session_mode",
+        at,
+        sessionMode: st.sessionMode,
+        version: st.version || undefined,
+      });
       continue;
     }
     const profileMatch = SELECT_PROFILE_RE.exec(line);
@@ -1410,10 +1338,7 @@ type LogPartMemo = {
  */
 export type TarkovLogBundleMemo = WeakMap<object, LogPartMemo>;
 
-function parseLogPart(
-  part: TarkovLogPart,
-  memo?: TarkovLogBundleMemo,
-): TarkovLogParseResult {
+function parseLogPart(part: TarkovLogPart, memo?: TarkovLogBundleMemo): TarkovLogParseResult {
   const outputOnly = isOutputLogFileName(part.name);
   let hit = memo?.get(part);
   if (hit && hit.name === part.name && hit.text === part.text) return hit.parsed;
@@ -1445,7 +1370,13 @@ function parseLogPart(
   } else {
     parsed = finishScan(state, outputOnly);
   }
-  memo?.set(part, { name: part.name, prefix: source.slice(0, safeEnd), state, text: part.text, parsed });
+  memo?.set(part, {
+    name: part.name,
+    prefix: source.slice(0, safeEnd),
+    state,
+    text: part.text,
+    parsed,
+  });
   return parsed;
 }
 
@@ -1562,9 +1493,7 @@ export function raidLogEndedKey(row: {
 export function toRaidLogImportRows(
   sessions: Array<{ folder: string; parsed: TarkovLogParseResult }>,
 ): TarkovRaidLogImportRow[] {
-  const parsedByFolder = new Map(
-    sessions.map((session) => [session.folder, session.parsed]),
-  );
+  const parsedByFolder = new Map(sessions.map((session) => [session.folder, session.parsed]));
   return historyRaidsFromSessions(sessions).map((raid) => {
     const parsed = parsedByFolder.get(raid.folder);
     const timeline = parsed ? logSessionIdentityTimeline(parsed.events || []) : [];
@@ -1608,9 +1537,7 @@ export type TarkovLogPhasePayload = {
   raidMode?: TarkovLogRaidMode;
 };
 
-function lastRaidFacingEvent(
-  parsed: TarkovLogParseResult,
-): TarkovLogEvent | null {
+function lastRaidFacingEvent(parsed: TarkovLogParseResult): TarkovLogEvent | null {
   const events = parsed.events || [];
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
@@ -1624,9 +1551,7 @@ function isPostRaidShell(raid: TarkovLogRaid): boolean {
   return !raid.raidId && !raid.location && !raid.mapId && !raid.aborted;
 }
 
-function latestMeaningfulRaid(
-  raids: readonly TarkovLogRaid[],
-): TarkovLogRaid | null {
+function latestMeaningfulRaid(raids: readonly TarkovLogRaid[]): TarkovLogRaid | null {
   for (let i = raids.length - 1; i >= 0; i -= 1) {
     const raid = raids[i];
     if (raid && !isPostRaidShell(raid)) return raid;
@@ -1672,9 +1597,7 @@ export function logPhaseFromParsed(
 }
 
 /** 当前有意义战局的地图；空图不回落到上一场，方便离线手选。 */
-export function latestLogMapId(
-  parsed: TarkovLogParseResult | null | undefined,
-): string {
+export function latestLogMapId(parsed: TarkovLogParseResult | null | undefined): string {
   const raid = latestMeaningfulRaid(parsed?.raids || []);
   if (raid) return (raid.mapId || "").trim();
   const events = parsed?.events || [];
@@ -1686,9 +1609,7 @@ export function latestLogMapId(
 }
 
 /** 最新一条战局事件或任务事件的时间，用于顶栏「最近日志」。 */
-export function latestLogActivityAt(
-  parsed: TarkovLogParseResult | null | undefined,
-): string {
+export function latestLogActivityAt(parsed: TarkovLogParseResult | null | undefined): string {
   const eventAt = latestLogEvent(parsed)?.at || "";
   const quests = parsed?.quests || [];
   const questAt = quests.length ? quests[quests.length - 1]?.at || "" : "";

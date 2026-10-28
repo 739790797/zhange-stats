@@ -97,11 +97,7 @@ def save_email_config(_db: Session | None, payload: dict[str, Any]) -> dict[str,
             "smtp_host": str(payload.get("smtp_host") or "").strip(),
             "smtp_port": int(payload.get("smtp_port") or 465),
             "encryption": enc,
-            "code_expire_minutes": int(
-                payload.get("code_expire_minutes")
-                or current.get("code_expire_minutes")
-                or 15
-            ),
+            "code_expire_minutes": int(payload.get("code_expire_minutes") or current.get("code_expire_minutes") or 15),
         }
     )
     write_json("email", data)

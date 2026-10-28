@@ -3,8 +3,7 @@
  * 展示层按碰撞体、插板槽、材质、护甲类型做中文映射；上游 locale 已译成中文时不再覆盖。
  */
 
-const PREFIX_RE =
-  /^(collider\s*type|armor\s*zone|ebodypartcollidertype)[.\s:_-]*/i;
+const PREFIX_RE = /^(collider\s*type|armor\s*zone|ebodypartcollidertype)[.\s:_-]*/i;
 const CJK_RE = /[\u3400-\u9fff]/;
 
 /** 碰撞体 / 简化部位 / 插板槽 */
@@ -98,10 +97,7 @@ function lookup(map: Record<string, string>, raw: string): string | undefined {
   if (!trimmed) return undefined;
   const compact = trimmed.toLowerCase().replace(/[\s-]+/g, "_");
   return (
-    map[trimmed] ||
-    map[trimmed.toLowerCase()] ||
-    map[compact] ||
-    map[compact.replace(/_/g, "")]
+    map[trimmed] || map[trimmed.toLowerCase()] || map[compact] || map[compact.replace(/_/g, "")]
   );
 }
 
@@ -127,10 +123,7 @@ export function formatArmorZoneLabel(raw: string): string {
   if (!text) return "";
   if (keepUpstreamLabel(text)) return text;
   const token = stripDumpPrefix(text);
-  const mapped =
-    lookup(ZONE_LABELS, token) ||
-    plateZoneLabel(token) ||
-    lookup(ZONE_LABELS, text);
+  const mapped = lookup(ZONE_LABELS, token) || plateZoneLabel(token) || lookup(ZONE_LABELS, text);
   if (mapped) return mapped;
   return token || text;
 }

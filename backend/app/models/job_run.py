@@ -11,9 +11,7 @@ from app.core.timeutil import now_naive
 
 class JobRun(Base):
     __tablename__ = "job_runs"
-    __table_args__ = (
-        Index("ix_job_runs_job_key_started", "job_key", "started_at"),
-    )
+    __table_args__ = (Index("ix_job_runs_job_key_started", "job_key", "started_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_key: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -24,9 +22,7 @@ class JobRun(Base):
         nullable=False,
         index=True,
     )
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     stats: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)

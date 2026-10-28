@@ -157,14 +157,11 @@ export function gunsmithLiveCheck(
   const missingItemIds = (spec.required_items || [])
     .map((row) => row.id)
     .filter((id) => id && !have.has(id));
-  const missingCategoryGroups = (spec.required_category_groups || []).filter(
-    (group) => {
-      const ids = group.map((row) => row.id).filter(Boolean);
-      return ids.length > 0 && !ids.some((id) => cats.has(id));
-    },
-  );
-  const recoilSum =
-    (stats?.recoil_vertical || 0) + (stats?.recoil_horizontal || 0);
+  const missingCategoryGroups = (spec.required_category_groups || []).filter((group) => {
+    const ids = group.map((row) => row.id).filter(Boolean);
+    return ids.length > 0 && !ids.some((id) => cats.has(id));
+  });
+  const recoilSum = (stats?.recoil_vertical || 0) + (stats?.recoil_horizontal || 0);
   const unmetConstraints: string[] = [];
   const constraints = spec.constraints || {};
   const minErgo = constraints.min_ergonomics;

@@ -89,18 +89,10 @@ function monthCells(month: Dayjs): Array<Dayjs | null> {
   return cells;
 }
 
-export function TarkovLogSyncRangeModal({
-  open,
-  sessions,
-  onCancel,
-  onConfirm,
-}: Props) {
+export function TarkovLogSyncRangeModal({ open, sessions, onCancel, onConfirm }: Props) {
   const gameMode = useTarkovGameMode();
   const logSync = useTarkovLogSync();
-  const launches = useMemo(
-    () => logSyncCalendarLaunches(sessions, gameMode),
-    [gameMode, sessions],
-  );
+  const launches = useMemo(() => logSyncCalendarLaunches(sessions, gameMode), [gameMode, sessions]);
   const counts = useMemo(() => launchCountByDay(launches), [launches]);
   const [month, setMonth] = useState(() => nowBeijing().startOf("month"));
   const [selectedDay, setSelectedDay] = useState("");
@@ -263,10 +255,14 @@ export function TarkovLogSyncRangeModal({
           const count = counts.get(key) || 0;
           const selected = key === selectedDay;
           const prestigeDay = shownArchive?.day === key;
-          const archivedDay = Boolean(
-            shownArchive && count > 0 && key < shownArchive.day,
-          );
-          const mark = prestigeDay ? "转生日" : archivedDay ? "已归档" : count ? `启动${count}次` : "";
+          const archivedDay = Boolean(shownArchive && count > 0 && key < shownArchive.day);
+          const mark = prestigeDay
+            ? "转生日"
+            : archivedDay
+              ? "已归档"
+              : count
+                ? `启动${count}次`
+                : "";
           return (
             <button
               key={key}
@@ -316,7 +312,8 @@ export function TarkovLogSyncRangeModal({
                   const endedAt = raid ? resolvedEnds[pickKey] || raid.endedAt : "";
                   const knownEnd = Boolean(endedAt);
                   const floor = raid && knownEnd ? raidArchiveFrom({ ...raid, endedAt }) : null;
-                  const allowed = !knownEnd || (floor ? raidArchiveAllowed(floor.at, floorAt) : false);
+                  const allowed =
+                    !knownEnd || (floor ? raidArchiveAllowed(floor.at, floorAt) : false);
                   const picked = Boolean(pickKey) && archive?.key === pickKey;
                   const raidAt = raid?.startedAt || launch.startedAt;
                   const beforeArchive = Boolean(
@@ -326,9 +323,7 @@ export function TarkovLogSyncRangeModal({
                       compareBeijingClock(raidAt, shownArchive.raidAt) < 0,
                   );
                   const alreadyOnAccount =
-                    Boolean(pickKey) &&
-                    !archive &&
-                    accountArchive?.raidKey === pickKey;
+                    Boolean(pickKey) && !archive && accountArchive?.raidKey === pickKey;
                   return (
                     <tr key={raid ? pickKey : `${launch.folder}-empty`}>
                       {raidIndex === 0 ? (
@@ -344,8 +339,7 @@ export function TarkovLogSyncRangeModal({
                               picked || alreadyOnAccount ? ` ${styles.archiveOn}` : ""
                             }`}
                             disabled={
-                              (!picked && !alreadyOnAccount && !allowed) ||
-                              resolvingKey === pickKey
+                              (!picked && !alreadyOnAccount && !allowed) || resolvingKey === pickKey
                             }
                             title={
                               picked || alreadyOnAccount

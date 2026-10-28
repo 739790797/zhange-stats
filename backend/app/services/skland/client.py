@@ -38,27 +38,21 @@ PROFESSION_CN = {
 }
 ENDFIELD_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/endfield/attendance"
 # App「领取记录」：按真实领取时间戳查询，勿用 calendar 下标（calendar 是本月第 N 次）
-ENDFIELD_ATTENDANCE_RECORD_URL = (
-    "https://zonai.skland.com/api/v1/game/endfield/attendance/record"
-)
+ENDFIELD_ATTENDANCE_RECORD_URL = "https://zonai.skland.com/api/v1/game/endfield/attendance/record"
 ENDFIELD_CARD_DETAIL_URL = "https://zonai.skland.com/api/v1/game/endfield/card/detail"
 SCAN_LOGIN_URL = "https://as.hypergryph.com/general/v1/gen_scan/login"
 SCAN_STATUS_URL = "https://as.hypergryph.com/general/v1/scan_status"
 TOKEN_BY_SCAN_URL = "https://as.hypergryph.com/user/auth/v1/token_by_scan_code"
 SEND_PHONE_CODE_URL = "https://as.hypergryph.com/general/v1/send_phone_code"
 TOKEN_BY_PHONE_CODE_URL = "https://as.hypergryph.com/user/auth/v2/token_by_phone_code"
-TOKEN_BY_PHONE_PASSWORD_URL = (
-    "https://as.hypergryph.com/user/auth/v1/token_by_phone_password"
-)
+TOKEN_BY_PHONE_PASSWORD_URL = "https://as.hypergryph.com/user/auth/v1/token_by_phone_password"
 
 USER_AGENT = (
     "Mozilla/5.0 (Linux; Android 12; SM-A5560 Build/V417IR; wv) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
     "Chrome/101.0.4951.61 Safari/537.36; SKLand/1.52.1"
 )
-USER_AGENT_API = (
-    "Skland/1.0.1 (com.hypergryph.skland; build:100001014; Android 31; ) Okhttp/4.11.0"
-)
+USER_AGENT_API = "Skland/1.0.1 (com.hypergryph.skland; build:100001014; Android 31; ) Okhttp/4.11.0"
 PLATFORM = "3"
 VNAME = "1.0.0"
 REQUEST_TIMEOUT = 20
@@ -85,11 +79,7 @@ def localize_arknights_channel_name(name: str | None) -> str:
     if not raw:
         return "未知渠道"
     low = raw.lower().replace(" ", "")
-    if (
-        "bilibili" in low
-        or "哔哩" in raw
-        or low in ("b服", "bilibili服", "b站服")
-    ):
+    if "bilibili" in low or "哔哩" in raw or low in ("b服", "bilibili服", "b站服"):
         return "B服"
     return raw
 
@@ -311,18 +301,12 @@ def _http_json(
         payload = None
     if status >= 400:
         # 业务错误也可能挂在 4xx 上：带 code / message 的照常交给调用方判
-        if isinstance(payload, dict) and (
-            "code" in payload or "message" in payload or "msg" in payload
-        ):
+        if isinstance(payload, dict) and ("code" in payload or "message" in payload or "msg" in payload):
             return payload
-        log_until_change(
-            logger, log_key, "skland %s HTTP %s: %s", path, status, detail[:200]
-        )
+        log_until_change(logger, log_key, "skland %s HTTP %s: %s", path, status, detail[:200])
         raise SklandApiError(f"森空岛请求失败（HTTP {status}）", code=status)
     if not isinstance(payload, dict):
-        log_until_change(
-            logger, log_key, "skland %s returned non-object JSON: %s", path, detail[:200]
-        )
+        log_until_change(logger, log_key, "skland %s returned non-object JSON: %s", path, detail[:200])
         raise SklandApiError("森空岛响应格式无效")
     clear_log_until_change(log_key)
     return payload
@@ -527,9 +511,7 @@ def _signed_headers(
     if method.lower() == "get":
         sign_body = parsed.query or ""
     else:
-        sign_body = (
-            json.dumps(body, ensure_ascii=False, separators=(",", ":")) if body is not None else ""
-        )
+        sign_body = json.dumps(body, ensure_ascii=False, separators=(",", ":")) if body is not None else ""
     sign, sign_header = generate_sign(session.sign_token, parsed.path, sign_body)
     headers = {
         "cred": session.cred,

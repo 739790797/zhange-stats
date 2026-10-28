@@ -79,10 +79,7 @@ export type DailyLivePlatformStatus = {
 };
 
 /** 越小越需要先看：凭证失效 → 失败 → 待确认 → 未签 → 跳过 → 已签。 */
-export function dailyAttentionRank(
-  status?: string | null,
-  credBroken?: boolean,
-): number {
+export function dailyAttentionRank(status?: string | null, credBroken?: boolean): number {
   if (credBroken) return -1;
   const s = (status || "").trim();
   if (s === "error") return 0;
@@ -200,8 +197,7 @@ export function buildDailyPlatformGroups<T extends DailyTaskInput>(
 
   const groups = platforms.map((platform) => {
     const list = byPlatform.get(platform) || [];
-    const platformName =
-      CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform;
+    const platformName = CHECKIN_PLATFORM_LABELS[platform] || list[0]?.platform_name || platform;
 
     const withGame = list.filter((task) => task.game_code);
     const legacy = list.filter((task) => !task.game_code);
@@ -215,10 +211,7 @@ export function buildDailyPlatformGroups<T extends DailyTaskInput>(
     }
 
     const games: DailyGameGroup<T>[] = [...byGame.entries()]
-      .sort(
-        ([a], [b]) =>
-          communityGameRank(a) - communityGameRank(b) || a.localeCompare(b),
-      )
+      .sort(([a], [b]) => communityGameRank(a) - communityGameRank(b) || a.localeCompare(b))
       .map(([gameCode, roles]) => ({
         key: `game:${platform}:${gameCode}`,
         game_code: gameCode,
@@ -239,8 +232,7 @@ export function buildDailyPlatformGroups<T extends DailyTaskInput>(
       (task) => !task.cred_broken && isCheckinSuccess(task.today_status),
     ).length;
     const credBroken = list.some((task) => task.cred_broken);
-    const credError =
-      list.find((task) => task.cred_broken)?.cred_error?.trim() || null;
+    const credError = list.find((task) => task.cred_broken)?.cred_error?.trim() || null;
 
     return {
       platform,
@@ -248,9 +240,7 @@ export function buildDailyPlatformGroups<T extends DailyTaskInput>(
       signed,
       total: list.length,
       attention: Math.min(
-        ...list.map((task) =>
-          dailyAttentionRank(task.today_status, task.cred_broken),
-        ),
+        ...list.map((task) => dailyAttentionRank(task.today_status, task.cred_broken)),
       ),
       credBroken,
       credError,
@@ -300,8 +290,7 @@ export function overlayDailyLiveStatus<T extends DailyTaskInput>(
     if (!rows.length) return { ...task, cred_broken: false, cred_error: null };
     const row = rows.find(
       (item) =>
-        liveRowKey(item.game_code, item.role_uid) ===
-        liveRowKey(task.game_code, task.role_uid),
+        liveRowKey(item.game_code, item.role_uid) === liveRowKey(task.game_code, task.role_uid),
     );
     if (!row) return { ...task, cred_broken: false, cred_error: null };
     return {

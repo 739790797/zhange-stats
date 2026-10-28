@@ -12,23 +12,24 @@
 - Steam 绑定（OpenID 2.0）：发起时同样写 HttpOnly Cookie `zhange_steam_nonce`（`Path=/api/profile/steam/openid`、15 分钟），state 只存其 SHA-256 并带一次性 `jti`，用同一把 `PURPOSE_OAUTH_STATE` 子密钥签名（`purpose` 不同，QQ 的 state 在这里不认）。回调依次核对：state 签名与有效期 → 本浏览器 nonce → state 没用过（短时 KV 登记 `jti`，同一 state 只认一次）→ `openid.mode=id_res`、`openid.ns` 与 `openid.op_endpoint` 是 Steam 官方 → `openid.return_to` 与本次回调地址（含 state）逐字相同 → `openid.signed` 至少覆盖 `op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle` → `claimed_id` 等于 `identity` 且是 `steamcommunity.com/openid/id/<17 位>` → `response_nonce` 的时间戳在前后 5 分钟内且没用过（短时 KV 单次登记，先占再去 Steam 校验）→ 最后把断言原样交给 Steam `check_authentication`（POST，403/405 改 GET），只认应答里的 `is_valid:true`。别的「用 Steam 登录」站点拿到的断言、或配上自己 state 的断言，在这里换不成绑定
 - OAuth 回跳参数：QQ 登录 `qq_login=ok|error`、QQ 绑定 `qq_bind=ok|error`、Steam 绑定 `steam_bind=ok|error`；失败另带固定码 `reason`，前端按码出文案。URL 里不放 QQ / Steam 返回或异常的任何原文，原文只进服务端日志（同类故障 `log_until_change` 去重，异常 `logger.exception`）。QQ 登录成功另带一次性 `ticket`，账号没邮箱时再带 `need_complete=1`。码表：
 
-  | `reason` | 含义 | 出现在 |
-  |---|---|---|
-  | `cancelled` | 用户在 QQ / Steam 页取消授权 | 全部 |
-  | `state_invalid` | state 缺失、签名不对、过期，或（Steam）已用过 | 全部 |
-  | `browser_mismatch` | 回调不在发起的那个浏览器（nonce Cookie 对不上） | 全部 |
-  | `upstream_error` | QQ / Steam 接口报错或连不上 | 全部 |
-  | `server_error` | 服务端异常 | 全部 |
-  | `missing_code` | QQ 回调没带 `code` | QQ 登录、QQ 绑定 |
-  | `account_create_failed` | QQ 一键开号生成不了唯一用户名 | QQ 登录 |
-  | `user_not_found` / `member_not_found` | 发起绑定的账号 / 目标成员已不存在 | QQ 绑定、Steam 绑定 |
-  | `forbidden` | 非管理员给别的成员绑定 | QQ 绑定、Steam 绑定 |
-  | `already_bound` | 该 QQ / Steam 已绑在别的成员上 | QQ 绑定、Steam 绑定 |
-  | `bind_failed` | 其他绑定校验失败 | QQ 绑定、Steam 绑定 |
-  | `verify_failed` | Steam 断言不合格（`return_to`、签名字段、`claimed_id`、`is_valid`） | Steam 绑定 |
-  | `expired` / `replayed` | Steam `response_nonce` 超出前后 5 分钟 / 已用过 | Steam 绑定 |
-  | `steam_private` / `steam_not_found` | Steam 资料未公开 / 解析不到该账号 | Steam 绑定 |
-  | `feature_disabled` | Steam 功能已关闭 | Steam 绑定 |
+  | `reason`                              | 含义                                                                | 出现在              |
+  | ------------------------------------- | ------------------------------------------------------------------- | ------------------- |
+  | `cancelled`                           | 用户在 QQ / Steam 页取消授权                                        | 全部                |
+  | `state_invalid`                       | state 缺失、签名不对、过期，或（Steam）已用过                       | 全部                |
+  | `browser_mismatch`                    | 回调不在发起的那个浏览器（nonce Cookie 对不上）                     | 全部                |
+  | `upstream_error`                      | QQ / Steam 接口报错或连不上                                         | 全部                |
+  | `server_error`                        | 服务端异常                                                          | 全部                |
+  | `missing_code`                        | QQ 回调没带 `code`                                                  | QQ 登录、QQ 绑定    |
+  | `account_create_failed`               | QQ 一键开号生成不了唯一用户名                                       | QQ 登录             |
+  | `user_not_found` / `member_not_found` | 发起绑定的账号 / 目标成员已不存在                                   | QQ 绑定、Steam 绑定 |
+  | `forbidden`                           | 非管理员给别的成员绑定                                              | QQ 绑定、Steam 绑定 |
+  | `already_bound`                       | 该 QQ / Steam 已绑在别的成员上                                      | QQ 绑定、Steam 绑定 |
+  | `bind_failed`                         | 其他绑定校验失败                                                    | QQ 绑定、Steam 绑定 |
+  | `verify_failed`                       | Steam 断言不合格（`return_to`、签名字段、`claimed_id`、`is_valid`） | Steam 绑定          |
+  | `expired` / `replayed`                | Steam `response_nonce` 超出前后 5 分钟 / 已用过                     | Steam 绑定          |
+  | `steam_private` / `steam_not_found`   | Steam 资料未公开 / 解析不到该账号                                   | Steam 绑定          |
+  | `feature_disabled`                    | Steam 功能已关闭                                                    | Steam 绑定          |
+
 - 口令：直接用 `bcrypt` 库（不经 passlib），只取前 72 字节，与旧 passlib 哈希互认。注册 / 改密 / 重置 / 管理员设口令都按原样存（不去首尾空白），不能含空字符。旧版改密 / 重置会去掉首尾空白再存，所以登录与「当前密码」先按原样比，不中再试去空白后的值
 - 设口令时（注册、改密、找回重置、绑定邮箱顺带设的口令、管理员建号 / 改口令、安装向导）超过 72 字节（UTF-8，字母数字符号各 1 字节、汉字约 3 字节）直接 400「密码过长：最多 72 字节…」，不静默截断。接口层另有长度上限：口令输入 256 字符、登录账号 128 字符；注册 / 找回 / 绑定邮箱的口令校验排在核销验证码之前，口令不合格不浪费验证码。`ALLOW_ENV_ADMIN_SEED` 播种时 `ADMIN_PASSWORD` 先去首尾空白再校验、再存，`.env` 里常带的尾随换行不会变成登录框打不出来的口令
 - 显示名不收 `<` `>`（安装向导、个人资料、管理员建号 / 改资料回 400「显示名不能包含 < 或 >」）；QQ 昵称写库前去掉这两个字符。显示名会进 Leaflet tooltip 等按 innerHTML 渲染的地方，前端转义之外后端再挡一层。存量显示名不自动改

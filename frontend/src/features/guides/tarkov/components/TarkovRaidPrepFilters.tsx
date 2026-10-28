@@ -37,11 +37,7 @@ export function TarkovShotDirButton() {
   );
 }
 
-export function TarkovRaidPrepFilters({
-  keyword,
-  onKeyword,
-  leading,
-}: Props) {
+export function TarkovRaidPrepFilters({ keyword, onKeyword, leading }: Props) {
   return (
     <>
       {leading}

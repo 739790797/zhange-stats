@@ -41,11 +41,7 @@ def test_parse_mods_toml_and_placeholder_version_uses_manifest():
     data = _jar(
         **{
             "META-INF/mods.toml": (
-                'modLoader="javafml"\n'
-                "[[mods]]\n"
-                'modId="bluemap"\n'
-                'version="${file.jarVersion}"\n'
-                'displayName="BlueMap"\n'
+                'modLoader="javafml"\n[[mods]]\nmodId="bluemap"\nversion="${file.jarVersion}"\ndisplayName="BlueMap"\n'
             ),
             "META-INF/MANIFEST.MF": "Manifest-Version: 1.0\nImplementation-Version: 5.23\n",
         }
@@ -57,7 +53,7 @@ def test_parse_mods_toml_and_placeholder_version_uses_manifest():
 
 
 def test_parse_plugin_yml():
-    data = _jar( **{"plugin.yml": "name: Chunky\nversion: 1.4.40\nmain: example.Main\n"})
+    data = _jar(**{"plugin.yml": "name: Chunky\nversion: 1.4.40\nmain: example.Main\n"})
     parsed = parse_jar_bytes(data)
     assert parsed["mod_ids"] == ["Chunky"]
     assert parsed["mod_names"] == ["Chunky"]

@@ -135,17 +135,9 @@ def collect_gunsmith_tasks(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 kind="category",
             )
             if not cat_groups:
-                cats = [
-                    _named_pack(row)
-                    for row in (obj.get("contains_category") or [])
-                    if _named_id(row)
-                ]
+                cats = [_named_pack(row) for row in (obj.get("contains_category") or []) if _named_id(row)]
                 cat_groups = [[row] for row in cats]
-            required = [
-                _named_pack(row)
-                for row in (obj.get("contains_all") or [])
-                if _named_id(row)
-            ]
+            required = [_named_pack(row) for row in (obj.get("contains_all") or []) if _named_id(row)]
             out.append(
                 {
                     "id": f"{detail['id']}:{obj_id}" if obj_id else str(detail["id"]),
@@ -161,9 +153,7 @@ def collect_gunsmith_tasks(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     "constraints": constraints_from_attributes(obj.get("attributes")),
                     "required_items": required,
                     "required_category_groups": [
-                        [_named_pack(row) for row in group if _named_id(row)]
-                        for group in cat_groups
-                        if group
+                        [_named_pack(row) for row in group if _named_id(row)] for group in cat_groups if group
                     ],
                 }
             )
@@ -246,9 +236,7 @@ def _names_from_items_dump(
         if name and not _placeholder(ident, name):
             item_names[ident] = name
     try:
-        cat_names = catalog_svc.lookup_category_names_in(
-            index.catalogs, index.locale, wanted_cats
-        )
+        cat_names = catalog_svc.lookup_category_names_in(index.catalogs, index.locale, wanted_cats)
     except Exception:  # noqa: BLE001
         cat_names = {}
     return item_names, cat_names
@@ -262,9 +250,7 @@ def _fill_gunsmith_display_names(
     wanted_items, wanted_cats = _wanted_placeholder_ids(rows)
     item_names = _names_from_index(index, wanted_items)
     still_items = wanted_items - set(item_names)
-    dump_items, cat_names = (
-        _names_from_items_dump(db, still_items, wanted_cats) if db is not None else ({}, {})
-    )
+    dump_items, cat_names = _names_from_items_dump(db, still_items, wanted_cats) if db is not None else ({}, {})
     item_names.update(dump_items)
     for ident, name in cat_names.items():
         item_names.setdefault(ident, name)
@@ -341,11 +327,7 @@ def get_gunsmith_task(
     if not tid:
         raise wb.TarkovWorkbenchError("任务 id 无效", status_code=400)
     bundled = list_gunsmith_tasks(db)
-    rows = [
-        row
-        for row in bundled["items"]
-        if row["task_id"] == tid and (not oid or row["objective_id"] == oid)
-    ]
+    rows = [row for row in bundled["items"] if row["task_id"] == tid and (not oid or row["objective_id"] == oid)]
     if not rows:
         raise wb.TarkovWorkbenchError("未找到枪匠任务", status_code=404)
     return rows[0]
@@ -457,9 +439,7 @@ def evaluate_build(
             missing_categories.append([_named_pack(row) for row in group if _named_id(row)])
     constraints = spec.get("constraints") or {}
     ergo = float(stats.get("ergonomics") or 0)
-    recoil_sum = int(stats.get("recoil_vertical") or 0) + int(
-        stats.get("recoil_horizontal") or 0
-    )
+    recoil_sum = int(stats.get("recoil_vertical") or 0) + int(stats.get("recoil_horizontal") or 0)
     weight = float(stats.get("weight") or 0)
     mag = int(stats.get("mag_capacity") or 0)
     sight = int(stats.get("sighting_range") or 0)
@@ -484,12 +464,7 @@ def evaluate_build(
         unmet.append("max_mag_capacity")
     _gap("min_sighting_range", sight, True)
     conflicts = list(stats.get("conflicts") or [])
-    ok = (
-        not missing_items
-        and not missing_categories
-        and not unmet
-        and not conflicts
-    )
+    ok = not missing_items and not missing_categories and not unmet and not conflicts
     return {
         "ok": ok,
         "stats": stats,
@@ -599,11 +574,7 @@ def solve_spec(
         ids = _group_ids(group)
         if not ids:
             continue
-        present_items = [
-            index.items[iid]
-            for iid in _installed_ids(index, gun, installed)
-            if iid in index.items
-        ]
+        present_items = [index.items[iid] for iid in _installed_ids(index, gun, installed) if iid in index.items]
         if any(_item_matches_group(item, ids) for item in present_items):
             continue
         options: list[tuple[float, float, str, str]] = []
@@ -622,9 +593,7 @@ def solve_spec(
                 placed = True
                 break
         if not placed:
-            label = " / ".join(
-                str(row.get("name") or row.get("id") or "") for row in group
-            )
+            label = " / ".join(str(row.get("name") or row.get("id") or "") for row in group)
             return {
                 "status": "infeasible",
                 "reason": f"无法安装类别 {label}".strip(),

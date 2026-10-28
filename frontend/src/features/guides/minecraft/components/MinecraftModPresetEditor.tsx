@@ -66,10 +66,7 @@ export function MinecraftModPresetSection({
       <div className={styles.sectionHead}>
         <div className={styles.sectionTitle}>配置文件</div>
         <Space wrap>
-          <Button
-            disabled={!pelicanConfigured}
-            onClick={() => setConfigOpen(true)}
-          >
+          <Button disabled={!pelicanConfigured} onClick={() => setConfigOpen(true)}>
             编辑配置
           </Button>
           <Button
@@ -87,11 +84,7 @@ export function MinecraftModPresetSection({
               disabled={!pelicanConfigured || apply.isPending}
               onConfirm={() => apply.mutate()}
             >
-              <Button
-                type="primary"
-                loading={apply.isPending}
-                disabled={!pelicanConfigured}
-              >
+              <Button type="primary" loading={apply.isPending} disabled={!pelicanConfigured}>
                 一键应用
               </Button>
             </Popconfirm>
@@ -197,13 +190,9 @@ function MinecraftModPresetEditor({
       .then((res) => {
         const rows = res.keys || [];
         const current = new Map(
-          pins
-            .filter((row) => row.file === abs)
-            .map((row) => [row.key, row.value]),
+          pins.filter((row) => row.file === abs).map((row) => [row.key, row.value]),
         );
-        setSelectedKeys(
-          rows.filter((row) => current.has(row.key)).map((row) => row.key),
-        );
+        setSelectedKeys(rows.filter((row) => current.has(row.key)).map((row) => row.key));
         setKeyRows(
           rows.map((row) => ({
             key: row.key,
@@ -219,9 +208,7 @@ function MinecraftModPresetEditor({
   };
 
   const confirmKeys = () => {
-    const picked = new Map(
-      keyRows.map((row) => [row.key, row.value] as const),
-    );
+    const picked = new Map(keyRows.map((row) => [row.key, row.value] as const));
     const next = pins.filter((row) => row.file !== keyFile);
     for (const key of selectedKeys) {
       next.push({
@@ -248,9 +235,7 @@ function MinecraftModPresetEditor({
             value={row.value}
             onChange={(event) => {
               const value = event.target.value;
-              setPins((prev) =>
-                prev.map((item, i) => (i === index ? { ...item, value } : item)),
-              );
+              setPins((prev) => prev.map((item, i) => (i === index ? { ...item, value } : item)));
             }}
           />
         ),
@@ -263,9 +248,7 @@ function MinecraftModPresetEditor({
           <Button
             type="link"
             size="small"
-            onClick={() =>
-              setPins((prev) => prev.filter((_, i) => i !== index))
-            }
+            onClick={() => setPins((prev) => prev.filter((_, i) => i !== index))}
           >
             删除
           </Button>
@@ -350,9 +333,7 @@ function MinecraftModPresetEditor({
                   onChange={(event) => {
                     const value = event.target.value;
                     setKeyRows((prev) =>
-                      prev.map((item) =>
-                        item.key === row.key ? { ...item, value } : item,
-                      ),
+                      prev.map((item) => (item.key === row.key ? { ...item, value } : item)),
                     );
                   }}
                 />

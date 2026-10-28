@@ -90,12 +90,7 @@ def _goods_award_dict(row: dict[str, Any]) -> dict[str, Any] | None:
         count = int(num) if num is not None else 1
     except (TypeError, ValueError):
         count = 1
-    rid = (
-        row.get("goodsId")
-        or row.get("goodsID")
-        or row.get("id")
-        or row.get("type")
-    )
+    rid = row.get("goodsId") or row.get("goodsID") or row.get("id") or row.get("type")
     rtype = row.get("typeName") or row.get("goodsType") or row.get("type")
     icon = str(row.get("goodsUrl") or row.get("goods_url") or "").strip() or None
     return award_item(
@@ -155,9 +150,7 @@ def _task_progress(task: dict[str, Any]) -> tuple[int, int]:
     return max(0, done), max(1, need)
 
 
-def _find_daily_task(
-    tasks: list[Any], *, keywords: tuple[str, ...]
-) -> dict[str, Any] | None:
+def _find_daily_task(tasks: list[Any], *, keywords: tuple[str, ...]) -> dict[str, Any] | None:
     for task in tasks:
         if not isinstance(task, dict):
             continue
@@ -471,9 +464,7 @@ def complete_daily_tasks(creds: KujiequCredentials) -> dict[str, Any]:
     }
 
 
-def _attach_daily_tasks(
-    creds: KujiequCredentials, result: CheckinResult
-) -> CheckinResult:
+def _attach_daily_tasks(creds: KujiequCredentials, result: CheckinResult) -> CheckinResult:
     """在社区签到结果上附加每日任务执行情况（不展示连签天数）。"""
     if result.game_code != "kujiequ":
         return result
@@ -538,17 +529,11 @@ def _game_awards_from_records_once(
     if not isinstance(rows, list):
         return None, []
     day = today().isoformat()
-    todays = [
-        r
-        for r in rows
-        if isinstance(r, dict) and str(r.get("sigInDate") or "").startswith(day)
-    ]
+    todays = [r for r in rows if isinstance(r, dict) and str(r.get("sigInDate") or "").startswith(day)]
     return _format_goods_rows(todays)
 
 
-def fetch_game_attendance_bundle(
-    creds: KujiequCredentials, role: GameRole
-) -> dict[str, Any]:
+def fetch_game_attendance_bundle(creds: KujiequCredentials, role: GameRole) -> dict[str, Any]:
     """拉取签到日历落库包：initSignInV2 + queryRecordV2。"""
     creds = _ensure_device(creds)
     form = {
@@ -609,9 +594,7 @@ def _awards_from_sign_payload(
                 count = int(g.get("gainValue") or 0)
             except (TypeError, ValueError):
                 count = 0
-            items.append(
-                award_item(name="库洛币", count=count or 1, resource_type="gold")
-            )
+            items.append(award_item(name="库洛币", count=count or 1, resource_type="gold"))
             parts.append(f"库洛币+{g.get('gainValue') or '?'}")
         if items:
             return " · ".join(parts), items
@@ -710,9 +693,7 @@ def do_community_sign_in(creds: KujiequCredentials) -> CheckinResult:
         token=creds.token,
         creds=creds,
     )
-    upstream_req = format_upstream_request(
-        "POST", f"{API_BASE}/user/signIn", form_body
-    )
+    upstream_req = format_upstream_request("POST", f"{API_BASE}/user/signIn", form_body)
     upstream_resp = format_upstream_response(data)
     code = data.get("code")
     try:
@@ -781,9 +762,7 @@ def query_game_today(creds: KujiequCredentials, role: GameRole) -> CheckinResult
     _assert_ok(data)
     payload = data.get("data") or {}
     signed = bool(payload.get("isSigIn")) if isinstance(payload, dict) else False
-    awards_text, awards_items = (
-        _game_awards_from_records(creds, role) if signed else (None, [])
-    )
+    awards_text, awards_items = _game_awards_from_records(creds, role) if signed else (None, [])
     return CheckinResult(
         game_code=f"game_{role.game_id}",
         game_name=role.game_name,
@@ -814,9 +793,7 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         token=creds.token,
         creds=creds,
     )
-    upstream_req = format_upstream_request(
-        "POST", f"{API_BASE}/encourage/signIn/v2", form_body
-    )
+    upstream_req = format_upstream_request("POST", f"{API_BASE}/encourage/signIn/v2", form_body)
     upstream_resp = format_upstream_response(data)
     code = data.get("code")
     try:
@@ -825,9 +802,7 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
         code_i = None
     msg = str(data.get("msg") or "").strip()
     if code_i == 1511 or "重复" in msg:
-        awards_text, awards_items = _game_awards_from_records(
-            creds, role, retries=1
-        )
+        awards_text, awards_items = _game_awards_from_records(creds, role, retries=1)
         return CheckinResult(
             game_code=f"game_{role.game_id}",
             game_name=role.game_name,
@@ -861,19 +836,12 @@ def do_game_sign_in(creds: KujiequCredentials, role: GameRole) -> CheckinResult:
     if isinstance(payload, dict):
         awards_text, awards_items = _awards_from_sign_payload(payload)
     # 签到响应常缺 goodsName / 仅返回「奖励」；补查领取记录（可短重试）
-    recorded_text, recorded_items = _game_awards_from_records(
-        creds, role, retries=2
-    )
+    recorded_text, recorded_items = _game_awards_from_records(creds, role, retries=2)
     if is_placeholder_awards(awards_text):
         awards_text, awards_items = recorded_text, recorded_items
     else:
         merged_text = prefer_richer_awards(awards_text, recorded_text)
-        awards_items = (
-            prefer_richer_award_items(
-                awards_text, awards_items, recorded_text, recorded_items
-            )
-            or []
-        )
+        awards_items = prefer_richer_award_items(awards_text, awards_items, recorded_text, recorded_items) or []
         awards_text = merged_text
 
     # 库街区常返回 msg=「请求成功」但实际未签；以 initSignInV2.isSigIn 为准

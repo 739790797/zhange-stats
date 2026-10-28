@@ -43,11 +43,7 @@ def send_reset_password_code(
     auth_limiter.hit(f"reset-code:email:{email}", limit=5, window_sec=600)
 
     _require_email_delivery(db)
-    user = (
-        db.query(User)
-        .filter(User.email == email, User.email_verified.is_(True))
-        .first()
-    )
+    user = db.query(User).filter(User.email == email, User.email_verified.is_(True)).first()
     # 没有可找回账号的邮箱收「无此账号」提醒，响应与真账号一样
     _, delivery = _upsert_register_challenge(
         db,
@@ -81,11 +77,7 @@ def reset_password(
 
     # 先验码再查账号：没有验证码的人分不出邮箱是否已注册。之后的报错不提交，码留着可再试
     _consume_register_challenge(db, email, code, purpose=PURPOSE_RESET)
-    user = (
-        db.query(User)
-        .filter(User.email == email, User.email_verified.is_(True))
-        .first()
-    )
+    user = db.query(User).filter(User.email == email, User.email_verified.is_(True)).first()
     if not user:
         raise HTTPException(status_code=400, detail="重置失败，请检查邮箱与验证码")
     try:

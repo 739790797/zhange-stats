@@ -44,15 +44,10 @@ export function shouldDehydratePersistedQuery(query: {
   queryKey: readonly unknown[];
   state: { status: string };
 }): boolean {
-  return (
-    query.state.status === "success" && shouldPersistQueryKey(query.queryKey)
-  );
+  return query.state.status === "success" && shouldPersistQueryKey(query.queryKey);
 }
 
 /** 无缓存的首次请求才挡整块 UI；有 persist / 内存数据时走 isFetching。 */
-export function isInitialQueryPending(query: {
-  data: unknown;
-  isPending: boolean;
-}): boolean {
+export function isInitialQueryPending(query: { data: unknown; isPending: boolean }): boolean {
   return query.data == null && query.isPending;
 }

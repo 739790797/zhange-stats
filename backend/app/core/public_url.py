@@ -65,15 +65,11 @@ def frontend_allowlist(request: Request, *, backend: str | None = None) -> list[
 def _matches_cors_regex(base: str) -> bool:
     # 与 CORS / WS Origin 同一信任面：非生产默认放行本机 Vite 任意端口，生产只认显式 CORS_ORIGIN_REGEX
     settings = get_settings()
-    pattern = resolve_cors_origin_regex(
-        settings.CORS_ORIGIN_REGEX, production=settings.is_production
-    )
+    pattern = resolve_cors_origin_regex(settings.CORS_ORIGIN_REGEX, production=settings.is_production)
     return bool(pattern and re.fullmatch(pattern, base))
 
 
-def allowed_frontend_base(
-    candidate: str | None, request: Request, *, backend: str | None = None
-) -> str:
+def allowed_frontend_base(candidate: str | None, request: Request, *, backend: str | None = None) -> str:
     """candidate 落在白名单或 CORS 正则内则返回其基址，否则空串。"""
     base = _normalize_base(candidate)
     if not base:

@@ -27,12 +27,7 @@ function parseNumberList(part: string): number[] {
  * Unity 四元数 → 水平朝向（度）。
  * 与 TarkovMonitor `QuarternionsToYaw` / Unity euler Y 一致：0 约等于 +Z。
  */
-export function quaternionToYawDeg(
-  x: number,
-  y: number,
-  z: number,
-  w: number,
-): number {
+export function quaternionToYawDeg(x: number, y: number, z: number, w: number): number {
   const siny = 2 * (w * y + x * z);
   const cosy = 1 - 2 * (y * y + z * z);
   return (Math.atan2(siny, cosy) * 180) / Math.PI;
@@ -70,10 +65,7 @@ export function screenDeltaToCssDeg(dx: number, dy: number): number {
 /**
  * 截图朝向 → 地图箭头角度。与 tarkov.dev 一致，不按图再翻。
  */
-export function screenshotYawToMapDeg(
-  yaw: number,
-  coordinateRotation = 0,
-): number {
+export function screenshotYawToMapDeg(yaw: number, coordinateRotation = 0): number {
   return gameYawToCssDeg(yaw, coordinateRotation);
 }
 
@@ -81,9 +73,7 @@ export function screenshotYawToMapDeg(
  * `2025-03-30[21-04]_175.30, 1.37, 150.68_-0.01, 0.98, -0.14, -0.10_9.53 (0).png`
  * 菜单/大厅截图通常只有时间，没有坐标。
  */
-export function parseTarkovScreenshotName(
-  fileName: string,
-): TarkovScreenshotPos | null {
+export function parseTarkovScreenshotName(fileName: string): TarkovScreenshotPos | null {
   const base = (fileName || "").replace(/\.(png|jpe?g|bmp|webp)$/i, "").trim();
   const head = HEAD_RE.exec(base);
   if (!head) return null;
@@ -106,8 +96,6 @@ export function parseTarkovScreenshotName(
     x,
     y,
     z,
-    yaw: quat
-      ? quaternionToYawDeg(quat[0]!, quat[1]!, quat[2]!, quat[3]!)
-      : null,
+    yaw: quat ? quaternionToYawDeg(quat[0]!, quat[1]!, quat[2]!, quat[3]!) : null,
   };
 }

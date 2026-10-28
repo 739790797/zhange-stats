@@ -1,15 +1,6 @@
 import { DownOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Card,
-  Input,
-  Modal,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Card, Input, Modal, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -28,10 +19,7 @@ import { MinecraftModFeatures } from "./MinecraftModFeatures";
 import { MinecraftModPresetSection } from "./MinecraftModPresetEditor";
 import { MinecraftModToolInstallModal } from "./MinecraftModToolInstallModal";
 import { loaderLabel } from "./minecraftUi";
-import {
-  readModToolExpanded,
-  saveModToolExpanded,
-} from "./minecraftModToolCollapse";
+import { readModToolExpanded, saveModToolExpanded } from "./minecraftModToolCollapse";
 import styles from "./MinecraftModToolCard.module.css";
 import mcmodMark from "@/features/guides/minecraft/assets/mcmod-mark.png";
 import modrinthMark from "@/features/guides/minecraft/assets/modrinth-mark.svg";
@@ -111,18 +99,15 @@ function CommandBar({
   const queryClient = useQueryClient();
   const boxRef = useRef<HTMLDivElement>(null);
   const tree = useMemo(
-    () =>
-      (tool.command_tree || []).filter((node) => node.show_in_bar !== false),
+    () => (tool.command_tree || []).filter((node) => node.show_in_bar !== false),
     [tool.command_tree],
   );
   const [line, setLine] = useState("");
   const [raw, setRaw] = useState("");
 
   const run = useMutation({
-    mutationFn: (payload: {
-      command_id: string;
-      args: Record<string, string | number>;
-    }) => runMinecraftModToolCommand(tool.id, payload),
+    mutationFn: (payload: { command_id: string; args: Record<string, string | number> }) =>
+      runMinecraftModToolCommand(tool.id, payload),
     onSuccess: (res) => {
       if (res.message) message.success(res.message);
       else message.success("已发送");
@@ -164,8 +149,7 @@ function CommandBar({
       return;
     }
     const node = tree.find((row) => row.id === parsed.commandId);
-    const send = () =>
-      run.mutate({ command_id: parsed.commandId, args: parsed.args });
+    const send = () => run.mutate({ command_id: parsed.commandId, args: parsed.args });
     if (node?.confirm) {
       Modal.confirm({
         title: node.confirm,
@@ -253,7 +237,6 @@ function CommandBar({
   );
 }
 
-
 export function MinecraftModToolCard({
   tool,
   data,
@@ -263,9 +246,7 @@ export function MinecraftModToolCard({
 }) {
   const queryClient = useQueryClient();
   const catalog = tool.catalog;
-  const [installMode, setInstallMode] = useState<"install" | "change" | null>(
-    null,
-  );
+  const [installMode, setInstallMode] = useState<"install" | "change" | null>(null);
   const [expanded, setExpanded] = useState(() =>
     readModToolExpanded(tool.id, Boolean(tool.present)),
   );
@@ -299,38 +280,24 @@ export function MinecraftModToolCard({
   };
 
   const canCommand = Boolean(present && tool.loaded && data.rcon_configured);
-  const loaderTag = catalog?.loader ? (
-    <Tag>{loaderLabel(catalog.loader)}</Tag>
-  ) : null;
+  const loaderTag = catalog?.loader ? <Tag>{loaderLabel(catalog.loader)}</Tag> : null;
   const versionTag = (
     <Tag color={present && catalog?.installed_version ? "blue" : undefined}>
       {catalog?.installed_version || (present ? "已装" : "未安装")}
     </Tag>
   );
   const worlds = useMemo(() => {
-    const extra = [
-      "minecraft:overworld",
-      "minecraft:the_nether",
-      "minecraft:the_end",
-    ];
+    const extra = ["minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"];
     return [...new Set([...(data.worlds || []), ...extra].filter(Boolean))];
   }, [data.worlds]);
 
   return (
     <Card
-      className={[
-        styles.card,
-        !open ? styles.cardCollapsed : "",
-        !present ? styles.cardAbsent : "",
-      ]
+      className={[styles.card, !open ? styles.cardCollapsed : "", !present ? styles.cardAbsent : ""]
         .filter(Boolean)
         .join(" ")}
     >
-      <div
-        className={[styles.cardHead, open ? styles.cardHeadOpen : ""]
-          .filter(Boolean)
-          .join(" ")}
-      >
+      <div className={[styles.cardHead, open ? styles.cardHeadOpen : ""].filter(Boolean).join(" ")}>
         <div
           className={styles.toggle}
           role="button"
@@ -358,29 +325,21 @@ export function MinecraftModToolCard({
           />
           <div className={styles.titleBlock}>
             <div className={styles.titleRow}>
-              {tool.icon_url ? (
-                <img className={styles.icon} src={tool.icon_url} alt="" />
-              ) : null}
+              {tool.icon_url ? <img className={styles.icon} src={tool.icon_url} alt="" /> : null}
               <Typography.Title level={4} style={{ margin: 0 }}>
                 {tool.title}
               </Typography.Title>
               {loaderTag}
               {versionTag}
             </div>
-            {tool.summary ? (
-              <div className={styles.summary}>{tool.summary}</div>
-            ) : null}
+            {tool.summary ? <div className={styles.summary}>{tool.summary}</div> : null}
           </div>
         </div>
         <div className={styles.headRight}>
           {present && open ? <ToolLinks tool={tool} /> : null}
           <div className={styles.headActions}>
             {!present && data.pelican_configured && hasCap(tool, "install") ? (
-              <Button
-                size="small"
-                type="primary"
-                onClick={() => setInstallMode("install")}
-              >
+              <Button size="small" type="primary" onClick={() => setInstallMode("install")}>
                 安装模组
               </Button>
             ) : null}
@@ -457,11 +416,7 @@ export function MinecraftModToolCard({
               </div>
             ) : null}
 
-            <MinecraftModFeatures
-              tool={tool}
-              data={data}
-              canCommand={canCommand}
-            />
+            <MinecraftModFeatures tool={tool} data={data} canCommand={canCommand} />
           </div>
         </div>
       ) : null}

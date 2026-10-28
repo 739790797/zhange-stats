@@ -54,9 +54,7 @@ describe("tarkov map filter groups", () => {
     expect(toggleFilterGroupCollapsed({}, "lootable")).toEqual({
       lootable: true,
     });
-    expect(toggleFilterGroupCollapsed({ lootable: true }, "lootable")).toEqual(
-      {},
-    );
+    expect(toggleFilterGroupCollapsed({ lootable: true }, "lootable")).toEqual({});
     expect(
       parseFilterGroupsCollapsed({
         lootable: true,

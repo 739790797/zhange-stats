@@ -69,18 +69,12 @@ export function laterBeijingClock(left: string, right: string): string {
   return compareBeijingClock(a, b) >= 0 ? a : b;
 }
 
-export function formatBeijing(
-  input: ConfigType,
-  pattern = "YYYY-MM-DD HH:mm:ss",
-): string {
+export function formatBeijing(input: ConfigType, pattern = "YYYY-MM-DD HH:mm:ss"): string {
   const d = parseBeijing(input);
   return d.isValid() ? d.format(pattern) : "—";
 }
 
 /** Unix 秒时间戳 → 北京日期/时间。 */
-export function formatUnixBeijing(
-  unixSeconds: number,
-  pattern = "YYYY-MM-DD",
-): string {
+export function formatUnixBeijing(unixSeconds: number, pattern = "YYYY-MM-DD"): string {
   return dayjs.unix(unixSeconds).tz(BEIJING_TZ).format(pattern);
 }

@@ -3,10 +3,7 @@ import { Link } from "react-router-dom";
 import type { MemberProfile } from "@/features/profile/api/types";
 import { PlatformIcon } from "@/features/platforms/shared/components/PlatformIcon";
 import { BindActionSlots } from "@/features/profile/components/BindActionSlots";
-import {
-  BIND_ROW_ICON_SIZE,
-  BindStatusTitle,
-} from "@/features/profile/components/BindStatusTitle";
+import { BIND_ROW_ICON_SIZE, BindStatusTitle } from "@/features/profile/components/BindStatusTitle";
 
 type SteamBindRowProps = {
   data: MemberProfile | undefined;
@@ -70,8 +67,8 @@ export function SteamBindRow({
               <Typography.Text type="warning" style={{ fontSize: 13 }}>
                 {isAdmin ? (
                   <>
-                    尚未配置 API Key，请先在{" "}
-                    <Link to="/settings/integrations">集成密钥</Link> 填写后才能
+                    尚未配置 API Key，请先在 <Link to="/settings/integrations">集成密钥</Link>{" "}
+                    填写后才能
                     {steamBound ? "换绑" : "绑定"}
                   </>
                 ) : (

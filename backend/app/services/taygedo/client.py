@@ -99,12 +99,8 @@ class TaygedoCredentials:
             access_token=access,
             refresh_token=refresh,
             phone=(str(raw["phone"]).strip() if raw.get("phone") else None),
-            laohu_token=(
-                str(raw.get("laohu_token") or raw.get("laohuToken") or "").strip() or None
-            ),
-            laohu_user_id=(
-                str(raw.get("laohu_user_id") or raw.get("laohuUserId") or "").strip() or None
-            ),
+            laohu_token=(str(raw.get("laohu_token") or raw.get("laohuToken") or "").strip() or None),
+            laohu_user_id=(str(raw.get("laohu_user_id") or raw.get("laohuUserId") or "").strip() or None),
         )
 
 
@@ -128,9 +124,7 @@ def _form_encode(data: dict[str, str], *, skip_empty: bool = False) -> str:
     for key, value in data.items():
         if skip_empty and value == "":
             continue
-        items.append(
-            f"{urllib.parse.quote_plus(str(key))}={urllib.parse.quote_plus(str(value))}"
-        )
+        items.append(f"{urllib.parse.quote_plus(str(key))}={urllib.parse.quote_plus(str(value))}")
     return "&".join(items)
 
 
@@ -164,9 +158,7 @@ def _http(
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        log_until_change(
-            logger, f"taygedo-http:{path}", "taygedo %s HTTP %s non-JSON: %s", path, status, raw[:200]
-        )
+        log_until_change(logger, f"taygedo-http:{path}", "taygedo %s HTTP %s non-JSON: %s", path, status, raw[:200])
         raise TaygedoApiError(f"无效 JSON（HTTP {status}）") from exc
     if not isinstance(payload, dict):
         raise TaygedoApiError(f"响应格式异常（HTTP {status}）")
@@ -218,9 +210,7 @@ def _make_ds() -> str:
     timestamp = str(int(time.time()))
     alphabet = string.ascii_letters + string.digits
     nonce = "".join(random.choice(alphabet) for _ in range(8))
-    signature = hashlib.md5(
-        f"{timestamp}{nonce}{TAYGEDO_APP_VER}{TAYGEDO_DS_SECRET}".encode("utf-8")
-    ).hexdigest()
+    signature = hashlib.md5(f"{timestamp}{nonce}{TAYGEDO_APP_VER}{TAYGEDO_DS_SECRET}".encode("utf-8")).hexdigest()
     return f"{timestamp},{nonce},{signature}"
 
 
@@ -261,9 +251,7 @@ def _usercenter_headers(
     return headers
 
 
-def _copy_bind_identity(
-    session: TaygedoCredentials, creds: TaygedoCredentials
-) -> TaygedoCredentials:
+def _copy_bind_identity(session: TaygedoCredentials, creds: TaygedoCredentials) -> TaygedoCredentials:
     session.phone = creds.phone
     session.laohu_token = creds.laohu_token
     session.laohu_user_id = creds.laohu_user_id
@@ -315,9 +303,7 @@ def send_sms_captcha(phone: str, device_id: str | None = None) -> str:
         raise TaygedoApiError("请填写手机号")
     device_id = (device_id or "").strip() or uuid.uuid4().hex
     payload = {
-        **_laohu_base_params(
-            device_id, str(int(time.time())), version_field="versionCode"
-        ),
+        **_laohu_base_params(device_id, str(int(time.time())), version_field="versionCode"),
         "areaCodeId": "1",
         "cellphone": phone,
         "type": "16",
@@ -332,11 +318,7 @@ def send_sms_captcha(phone: str, device_id: str | None = None) -> str:
         body=_signed_laohu_body(payload, include_empty=False),
     )
     msg = str(data.get("message") or data.get("msg") or "")
-    sending = (
-        status == 200
-        and data.get("code") == 1
-        and "短信正在发送" in msg
-    )
+    sending = status == 200 and data.get("code") == 1 and "短信正在发送" in msg
     if status != 200 or (data.get("code") != 0 and not sending):
         raise TaygedoApiError(
             msg or "发送短信验证码失败",
@@ -347,9 +329,7 @@ def send_sms_captcha(phone: str, device_id: str | None = None) -> str:
 
 def _check_sms_captcha(phone: str, captcha: str, device_id: str) -> None:
     payload = {
-        **_laohu_base_params(
-            device_id, str(int(time.time())), version_field="versionCode"
-        ),
+        **_laohu_base_params(device_id, str(int(time.time())), version_field="versionCode"),
         "captcha": captcha,
         "cellphone": phone,
     }
@@ -384,9 +364,7 @@ def login_with_sms(phone: str, captcha: str, device_id: str) -> TaygedoCredentia
     _check_sms_captcha(phone, captcha, device_id)
 
     payload = {
-        **_laohu_base_params(
-            device_id, str(int(time.time() * 1000)), version_field="version"
-        ),
+        **_laohu_base_params(device_id, str(int(time.time() * 1000)), version_field="version"),
         "areaCodeId": "1",
         "captcha": _aes_base64_encode(captcha),
         "cellphone": _aes_base64_encode(phone),
@@ -469,12 +447,7 @@ def refresh_access_token(creds: TaygedoCredentials) -> TaygedoCredentials:
     if status == 402:
         raise TaygedoApiError("refreshToken 已失效，请重新登录绑定", code=402)
     payload = data.get("data") or {}
-    if (
-        status != 200
-        or data.get("code") != 0
-        or not payload.get("accessToken")
-        or not payload.get("refreshToken")
-    ):
+    if status != 200 or data.get("code") != 0 or not payload.get("accessToken") or not payload.get("refreshToken"):
         raise TaygedoApiError(
             data.get("msg") or data.get("message") or "刷新登录态失败",
             code=data.get("code") if isinstance(data.get("code"), int) else None,

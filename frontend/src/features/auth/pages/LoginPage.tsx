@@ -1,12 +1,6 @@
 import { Alert, Button, Form, Input, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Link,
-  Navigate,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { fetchMe, login, exchangeQqTicket } from "@/features/auth/api/authApi";
 import { apiError } from "@/shared/api/apiError";
 import { AuthGuestShell } from "@/features/auth/components/AuthGuestShell";
@@ -113,68 +107,43 @@ export default function LoginPage() {
 
   return (
     <AuthGuestShell brand subtitle="圈子成员站">
-        {error ? (
-          <Alert
-            type="error"
-            message={error}
-            showIcon
-            style={{ marginBottom: 16 }}
-            action={
-              error.includes("邮箱验证") ? (
-                <Link to="/verify-email">去验证</Link>
-              ) : undefined
-            }
-          />
-        ) : null}
+      {error ? (
+        <Alert
+          type="error"
+          message={error}
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={error.includes("邮箱验证") ? <Link to="/verify-email">去验证</Link> : undefined}
+        />
+      ) : null}
 
-        <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
-          <Form.Item
-            name="username"
-            label="邮箱"
-            rules={[{ required: true, message: "请输入邮箱" }]}
-          >
-            <Input
-              size="large"
-              placeholder="邮箱"
-              autoComplete="email"
-            />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="密码"
-            rules={[{ required: true, message: "请输入密码" }]}
-          >
-            <Input.Password
-              size="large"
-              placeholder="密码"
-              autoComplete="current-password"
-            />
-          </Form.Item>
-          <div style={{ marginTop: -8, marginBottom: 8, textAlign: "right" }}>
-            <Link to="/forgot-password">忘记密码？</Link>
-          </div>
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            block
-            loading={loading}
-            style={{ marginTop: 8 }}
-          >
-            登录
-          </Button>
-          <Button
-            size="large"
-            block
-            style={{ marginTop: 12 }}
-            onClick={() => navigate("/register")}
-          >
-            注册账号
-          </Button>
-        </Form>
+      <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Form.Item name="username" label="邮箱" rules={[{ required: true, message: "请输入邮箱" }]}>
+          <Input size="large" placeholder="邮箱" autoComplete="email" />
+        </Form.Item>
+        <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
+          <Input.Password size="large" placeholder="密码" autoComplete="current-password" />
+        </Form.Item>
+        <div style={{ marginTop: -8, marginBottom: 8, textAlign: "right" }}>
+          <Link to="/forgot-password">忘记密码？</Link>
+        </div>
+        <Button
+          type="primary"
+          htmlType="submit"
+          size="large"
+          block
+          loading={loading}
+          style={{ marginTop: 8 }}
+        >
+          登录
+        </Button>
+        <Button size="large" block style={{ marginTop: 12 }} onClick={() => navigate("/register")}>
+          注册账号
+        </Button>
+      </Form>
 
-        <QqLoginButton />
-        <LegalLinks prefix="登录即表示同意" />
+      <QqLoginButton />
+      <LegalLinks prefix="登录即表示同意" />
     </AuthGuestShell>
   );
 }

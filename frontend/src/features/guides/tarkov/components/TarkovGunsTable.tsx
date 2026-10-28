@@ -69,27 +69,21 @@ export function TarkovGunsTable({
   const caliberFilters = useMemo(() => {
     const set = new Set(data.map((r) => r.caliber).filter(Boolean));
     return Array.from(set)
-      .sort((a, b) =>
-        formatCaliberLabel(a).localeCompare(formatCaliberLabel(b), "zh"),
-      )
+      .sort((a, b) => formatCaliberLabel(a).localeCompare(formatCaliberLabel(b), "zh"))
       .map((c) => ({ text: formatCaliberLabel(c), value: c }));
   }, [data]);
 
   const classFilters = useMemo(() => {
     const set = new Set(data.map((r) => r.weapon_class || ""));
     return Array.from(set)
-      .sort((a, b) =>
-        formatWeaponClass(a).localeCompare(formatWeaponClass(b), "zh"),
-      )
+      .sort((a, b) => formatWeaponClass(a).localeCompare(formatWeaponClass(b), "zh"))
       .map((c) => ({ text: formatWeaponClass(c), value: c }));
   }, [data]);
 
   const rows = useMemo(() => {
     let list = data;
     if (ammoFilterId) {
-      list = list.filter((r) =>
-        (r.allowed_ammo_ids || []).includes(ammoFilterId),
-      );
+      list = list.filter((r) => (r.allowed_ammo_ids || []).includes(ammoFilterId));
     }
     if (caliberFilterParam) {
       list = list.filter((r) => r.caliber === caliberFilterParam);
@@ -117,10 +111,7 @@ export function TarkovGunsTable({
       );
       if (byCaliber !== 0) return byCaliber;
       if (pickColumns) {
-        return (a.name || a.short_name || "").localeCompare(
-          b.name || b.short_name || "",
-          "zh",
-        );
+        return (a.name || a.short_name || "").localeCompare(b.name || b.short_name || "", "zh");
       }
       const delta = Number(a[sortKey]) - Number(b[sortKey]);
       return sortOrder === "ascend" ? delta : -delta;
@@ -146,21 +137,11 @@ export function TarkovGunsTable({
     return ids;
   }, [rows]);
 
-  const onTableChange: TableProps<TarkovGunItem>["onChange"] = (
-    _pagination,
-    filters,
-    sorter,
-  ) => {
+  const onTableChange: TableProps<TarkovGunItem>["onChange"] = (_pagination, filters, sorter) => {
     const calibers = filters?.caliber;
     const classes = filters?.weapon_class;
-    setCaliberFilter(
-      Array.isArray(calibers) && calibers.length
-        ? calibers.map(String)
-        : null,
-    );
-    setClassFilter(
-      Array.isArray(classes) && classes.length ? classes.map(String) : null,
-    );
+    setCaliberFilter(Array.isArray(calibers) && calibers.length ? calibers.map(String) : null);
+    setClassFilter(Array.isArray(classes) && classes.length ? classes.map(String) : null);
 
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     const key = s?.columnKey;
@@ -190,9 +171,7 @@ export function TarkovGunsTable({
       width: pickColumns ? 128 : 88,
       fixed: pickColumns ? undefined : "left",
       filters: caliberFilters,
-      filteredValue: caliberFilterParam
-        ? [caliberFilterParam]
-        : caliberFilter,
+      filteredValue: caliberFilterParam ? [caliberFilterParam] : caliberFilter,
       filterSearch: true,
       onCell: (row) => ({
         rowSpan: caliberRowSpan.get(row.id) ?? 1,
@@ -210,11 +189,7 @@ export function TarkovGunsTable({
           ? caliberHref(raw)
           : `${ITEMS_BASE_PATH}/guns?caliber=${encodeURIComponent(raw)}`;
         return (
-          <Link
-            to={href}
-            title={`筛选口径 ${label}`}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <Link to={href} title={`筛选口径 ${label}`} onClick={(e) => e.stopPropagation()}>
             {label}
           </Link>
         );
@@ -370,12 +345,7 @@ export function TarkovGunsTable({
   const visibleColumns = pickColumns
     ? columns.filter((column) => {
         const key = String(column.key || "");
-        return (
-          key === "caliber" ||
-          key === "icon" ||
-          key === "name" ||
-          key === "weapon_class"
-        );
+        return key === "caliber" || key === "icon" || key === "name" || key === "weapon_class";
       })
     : columns;
 
@@ -393,9 +363,7 @@ export function TarkovGunsTable({
       }}
       scroll={pickColumns ? { y: "calc(100dvh - 260px)" } : { x: 1100 }}
       onChange={onTableChange}
-      rowClassName={(row) =>
-        caliberGroupStartIds.has(row.id) ? tableStyles.caliberStart : ""
-      }
+      rowClassName={(row) => (caliberGroupStartIds.has(row.id) ? tableStyles.caliberStart : "")}
       onRow={
         onPick || pickHref
           ? (row) => ({

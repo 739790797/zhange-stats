@@ -34,12 +34,7 @@ function sorterOf(key: CommunitySortKey) {
     compareCommunityBuilds(a, b, key);
 }
 
-export function TarkovWorkbenchCommunityModal({
-  gunId,
-  open,
-  onCancel,
-  onPick,
-}: Props) {
+export function TarkovWorkbenchCommunityModal({ gunId, open, onCancel, onPick }: Props) {
   const gameMode = useTarkovGameMode();
 
   const listQuery = useQuery({
@@ -51,10 +46,7 @@ export function TarkovWorkbenchCommunityModal({
   });
 
   const builds = listQuery.data?.builds;
-  const rows = useMemo(
-    () => filterCommunityBuilds(builds, "", []),
-    [builds],
-  );
+  const rows = useMemo(() => filterCommunityBuilds(builds, "", []), [builds]);
 
   const columns = useMemo<ColumnsType<TarkovWorkbenchCommunityBuild>>(
     () => [
@@ -70,9 +62,7 @@ export function TarkovWorkbenchCommunityModal({
               build.featured ? ` ${styles.communityNameCellFeatured}` : ""
             }`}
           >
-            {build.featured ? (
-              <span className={styles.communityFeaturedMark}>精选</span>
-            ) : null}
+            {build.featured ? <span className={styles.communityFeaturedMark}>精选</span> : null}
             <span className={styles.communityName}>{build.name}</span>
             <span className={styles.communityMeta}>{build.author || "匿名"}</span>
             {build.dropped_pair_count ? (
@@ -90,8 +80,7 @@ export function TarkovWorkbenchCommunityModal({
         width: 108,
         sorter: sorterOf("published_at"),
         sortDirections: SORT_DIRS,
-        render: (_value, build) =>
-          formatCommunityPublishedAt(build.published_at) || "—",
+        render: (_value, build) => formatCommunityPublishedAt(build.published_at) || "—",
       },
       {
         title: "加载次数",
@@ -217,11 +206,7 @@ export function TarkovWorkbenchCommunityModal({
           <Spin tip="加载社区方案…" />
         </div>
       ) : listQuery.isError ? (
-        <Alert
-          type="error"
-          showIcon
-          message={apiError(listQuery.error, "无法读取社区方案")}
-        />
+        <Alert type="error" showIcon message={apiError(listQuery.error, "无法读取社区方案")} />
       ) : (
         <Table<TarkovWorkbenchCommunityBuild>
           className={`${tableStyles.table} ${styles.communityTable}`}

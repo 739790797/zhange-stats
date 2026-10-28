@@ -80,15 +80,11 @@ describe("dailyHeadline", () => {
       ),
     ).toBe("有 1 个签到失败，可到对应平台处理");
     expect(
-      dailyHeadline(
-        summarizeDailyTasks([task({ task_key: "a", today_status: "pending" })]),
-      ),
+      dailyHeadline(summarizeDailyTasks([task({ task_key: "a", today_status: "pending" })])),
     ).toBe("还有 1 个角色待签到");
-    expect(
-      dailyHeadline(
-        summarizeDailyTasks([task({ task_key: "a", today_status: "ok" })]),
-      ),
-    ).toBe("今日签到已全部完成");
+    expect(dailyHeadline(summarizeDailyTasks([task({ task_key: "a", today_status: "ok" })]))).toBe(
+      "今日签到已全部完成",
+    );
   });
 });
 
@@ -103,9 +99,9 @@ describe("checkinPlatformHref", () => {
 
 describe("dailyRoleLabel", () => {
   it("prefers role name then uid", () => {
-    expect(
-      dailyRoleLabel(task({ task_key: "a", role_name: "白衣#5820", role_uid: "1" })),
-    ).toBe("白衣#5820");
+    expect(dailyRoleLabel(task({ task_key: "a", role_name: "白衣#5820", role_uid: "1" }))).toBe(
+      "白衣#5820",
+    );
     expect(dailyRoleLabel(task({ task_key: "b", role_uid: "123" }))).toBe("123");
     expect(dailyRoleLabel(task({ task_key: "c" }))).toBe("未选择角色的平台任务");
   });
@@ -202,10 +198,7 @@ describe("buildDailyPlatformGroups", () => {
     expect(groups[0].signed).toBe(2);
     expect(groups[0].total).toBe(3);
     expect(groups[0].games[0].game_code).toBe("arknights");
-    expect(groups[0].games[0].tasks.map((t) => t.role_name)).toEqual([
-      "失败角色",
-      "已签角色",
-    ]);
+    expect(groups[0].games[0].tasks.map((t) => t.role_name)).toEqual(["失败角色", "已签角色"]);
     expect(groups[1].games.map((g) => g.game_code)).toEqual(["kujiequ", null]);
   });
 });

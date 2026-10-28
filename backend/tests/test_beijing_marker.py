@@ -33,8 +33,7 @@ def _marker(engine) -> str | None:
 def _set_revision(engine, revision: str) -> None:
     with engine.begin() as conn:
         conn.exec_driver_sql(
-            "CREATE TABLE IF NOT EXISTS alembic_version "
-            "(version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
+            "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
         )
         conn.exec_driver_sql("DELETE FROM alembic_version")
         conn.exec_driver_sql("INSERT INTO alembic_version (version_num) VALUES (?)", (revision,))
@@ -255,9 +254,7 @@ def test_server_shift_decision(
     assert shifts == ([mysql_like] if expect_shift else [])
 
 
-def test_failed_shift_leaves_the_marker_pending(
-    config_engine, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_failed_shift_leaves_the_marker_pending(config_engine, monkeypatch: pytest.MonkeyPatch) -> None:
     mysql_like = SimpleNamespace(dialect=SimpleNamespace(name="mysql"))
 
     def _boom(db, eng) -> None:

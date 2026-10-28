@@ -84,18 +84,14 @@ export const PLATFORM_NAV: PlatformNavItem[] = [
     featureId: "mihoyo",
     label: "米游社",
     icon: "mihoyo",
-    children: [
-      { key: "exchange", featureId: "mihoyo.exchange", label: "兑换", icon: "exchange" },
-    ],
+    children: [{ key: "exchange", featureId: "mihoyo.exchange", label: "兑换", icon: "exchange" }],
   },
   {
     path: "/exilium",
     featureId: "exilium",
     label: "追放",
     icon: "exilium",
-    children: [
-      { key: "exchange", featureId: "exilium.exchange", label: "兑换", icon: "exchange" },
-    ],
+    children: [{ key: "exchange", featureId: "exilium.exchange", label: "兑换", icon: "exchange" }],
   },
 ];
 
@@ -109,9 +105,7 @@ export function resolvePlatformFeaturePageTitle(
   selectedItem: { key: string; label: string } | undefined,
   landingKey = "checkin",
 ): string {
-  return selectedItem && selectedItem.key !== landingKey
-    ? selectedItem.label
-    : platformTitle;
+  return selectedItem && selectedItem.key !== landingKey ? selectedItem.label : platformTitle;
 }
 
 export function resolvePlatformFeatureTabKey<T extends { key: string }>(
@@ -128,9 +122,7 @@ export function resolvePlatformFeatureTabKey<T extends { key: string }>(
   return items[0]?.key ?? "";
 }
 
-export function firstEnabledPlatformPath(
-  features: PlatformFeatureMap | undefined | null,
-): string {
+export function firstEnabledPlatformPath(features: PlatformFeatureMap | undefined | null): string {
   if (!features) return "/profile";
   for (const item of PLATFORM_NAV) {
     if (isFeatureOn(features, item.featureId)) return item.path;

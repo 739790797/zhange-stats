@@ -11,11 +11,7 @@ export function TarkovMeHeaderLink() {
 
   if (!loggedIn) {
     return (
-      <Link
-        to="/login"
-        state={{ from: location }}
-        className={styles.chip}
-      >
+      <Link to="/login" state={{ from: location }} className={styles.chip}>
         登录
       </Link>
     );

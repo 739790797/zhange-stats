@@ -46,25 +46,18 @@ import {
   toggleCollectionItem,
 } from "./tarkovCollection";
 
-function item(
-  id: string,
-  size: { width?: number; height?: number; name?: string } = {},
-) {
+function item(id: string, size: { width?: number; height?: number; name?: string } = {}) {
   return { id, name: size.name || id, width: size.width, height: size.height };
 }
 
-function layoutOf(
-  ...rows: Array<{ itemId: string; col: number; row: number; rotated?: boolean }>
-) {
+function layoutOf(...rows: Array<{ itemId: string; col: number; row: number; rotated?: boolean }>) {
   return { v: 2 as const, placements: rows };
 }
 
 describe("parseOwnsState", () => {
   it("reads per-mode lists and legacy owned as pvp", () => {
     expect(
-      parseOwnsState(
-        JSON.stringify({ v: 1, pvp: ["a"], pve: ["b", ""], owned: ["legacy"] }),
-      ),
+      parseOwnsState(JSON.stringify({ v: 1, pvp: ["a"], pve: ["b", ""], owned: ["legacy"] })),
     ).toEqual({
       v: 1,
       pvp: ["a"],
@@ -116,10 +109,8 @@ describe("collectionBoardCellSize", () => {
     const fit14 = collectionBoardCellSize(720, 640, 14, 14);
     expect(fit14).toBeGreaterThan(1);
     expect(fit14).toBeLessThan(COLLECTION_CELL_MAX_PX);
-    const innerW =
-      720 - (COLLECTION_CAD_PX + 8 + COLLECTION_CELL_PAD_PX * 2 + 2);
-    const innerH =
-      640 - (COLLECTION_CAD_PX + COLLECTION_CELL_PAD_PX * 2 + 2);
+    const innerW = 720 - (COLLECTION_CAD_PX + 8 + COLLECTION_CELL_PAD_PX * 2 + 2);
+    const innerH = 640 - (COLLECTION_CAD_PX + COLLECTION_CELL_PAD_PX * 2 + 2);
     expect(fit14 * 14 + COLLECTION_CELL_GAP_PX * 13).toBeLessThanOrEqual(
       Math.min(innerW, innerH) + 1,
     );
@@ -129,8 +120,7 @@ describe("collectionBoardCellSize", () => {
     const cell = collectionBoardCellSize(80, 80, 14, 14);
     expect(cell).toBeGreaterThanOrEqual(1);
     expect(cell).toBeLessThan(COLLECTION_CELL_MIN_PX);
-    const innerH =
-      80 - (COLLECTION_CAD_PX + COLLECTION_CELL_PAD_PX * 2 + 2);
+    const innerH = 80 - (COLLECTION_CAD_PX + COLLECTION_CELL_PAD_PX * 2 + 2);
     expect(cell * 14 + COLLECTION_CELL_GAP_PX * 13).toBeLessThanOrEqual(innerH);
   });
 });
@@ -140,9 +130,10 @@ describe("collection layout", () => {
     const items = [item("a"), item("b", { width: 2, height: 1 })];
     const layout = reconcileCollectionLayout(null, items);
     expect(layout.placements).toEqual([]);
-    expect(layoutToCollectionSlots(layout, items).uncollected.map((row) => row.id)).toEqual(
-      ["b", "a"],
-    );
+    expect(layoutToCollectionSlots(layout, items).uncollected.map((row) => row.id)).toEqual([
+      "b",
+      "a",
+    ]);
     expect(collectionGridSize(layout, items)).toEqual({
       cols: COLLECTION_GRID_MIN_WIDTH,
       rows: COLLECTION_GRID_MIN_HEIGHT,
@@ -163,9 +154,7 @@ describe("collection layout", () => {
       placements: [{ itemId: "a", boxId: "box-1", col: 0, row: 0 }],
     };
     expect(parseCollectionLayout(stale)).toBeNull();
-    expect(reconcileCollectionLayout(stale as never, [item("a")]).placements).toEqual(
-      [],
-    );
+    expect(reconcileCollectionLayout(stale as never, [item("a")]).placements).toEqual([]);
   });
 
   it("placing onto the grid collects; tray uncollects", () => {
@@ -205,9 +194,9 @@ describe("collection layout", () => {
       row: 0,
     });
     expect(overlap).toBeNull();
-    expect(
-      canPlaceCollectionItem(layout, items, "wide", COLLECTION_GRID_MAX_WIDTH - 1, 0),
-    ).toBe(false);
+    expect(canPlaceCollectionItem(layout, items, "wide", COLLECTION_GRID_MAX_WIDTH - 1, 0)).toBe(
+      false,
+    );
   });
 
   it("grows the canvas around occupied cells and reports the bounding box", () => {
@@ -234,50 +223,34 @@ describe("collection layout", () => {
   it("previews a larger canvas only when the drop would expand it", () => {
     const items = [item("a"), item("wide", { width: 2, height: 1 })];
     const empty = layoutOf();
-    expect(
-      collectionExpandPreview(empty, items, { kind: "grid", col: 2, row: 0 }, "a"),
-    ).toEqual({ cols: 4, rows: COLLECTION_GRID_MIN_HEIGHT });
-    expect(
-      collectionExpandPreview(empty, items, { kind: "grid", col: 0, row: 0 }, "a"),
-    ).toBeNull();
-    expect(
-      collectionExpandPreview(empty, items, { kind: "tray" }, "a"),
-    ).toBeNull();
+    expect(collectionExpandPreview(empty, items, { kind: "grid", col: 2, row: 0 }, "a")).toEqual({
+      cols: 4,
+      rows: COLLECTION_GRID_MIN_HEIGHT,
+    });
+    expect(collectionExpandPreview(empty, items, { kind: "grid", col: 0, row: 0 }, "a")).toBeNull();
+    expect(collectionExpandPreview(empty, items, { kind: "tray" }, "a")).toBeNull();
     const packed = layoutOf({ itemId: "a", col: 0, row: 0 });
     expect(
-      collectionExpandPreview(
-        packed,
-        items,
-        { kind: "grid", col: 0, row: 0 },
-        "wide",
-      ),
+      collectionExpandPreview(packed, items, { kind: "grid", col: 0, row: 0 }, "wide"),
     ).toBeNull();
   });
 
   it("grows the preview to reveal extra cells on a valid drop", () => {
     const items = [item("wide", { width: 2, height: 1 })];
     const empty = layoutOf();
+    expect(collectionGridSizeForPreview(empty, items, { kind: "tray" }, "wide")).toEqual(
+      collectionGridSize(empty, items),
+    );
+    expect(collectionGridSizeForPreview(empty, items, null, "wide")).toEqual(
+      collectionGridSize(empty, items),
+    );
     expect(
-      collectionGridSizeForPreview(empty, items, { kind: "tray" }, "wide"),
-    ).toEqual(collectionGridSize(empty, items));
-    expect(
-      collectionGridSizeForPreview(empty, items, null, "wide"),
-    ).toEqual(collectionGridSize(empty, items));
-    expect(
-      collectionGridSizeForPreview(
-        empty,
-        items,
-        { kind: "grid", col: 2, row: 2 },
-        "wide",
-        true,
-      ),
+      collectionGridSizeForPreview(empty, items, { kind: "grid", col: 2, row: 2 }, "wide", true),
     ).toEqual({ cols: 4, rows: 5 });
   });
 
   it("first-fit expands past a packed 3x3 when the item needs more cells", () => {
-    const fillers = ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((id) =>
-      item(id),
-    );
+    const fillers = ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((id) => item(id));
     const items = [...fillers, item("big", { width: 2, height: 2 })];
     const packed = layoutOf(
       ...fillers.map((row, index) => ({
@@ -311,10 +284,7 @@ describe("collection layout", () => {
 
   it("rotates a 2x1 in place when the swap still fits", () => {
     const items = [item("wide", { width: 2, height: 1 }), item("a")];
-    const layout = layoutOf(
-      { itemId: "wide", col: 0, row: 0 },
-      { itemId: "a", col: 2, row: 0 },
-    );
+    const layout = layoutOf({ itemId: "wide", col: 0, row: 0 }, { itemId: "a", col: 2, row: 0 });
     const rotated = rotateCollectionItem(layout, items, "wide");
     expect(rotated?.placements.find((row) => row.itemId === "wide")).toMatchObject({
       col: 0,
@@ -327,10 +297,7 @@ describe("collection layout", () => {
       height: 2,
       rotated: true,
     });
-    const blocked = layoutOf(
-      { itemId: "wide", col: 0, row: 0 },
-      { itemId: "a", col: 0, row: 1 },
-    );
+    const blocked = layoutOf({ itemId: "wide", col: 0, row: 0 }, { itemId: "a", col: 0, row: 1 });
     expect(rotateCollectionItem(blocked, items, "wide")).toBeNull();
   });
 
@@ -343,17 +310,14 @@ describe("collection layout", () => {
     const items = [item("keep"), item("overlap"), item("new")];
     const next = reconcileCollectionLayout(stale, items);
     expect(next.placements.map((row) => row.itemId)).toEqual(["keep"]);
-    expect(layoutToCollectionSlots(next, items).uncollected.map((row) => row.id)).toEqual(
-      ["overlap", "new"],
-    );
+    expect(layoutToCollectionSlots(next, items).uncollected.map((row) => row.id)).toEqual([
+      "overlap",
+      "new",
+    ]);
   });
 
   it("toggles between the tray and first-fit on the grid", () => {
-    const items = [
-      item("a"),
-      item("b"),
-      item("wide", { width: 2, height: 1 }),
-    ];
+    const items = [item("a"), item("b"), item("wide", { width: 2, height: 1 })];
     const empty = reconcileCollectionLayout(null, items);
     const one = toggleCollectionItem(empty, items, "a");
     expect(one?.placements).toEqual([{ itemId: "a", col: 0, row: 0 }]);
@@ -368,10 +332,7 @@ describe("collection layout", () => {
       row: 0,
     });
     const back = toggleCollectionItem(wide!, items, "a");
-    expect(back?.placements.map((row) => row.itemId).sort()).toEqual([
-      "b",
-      "wide",
-    ]);
+    expect(back?.placements.map((row) => row.itemId).sort()).toEqual(["b", "wide"]);
     expect(toggleCollectionItem(empty, items, "wide", true)?.placements[0]).toMatchObject({
       col: 0,
       row: 0,
@@ -382,9 +343,7 @@ describe("collection layout", () => {
 
   it("clears the grid back to the tray", () => {
     const items = [item("a")];
-    expect(
-      layoutToCollectionSlots(clearCollectionLayout(), items).uncollected,
-    ).toEqual(items);
+    expect(layoutToCollectionSlots(clearCollectionLayout(), items).uncollected).toEqual(items);
   });
 
   it("round-trips account layout payloads", () => {
@@ -398,9 +357,7 @@ describe("collection layout", () => {
     expect(layoutToApi(parsed!)).toEqual({
       placements: [{ item_id: "a", col: 2, row: 3, rotated: true }],
     });
-    expect(
-      layoutToApi({ v: 2, placements: [{ itemId: "b", col: 0, row: 1 }] }),
-    ).toEqual({
+    expect(layoutToApi({ v: 2, placements: [{ itemId: "b", col: 0, row: 1 }] })).toEqual({
       placements: [{ item_id: "b", col: 0, row: 1, rotated: false }],
     });
     expect(layoutFromApi({ placements: [] })?.placements).toEqual([]);
@@ -484,9 +441,7 @@ describe("collection layout storage", () => {
       "pve",
       layoutOf({ itemId: "b", col: 1, row: 0 }, { itemId: "c", col: 2, row: 1 }),
     );
-    expect(loadCollectionLayout("pvp")?.placements.map((row) => row.itemId)).toEqual(
-      ["a"],
-    );
+    expect(loadCollectionLayout("pvp")?.placements.map((row) => row.itemId)).toEqual(["a"]);
     expect(loadCollectionLayout("pve")?.placements).toHaveLength(2);
     expect(mem.get(TARKOV_COLLECTION_LAYOUT_STORAGE_KEY)).not.toContain("box-1");
   });
@@ -503,9 +458,7 @@ describe("collection layout storage", () => {
         },
       }),
     );
-    expect(loadCollectionLayout("pvp")?.placements).toEqual([
-      { itemId: "a", col: 2, row: 3 },
-    ]);
+    expect(loadCollectionLayout("pvp")?.placements).toEqual([{ itemId: "a", col: 2, row: 3 }]);
   });
 
   it("keeps an emptied v2 grid over leftover v3 boxes", () => {
@@ -592,13 +545,8 @@ describe("filter and count", () => {
   const items = [item("a", { name: "金色打火机" }), item("b", { name: "古币" })];
 
   it("filters the tray by query", () => {
-    expect(filterCollectionItems(items, "古").map((row) => row.id)).toEqual([
-      "b",
-    ]);
-    expect(filterCollectionItems(items, "").map((row) => row.id)).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(filterCollectionItems(items, "古").map((row) => row.id)).toEqual(["b"]);
+    expect(filterCollectionItems(items, "").map((row) => row.id)).toEqual(["a", "b"]);
   });
 
   it("groups the tray by occupied cell count, largest first", () => {
@@ -622,10 +570,7 @@ describe("filter and count", () => {
   });
 
   it("puts same-cell shapes in one group and keeps input order", () => {
-    const same = [
-      item("mid-a", { width: 2, height: 2 }),
-      item("mid-b", { width: 4, height: 1 }),
-    ];
+    const same = [item("mid-a", { width: 2, height: 2 }), item("mid-b", { width: 4, height: 1 })];
     expect(
       groupCollectionTrayItems(same).map((group) => ({
         label: group.label,
@@ -647,9 +592,12 @@ describe("filter and count", () => {
       "mid-b",
       "small",
     ]);
-    expect(
-      filterCollectionItems(mixed, "").map((row) => row.id),
-    ).toEqual(["wide", "mid-a", "mid-b", "small"]);
+    expect(filterCollectionItems(mixed, "").map((row) => row.id)).toEqual([
+      "wide",
+      "mid-a",
+      "mid-b",
+      "small",
+    ]);
   });
 
   it("counts collected against the full list", () => {

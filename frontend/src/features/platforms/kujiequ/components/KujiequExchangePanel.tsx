@@ -2,8 +2,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiError } from "@/shared/api/apiError";
 import { Modal, Select, Space, Tabs, Typography, message } from "antd";
 import { useState } from "react";
-import { exchangeKujiequItem, fetchKujiequExchange, fetchKujiequStatus } from "@/features/platforms/kujiequ/api/kujiequApi";
-import type { KujiequExchangeItem, KujiequExchangeRole } from "@/features/platforms/kujiequ/api/types";
+import {
+  exchangeKujiequItem,
+  fetchKujiequExchange,
+  fetchKujiequStatus,
+} from "@/features/platforms/kujiequ/api/kujiequApi";
+import type {
+  KujiequExchangeItem,
+  KujiequExchangeRole,
+} from "@/features/platforms/kujiequ/api/types";
 import { ExchangeGoodsCard } from "@/features/platforms/shared/components/ExchangeGoodsCard";
 import { ExchangePageTemplate } from "@/features/platforms/shared/components/ExchangePageTemplate";
 import { KujiequBindPanel } from "@/features/platforms/kujiequ/components/KujiequBindPanel";
@@ -25,17 +32,12 @@ function needsRole(gameId: number) {
 function statusLabel(item: KujiequExchangeItem) {
   if (item.commodity_type === 2) return "实物·请用 App";
   // 与后端一致：仅有总库存跟踪时 surplus==0 才是售罄
-  if (
-    item.is_sellout ||
-    (item.total_surplus_stock === 0 && item.total_stock > 0)
-  ) {
+  if (item.is_sellout || (item.total_surplus_stock === 0 && item.total_stock > 0)) {
     return "已兑完";
   }
   if (item.commodity_status === 2) return "未开兑";
-  if (item.commodity_status === 3 || item.commodity_status === 4)
-    return "已下架";
-  if (item.commodity_limit > 0 && item.current_user_limit_buy <= 0)
-    return "已达上限";
+  if (item.commodity_status === 3 || item.commodity_status === 4) return "已下架";
+  if (item.commodity_limit > 0 && item.current_user_limit_buy <= 0) return "已达上限";
   return null;
 }
 
@@ -45,21 +47,14 @@ export function KujiequExchangePanel() {
   const queryClient = useQueryClient();
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [gameFilter, setGameFilter] = useState<GameFilter>("all");
-  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>(
-    {},
-  );
-  const [exchangeItem, setExchangeItem] = useState<KujiequExchangeItem | null>(
-    null,
-  );
+  const [lastRoleByGame, setLastRoleByGame] = useState<Record<string, string>>({});
+  const [exchangeItem, setExchangeItem] = useState<KujiequExchangeItem | null>(null);
   const [pickedRoleId, setPickedRoleId] = useState<string>("");
   const rolePicker = useRoleMembershipPicker("kujiequ");
 
   const exchangeMut = useMutation({
-    mutationFn: (payload: {
-      commodity_code: string;
-      game_id: number;
-      role_id?: string | null;
-    }) => exchangeKujiequItem(payload),
+    mutationFn: (payload: { commodity_code: string; game_id: number; role_id?: string | null }) =>
+      exchangeKujiequItem(payload),
     onMutate: (payload) => setPendingCode(payload.commodity_code),
     onSettled: () => setPendingCode(null),
     onSuccess: (data) => {
@@ -169,9 +164,7 @@ export function KujiequExchangePanel() {
               {exchangeItem ? (
                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
                   <div>
-                    <Typography.Text strong>
-                      {exchangeItem.commodity_name}
-                    </Typography.Text>
+                    <Typography.Text strong>{exchangeItem.commodity_name}</Typography.Text>
                     <div style={{ marginTop: 6, color: "#666" }}>
                       消耗库洛币 {exchangeItem.commodity_price}（当前 {gold}）
                     </div>
@@ -213,9 +206,7 @@ export function KujiequExchangePanel() {
         const gold = shop.gold ?? 0;
         const items = shop.items || [];
         const filtered =
-          gameFilter === "all"
-            ? items
-            : items.filter((it) => it.game_id === Number(gameFilter));
+          gameFilter === "all" ? items : items.filter((it) => it.game_id === Number(gameFilter));
         return filtered.map((item) => {
           const label = statusLabel(item);
           const notEnough = gold < item.commodity_price;
@@ -230,9 +221,7 @@ export function KujiequExchangePanel() {
               imageUrl={item.picture_url}
               title={item.commodity_name}
               subtitle={`${item.game_name || "库街区"}${
-                item.total_surplus_stock > 0
-                  ? ` · 库存 ${item.total_surplus_stock}`
-                  : ""
+                item.total_surplus_stock > 0 ? ` · 库存 ${item.total_surplus_stock}` : ""
               }`}
               disabled={disabled}
               loading={pendingCode === item.commodity_code}

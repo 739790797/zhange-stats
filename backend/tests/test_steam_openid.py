@@ -234,8 +234,13 @@ def test_state_is_signed_with_the_derived_oauth_key() -> None:
 
 def test_tokens_from_other_purposes_are_not_steam_states() -> None:
     forged = jwt.encode(
-        {"purpose": steam_openid.STATE_PURPOSE, "uid": 1, "nh": "x", "jti": "y",
-         "exp": utc_now() + timedelta(minutes=5)},
+        {
+            "purpose": steam_openid.STATE_PURPOSE,
+            "uid": 1,
+            "nh": "x",
+            "jti": "y",
+            "exp": utc_now() + timedelta(minutes=5),
+        },
         get_settings().SECRET_KEY,
         algorithm=ALGORITHM,
     )

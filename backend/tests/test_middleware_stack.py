@@ -133,7 +133,9 @@ def test_csp_report_and_client_rum_are_capped(setup_done) -> None:
     )
     assert streamed.status_code == 413
 
-    rum = _call(app, "POST", "/api/client-rum", content=b" " * (300 * 1024), headers={"content-type": "application/json"})
+    rum = _call(
+        app, "POST", "/api/client-rum", content=b" " * (300 * 1024), headers={"content-type": "application/json"}
+    )
     assert rum.status_code == 413
 
 

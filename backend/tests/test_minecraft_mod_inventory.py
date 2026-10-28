@@ -51,16 +51,12 @@ def test_fingerprint_new_jars_are_pending():
 
 def test_fingerprint_keeps_identified_same_file():
     path = jar_path("/plugins", "Chunky-1.4.40.jar")
-    prev = placeholder_from_disk(
-        _disk("Chunky-1.4.40.jar", "/plugins"), path=path
-    )
+    prev = placeholder_from_disk(_disk("Chunky-1.4.40.jar", "/plugins"), path=path)
     prev["identified"] = True
     prev["mod_ids"] = ["chunky"]
     prev["mod_version"] = "1.4.40"
     stored = {"jars": [prev], "scanned_at": "old"}
-    store, pending = apply_fingerprint(
-        stored, [_disk("Chunky-1.4.40.jar", "/plugins")]
-    )
+    store, pending = apply_fingerprint(stored, [_disk("Chunky-1.4.40.jar", "/plugins")])
     assert pending == []
     assert store["jars"][0]["mod_version"] == "1.4.40"
     assert store["jars"][0]["identified"] is True
@@ -82,9 +78,7 @@ def test_fingerprint_size_change_requeues():
     prev = placeholder_from_disk(_disk("bluemap.jar", size=10), path=path)
     prev["identified"] = True
     prev["mod_ids"] = ["bluemap"]
-    store, pending = apply_fingerprint(
-        {"jars": [prev]}, [_disk("bluemap.jar", size=20)]
-    )
+    store, pending = apply_fingerprint({"jars": [prev]}, [_disk("bluemap.jar", size=20)])
     assert len(pending) == 1
     assert pending[0]["identified"] is False
     assert pending[0]["mod_ids"] == []

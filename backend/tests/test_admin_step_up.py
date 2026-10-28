@@ -19,7 +19,7 @@ def test_admin_writes_have_no_step_up_header() -> None:
         update_auth_settings,
         update_email_settings,
         update_integrations,
-            update_platform_features,
+        update_platform_features,
         do_app_update,
         update_user,
         delete_user,
@@ -32,7 +32,5 @@ def test_step_up_removed_from_contract() -> None:
     schema = app.openapi()
     paths = schema.get("paths") or {}
     assert not any("step-up" in path for path in paths)
-    props = (
-        ((schema.get("components") or {}).get("schemas") or {}).get("UserOut") or {}
-    ).get("properties") or {}
+    props = (((schema.get("components") or {}).get("schemas") or {}).get("UserOut") or {}).get("properties") or {}
     assert "admin_step_up_required" not in props

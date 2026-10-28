@@ -101,9 +101,7 @@ def _save_creds(bind: ExiliumBind, creds: ExiliumCredentials) -> None:
     bind.updated_at = now_naive()
 
 
-def _store_creds(
-    db: Session, bind: ExiliumBind, stored: StoredCreds[ExiliumCredentials]
-) -> None:
+def _store_creds(db: Session, bind: ExiliumBind, stored: StoredCreds[ExiliumCredentials]) -> None:
     store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
 
 
@@ -185,9 +183,7 @@ def preview_roles(db: Session, member: Member) -> list[dict[str, str]]:
             "game_code": "exilium_bbs",
             "game_name": "追放社区",
             "uid": working.user_id or working.account_name or "-",
-            "role_name": working.nickname
-            or mask_account(working.account_name)
-            or "社区账号",
+            "role_name": working.nickname or mask_account(working.account_name) or "社区账号",
             "channel_name": "社区",
         }
     ]
@@ -206,9 +202,7 @@ def fetch_exchange_shop(db: Session, member: Member) -> dict[str, Any]:
     }
 
 
-def run_exchange_for_member(
-    db: Session, member: Member, exchange_id: int
-) -> dict[str, Any]:
+def run_exchange_for_member(db: Session, member: Member, exchange_id: int) -> dict[str, Any]:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         raise ExiliumApiError("尚未绑定追放社区")
@@ -217,10 +211,7 @@ def run_exchange_for_member(
     target = shop_before.get(int(exchange_id))
     if target is None:
         raise ExiliumApiError("兑换物品不存在或已下架")
-    if (
-        target.max_exchange_count > 0
-        and target.exchange_count >= target.max_exchange_count
-    ):
+    if target.max_exchange_count > 0 and target.exchange_count >= target.max_exchange_count:
         raise ExiliumApiError("已达兑换上限")
     score_before = get_user_score(working)
     if score_before < target.use_score:
@@ -262,14 +253,10 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> ExiliumBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(
-        self, db: Session, bind: ExiliumBind
-    ) -> StoredCreds[ExiliumCredentials]:
+    def load_session(self, db: Session, bind: ExiliumBind) -> StoredCreds[ExiliumCredentials]:
         return _session_for_bind(db, bind)
 
-    def save_session(
-        self, db: Session, bind: ExiliumBind, session: StoredCreds[ExiliumCredentials]
-    ) -> None:
+    def save_session(self, db: Session, bind: ExiliumBind, session: StoredCreds[ExiliumCredentials]) -> None:
         _store_creds(db, bind, session)
 
     def query_today_all(
@@ -286,9 +273,7 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         expected_uid = session.creds.user_id or session.creds.account_name or "-"
-        if role_keys is not None and not matches_role_filter(
-            GAME_CODE, expected_uid, role_keys
-        ):
+        if role_keys is not None and not matches_role_filter(GAME_CODE, expected_uid, role_keys):
             return CheckinRunOutcome(
                 session=session,
                 early_response={
@@ -330,9 +315,7 @@ class ExiliumCheckinAdapter(CheckinAdapterBase):
 exilium_adapter = ExiliumCheckinAdapter()
 
 
-def query_today_for_bind(
-    db: Session, bind: ExiliumBind, *, force: bool = False
-) -> dict[str, Any]:
+def query_today_for_bind(db: Session, bind: ExiliumBind, *, force: bool = False) -> dict[str, Any]:
     return _orch_query_today(exilium_adapter, db, bind, force=force)
 
 
@@ -343,9 +326,7 @@ def run_checkin_for_bind(
     force: bool = False,
     role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    return _orch_run_checkin(
-        exilium_adapter, db, bind, force=force, role_keys=role_keys
-    )
+    return _orch_run_checkin(exilium_adapter, db, bind, force=force, role_keys=role_keys)
 
 
 def run_checkin_for_member(

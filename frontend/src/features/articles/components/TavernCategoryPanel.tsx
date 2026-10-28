@@ -158,11 +158,7 @@ export function TavernCategoryPanel() {
             title: "权限",
             width: 120,
             render: (_, row) =>
-              row.admin_only ? (
-                <Tag color="gold">仅管理员</Tag>
-              ) : (
-                <Tag>作者可发</Tag>
-              ),
+              row.admin_only ? <Tag color="gold">仅管理员</Tag> : <Tag>作者可发</Tag>,
           },
           { title: "排序", dataIndex: "sort_order", width: 80 },
           {
@@ -198,16 +194,8 @@ export function TavernCategoryPanel() {
         }}
         onOk={() => form.submit()}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(values) => saveMut.mutate(values)}
-        >
-          <Form.Item
-            name="name"
-            label="名称"
-            rules={[{ required: true, message: "请填写分类名" }]}
-          >
+        <Form form={form} layout="vertical" onFinish={(values) => saveMut.mutate(values)}>
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: "请填写分类名" }]}>
             <Input maxLength={64} placeholder="如：游戏攻略" />
           </Form.Item>
           <Form.Item

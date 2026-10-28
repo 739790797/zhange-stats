@@ -8,11 +8,7 @@ type Props = {
   onPick: (gunId: string) => void;
 };
 
-export function TarkovWorkbenchGunPickerModal({
-  open,
-  onCancel,
-  onPick,
-}: Props) {
+export function TarkovWorkbenchGunPickerModal({ open, onCancel, onPick }: Props) {
   return (
     <Modal
       open={open}

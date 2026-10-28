@@ -33,9 +33,7 @@ export function mapSlugKeys(mapSlug: string): Set<string> {
 }
 
 export function raidPrepMapOptions(): RaidPrepMapOption[] {
-  const ready = TARKOV_MAPS.filter(
-    (item) => item.status === "ready" && !item.comingSoon,
-  );
+  const ready = TARKOV_MAPS.filter((item) => item.status === "ready" && !item.comingSoon);
   const factory = ready.find((item) => item.id === "factory");
   const out: RaidPrepMapOption[] = [];
   for (const item of ready) {

@@ -64,12 +64,7 @@ def test_prefer_richer_drops_polluted_task_exp_awards() -> None:
         {"name": "签到", "count": 5},
     ]
     clean_items = [{"name": "塔塔币", "count": 40, "resource_type": "gold"}]
-    assert (
-        prefer_richer_award_items(
-            polluted, polluted_items, "塔塔币+40", clean_items
-        )
-        == clean_items
-    )
+    assert prefer_richer_award_items(polluted, polluted_items, "塔塔币+40", clean_items) == clean_items
     assert prefer_richer_award_items(polluted, polluted_items, None, None) is None
 
 
@@ -159,12 +154,7 @@ def test_upsert_and_reload_preserves_extra_text() -> None:
 
 
 def test_display_checkin_awards_summary_skips_status_copy() -> None:
-    assert (
-        display_checkin_awards_summary(
-            awards_text=None, message="今日已签到", status="already"
-        )
-        is None
-    )
+    assert display_checkin_awards_summary(awards_text=None, message="今日已签到", status="already") is None
     assert (
         display_checkin_awards_summary(
             awards_text=None,

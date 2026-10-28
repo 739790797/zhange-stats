@@ -226,6 +226,8 @@ def _resolve_tarkov_map_svg(name: str):
             raise not_synced from exc
         raise HTTPException(status_code=503, detail="地图 SVG 仓暂不可用") from exc
     return path
+
+
 # include 会把当时的父级 deps 拍进子路由；须先 append 再 include，
 # 否则 GET /raid-rooms 吃不到 game_mode，大厅会按默认 PVP 列公开房。
 router.include_router(tarkov_raid_rooms.router)
@@ -417,9 +419,7 @@ def guides_tarkov_site_search(
 ):
     """攻略站全站搜索：物品 / 任务 / 商人 / BOSS（有 raw 才查，不回源）。"""
     _hit_ip(request, "tarkov-search", limit=40, window_sec=60)
-    return TarkovSiteSearchOut.model_validate(
-        search_svc.search_site(db, q, faction=faction)
-    )
+    return TarkovSiteSearchOut.model_validate(search_svc.search_site(db, q, faction=faction))
 
 
 @router.get(
@@ -459,17 +459,9 @@ def guides_tarkov_item_detail(
             description=str(detail.get("description") or ""),
             source=detail.get("source"),
             item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
-            properties=(
-                detail.get("properties")
-                if isinstance(detail.get("properties"), dict)
-                else {}
-            ),
+            properties=(detail.get("properties") if isinstance(detail.get("properties"), dict) else {}),
             locks=detail.get("locks") if isinstance(detail.get("locks"), list) else [],
-            sources=(
-                detail.get("sources")
-                if isinstance(detail.get("sources"), dict)
-                else {}
-            ),
+            sources=(detail.get("sources") if isinstance(detail.get("sources"), dict) else {}),
             uses=detail.get("uses") if isinstance(detail.get("uses"), dict) else {},
         ),
     )
@@ -491,9 +483,7 @@ def guides_tarkov_ammo(
     except ammo_svc.TarkovAmmoError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     source, synced_at, note = items_svc.items_raw_header(db)
-    etag, hit = _catalog_fresh(
-        request, "ammo", synced_at, upstream_svc.locale_synced(db, "items")
-    )
+    etag, hit = _catalog_fresh(request, "ammo", synced_at, upstream_svc.locale_synced(db, "items"))
     if hit is not None:
         return hit
     items = [TarkovAmmoItemOut(**row) for row in ammo_svc.ammo_catalog_rows(db)]
@@ -551,11 +541,7 @@ def guides_tarkov_ammo_detail(
             description=str(detail.get("description") or ""),
             source=detail.get("source"),
             item=detail.get("item") if isinstance(detail.get("item"), dict) else {},
-            properties=(
-                detail.get("properties")
-                if isinstance(detail.get("properties"), dict)
-                else {}
-            ),
+            properties=(detail.get("properties") if isinstance(detail.get("properties"), dict) else {}),
         ),
     )
 
@@ -576,9 +562,7 @@ def guides_tarkov_guns(
     except gun_svc.TarkovGunError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     source, synced_at, note = items_svc.items_raw_header(db)
-    etag, hit = _catalog_fresh(
-        request, "guns", synced_at, upstream_svc.locale_synced(db, "items")
-    )
+    etag, hit = _catalog_fresh(request, "guns", synced_at, upstream_svc.locale_synced(db, "items"))
     if hit is not None:
         return hit
     items = [
@@ -686,9 +670,7 @@ def guides_tarkov_workbench_calculate(
 )
 def guides_tarkov_workbench_image_status():
     """工作台出图代理是否开启、是否正在生成。"""
-    return TarkovWorkbenchImageStatusOut.model_validate(
-        workbench_image_svc.image_status()
-    )
+    return TarkovWorkbenchImageStatusOut.model_validate(workbench_image_svc.image_status())
 
 
 @router.post(
@@ -705,9 +687,7 @@ def guides_tarkov_workbench_build_image(
     """改装预览图：工厂/裸枪回 dump 静图；自定义组合代理第三方出图。"""
     ip = client_ip(request)
     platform_limiter.hit(f"tarkov-workbench-img:ip:{ip}", limit=40, window_sec=600)
-    platform_limiter.hit(
-        f"tarkov-workbench-img:uid:{user.id}", limit=20, window_sec=600
-    )
+    platform_limiter.hit(f"tarkov-workbench-img:uid:{user.id}", limit=20, window_sec=600)
     pairs = [(row.slot_id, row.item_id) for row in body.pairs]
     try:
         data = workbench_image_svc.render_build_image(db, body.gun_id, pairs)
@@ -862,9 +842,7 @@ def guides_tarkov_task_catalog(
         )
     except tasks_svc.TarkovTasksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovTaskCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovTaskCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -922,9 +900,7 @@ def guides_tarkov_raid_prep(
         if msg.startswith("地图无效"):
             raise HTTPException(status_code=400, detail=msg) from exc
         raise HTTPException(status_code=502, detail=msg) from exc
-    return _catalog_ok(
-        response, etag, TarkovRaidPrepOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovRaidPrepOut.model_validate(result))
 
 
 @router.get(
@@ -1059,9 +1035,7 @@ def guides_tarkov_trader_catalog(
         result = traders_svc.list_traders(db)
     except traders_svc.TarkovTradersError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovTraderCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovTraderCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1150,9 +1124,7 @@ def guides_tarkov_boss_catalog(
         result = bosses_svc.list_bosses(db)
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovBossCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovBossCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1207,9 +1179,7 @@ def guides_tarkov_map_catalog(
         result = maps_svc.list_maps(db)
     except bosses_svc.TarkovBossesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovMapCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovMapCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1454,18 +1424,14 @@ def guides_tarkov_hideout_catalog(
         guides_svc.ensure_guides(db)
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    etag, hit = _catalog_fresh(
-        request, "hideout", "trader-en", guides_svc.guides_cache_token(db)
-    )
+    etag, hit = _catalog_fresh(request, "hideout", "trader-en", guides_svc.guides_cache_token(db))
     if hit is not None:
         return hit
     try:
         result = guides_svc.list_hideout(db)
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovHideoutCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovHideoutCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1532,9 +1498,7 @@ def guides_tarkov_hideout_levels_set(
     _hit_owns_write(user, "hideout-levels", limit=60, window_sec=60)
     stations = _hideout_stations(db)
     try:
-        rows = hideout_levels_svc.set_level(
-            db, user, stations, body.station_id, body.level
-        )
+        rows = hideout_levels_svc.set_level(db, user, stations, body.station_id, body.level)
     except hideout_levels_svc.TarkovHideoutLevelsError as exc:
         raise _hideout_levels_error(exc) from exc
     db.commit()
@@ -1652,14 +1616,10 @@ def guides_tarkov_barter_catalog(
     if hit is not None:
         return hit
     try:
-        result = guides_svc.list_barters(
-            db, trader=trader, q=q, page=page, page_size=page_size
-        )
+        result = guides_svc.list_barters(db, trader=trader, q=q, page=page, page_size=page_size)
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovBarterCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovBarterCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1693,14 +1653,10 @@ def guides_tarkov_craft_catalog(
     if hit is not None:
         return hit
     try:
-        result = guides_svc.list_crafts(
-            db, station=station, q=q, page=page, page_size=page_size
-        )
+        result = guides_svc.list_crafts(db, station=station, q=q, page=page, page_size=page_size)
     except guides_svc.TarkovGuidesError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovCraftCatalogOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovCraftCatalogOut.model_validate(result))
 
 
 @router.get(
@@ -1741,9 +1697,7 @@ def guides_tarkov_key_packs(
         result = key_packs_svc.list_key_packs(db)
     except key_packs_svc.TarkovKeyPacksError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovKeyPacksOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovKeyPacksOut.model_validate(result))
 
 
 def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
@@ -1752,9 +1706,7 @@ def _key_owns_error(exc: key_owns_svc.TarkovKeyOwnsError) -> HTTPException:
 
 def _hit_owns_write(user: User, kind: str, *, limit: int, window_sec: int) -> None:
     """勾选写入按账号限速：每次都要改库，坐在房间里还会给全房推一帧。"""
-    platform_limiter.hit(
-        f"tarkov-{kind}:uid:{user.id}", limit=limit, window_sec=window_sec
-    )
+    platform_limiter.hit(f"tarkov-{kind}:uid:{user.id}", limit=limit, window_sec=window_sec)
 
 
 @router.get(
@@ -1861,9 +1813,7 @@ def guides_tarkov_collection(
         result = collection_svc.list_collection(db)
     except collection_svc.TarkovCollectionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
-    return _catalog_ok(
-        response, etag, TarkovCollectionOut.model_validate(result)
-    )
+    return _catalog_ok(response, etag, TarkovCollectionOut.model_validate(result))
 
 
 def _collection_owns_error(
@@ -1881,9 +1831,7 @@ def guides_tarkov_collection_owns_list(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return TarkovCollectionOwnsOut(
-        item_ids=collection_owns_svc.list_item_ids(db, user.id)
-    )
+    return TarkovCollectionOwnsOut(item_ids=collection_owns_svc.list_item_ids(db, user.id))
 
 
 @router.put(
@@ -1949,9 +1897,7 @@ def guides_tarkov_collection_layout_get(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return TarkovCollectionLayoutOut.model_validate(
-        collection_layout_svc.get_layout(db, user.id)
-    )
+    return TarkovCollectionLayoutOut.model_validate(collection_layout_svc.get_layout(db, user.id))
 
 
 @router.put(
@@ -2044,9 +1990,7 @@ def guides_tarkov_task_dones_write(
         replace=body.replace,
         failed_ids=body.failed_ids,
         objective_dones=(
-            [item.model_dump() for item in body.objective_dones]
-            if body.objective_dones is not None
-            else None
+            [item.model_dump() for item in body.objective_dones] if body.objective_dones is not None else None
         ),
     )
     db.commit()
@@ -2285,7 +2229,5 @@ def guides_tarkov_raid_logs_list(
     user: User = Depends(get_current_user),
 ):
     """最近导入的战局摘要，可供联机大厅战后结算。"""
-    data = raid_logs_svc.list_raids(
-        db, user, map_id=map_id or "", limit=limit
-    )
+    data = raid_logs_svc.list_raids(db, user, map_id=map_id or "", limit=limit)
     return TarkovRaidLogsOut.model_validate(data)

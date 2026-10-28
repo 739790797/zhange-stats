@@ -37,12 +37,12 @@ sudo bash scripts/linux/run.sh       # 向导未完成时会打印安装令牌
 
 进程级变量写在 `config/systemd.env`，每行一个 `KEY=VALUE`。单元用 `EnvironmentFile=-` 读取，文件不存在也照常启动，同名时覆盖单元里的默认值。改完执行 `sudo bash scripts/linux/restart.sh` 生效。
 
-| 变量 | 单元默认 | 说明 |
-|------|----------|------|
-| `APP_ENV` | `production` | 见上 |
-| `UVICORN_HOST` | `0.0.0.0` | 只经本机反代访问时改成 `127.0.0.1` |
-| `UVICORN_PORT` | `8000` | 监听端口 |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | uvicorn `--proxy-headers` 只采信这些地址发来的 `X-Forwarded-For` / `X-Forwarded-Proto`。反代在另一台机器上时写它的 IP |
+| 变量                  | 单元默认     | 说明                                                                                                                  |
+| --------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `APP_ENV`             | `production` | 见上                                                                                                                  |
+| `UVICORN_HOST`        | `0.0.0.0`    | 只经本机反代访问时改成 `127.0.0.1`                                                                                    |
+| `UVICORN_PORT`        | `8000`       | 监听端口                                                                                                              |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1`  | uvicorn `--proxy-headers` 只采信这些地址发来的 `X-Forwarded-For` / `X-Forwarded-Proto`。反代在另一台机器上时写它的 IP |
 
 单元另带 `--ws-max-size 4194304`（WebSocket 帧上限 4 MiB）、`NoNewPrivileges=yes`、`UMask=0027`（新文件只给属主和同组读）、`LimitNOFILE=65536`。存量安装要用上新单元，跑一次 `sudo bash scripts/linux/install.sh` 或 `update.sh`。管理端一键更新改不到 `/etc` 下的单元。
 
@@ -132,18 +132,18 @@ Release 发出后不再改动：tag `v{VERSION}` 已存在时（包括上次发�
 
 对外宣传（例如 B 站）前核对这些项。应用不探测备案状态。
 
-| 项 | 期望 |
-|----|------|
-| `APP_ENV=production` | systemd 单元默认就是；弱管理员口令拒绝启动；关闭 Swagger；禁止 `ALLOW_EMAIL_CODE_LOG`；会话 Cookie 带 `Secure`，站点须走 HTTPS |
-| 安全头 / HSTS | 反代（及应用中间件）有 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options DENY`、`Permissions-Policy`；HTTPS 下 HSTS |
-| 最近一次成功备份 | `scripts/linux/backup.sh` 产出日期；演练 restore 的日期记在运维笔记即可 |
-| `REDIS_URL` | 生产应配置；否则限流与短时 KV 只在本进程内存，重启即丢 |
-| 客户端 IP | 单元用 `--proxy-headers` + `FORWARDED_ALLOW_IPS=127.0.0.1`：本机反代时限流已按真实 IP 计，`TRUST_X_FORWARDED_FOR` 保持默认 `false`；反代在别的机器上时把它的 IP 写进 `config/systemd.env` 的 `FORWARDED_ALLOW_IPS`。直接暴露 uvicorn 时不要设 `TRUST_X_FORWARDED_FOR=true` |
-| SMTP | 邮箱注册要能发出验证码；管理端「邮件」里 `configured` |
-| 条款 | 站内 `/legal/terms`、`/legal/privacy`；片尾写明非官方、非作弊 |
-| ICP 备案 | 国内公开站点在管理端「安全设置」或 `ICP_BEIAN_NO` 填写备案号；留空则全站页脚不展示 |
-| 管理端核对 | 「运行维护 → 运行环境」：数据库 / Redis；生产未配 Redis 会标降级。SMTP 在邮箱设置 |
-| 规范对齐 | 安全头、备份、Cookie/CSRF、CSP 等见 [`hardening-roadmap.md`](hardening-roadmap.md)（已落地） |
+| 项                   | 期望                                                                                                                                                                                                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_ENV=production` | systemd 单元默认就是；弱管理员口令拒绝启动；关闭 Swagger；禁止 `ALLOW_EMAIL_CODE_LOG`；会话 Cookie 带 `Secure`，站点须走 HTTPS                                                                                                                                             |
+| 安全头 / HSTS        | 反代（及应用中间件）有 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options DENY`、`Permissions-Policy`；HTTPS 下 HSTS                                                                                                                                            |
+| 最近一次成功备份     | `scripts/linux/backup.sh` 产出日期；演练 restore 的日期记在运维笔记即可                                                                                                                                                                                                    |
+| `REDIS_URL`          | 生产应配置；否则限流与短时 KV 只在本进程内存，重启即丢                                                                                                                                                                                                                     |
+| 客户端 IP            | 单元用 `--proxy-headers` + `FORWARDED_ALLOW_IPS=127.0.0.1`：本机反代时限流已按真实 IP 计，`TRUST_X_FORWARDED_FOR` 保持默认 `false`；反代在别的机器上时把它的 IP 写进 `config/systemd.env` 的 `FORWARDED_ALLOW_IPS`。直接暴露 uvicorn 时不要设 `TRUST_X_FORWARDED_FOR=true` |
+| SMTP                 | 邮箱注册要能发出验证码；管理端「邮件」里 `configured`                                                                                                                                                                                                                      |
+| 条款                 | 站内 `/legal/terms`、`/legal/privacy`；片尾写明非官方、非作弊                                                                                                                                                                                                              |
+| ICP 备案             | 国内公开站点在管理端「安全设置」或 `ICP_BEIAN_NO` 填写备案号；留空则全站页脚不展示                                                                                                                                                                                         |
+| 管理端核对           | 「运行维护 → 运行环境」：数据库 / Redis；生产未配 Redis 会标降级。SMTP 在邮箱设置                                                                                                                                                                                          |
+| 规范对齐             | 安全头、备份、Cookie/CSRF、CSP 等见 [`hardening-roadmap.md`](hardening-roadmap.md)（已落地）                                                                                                                                                                               |
 
 联机大厅为单进程内存 WebSocket，不要承诺可水平扩展。宣传口径走「队友协作勾任务 / 标点」，不要把截图同步说成实时雷达。请求次数限流默认开启（`config/app.json` 的 `RATE_LIMIT_ENABLED`，紧急时可在「运行环境」关闭），额度见 [`security.md`](security.md)；开了 `TRUST_X_FORWARDED_FOR` 时取 `X-Forwarded-For` 最右一跳。
 

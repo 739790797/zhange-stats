@@ -43,72 +43,56 @@ class TarkovItemsRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev items / items_zh。"""
 
     __tablename__ = "tarkov_items_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_items_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_items_raws_mode_lang"),)
 
 
 class TarkovMapsRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev maps / maps_zh。"""
 
     __tablename__ = "tarkov_maps_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_maps_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_maps_raws_mode_lang"),)
 
 
 class TarkovTasksRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev tasks / tasks_zh。"""
 
     __tablename__ = "tarkov_tasks_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_tasks_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_tasks_raws_mode_lang"),)
 
 
 class TarkovTradersRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev traders / traders_zh。"""
 
     __tablename__ = "tarkov_traders_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_traders_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_traders_raws_mode_lang"),)
 
 
 class TarkovHideoutRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev hideout / hideout_zh。"""
 
     __tablename__ = "tarkov_hideout_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_hideout_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_hideout_raws_mode_lang"),)
 
 
 class TarkovBartersRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev barters。"""
 
     __tablename__ = "tarkov_barters_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_barters_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_barters_raws_mode_lang"),)
 
 
 class TarkovCraftsRaw(TarkovCatalogRawMixin, Base):
     """json.tarkov.dev crafts。"""
 
     __tablename__ = "tarkov_crafts_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_crafts_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_crafts_raws_mode_lang"),)
 
 
 class TarkovOverlayRaw(TarkovCatalogRawMixin, Base):
     """tarkov-data-overlay dist/overlay.json。读库解析时与 json.tarkov.dev raw 内存合入。"""
 
     __tablename__ = "tarkov_overlay_raws"
-    __table_args__ = (
-        UniqueConstraint("mode_id", "lang", name="uq_tarkov_overlay_raws_mode_lang"),
-    )
+    __table_args__ = (UniqueConstraint("mode_id", "lang", name="uq_tarkov_overlay_raws_mode_lang"),)
 
 
 class TarkovAmmo(Base):
@@ -232,12 +216,8 @@ class TarkovRaidRoomMember(Base):
         server_default=text("CURRENT_TIMESTAMP"),
         index=True,
     )
-    started_task_ids_json: Mapped[str] = mapped_column(
-        Text, nullable=False, default="[]"
-    )
-    task_progress_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_task_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    task_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TarkovRaidRoomTaskClaim(Base):
@@ -357,9 +337,7 @@ class TarkovUserTaskReset(Base):
     )
     game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
     reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    pending_clear_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    pending_clear_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     profile_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     reason: Mapped[str] = mapped_column(String(16), nullable=False, default="")
     epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -475,13 +453,9 @@ class TarkovUserProfile(Base):
     )
     game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
     pmc_faction: Mapped[str] = mapped_column(String(8), nullable=False, default="")
-    game_edition: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="standard"
-    )
+    game_edition: Mapped[str] = mapped_column(String(16), nullable=False, default="standard")
     player_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    trader_levels: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    trader_levels: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -583,9 +557,7 @@ class TarkovUserRaidPrep(Base):
     game_mode: Mapped[str] = mapped_column(String(8), primary_key=True)
     map_slug: Mapped[str] = mapped_column(String(64), primary_key=True)
     selected_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
-    objective_dones_json: Mapped[list[Any]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
+    objective_dones_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     key_brings_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -678,9 +650,7 @@ class TarkovMapPlace(Base):
     """管理员维护的全站地图地名（点 / 框），按互动图 normalizedName 共用。"""
 
     __tablename__ = "tarkov_map_places"
-    __table_args__ = (
-        Index("ix_tarkov_map_places_map_key", "map_key", "sort_order"),
-    )
+    __table_args__ = (Index("ix_tarkov_map_places_map_key", "map_key", "sort_order"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     map_key: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -707,4 +677,3 @@ class TarkovMapPlace(Base):
         nullable=False,
         default=now_naive,
     )
-

@@ -127,17 +127,13 @@ export function MinecraftFileManager() {
 
   useEffect(
     () => () => {
-      Object.values(dismissTimers.current).forEach((id) =>
-        window.clearTimeout(id),
-      );
+      Object.values(dismissTimers.current).forEach((id) => window.clearTimeout(id));
     },
     [],
   );
 
   const patchUpload = (uid: string, patch: Partial<UploadJob>) => {
-    setUploads((rows) =>
-      rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)),
-    );
+    setUploads((rows) => rows.map((row) => (row.uid === uid ? { ...row, ...patch } : row)));
   };
 
   const dismissUpload = (uid: string) => {
@@ -148,10 +144,7 @@ export function MinecraftFileManager() {
 
   const scheduleDismiss = (uid: string) => {
     window.clearTimeout(dismissTimers.current[uid]);
-    dismissTimers.current[uid] = window.setTimeout(
-      () => dismissUpload(uid),
-      UPLOAD_DISMISS_MS,
-    );
+    dismissTimers.current[uid] = window.setTimeout(() => dismissUpload(uid), UPLOAD_DISMISS_MS);
   };
 
   const statusQuery = useQuery({
@@ -186,9 +179,7 @@ export function MinecraftFileManager() {
 
   const download = async (row: MinecraftFileEntry) => {
     try {
-      const res = await fetchMinecraftFileDownload(
-        joinMinecraftPath(directory, row.name),
-      );
+      const res = await fetchMinecraftFileDownload(joinMinecraftPath(directory, row.name));
       openDownload(res.url);
     } catch (e: unknown) {
       message.error(apiError(e, "无法下载"));
@@ -246,9 +237,7 @@ export function MinecraftFileManager() {
   const entries = useMemo(() => {
     const rows = listQuery.data?.entries || [];
     const q = filter.trim().toLowerCase();
-    const filtered = q
-      ? rows.filter((row) => row.name.toLowerCase().includes(q))
-      : rows;
+    const filtered = q ? rows.filter((row) => row.name.toLowerCase().includes(q)) : rows;
     if (directory === "/" || q) return filtered;
     const parent: MinecraftFileEntry = {
       name: "..",
@@ -347,10 +336,7 @@ export function MinecraftFileManager() {
         icon: <CopyOutlined />,
         label: "复制",
         onClick: () =>
-          run(
-            () => copyMinecraftFile(joinMinecraftPath(directory, row.name)),
-            "已复制",
-          ),
+          run(() => copyMinecraftFile(joinMinecraftPath(directory, row.name)), "已复制"),
       });
     }
     items.push({
@@ -365,11 +351,7 @@ export function MinecraftFileManager() {
       items.push({
         key: "decompress",
         label: "解压",
-        onClick: () =>
-          run(
-            () => decompressMinecraftFile(directory, row.name),
-            "已开始解压",
-          ),
+        onClick: () => run(() => decompressMinecraftFile(directory, row.name), "已开始解压"),
       });
     }
     items.push({
@@ -436,9 +418,7 @@ export function MinecraftFileManager() {
             showUploadList={false}
             customRequest={async (options) => {
               const file = options.file as File & { uid?: string };
-              const uid = String(
-                file.uid || `${file.name}-${file.size}-${Date.now()}`,
-              );
+              const uid = String(file.uid || `${file.name}-${file.size}-${Date.now()}`);
               setUploads((rows) => [
                 ...rows.filter((row) => row.uid !== uid),
                 {
@@ -469,7 +449,9 @@ export function MinecraftFileManager() {
               }
             }}
           >
-            <Button size="small" icon={<UploadOutlined />}>上传</Button>
+            <Button size="small" icon={<UploadOutlined />}>
+              上传
+            </Button>
           </Upload>
           <Button
             size="small"
@@ -520,7 +502,9 @@ export function MinecraftFileManager() {
           >
             删除
           </Button>
-          <Button size="small" onClick={() => setPullOpen(true)}>从 URL 拉取</Button>
+          <Button size="small" onClick={() => setPullOpen(true)}>
+            从 URL 拉取
+          </Button>
           <Button size="small" icon={<ReloadOutlined />} onClick={() => listQuery.refetch()}>
             刷新
           </Button>
@@ -548,10 +532,7 @@ export function MinecraftFileManager() {
               </div>
               <div className={styles.jobBar}>
                 <Progress
-                  percent={minecraftUploadProgressPercent(
-                    job.phase,
-                    job.percent,
-                  )}
+                  percent={minecraftUploadProgressPercent(job.phase, job.percent)}
                   status={uploadJobStatus(job.phase)}
                   showInfo={false}
                   size="small"
@@ -571,10 +552,7 @@ export function MinecraftFileManager() {
         </div>
       ) : null}
 
-      <Space
-        style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }}
-        wrap
-      >
+      <Space style={{ marginBottom: 12, width: "100%", justifyContent: "space-between" }} wrap>
         <Breadcrumb items={crumbs} />
         <Input.Search
           size="small"
@@ -603,8 +581,7 @@ export function MinecraftFileManager() {
         pagination={false}
         rowSelection={{
           selectedRowKeys: selected,
-          onChange: (keys) =>
-            setSelected(keys.map(String).filter((name) => name !== "..")),
+          onChange: (keys) => setSelected(keys.map(String).filter((name) => name !== "..")),
           getCheckboxProps: (row) => ({ disabled: row.name === ".." }),
         }}
         onRow={(row) => ({
@@ -633,8 +610,7 @@ export function MinecraftFileManager() {
             title: "大小",
             dataIndex: "size",
             width: 110,
-            render: (size: number, row) =>
-              row.is_file ? formatBytes(size) : "—",
+            render: (size: number, row) => (row.is_file ? formatBytes(size) : "—"),
           },
           {
             title: "修改时间",
@@ -674,10 +650,7 @@ export function MinecraftFileManager() {
         onCancel={() => setFolderOpen(false)}
         onOk={async () => {
           const values = await folderForm.validateFields();
-          const ok = await run(
-            () => createMinecraftFolder(directory, values.name),
-            "已创建目录",
-          );
+          const ok = await run(() => createMinecraftFolder(directory, values.name), "已创建目录");
           if (ok) setFolderOpen(false);
         }}
       >
@@ -760,12 +733,7 @@ export function MinecraftFileManager() {
         onOk={async () => {
           const values = await pullForm.validateFields();
           const ok = await run(
-            () =>
-              pullMinecraftFile(
-                directory,
-                values.url,
-                values.filename || "",
-              ),
+            () => pullMinecraftFile(directory, values.url, values.filename || ""),
             "已请求拉取",
           );
           if (ok) {
@@ -775,11 +743,7 @@ export function MinecraftFileManager() {
         }}
       >
         <Form form={pullForm} layout="vertical">
-          <Form.Item
-            name="url"
-            label="地址"
-            rules={[{ required: true, message: "请输入 URL" }]}
-          >
+          <Form.Item name="url" label="地址" rules={[{ required: true, message: "请输入 URL" }]}>
             <Input placeholder="https://…" />
           </Form.Item>
           <Form.Item name="filename" label="保存为" extra="留空则用 URL 里的文件名">
@@ -807,11 +771,7 @@ export function MinecraftFileManager() {
           if (ok) setCompressOpen(false);
         }}
       >
-        <Form
-          form={compressForm}
-          layout="vertical"
-          initialValues={{ extension: "zip" }}
-        >
+        <Form form={compressForm} layout="vertical" initialValues={{ extension: "zip" }}>
           <Form.Item name="archive_name" label="压缩包名" extra="留空则由面板生成">
             <Input placeholder="archive" />
           </Form.Item>

@@ -54,9 +54,7 @@ def test_empty_then_put_and_get() -> None:
             now=now,
         )
         assert saved["selected"] == ["t1", "t2"]
-        assert saved["objective_dones"] == [
-            {"task_id": "t1", "objective_id": "o1"}
-        ]
+        assert saved["objective_dones"] == [{"task_id": "t1", "objective_id": "o1"}]
         assert saved["key_brings"] == ["key-a"]
         again = prep.get_state(db, user, "customs")
         assert again["selected"] == ["t1", "t2"]
@@ -68,15 +66,9 @@ def test_modes_and_maps_are_isolated() -> None:
     prep.put_state(db, user, "customs", selected=["pvp-c"], game_mode="pvp")
     prep.put_state(db, user, "woods", selected=["pvp-w"], game_mode="pvp")
     prep.put_state(db, user, "customs", selected=["pve-c"], game_mode="pve")
-    assert prep.get_state(db, user, "customs", game_mode="pvp")["selected"] == [
-        "pvp-c"
-    ]
-    assert prep.get_state(db, user, "woods", game_mode="pvp")["selected"] == [
-        "pvp-w"
-    ]
-    assert prep.get_state(db, user, "customs", game_mode="pve")["selected"] == [
-        "pve-c"
-    ]
+    assert prep.get_state(db, user, "customs", game_mode="pvp")["selected"] == ["pvp-c"]
+    assert prep.get_state(db, user, "woods", game_mode="pvp")["selected"] == ["pvp-w"]
+    assert prep.get_state(db, user, "customs", game_mode="pve")["selected"] == ["pve-c"]
 
 
 def test_invalid_map_rejected() -> None:
@@ -117,9 +109,7 @@ def test_state_in_clips_oversize_and_drops_invalid() -> None:
     body = TarkovUserRaidPrepStateIn.model_validate(
         {
             "selected": [f"t{i}" for i in range(50)],
-            "objective_dones": [
-                {"task_id": f"t{i}", "objective_id": f"o{i}"} for i in range(250)
-            ]
+            "objective_dones": [{"task_id": f"t{i}", "objective_id": f"o{i}"} for i in range(250)]
             + [
                 {"task_id": "", "objective_id": "o"},
                 {"task_id": "ok", "objective_id": ""},

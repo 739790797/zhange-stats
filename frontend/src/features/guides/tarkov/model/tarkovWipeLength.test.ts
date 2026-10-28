@@ -39,17 +39,11 @@ describe("currentWipeStart", () => {
   ];
 
   it("picks the latest wipe that has already started", () => {
-    expect(currentWipeStart(starts, new Date("2024-02-15T00:00:00.000Z")).name).toBe(
-      "B",
-    );
-    expect(currentWipeStart(starts, new Date("2024-04-01T00:00:00.000Z")).name).toBe(
-      "C",
-    );
+    expect(currentWipeStart(starts, new Date("2024-02-15T00:00:00.000Z")).name).toBe("B");
+    expect(currentWipeStart(starts, new Date("2024-04-01T00:00:00.000Z")).name).toBe("C");
   });
 
   it("falls back to the first row before any wipe clock", () => {
-    expect(currentWipeStart(starts, new Date("2023-12-31T00:00:00.000Z")).name).toBe(
-      "A",
-    );
+    expect(currentWipeStart(starts, new Date("2023-12-31T00:00:00.000Z")).name).toBe("A");
   });
 });

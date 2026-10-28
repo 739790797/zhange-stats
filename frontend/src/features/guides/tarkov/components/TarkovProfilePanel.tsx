@@ -136,11 +136,7 @@ export function TarkovProfilePanel() {
     <div className={styles.stack}>
       <section className={styles.section}>
         <h3 className={styles.label}>阵营</h3>
-        <div
-          className={`${trade.chipBar} ${styles.chips}`}
-          role="radiogroup"
-          aria-label="PMC 阵营"
-        >
+        <div className={`${trade.chipBar} ${styles.chips}`} role="radiogroup" aria-label="PMC 阵营">
           {TARKOV_PMC_FACTIONS.map((id) => (
             <button
               key={id}
@@ -161,11 +157,7 @@ export function TarkovProfilePanel() {
 
       <section className={styles.section}>
         <h3 className={styles.label}>游戏版本</h3>
-        <div
-          className={`${trade.chipBar} ${styles.chips}`}
-          role="radiogroup"
-          aria-label="游戏版本"
-        >
+        <div className={`${trade.chipBar} ${styles.chips}`} role="radiogroup" aria-label="游戏版本">
           {TARKOV_GAME_EDITIONS.map((id) => (
             <button
               key={id}
@@ -216,9 +208,7 @@ export function TarkovProfilePanel() {
         </p>
         <div className={styles.traders}>
           {TARKOV_PROFILE_TRADER_SLUGS.map((slug) => {
-            const current = traders[slug]
-              ? parseTarkovTraderLoyalty(traders[slug])
-              : 0;
+            const current = traders[slug] ? parseTarkovTraderLoyalty(traders[slug]) : 0;
             const levels = loyaltyBySlug.get(slug);
             const name = traderDisplayName(slug);
             return (
@@ -227,11 +217,7 @@ export function TarkovProfilePanel() {
                   <TarkovTraderThumb slug={slug} size={64} variant="portrait" />
                 </div>
                 <div className={styles.traderName}>{name}</div>
-                <div
-                  className={styles.loyalty}
-                  role="radiogroup"
-                  aria-label={`${name} 好感`}
-                >
+                <div className={styles.loyalty} role="radiogroup" aria-label={`${name} 好感`}>
                   {LOYALTY_LEVELS.map((level) => {
                     const spec = traderLoyaltySpec(levels, level);
                     const parts = traderLoyaltyReqParts(spec, playerLevel, {
@@ -248,18 +234,13 @@ export function TarkovProfilePanel() {
                           current === level ? ` ${styles.loyaltyOn}` : ""
                         }`}
                         disabled={mutation.isPending}
-                        onClick={() =>
-                          save({ trader_levels: { [slug]: level } })
-                        }
+                        onClick={() => save({ trader_levels: { [slug]: level } })}
                       >
                         <span className={styles.loyaltyLabel}>LL{level}</span>
                         {parts.length ? (
                           <span className={styles.loyaltyReqs}>
                             {parts.map((part) => (
-                              <span
-                                key={part.key}
-                                className={reqStatusClass(part.met)}
-                              >
+                              <span key={part.key} className={reqStatusClass(part.met)}>
                                 {part.text}
                               </span>
                             ))}

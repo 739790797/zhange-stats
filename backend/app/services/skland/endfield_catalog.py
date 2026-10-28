@@ -120,9 +120,7 @@ def list_operators(*, root: Path | None = None) -> list[dict[str, Any]]:
         signature = tuple(
             (
                 name,
-                (root / "TableCfg" / name).stat().st_mtime_ns
-                if (root / "TableCfg" / name).is_file()
-                else 0,
+                (root / "TableCfg" / name).stat().st_mtime_ns if (root / "TableCfg" / name).is_file() else 0,
             )
             for name in names
         )

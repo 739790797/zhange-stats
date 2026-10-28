@@ -292,9 +292,7 @@ def list_tarkov_raid_rooms(
             limit=rooms_svc.LOBBY_RATE_LIMIT,
             window_sec=rooms_svc.LOBBY_RATE_WINDOW_SEC,
         )
-    online_by_public_id = {
-        pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
-    }
+    online_by_public_id = {pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()}
     data = read_action(
         lambda: rooms_svc.list_live_rooms(
             db,
@@ -317,12 +315,8 @@ def get_my_tarkov_raid_room(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> TarkovRaidRoomMineOut:
-    online_by_public_id = {
-        pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()
-    }
-    item = read_action(
-        lambda: rooms_svc.get_my_live_room(db, user, online_by_public_id=online_by_public_id)
-    )
+    online_by_public_id = {pid: hub.online_user_ids(pid) for pid in hub.known_public_ids()}
+    item = read_action(lambda: rooms_svc.get_my_live_room(db, user, online_by_public_id=online_by_public_id))
     return TarkovRaidRoomMineOut(item=item)
 
 
@@ -485,9 +479,7 @@ def join_tarkov_raid_room(
     )
     # 口令（bcrypt）在锁外先校验：不能占着房间锁跑。
     password = body.password
-    password_checked = read_action(
-        lambda: rooms_svc.verify_join_password(db, public_id, password)
-    )
+    password_checked = read_action(lambda: rooms_svc.verify_join_password(db, public_id, password))
     announced: list[bool] = []
 
     def run() -> object:

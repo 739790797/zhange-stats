@@ -25,9 +25,7 @@ PLAYER_LEVEL_MAX = 79
 TRADER_LEVEL_MIN = 1
 TRADER_LEVEL_MAX = 4
 SKIP_TRADER_SLUGS = frozenset({"btr-driver"})
-PROFILE_TRADER_SLUGS = tuple(
-    slug for slug in TRADER_SLUG_ORDER if slug not in SKIP_TRADER_SLUGS
-)
+PROFILE_TRADER_SLUGS = tuple(slug for slug in TRADER_SLUG_ORDER if slug not in SKIP_TRADER_SLUGS)
 
 
 class TarkovProfileError(Exception):
@@ -211,7 +209,5 @@ def update_profile(
         )
     row.updated_at = stamp
     if parse_game_edition(row.game_edition) != EDITION_STANDARD:
-        hideout_levels_svc.ensure_stash_floor(
-            db, user, stations, game_mode=mode
-        )
+        hideout_levels_svc.ensure_stash_floor(db, user, stations, game_mode=mode)
     return serialize_row(row)

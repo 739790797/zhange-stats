@@ -90,10 +90,7 @@ def test_pack_varint_roundtrip_small():
 
 
 def test_pelican_base_url_strips_api_suffix():
-    assert (
-        normalize_pelican_base_url("https://panel.example.com/api/client/")
-        == "https://panel.example.com"
-    )
+    assert normalize_pelican_base_url("https://panel.example.com/api/client/") == "https://panel.example.com"
     assert not pelican_configured("", "tok", "uuid")
     assert pelican_configured("https://p.example", "tok", "abcd")
 

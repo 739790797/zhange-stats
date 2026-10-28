@@ -44,11 +44,7 @@ function longestCommonPrefix(items: string[]): string {
   return prefix;
 }
 
-function argChoices(
-  arg: CommandArgSpec,
-  worlds: string[],
-  maps: string[],
-): string[] {
+function argChoices(arg: CommandArgSpec, worlds: string[], maps: string[]): string[] {
   if (arg.kind === "world") return worlds.filter(Boolean);
   if (arg.kind === "map") return (maps.length ? maps : worlds).filter(Boolean);
   if (arg.kind === "enum") {
@@ -57,18 +53,12 @@ function argChoices(
   return [];
 }
 
-function headForCurrentToken(
-  tokens: string[],
-  trailingSpace: boolean,
-): string {
+function headForCurrentToken(tokens: string[], trailingSpace: boolean): string {
   if (trailingSpace || tokens.length === 0) return tokens.join(" ");
   return tokens.slice(0, -1).join(" ");
 }
 
-export function shouldAdvance(
-  line: string,
-  tree: CommandNodeSpec[],
-): boolean {
+export function shouldAdvance(line: string, tree: CommandNodeSpec[]): boolean {
   const { tokens } = tokenizeLine(line);
   const node = matchNode(tree, tokens[0]);
   if (!node) return false;
@@ -76,10 +66,7 @@ export function shouldAdvance(
   return Boolean(next && !next.optional);
 }
 
-export function applySuggestionLine(
-  line: string,
-  tree: CommandNodeSpec[],
-): string {
+export function applySuggestionLine(line: string, tree: CommandNodeSpec[]): string {
   return shouldAdvance(line, tree) ? `${line} ` : line;
 }
 
@@ -149,14 +136,11 @@ export function completeLine(
   if (!hits.length) return text;
 
   const { tokens, trailingSpace } = tokenizeLine(text);
-  const current =
-    !trailingSpace && tokens.length ? tokens[tokens.length - 1] : "";
+  const current = !trailingSpace && tokens.length ? tokens[tokens.length - 1] : "";
 
   const slot = currentArgChoices(text, tree, worlds, maps);
   if (slot && current) {
-    const idx = slot.choices.findIndex(
-      (choice) => choice.toLowerCase() === current.toLowerCase(),
-    );
+    const idx = slot.choices.findIndex((choice) => choice.toLowerCase() === current.toLowerCase());
     if (idx >= 0) {
       const nextToken = slot.choices[(idx + 1) % slot.choices.length];
       const line = slot.head ? `${slot.head} ${nextToken}` : nextToken;
@@ -176,13 +160,9 @@ export function completeLine(
   }
 
   const lcp = longestCommonPrefix(hits.map((row) => row.token));
-  const atLcp =
-    !lcp ||
-    (Boolean(current) && lcp.toLowerCase() === current.toLowerCase());
+  const atLcp = !lcp || (Boolean(current) && lcp.toLowerCase() === current.toLowerCase());
   if (atLcp) {
-    const idx = hits.findIndex(
-      (row) => row.token.toLowerCase() === current.toLowerCase(),
-    );
+    const idx = hits.findIndex((row) => row.token.toLowerCase() === current.toLowerCase());
     const next = hits[(idx + 1) % hits.length] || hits[0];
     return applySuggestionLine(next.line, tree);
   }
@@ -191,10 +171,7 @@ export function completeLine(
   return head ? `${head} ${lcp}` : lcp;
 }
 
-export function parseCommandLine(
-  text: string,
-  tree: CommandNodeSpec[],
-): ParsedCommandLine {
+export function parseCommandLine(text: string, tree: CommandNodeSpec[]): ParsedCommandLine {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return { error: "输入指令" };
   const node = matchNode(tree, tokens[0]);

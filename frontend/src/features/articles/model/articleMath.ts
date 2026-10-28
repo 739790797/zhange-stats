@@ -13,9 +13,7 @@ export function normalizeArticleMath(src: string): string {
 }
 
 export function isArticleMathClass(name: string): boolean {
-  return (
-    name === ARTICLE_MATH_INLINE_CLASS || name === ARTICLE_MATH_BLOCK_CLASS
-  );
+  return name === ARTICLE_MATH_INLINE_CLASS || name === ARTICLE_MATH_BLOCK_CLASS;
 }
 
 export function decodeArticleMathText(html: string): string {

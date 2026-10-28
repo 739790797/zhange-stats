@@ -181,9 +181,7 @@ function CategoryTooltip({
           </div>
         ))
       ) : (
-        <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>
-          暂无子类型明细
-        </div>
+        <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>暂无子类型明细</div>
       )}
       {rest > 0 ? (
         <div style={{ marginTop: 4, fontSize: 12, color: "rgba(0,0,0,0.45)" }}>
@@ -194,11 +192,7 @@ function CategoryTooltip({
   );
 }
 
-export function MinecraftEntitiesCard({
-  entities,
-}: {
-  entities?: Entities | null;
-}) {
+export function MinecraftEntitiesCard({ entities }: { entities?: Entities | null }) {
   const categories = entities?.categories || EMPTY_CATEGORIES;
   const types = entities?.types || EMPTY_TYPES;
   const worlds = entities?.worlds || [];
@@ -219,9 +213,7 @@ export function MinecraftEntitiesCard({
       map.set(key, list);
     }
     for (const list of map.values()) {
-      list.sort(
-        (a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"),
-      );
+      list.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-CN"));
     }
     return map;
   }, [types]);
@@ -268,9 +260,7 @@ export function MinecraftEntitiesCard({
         <>
           {worlds.length > 1 ? (
             <Typography.Text type="secondary" className={styles.entityWorlds}>
-              {worlds
-                .map((row) => `${worldLabel(row.id)} ${formatCount(row.total)}`)
-                .join(" · ")}
+              {worlds.map((row) => `${worldLabel(row.id)} ${formatCount(row.total)}`).join(" · ")}
             </Typography.Text>
           ) : null}
           <Row gutter={[16, 16]}>
@@ -322,16 +312,10 @@ export function MinecraftEntitiesCard({
                         },
                       ) => {
                         const category =
-                          (typeof title === "string" && title) ||
-                          String(items?.[0]?.name || "");
-                        const row =
-                          pieData.find((d) => d.category === category) || null;
-                        const parsed = Number(
-                          String(items?.[0]?.value ?? "").replace(/,/g, ""),
-                        );
-                        const count =
-                          row?.count ??
-                          (Number.isFinite(parsed) ? parsed : 0);
+                          (typeof title === "string" && title) || String(items?.[0]?.name || "");
+                        const row = pieData.find((d) => d.category === category) || null;
+                        const parsed = Number(String(items?.[0]?.value ?? "").replace(/,/g, ""));
+                        const count = row?.count ?? (Number.isFinite(parsed) ? parsed : 0);
                         return (
                           <CategoryTooltip
                             category={category || "分类"}
@@ -345,9 +329,7 @@ export function MinecraftEntitiesCard({
                   }}
                 />
                 <div className={styles.entityPieCenter} aria-hidden>
-                  <span className={styles.entityPieCenterNum}>
-                    {formatCount(total)}
-                  </span>
+                  <span className={styles.entityPieCenterNum}>{formatCount(total)}</span>
                   <span className={styles.entityPieCenterLabel}>已加载</span>
                 </div>
               </div>
@@ -370,9 +352,7 @@ export function MinecraftEntitiesCard({
                         }}
                       />
                     </div>
-                    <span className={styles.entityTypeCount}>
-                      {formatCount(row.count)}
-                    </span>
+                    <span className={styles.entityTypeCount}>{formatCount(row.count)}</span>
                   </div>
                 ))}
               </div>

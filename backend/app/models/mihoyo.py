@@ -56,9 +56,7 @@ class MihoyoCheckinLog(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
-    )
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False)
     bind_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("mihoyo_binds.id", ondelete="CASCADE"), nullable=False, index=True
     )

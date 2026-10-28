@@ -60,9 +60,7 @@ def _request() -> Request:
 
 
 def _patch(db: Session, target: User, actor: User, **fields) -> None:
-    update_user(
-        target.id, UserAdminUpdate(**fields), _request(), Response(), db=db, current=actor
-    )
+    update_user(target.id, UserAdminUpdate(**fields), _request(), Response(), db=db, current=actor)
 
 
 def test_create_user_rejects_markup_in_display_name(db) -> None:

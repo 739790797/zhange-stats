@@ -17,9 +17,7 @@ export const TARKOV_BOSS_HUB_SECTION_LABELS: Record<TarkovBossHubSection, string
   other: "非 Boss",
 };
 
-export function normalizeBossKind(
-  raw: string | undefined | null,
-): TarkovBossKind {
+export function normalizeBossKind(raw: string | undefined | null): TarkovBossKind {
   const key = String(raw || "")
     .trim()
     .toLowerCase();
@@ -42,11 +40,7 @@ export function isFollowerMobId(id: string | undefined | null): boolean {
 }
 
 /** 黑色军团各分身都不是具名 Boss，即使 dump id 以 boss 开头。 */
-const HUB_OTHER_IDS = new Set([
-  "blackdivision",
-  "bossbullyblackdiv",
-  "pmcbotblackdiv",
-]);
+const HUB_OTHER_IDS = new Set(["blackdivision", "bossbullyblackdiv", "pmcbotblackdiv"]);
 
 function isHubOtherId(id: string | undefined | null): boolean {
   return HUB_OTHER_IDS.has(
@@ -120,9 +114,9 @@ export function showBossKindBadge(
 }
 
 /** 非 Boss 列表：除挂在具名 Boss 下的随从外，其余都进这一栏。 */
-export function selectOtherBosses<
-  T extends { id?: string | null; parent_ids?: string[] | null },
->(items: readonly T[]): T[] {
+export function selectOtherBosses<T extends { id?: string | null; parent_ids?: string[] | null }>(
+  items: readonly T[],
+): T[] {
   return items.filter(
     (row) =>
       !isTopLevelNamedBoss(row.id, row.parent_ids) &&
@@ -138,9 +132,7 @@ export function isCatalogBossKind(kind: string | undefined | null): boolean {
 export function filterCatalogBosses<T extends { id?: string | null; kind?: string | null }>(
   items: readonly T[],
 ): T[] {
-  return items.filter(
-    (item) => isCatalogBossKind(item.kind) && !isFollowerMobId(item.id),
-  );
+  return items.filter((item) => isCatalogBossKind(item.kind) && !isFollowerMobId(item.id));
 }
 
 export function groupBossesByKind<T extends { kind?: string | null }>(
@@ -162,7 +154,9 @@ export type TarkovBossTreeRow<T> = T & { children?: TarkovBossTreeRow<T>[] };
 /** 具名 BOSS 作父行；follower* 以及 parent 为具名 Boss 的 boss*（如狙击手）挂到父级下。游荡者等仍进非 Boss。 */
 export function groupBossCatalogTree<
   T extends { id?: string | null; parent_ids?: string[] | null },
->(items: readonly T[]): {
+>(
+  items: readonly T[],
+): {
   bosses: TarkovBossTreeRow<T>[];
   others: TarkovBossTreeRow<T>[];
 } {

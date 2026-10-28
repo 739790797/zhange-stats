@@ -28,19 +28,11 @@ import {
 } from "./tarkovTaskLogSync";
 import type { TarkovLogIdentity, TarkovLogQuestEvent } from "./tarkovGameLogs";
 
-function ev(
-  kind: TarkovLogQuestEvent["kind"],
-  taskId: string,
-  at: string,
-): TarkovLogQuestEvent {
+function ev(kind: TarkovLogQuestEvent["kind"], taskId: string, at: string): TarkovLogQuestEvent {
   return { kind, taskId, at };
 }
 
-function ident(
-  profileId: string,
-  at: string,
-  sessionMode = "regular",
-): TarkovLogIdentity {
+function ident(profileId: string, at: string, sessionMode = "regular"): TarkovLogIdentity {
   return { profileId, at, sessionMode, accountId: "1", version: "1.0.0" };
 }
 
@@ -74,10 +66,7 @@ describe("questProfileResetPlan", () => {
     expect(
       questProfileResetPlan({
         gameMode: "pvp",
-        identities: [
-          ident("old", "2026-01-01 10:00:00"),
-          ident("new", "2026-06-01 09:00:00"),
-        ],
+        identities: [ident("old", "2026-01-01 10:00:00"), ident("new", "2026-06-01 09:00:00")],
       })?.reset,
     ).toBe(true);
     expect(
@@ -113,10 +102,7 @@ describe("questProfileResetPlan", () => {
       questProfileResetPlan({
         gameMode: "pvp",
         storedProfileId: "new",
-        identities: [
-          ident("old", "2026-01-01 10:00:00"),
-          ident("new", "2026-06-01 09:00:00"),
-        ],
+        identities: [ident("old", "2026-01-01 10:00:00"), ident("new", "2026-06-01 09:00:00")],
         replayProfileId: "old",
       }),
     ).toMatchObject({ profileId: "old", reset: false });
@@ -130,10 +116,7 @@ describe("planClearedQuestReplay", () => {
         gameMode: "pvp",
         storedProfileId: "aaa",
         clearedAt: "2026-10-09 09:00:00",
-        identities: [
-          ident("aaa", "2026-01-01 10:00:00"),
-          ident("aaa", "2026-10-08 10:00:00"),
-        ],
+        identities: [ident("aaa", "2026-01-01 10:00:00"), ident("aaa", "2026-10-08 10:00:00")],
       }),
     ).toEqual({
       profileId: "aaa",
@@ -169,10 +152,7 @@ describe("planClearedQuestReplay", () => {
       gameMode: "pvp",
       storedProfileId: "aaa",
       clearedAt: "2026-10-09 09:00:00",
-      identities: [
-        ident("aaa", "2026-01-01 10:00:00"),
-        ident("aaa", "2026-10-09 12:00:00"),
-      ],
+      identities: [ident("aaa", "2026-01-01 10:00:00"), ident("aaa", "2026-10-09 12:00:00")],
     });
     const events = questsMatchingReplay(
       {
@@ -201,9 +181,7 @@ describe("planClearedQuestReplay", () => {
       },
     );
     expect(events.map((row) => row.taskId)).toEqual(["new-task"]);
-    expect(
-      applyQuestLogState([], [], foldQuestEvents(new Map(), events)),
-    ).toEqual({
+    expect(applyQuestLogState([], [], foldQuestEvents(new Map(), events))).toEqual({
       done: [],
       started: ["new-task"],
       failed: [],
@@ -267,14 +245,7 @@ describe("applyQuestLogState prestige clear", () => {
       failed: [],
     });
     expect(
-      applyQuestLogState(
-        ["old-done"],
-        ["old-start"],
-        new Map(),
-        undefined,
-        ["old-fail"],
-        cleared,
-      ),
+      applyQuestLogState(["old-done"], ["old-start"], new Map(), undefined, ["old-fail"], cleared),
     ).toEqual({ done: [], started: [], failed: [] });
   });
 });
@@ -318,12 +289,8 @@ describe("accountHasQuestState", () => {
     expect(accountHasQuestState(done, started, "done", "started")).toBe(true);
     expect(accountHasQuestState(done, started, "active", "started")).toBe(true);
     expect(accountHasQuestState(done, started, "active", "failed")).toBe(false);
-    expect(
-      accountHasQuestState(done, started, "active", "failed", new Set(["active"])),
-    ).toBe(true);
-    expect(accountHasQuestState(done, started, "active", "completed")).toBe(
-      false,
-    );
+    expect(accountHasQuestState(done, started, "active", "failed", new Set(["active"]))).toBe(true);
+    expect(accountHasQuestState(done, started, "active", "completed")).toBe(false);
     expect(accountHasQuestState(done, started, "new", "started")).toBe(false);
     expect(accountHasQuestState(done, started, "new", "completed")).toBe(false);
   });
@@ -356,10 +323,7 @@ describe("applyQuestLogState", () => {
       ]),
       new Set(["5ac346a886f7744e1b083d67"]),
     );
-    expect(merged.done.sort()).toEqual([
-      "5ac346a886f7744e1b083d67",
-      "625d6ffaf7308432be1d44c5",
-    ]);
+    expect(merged.done.sort()).toEqual(["5ac346a886f7744e1b083d67", "625d6ffaf7308432be1d44c5"]);
     expect(merged.started).toEqual([]);
   });
 
@@ -450,9 +414,7 @@ describe("applyQuestLogState", () => {
   });
 
   it("does not re-complete a task the user unmarked unless logs are newer", () => {
-    const folded = foldQuestEvents(new Map(), [
-      ev("completed", "t1", "2026-01-01 10:00:00"),
-    ]);
+    const folded = foldQuestEvents(new Map(), [ev("completed", "t1", "2026-01-01 10:00:00")]);
     const cleared = new Map([["t1", "2026-01-01 12:00:00"]]);
     expect(applyQuestLogState(["t1"], [], folded, undefined, [], cleared)).toEqual({
       done: [],
@@ -460,14 +422,8 @@ describe("applyQuestLogState", () => {
       failed: [],
     });
     expect(
-      applyQuestLogState(
-        [],
-        [],
-        folded,
-        undefined,
-        [],
-        new Map([["t1", "2026-01-01 09:00:00"]]),
-      ).done,
+      applyQuestLogState([], [], folded, undefined, [], new Map([["t1", "2026-01-01 09:00:00"]]))
+        .done,
     ).toEqual(["t1"]);
   });
 
@@ -480,14 +436,7 @@ describe("applyQuestLogState", () => {
     expect(folded.get("t1")?.everCompleted).toBe(true);
     expect(folded.get("t1")?.completedAt).toBe("2026-01-01 10:00:00");
     expect(
-      applyQuestLogState(
-        [],
-        [],
-        folded,
-        undefined,
-        [],
-        new Map([["t1", "2026-01-01 12:00:00"]]),
-      ),
+      applyQuestLogState([], [], folded, undefined, [], new Map([["t1", "2026-01-01 12:00:00"]])),
     ).toEqual({
       done: [],
       started: ["t1"],
@@ -496,10 +445,7 @@ describe("applyQuestLogState", () => {
   });
 
   it("drops blocked follow-ups once their blocker is done or started", () => {
-    const catalog = buildQuestLogCatalog([
-      { id: "bat1" },
-      { id: "price2", blocked_by: ["bat1"] },
-    ]);
+    const catalog = buildQuestLogCatalog([{ id: "bat1" }, { id: "price2", blocked_by: ["bat1"] }]);
     const folded = foldQuestEvents(new Map(), [
       ev("completed", "price2", "2026-01-01 10:00:00"),
       ev("completed", "bat1", "2026-01-01 11:00:00"),
@@ -558,12 +504,12 @@ describe("collectQuestEventsFromSessions", () => {
         },
       ],
     };
-    expect(
-      collectQuestEventsFromSessions([{ parsed }], "pvp").map((row) => row.taskId),
-    ).toEqual(["pvp-q"]);
-    expect(
-      collectQuestEventsFromSessions([{ parsed }], "pve").map((row) => row.taskId),
-    ).toEqual(["pve-q"]);
+    expect(collectQuestEventsFromSessions([{ parsed }], "pvp").map((row) => row.taskId)).toEqual([
+      "pvp-q",
+    ]);
+    expect(collectQuestEventsFromSessions([{ parsed }], "pve").map((row) => row.taskId)).toEqual([
+      "pve-q",
+    ]);
   });
 });
 
@@ -624,10 +570,7 @@ describe("mergeQuestProgressFromLogs", () => {
 
 describe("foldQuestEvents", () => {
   it("keeps the later clock when sessions arrive out of order", () => {
-    const first = foldQuestEvents(
-      new Map(),
-      [ev("completed", "t1", "2026-01-01 12:00:00")],
-    );
+    const first = foldQuestEvents(new Map(), [ev("completed", "t1", "2026-01-01 12:00:00")]);
     const second = foldQuestEvents(first, [
       ev("started", "t1", "2026-01-01 10:00:00"),
       ev("started", "t2", "2026-01-01 11:00:00"),
@@ -765,9 +708,7 @@ describe("questsMatchingReplay", () => {
       profileId: "aaa",
       fromAt: "2026-01-01 12:00:00",
     };
-    expect(questsMatchingReplay(parsed, filter).map((row) => row.taskId)).toEqual([
-      "mine",
-    ]);
+    expect(questsMatchingReplay(parsed, filter).map((row) => row.taskId)).toEqual(["mine"]);
     const drops = collectQuestReplayDrops(parsed, filter);
     expect(drops.map((row) => row.reason).sort()).toEqual([
       "json_bad",
@@ -850,11 +791,9 @@ describe("questProgressDelta", () => {
 
 describe("buildQuestLogSyncReview", () => {
   it("keeps the timestamped log line and labels the status jump", () => {
-    expect(
-      formatQuestLogEventLine(
-        ev("completed", "t1", "2026-01-01 10:00:00"),
-      ),
-    ).toBe("2026-01-01 10:00:00 ChatMessageReceived completed");
+    expect(formatQuestLogEventLine(ev("completed", "t1", "2026-01-01 10:00:00"))).toBe(
+      "2026-01-01 10:00:00 ChatMessageReceived completed",
+    );
     expect(formatQuestLogStatusChange("todo", "done")).toBe("未完成→已完成");
     const rows = buildQuestLogSyncReview(
       [
@@ -874,11 +813,13 @@ describe("buildQuestLogSyncReview", () => {
       { done: [], started: [], failed: [] },
       { items: [{ id: "t1", name: "惩罚者 - 1" }] },
     );
-    expect(rows.map((row) => ({
-      line: row.line,
-      taskName: row.taskName,
-      change: row.change,
-    }))).toEqual([
+    expect(
+      rows.map((row) => ({
+        line: row.line,
+        taskName: row.taskName,
+        change: row.change,
+      })),
+    ).toEqual([
       {
         line: "2026-01-01 10:00:00.000|x|Info|Got notification | ChatMessageReceived",
         taskName: "惩罚者 - 1",
@@ -920,10 +861,7 @@ describe("buildQuestLogSyncReview", () => {
       { done: [], started: [], failed: [] },
       { items: [{ id: "t1", name: "惩罚者 - 1" }], clearedDone: cleared },
     );
-    expect(rows.map((row) => row.change)).toEqual([
-      "未完成→进行中",
-      "进行中→已完成",
-    ]);
+    expect(rows.map((row) => row.change)).toEqual(["未完成→进行中", "进行中→已完成"]);
   });
 });
 

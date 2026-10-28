@@ -119,9 +119,7 @@ def list_my_articles(
     status: str | None = Query(default=None),
 ) -> dict:
     try:
-        return articles_svc.list_mine(
-            db, user, page=page, page_size=page_size, status=status
-        )
+        return articles_svc.list_mine(db, user, page=page, page_size=page_size, status=status)
     except ArticleError as exc:
         _raise(exc)
 
@@ -424,9 +422,7 @@ def post_comment(
     platform_limiter.hit(f"articles-comment:ip:{ip}", limit=20, window_sec=600)
     platform_limiter.hit(f"articles-comment:uid:{user.id}", limit=10, window_sec=600)
     try:
-        row = articles_svc.add_comment(
-            db, slug, user=user, body=body.body, parent_id=body.parent_id
-        )
+        row = articles_svc.add_comment(db, slug, user=user, body=body.body, parent_id=body.parent_id)
     except ArticleError as exc:
         _raise(exc)
     return articles_svc.comment_to_out(row)

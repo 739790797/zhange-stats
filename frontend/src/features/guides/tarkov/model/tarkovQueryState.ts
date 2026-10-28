@@ -1,9 +1,6 @@
 /** 列表页 page / pageSize 从 URL 读取。 */
 
-export function readPositiveInt(
-  raw: string | null | undefined,
-  fallback: number,
-): number {
+export function readPositiveInt(raw: string | null | undefined, fallback: number): number {
   const n = Number(raw || "");
   return Number.isInteger(n) && n > 0 ? n : fallback;
 }
@@ -38,9 +35,7 @@ export function catalogSortQuery(
   return { sort: key, dir: order === "ascend" ? "asc" : "desc" };
 }
 
-export function readRigKindFilter(
-  raw: string | null | undefined,
-): "all" | "plain" | "armored" {
+export function readRigKindFilter(raw: string | null | undefined): "all" | "plain" | "armored" {
   const kind = (raw || "").trim();
   if (kind === "plain" || kind === "armored") return kind;
   return "all";

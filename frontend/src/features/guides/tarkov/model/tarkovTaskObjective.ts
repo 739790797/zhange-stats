@@ -96,7 +96,6 @@ export function orderObjectiveTypes(types: string[] | null | undefined): string[
   });
 }
 
-
 export const TARKOV_EXIT_STATUS_LABELS: Record<string, string> = {
   Survived: "幸存",
   Runner: "匆匆逃离",
@@ -280,10 +279,7 @@ export type TaskNamedRefLike = {
   name?: string | null;
 };
 
-export function formatTaskCompare(
-  method?: string | null,
-  value?: number | null,
-): string {
+export function formatTaskCompare(method?: string | null, value?: number | null): string {
   if (value == null || Number.isNaN(Number(value))) return "";
   const n = Number(value);
   const shown = Number.isInteger(n) ? String(n) : String(n);
@@ -310,10 +306,7 @@ export function formatTaskDuration(seconds: number): string {
   return `${hours} 小时 ${mins} 分钟`;
 }
 
-export function formatTaskDelay(
-  min?: number | null,
-  max?: number | null,
-): string {
+export function formatTaskDelay(min?: number | null, max?: number | null): string {
   const lo = min == null || min <= 0 ? 0 : min;
   const hi = max == null || max <= 0 ? 0 : max;
   if (!lo && !hi) return "";
@@ -343,17 +336,9 @@ export function taskUnlockStatusLabel(status: string): string {
 }
 
 /** dump 的商人 LL（loyaltyLevel）；详情页归到「声望要求」，不是 PMC 等级。 */
-export const TARKOV_TRADER_LOYALTY_REQ_TYPES = new Set([
-  "",
-  "level",
-  "loyaltyLevel",
-  "loyalty",
-]);
+export const TARKOV_TRADER_LOYALTY_REQ_TYPES = new Set(["", "level", "loyaltyLevel", "loyalty"]);
 
-export const TARKOV_TRADER_STANDING_REQ_TYPES = new Set([
-  "reputation",
-  "standing",
-]);
+export const TARKOV_TRADER_STANDING_REQ_TYPES = new Set(["reputation", "standing"]);
 
 export function isTaskMutexFailType(type: string | null | undefined): boolean {
   return (type || "").trim() === "taskStatus";
@@ -386,9 +371,7 @@ export function collectTaskMutexRows(
   const seen = new Set<string>();
   for (const row of conditions || []) {
     if (!isTaskMutexFailType(row.type)) continue;
-    const statuses = (row.status || [])
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    const statuses = (row.status || []).map((item) => String(item).trim()).filter(Boolean);
     for (const task of row.tasks || []) {
       const id = (task.id || "").trim();
       if (!id || seen.has(id)) continue;
@@ -486,9 +469,7 @@ export function formatTaskObjectiveExtraLines(obj: {
   }
   const skill = (obj.skill_name || "").trim();
   if (skill) {
-    lines.push(
-      obj.skill_level != null ? `技能 ${skill} ${obj.skill_level} 级` : `技能 ${skill}`,
-    );
+    lines.push(obj.skill_level != null ? `技能 ${skill} ${obj.skill_level} 级` : `技能 ${skill}`);
   }
   if (obj.player_level != null) lines.push(`PMC 等级 ${obj.player_level}`);
   const zones = (obj.zone_names || []).map((row) => String(row).trim()).filter(Boolean);
@@ -506,9 +487,7 @@ export function formatTaskObjectiveExtraLines(obj: {
   if (health) lines.push(health);
   const enemy = healthEffectLine("目标状态：", obj.enemy_health_effect);
   if (enemy) lines.push(enemy);
-  const cats = (obj.contains_category || [])
-    .map((row) => namedLabel(row))
-    .filter(Boolean);
+  const cats = (obj.contains_category || []).map((row) => namedLabel(row)).filter(Boolean);
   if (cats.length) lines.push(`配件分类：${joinLabels(cats)}`);
   return lines;
 }

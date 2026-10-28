@@ -58,9 +58,7 @@ export function parseAwardsText(text: string): CheckinAward[] {
   const out: CheckinAward[] = [];
   for (const part of parts) {
     if (isStatusAwardsText(part)) continue;
-    const matched = part.match(
-      /^(?<name>.+?)\s*[×xX*＊＋+]\s*(?<count>\d+)\s*$/,
-    );
+    const matched = part.match(/^(?<name>.+?)\s*[×xX*＊＋+]\s*(?<count>\d+)\s*$/);
     if (matched?.groups?.name) {
       out.push({
         name: matched.groups.name.trim(),
@@ -105,10 +103,7 @@ export function todayAwardsHint(input: TodayAwardsInput): string | null {
     return "今日未签到";
   }
   if (awardsForDisplay(input.awards, input.awardsText).length) return null;
-  if (
-    input.gameCode === "arknights" &&
-    isBilibiliArknightsChannel(input.channelName)
-  ) {
+  if (input.gameCode === "arknights" && isBilibiliArknightsChannel(input.channelName)) {
     return "B服不支持查询";
   }
   return "";

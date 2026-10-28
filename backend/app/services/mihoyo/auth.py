@@ -290,9 +290,7 @@ def _passport_post(
 ) -> tuple[dict[str, Any], dict[str, str]]:
     headers = _login_passport_headers(device_id=device_id, aigis=aigis)
     try:
-        resp = http_request(
-            "POST", url, headers=headers, json=body, timeout=REQUEST_TIMEOUT
-        )
+        resp = http_request("POST", url, headers=headers, json=body, timeout=REQUEST_TIMEOUT)
         try:
             payload = resp.json()
         except (json.JSONDecodeError, ValueError) as exc:
@@ -309,9 +307,7 @@ def _passport_post(
     return data, set_cookies
 
 
-def _creds_from_passport_login(
-    *, data: dict[str, Any], set_cookies: dict[str, str]
-) -> MihoyoCredentials:
+def _creds_from_passport_login(*, data: dict[str, Any], set_cookies: dict[str, str]) -> MihoyoCredentials:
     """短信/密码登录成功：token + user_info，结构接近扫码确认。"""
     cookies = dict(set_cookies)
     login_ticket = str(data.get("login_ticket") or cookies.get("login_ticket") or "").strip()
@@ -325,9 +321,7 @@ def _creds_from_passport_login(
     if isinstance(token_raw, dict):
         extra_tokens.insert(0, token_raw)
     elif isinstance(token_raw, str) and token_raw.strip():
-        extra_tokens.insert(
-            0, {"token_type": 1, "name": "stoken", "token": token_raw.strip()}
-        )
+        extra_tokens.insert(0, {"token_type": 1, "name": "stoken", "token": token_raw.strip()})
 
     synthetic = {
         "user_info": data.get("user_info") if isinstance(data.get("user_info"), dict) else {},
@@ -516,9 +510,7 @@ def query_qr_login(*, device_id: str, ticket: str) -> dict[str, Any]:
     return {"status": "ok", "message": "扫码登录成功", "creds": creds}
 
 
-def _creds_from_qr_confirmed(
-    *, data: dict[str, Any], set_cookies: dict[str, str]
-) -> MihoyoCredentials:
+def _creds_from_qr_confirmed(*, data: dict[str, Any], set_cookies: dict[str, str]) -> MihoyoCredentials:
     """App 扫码确认：优先取 tokens 中的 stoken + user_info.aid/mid。"""
     user = data.get("user_info") if isinstance(data.get("user_info"), dict) else {}
     aid = str(
@@ -554,11 +546,7 @@ def _creds_from_qr_confirmed(
         cookie_parts["stoken"] = stoken
 
     login_ticket = str(cookie_parts.get("login_ticket") or "").strip()
-    cookie_token = str(
-        cookie_parts.get("cookie_token_v2")
-        or cookie_parts.get("cookie_token")
-        or ""
-    ).strip()
+    cookie_token = str(cookie_parts.get("cookie_token_v2") or cookie_parts.get("cookie_token") or "").strip()
 
     if stoken and aid:
         cookie = "; ".join(f"{k}={v}" for k, v in cookie_parts.items() if v)
@@ -579,9 +567,7 @@ def _creds_from_qr_confirmed(
             cookie_extra=cookie_parts,
         )
     if cookie_token and aid:
-        return _creds_from_cookie_token(
-            aid=aid, cookie_token=cookie_token, extra=cookie_parts, mid=mid
-        )
+        return _creds_from_cookie_token(aid=aid, cookie_token=cookie_token, extra=cookie_parts, mid=mid)
     if cookie_parts:
         cookie = "; ".join(f"{k}={v}" for k, v in cookie_parts.items())
         return bind_with_cookie(cookie)
@@ -622,10 +608,7 @@ def _creds_from_cookie_token(
         }.items()
         if v
     )
-    url = (
-        "https://api-takumi.mihoyo.com/auth/api/getMultiTokenByCookieToken"
-        f"?uid={aid}"
-    )
+    url = f"https://api-takumi.mihoyo.com/auth/api/getMultiTokenByCookieToken?uid={aid}"
     try:
         resp = http_request(
             "GET",

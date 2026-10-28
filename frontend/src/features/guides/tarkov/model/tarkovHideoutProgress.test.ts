@@ -70,9 +70,7 @@ describe("tarkovHideoutProgress", () => {
       {
         id: "gen",
         slug: "generator",
-        levels: [
-          { level: 1, item_requirements: [{ id: "screw", count: 10 }] },
-        ],
+        levels: [{ level: 1, item_requirements: [{ id: "screw", count: 10 }] }],
       },
     ];
     const levels = filledHideoutLevels(stations, {});
@@ -112,9 +110,7 @@ describe("tarkovHideoutProgress", () => {
     const levels = filledHideoutLevels(stations, {});
     const byId = indexHideoutStations(stations);
     expect(canSetHideoutLevel(byId.get("bench"), 1, levels, byId)).toBe(false);
-    expect(() => applyHideoutLevel(stations, levels, "bench", 1)).toThrow(
-      /前置/,
-    );
+    expect(() => applyHideoutLevel(stations, levels, "bench", 1)).toThrow(/前置/);
     const next = applyHideoutLevel(stations, levels, "gen", 1);
     expect(next.gen).toBe(1);
     expect(applyHideoutLevel(stations, next, "bench", 1).bench).toBe(1);
@@ -277,9 +273,7 @@ describe("tarkovHideoutProgress", () => {
     const rows = buildHideoutBonusTable(air).rows;
     expect(rows).toHaveLength(2);
     expect(hideoutBonusLabel(rows[0])).toBe("技能组升级加速（Physical）");
-    expect(buildHideoutBonusTable({ id: "gym", levels: [{ level: 1 }] }).rows).toEqual(
-      [],
-    );
+    expect(buildHideoutBonusTable({ id: "gym", levels: [{ level: 1 }] }).rows).toEqual([]);
   });
 
   it("aggregates next-level items of ready stations", () => {
@@ -417,18 +411,18 @@ describe("tarkovHideoutProgress", () => {
         id: "wc",
         slug: "lavatory",
         name: "卫生间",
-        levels: [
-          { level: 1, item_requirements: [{ id: "soap", name: "肥皂", count: 1 }] },
-        ],
+        levels: [{ level: 1, item_requirements: [{ id: "soap", name: "肥皂", count: 1 }] }],
       },
     ];
-    expect(aggregateHideoutUpgradeRanges(stations, [{ stationId: "med", from: 0, to: 1 }])).toEqual([
-      expect.objectContaining({
-        id: "bandage",
-        count: 1,
-        stations: [expect.objectContaining({ id: "med", from: 0, to: 1 })],
-      }),
-    ]);
+    expect(aggregateHideoutUpgradeRanges(stations, [{ stationId: "med", from: 0, to: 1 }])).toEqual(
+      [
+        expect.objectContaining({
+          id: "bandage",
+          count: 1,
+          stations: [expect.objectContaining({ id: "med", from: 0, to: 1 })],
+        }),
+      ],
+    );
     const spanned = aggregateHideoutUpgradeRanges(stations, [
       { stationId: "med", from: 0, to: 3 },
       { stationId: "wc", from: 0, to: 1 },
@@ -441,7 +435,9 @@ describe("tarkovHideoutProgress", () => {
     );
     expect(spanned.find((row) => row.id === "saline")?.count).toBe(4);
     expect(spanned.find((row) => row.id === "soap")?.count).toBe(1);
-    expect(aggregateHideoutUpgradeRanges(stations, [{ stationId: "med", from: 2, to: 2 }])).toEqual([]);
+    expect(aggregateHideoutUpgradeRanges(stations, [{ stationId: "med", from: 2, to: 2 }])).toEqual(
+      [],
+    );
     expect(
       formatHideoutUpgradeStation({
         id: "med",
@@ -511,17 +507,15 @@ describe("tarkovHideoutProgress", () => {
       { id: "wire", count: 10 },
     ]);
     expect(
-      hideoutUpgradeMaterialItems([
-        { id: "hose", name: "软管", count: 2, flea_price: 14000 },
-      ]).map((row) => row.id),
+      hideoutUpgradeMaterialItems([{ id: "hose", name: "软管", count: 2, flea_price: 14000 }]).map(
+        (row) => row.id,
+      ),
     ).toEqual(["hose"]);
   });
 
   it("excludes construction cash and found-in-raid items from the flea shopping total", () => {
     expect(hideoutItemNeedsFleaBuy({ id: "wire" })).toBe(true);
-    expect(
-      hideoutItemNeedsFleaBuy({ id: "drill", found_in_raid: true }),
-    ).toBe(false);
+    expect(hideoutItemNeedsFleaBuy({ id: "drill", found_in_raid: true })).toBe(false);
     expect(
       hideoutItemNeedsFleaBuy({
         id: TARKOV_ROUBLE_ITEM_ID,
@@ -560,8 +554,6 @@ describe("tarkovHideoutProgress", () => {
       hideoutUpgradeMaterialItems([
         { id: TARKOV_ROUBLE_ITEM_ID, name: "卢布", count: 25000, types: ["money"] },
       ]),
-    ).toEqual([
-      expect.objectContaining({ id: TARKOV_ROUBLE_ITEM_ID, count: 25000 }),
-    ]);
+    ).toEqual([expect.objectContaining({ id: TARKOV_ROUBLE_ITEM_ID, count: 25000 })]);
   });
 });

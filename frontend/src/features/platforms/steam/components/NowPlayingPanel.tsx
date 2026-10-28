@@ -92,94 +92,89 @@ export function NowPlayingPanel({ items }: { items: SteamNowItem[] }) {
             <div style={{ ...HEADER_STYLE, cursor: "default" }}>{headerBody}</div>
           );
           return (
-          <div
-            key={group.steam_app_id || group.game_name}
-            style={{
-              width: 260,
-              flex: "0 0 260px",
-              boxSizing: "border-box",
-              border: "1px solid #f0f0f0",
-              borderRadius: 10,
-              background: "#fff",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {group.steam_app_id ? (
-              <Tooltip
-                placement="top"
-                autoAdjustOverflow={false}
-                color="#ffffff"
-                mouseEnterDelay={0.25}
-                destroyTooltipOnHide
-                overlayInnerStyle={{
-                  padding: 0,
-                  overflow: "hidden",
-                  borderRadius: 8,
-                  minHeight: 0,
-                  minWidth: 0,
-                  boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
-                }}
-                title={
-                  <GameStoreHoverCard
-                    appId={group.steam_app_id}
-                    fallbackName={group.game_name}
-                  />
-                }
-              >
-                {header}
-              </Tooltip>
-            ) : (
-              header
-            )}
             <div
+              key={group.steam_app_id || group.game_name}
               style={{
-                padding: "8px 10px 10px",
+                width: 260,
+                flex: "0 0 260px",
+                boxSizing: "border-box",
+                border: "1px solid #f0f0f0",
+                borderRadius: 10,
+                background: "#fff",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
-                flex: 1,
               }}
             >
-              {group.players.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    minHeight: 36,
+              {group.steam_app_id ? (
+                <Tooltip
+                  placement="top"
+                  autoAdjustOverflow={false}
+                  color="#ffffff"
+                  mouseEnterDelay={0.25}
+                  destroyTooltipOnHide
+                  overlayInnerStyle={{
+                    padding: 0,
+                    overflow: "hidden",
+                    borderRadius: 8,
+                    minHeight: 0,
+                    minWidth: 0,
+                    boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
                   }}
+                  title={
+                    <GameStoreHoverCard appId={group.steam_app_id} fallbackName={group.game_name} />
+                  }
                 >
-                  <Avatar size={28} src={p.avatar_url || undefined}>
-                    {p.member_nickname[0]}
-                  </Avatar>
-                  <div style={{ minWidth: 0, flex: 1, lineHeight: 1.3 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={p.member_nickname}
-                    >
-                      {p.member_nickname}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#52c41a" }}>
-                      本次{" "}
-                      {formatDuration(
-                        sessionDurationSeconds(p, fetchedAtRef.current, nowMs),
-                      )}
+                  {header}
+                </Tooltip>
+              ) : (
+                header
+              )}
+              <div
+                style={{
+                  padding: "8px 10px 10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  flex: 1,
+                }}
+              >
+                {group.players.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      minHeight: 36,
+                    }}
+                  >
+                    <Avatar size={28} src={p.avatar_url || undefined}>
+                      {p.member_nickname[0]}
+                    </Avatar>
+                    <div style={{ minWidth: 0, flex: 1, lineHeight: 1.3 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={p.member_nickname}
+                      >
+                        {p.member_nickname}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#52c41a" }}>
+                        本次{" "}
+                        {formatDuration(sessionDurationSeconds(p, fetchedAtRef.current, nowMs))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>

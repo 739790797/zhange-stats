@@ -1,6 +1,14 @@
 import { client } from "../../../../shared/api/http";
 import type { components } from "../../../../shared/api/generated/schema";
-import type { KujiequAttendanceCalendar, KujiequCheckinResponse, KujiequExchangeResult, KujiequExchangeShop, KujiequSmsSendResponse, KujiequStatus, WwBox } from "@/features/platforms/kujiequ/api/types";
+import type {
+  KujiequAttendanceCalendar,
+  KujiequCheckinResponse,
+  KujiequExchangeResult,
+  KujiequExchangeShop,
+  KujiequSmsSendResponse,
+  KujiequStatus,
+  WwBox,
+} from "@/features/platforms/kujiequ/api/types";
 
 /** 签到 status：后端 force 默认 true；此处默认 true 且始终显式传参（勿省略）。 */
 export async function fetchKujiequStatus(includeRoles = true, force = true) {
@@ -14,14 +22,11 @@ export async function fetchKujiequStatus(includeRoles = true, force = true) {
   return data;
 }
 
-export async function sendKujiequSms(
-  phone: string,
-  geeTestData?: string | null,
-) {
-  const { data } = await client.post<KujiequSmsSendResponse>(
-    "/kujiequ/bind/sms/send",
-    { phone, gee_test_data: geeTestData || null },
-  );
+export async function sendKujiequSms(phone: string, geeTestData?: string | null) {
+  const { data } = await client.post<KujiequSmsSendResponse>("/kujiequ/bind/sms/send", {
+    phone,
+    gee_test_data: geeTestData || null,
+  });
   return data;
 }
 
@@ -45,13 +50,8 @@ export async function updateKujiequRolePref(
   return data;
 }
 
-export async function triggerKujiequCheckin(
-  payload?: components["schemas"]["CheckinNowBody"],
-) {
-  const { data } = await client.post<KujiequCheckinResponse>(
-    "/kujiequ/checkin",
-    payload ?? {},
-  );
+export async function triggerKujiequCheckin(payload?: components["schemas"]["CheckinNowBody"]) {
+  const { data } = await client.post<KujiequCheckinResponse>("/kujiequ/checkin", payload ?? {});
   return data;
 }
 
@@ -85,16 +85,13 @@ export async function fetchKujiequAttendanceCalendar(
   roleUid?: string | null,
   force = false,
 ) {
-  const { data } = await client.get<KujiequAttendanceCalendar>(
-    "/kujiequ/attendance-calendar",
-    {
-      params: {
-        game_code: gameCode,
-        ...(roleUid ? { role_uid: roleUid } : {}),
-        force,
-      },
+  const { data } = await client.get<KujiequAttendanceCalendar>("/kujiequ/attendance-calendar", {
+    params: {
+      game_code: gameCode,
+      ...(roleUid ? { role_uid: roleUid } : {}),
+      force,
     },
-  );
+  });
   return data;
 }
 

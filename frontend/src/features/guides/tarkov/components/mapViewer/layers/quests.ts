@@ -3,7 +3,6 @@
 import { escapeHtml } from "@/shared/lib/escapeHtml";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "@/features/guides/tarkov/components/tarkovFonts.css";
 import { pos } from "@/features/guides/tarkov/model/tarkovMapCrs";
 import {
   pickTooltipVerticalSide,
@@ -64,15 +63,11 @@ function questParticipantChipsHtml(
   const chips = list
     .map((person) => {
       const color =
-        person.userId != null
-          ? colorForUserId(person.userId)
-          : colorForTaskId(person.name);
+        person.userId != null ? colorForUserId(person.userId) : colorForTaskId(person.name);
       return `<span class="${styles.questTipChip}"><span class="${styles.questTipDot}" style="background:${escapeHtml(color)}"></span>${escapeHtml(person.name)}</span>`;
     })
     .join("");
-  const lead = help
-    ? `<span class="${styles.questTipPeopleLead}">还需</span>`
-    : "";
+  const lead = help ? `<span class="${styles.questTipPeopleLead}">还需</span>` : "";
   return `<span class="${styles.questTipPeople}">${lead}${chips}</span>`;
 }
 
@@ -105,10 +100,7 @@ export function overlayBubbleHtml(
 ): string {
   const keys = (row.keyNames || [])
     .filter(Boolean)
-    .map(
-      (name) =>
-        `<span class="${styles.questTipKey}">${escapeHtml(name)}</span>`,
-    )
+    .map((name) => `<span class="${styles.questTipKey}">${escapeHtml(name)}</span>`)
     .join("");
   const keyRow = keys
     ? `<span class="${styles.questTipKeys}"><span class="${styles.questTipKeyLabel}">所需钥匙</span>${keys}</span>`
@@ -132,7 +124,10 @@ export function overlayBubbleHtml(
 }
 
 function traderSlugForIcon(slug: string): string {
-  return slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return slug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "");
 }
 
 function questTraderImgHtml(slug: string): string {
@@ -163,10 +158,7 @@ function questLabelLineHtml(
   return `<span class="${styles.questLabelRow}${dim}" data-task-id="${escapeHtml(item.taskId)}">${questTraderImgHtml(item.traderSlug)}<span class="${styles.questName}" style="color:${paint}">${escapeHtml(title)}</span>${help}${keyMark}</span>`;
 }
 
-export function applyQuestLabelHighlight(
-  root: HTMLElement | undefined,
-  highlightTaskId: string,
-) {
+export function applyQuestLabelHighlight(root: HTMLElement | undefined, highlightTaskId: string) {
   if (!root) return;
   const on = (highlightTaskId || "").trim();
   for (const node of root.querySelectorAll<HTMLElement>("[data-task-id]")) {
@@ -176,9 +168,7 @@ export function applyQuestLabelHighlight(
   }
 }
 
-function overlayByLabelItem(
-  overlays: TarkovRaidPrepOverlay[],
-): Map<string, TarkovRaidPrepOverlay> {
+function overlayByLabelItem(overlays: TarkovRaidPrepOverlay[]): Map<string, TarkovRaidPrepOverlay> {
   const map = new Map<string, TarkovRaidPrepOverlay>();
   for (const row of overlays) {
     const key = `${row.taskId}\0${row.optional ? "1" : "0"}\0${row.title}`;
@@ -220,17 +210,11 @@ export function bindQuestActionPopup(
   L.DomEvent.disableClickPropagation(root);
   L.DomEvent.disableScrollPropagation(root);
   const onClick = (event: Event) => {
-    const btn = (event.target as HTMLElement | null)?.closest(
-      "[data-quest-action]",
-    );
+    const btn = (event.target as HTMLElement | null)?.closest("[data-quest-action]");
     if (!btn) return;
     L.DomEvent.stop(event);
     const action = btn.getAttribute("data-quest-action");
-    if (
-      action !== "guide" &&
-      action !== "complete" &&
-      action !== "uncomplete"
-    ) {
+    if (action !== "guide" && action !== "complete" && action !== "uncomplete") {
       return;
     }
     map.closePopup(popup);
@@ -334,12 +318,7 @@ export function addQuestOverlays(
   group.clearLayers();
   for (const row of overlays) {
     const bubble = questBubbleFromOverlay(row, namesByTask);
-    const onFloor = overlayVisibleOnFloor(
-      row.height,
-      floor,
-      floorBands,
-      overlayFloorAt(row),
-    );
+    const onFloor = overlayVisibleOnFloor(row.height, floor, floorBands, overlayFloorAt(row));
     const fade = onFloor ? 1 : RAID_ROOM_OTHER_FLOOR_OPACITY;
     const dashed = row.optional || row.done;
     const paint = raidPrepQuestPaintColor(row.color, row.done);
@@ -409,16 +388,9 @@ export function addQuestLabels(
   const lineH = 22;
   for (const label of labels) {
     label.items.forEach((item, index) => {
-      const source = byItem.get(
-        `${item.taskId}\0${item.optional ? "1" : "0"}\0${item.title}`,
-      );
+      const source = byItem.get(`${item.taskId}\0${item.optional ? "1" : "0"}\0${item.title}`);
       const at = overlayFloorAt(source) || { x: label.x, z: label.z };
-      const offFloor = !overlayVisibleOnFloor(
-        item.height,
-        floor,
-        floorBands,
-        at,
-      );
+      const offFloor = !overlayVisibleOnFloor(item.height, floor, floorBands, at);
       const marker = L.marker(pos({ x: label.x, z: label.z }), {
         icon: L.divIcon({
           className: styles.questIcon,
@@ -445,9 +417,7 @@ export function addQuestLabels(
           optional: item.optional,
           height: item.height,
           at,
-          participants: raidPrepParticipants(
-            source?.neededBy ?? namesByTask?.get(item.taskId),
-          ),
+          participants: raidPrepParticipants(source?.neededBy ?? namesByTask?.get(item.taskId)),
           done: Boolean(source?.done ?? item.done),
         },
         onLabelClick,

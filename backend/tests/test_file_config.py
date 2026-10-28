@@ -105,7 +105,6 @@ def test_load_database_settings_defaults_sqlite(monkeypatch: pytest.MonkeyPatch)
     assert out["db_path"]
 
 
-
 def test_import_legacy_system_configs() -> None:
     import json
 
@@ -177,9 +176,7 @@ def test_import_legacy_system_configs() -> None:
         engine.dispose()
 
 
-def test_import_env_smtp_when_no_db_row(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_import_env_smtp_when_no_db_row(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import json
 
     from sqlalchemy import create_engine

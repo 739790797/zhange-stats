@@ -88,10 +88,7 @@ export function pointHitsCanvasIcon(
   rect: { left: number; top: number; right: number; bottom: number },
 ): boolean {
   return (
-    point.x >= rect.left &&
-    point.x < rect.right &&
-    point.y >= rect.top &&
-    point.y < rect.bottom
+    point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom
   );
 }
 
@@ -107,9 +104,7 @@ export function hitTestCanvasIcons<T extends TarkovCanvasIconHit>(
   return best;
 }
 
-export function uniqueCanvasIconUrls(
-  markers: ReadonlyArray<{ iconUrl: string }>,
-): string[] {
+export function uniqueCanvasIconUrls(markers: ReadonlyArray<{ iconUrl: string }>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const row of markers) {
@@ -121,15 +116,10 @@ export function uniqueCanvasIconUrls(
   return out;
 }
 
-export function sortCanvasMarkersByZ<T extends { zIndex?: number }>(
-  markers: readonly T[],
-): T[] {
+export function sortCanvasMarkersByZ<T extends { zIndex?: number }>(markers: readonly T[]): T[] {
   return markers
     .map((row, index) => ({ row, index }))
-    .sort(
-      (a, b) =>
-        (a.row.zIndex ?? 0) - (b.row.zIndex ?? 0) || a.index - b.index,
-    )
+    .sort((a, b) => (a.row.zIndex ?? 0) - (b.row.zIndex ?? 0) || a.index - b.index)
     .map((item) => item.row);
 }
 
@@ -139,7 +129,5 @@ export function markCanvasMarkerEvent(event: Event): void {
 
 export function isCanvasMarkerEvent(event: Event | undefined | null): boolean {
   if (!event) return false;
-  return Boolean(
-    (event as unknown as Record<string, boolean>)[CANVAS_MARKER_EVENT],
-  );
+  return Boolean((event as unknown as Record<string, boolean>)[CANVAS_MARKER_EVENT]);
 }

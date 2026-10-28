@@ -132,16 +132,9 @@ function eventFromDomTarget(target: EventTarget | null): boolean {
   );
 }
 
-function applyCanvasTooltipSide(
-  tooltip: L.Tooltip,
-  side: TarkovMapTooltipSide,
-  pad: number,
-) {
+function applyCanvasTooltipSide(tooltip: L.Tooltip, side: TarkovMapTooltipSide, pad: number) {
   tooltip.options.direction = side;
-  tooltip.options.offset = L.point(
-    0,
-    side === "top" ? -Math.abs(pad) : Math.abs(pad),
-  );
+  tooltip.options.offset = L.point(0, side === "top" ? -Math.abs(pad) : Math.abs(pad));
 }
 
 export class TarkovMapCanvasMarkerLayer extends L.Layer {
@@ -182,11 +175,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
   onAdd(map: L.Map): this {
     const pane = this.getPane(ICON_CANVAS_PANE);
     if (!pane) return this;
-    const canvas = L.DomUtil.create(
-      "canvas",
-      "tarkov-icon-canvas",
-      pane,
-    ) as HTMLCanvasElement;
+    const canvas = L.DomUtil.create("canvas", "tarkov-icon-canvas", pane) as HTMLCanvasElement;
     canvas.style.position = "absolute";
     canvas.style.pointerEvents = "none";
     this.canvas = canvas;
@@ -196,9 +185,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
       direction: "top",
       opacity: 0.96,
       interactive: true,
-      className: extra
-        ? `${extra} ${TARKOV_MAP_TIP_SPAWN}`
-        : TARKOV_MAP_TIP_SPAWN,
+      className: extra ? `${extra} ${TARKOV_MAP_TIP_SPAWN}` : TARKOV_MAP_TIP_SPAWN,
       offset: [0, -12],
     });
     this.resetView();
@@ -268,9 +255,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
     if (!map || !canvas || !isLeafletViewReady(map)) return;
     const size = map.getSize();
     const view = canvasIconViewSize(size, ICON_CANVAS_PADDING);
-    const min = map
-      .containerPointToLayerPoint(L.point(-view.padX, -view.padY))
-      .round();
+    const min = map.containerPointToLayerPoint(L.point(-view.padX, -view.padY)).round();
     this.origin = { x: min.x, y: min.y };
     this.viewRect = {
       left: min.x,
@@ -301,14 +286,8 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
     this.hits = [];
     const later: TarkovCanvasMarker[] = [];
     for (const marker of this.markers) {
-      const layerPt = map.latLngToLayerPoint(
-        L.latLng(pos({ x: marker.x, z: marker.z })),
-      );
-      const rect = canvasIconScreenRect(
-        layerPt,
-        marker.iconSize,
-        marker.iconAnchor,
-      );
+      const layerPt = map.latLngToLayerPoint(L.latLng(pos({ x: marker.x, z: marker.z })));
+      const rect = canvasIconScreenRect(layerPt, marker.iconSize, marker.iconAnchor);
       if (!rectsOverlap(rect, this.viewRect)) continue;
       this.hits.push({
         id: marker.id,
@@ -326,14 +305,8 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
       this.drawIcon(ctx, marker, rect);
     }
     for (const marker of later) {
-      const layerPt = map.latLngToLayerPoint(
-        L.latLng(pos({ x: marker.x, z: marker.z })),
-      );
-      const rect = canvasIconScreenRect(
-        layerPt,
-        marker.iconSize,
-        marker.iconAnchor,
-      );
+      const layerPt = map.latLngToLayerPoint(L.latLng(pos({ x: marker.x, z: marker.z })));
+      const rect = canvasIconScreenRect(layerPt, marker.iconSize, marker.iconAnchor);
       this.drawIcon(ctx, marker, rect, true);
     }
   };
@@ -345,10 +318,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
     highlight = false,
   ) {
     const img = ICON_CACHE.get(marker.iconUrl);
-    const at = layerPointToCanvasPoint(
-      { x: rect.left, y: rect.top },
-      this.origin,
-    );
+    const at = layerPointToCanvasPoint({ x: rect.left, y: rect.top }, this.origin);
     const w = marker.iconSize[0];
     const h = marker.iconSize[1];
     const alpha = highlight ? 1 : canvasMarkerDrawOpacity(marker.opacity);
@@ -471,10 +441,7 @@ export class TarkovMapCanvasMarkerLayer extends L.Layer {
       this.options.onHoverId?.(nextId);
     }
     if (!map) return;
-    L.DomUtil[hit ? "addClass" : "removeClass"](
-      map.getContainer(),
-      "tarkov-canvas-hit",
-    );
+    L.DomUtil[hit ? "addClass" : "removeClass"](map.getContainer(), "tarkov-canvas-hit");
     if (!hit || !this.tooltip) {
       this.hideTooltip();
       return;

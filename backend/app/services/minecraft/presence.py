@@ -298,12 +298,7 @@ def _players_from_facts(facts: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _players_from_history(db: Session) -> list[dict[str, str]]:
-    rows = (
-        db.query(MinecraftPresenceSegment)
-        .order_by(MinecraftPresenceSegment.started_at.desc())
-        .limit(2000)
-        .all()
-    )
+    rows = db.query(MinecraftPresenceSegment).order_by(MinecraftPresenceSegment.started_at.desc()).limit(2000).all()
     seen: set[str] = set()
     out: list[dict[str, str]] = []
     for row in rows:
@@ -351,9 +346,7 @@ def collect_online_snapshot(db: Session) -> dict[str, Any]:
         for sample in ping_players:
             name = str(sample.get("name") or "").strip()
             if name:
-                by_name[name.lower()] = str(sample.get("id") or "") or by_name.get(
-                    name.lower(), ""
-                )
+                by_name[name.lower()] = str(sample.get("id") or "") or by_name.get(name.lower(), "")
         for name in rcon_names:
             online.append({"name": name, "id": by_name.get(name.lower(), "")})
         complete = True
@@ -394,11 +387,7 @@ def record_snapshot(
     if not _poll_lock.acquire(blocking=False):
         return {"status": "skipped", "message": "已有轮询在进行中", "stats": {}}
     try:
-        is_complete = (
-            complete
-            if complete is not None
-            else bool(reachable and len(online) >= int(players_online or 0))
-        )
+        is_complete = complete if complete is not None else bool(reachable and len(online) >= int(players_online or 0))
         stale_after = _stale_after(db)
         stats = apply_snapshot(
             db,

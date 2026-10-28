@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { TarkovGoonRoomNotice } from "@/features/guides/tarkov/components/TarkovGoonTrackerBanner";
 import {
   isTarkovRaidDockDesktop,
@@ -30,14 +37,8 @@ function readSideWidths(): { left: number; right: number } {
     const left = Number(raw.left);
     const right = Number(raw.right);
     return {
-      left:
-        left === SIDE_WIDTH_LEGACY_DEFAULT
-          ? SIDE_WIDTH_DEFAULT
-          : clampSideWidth(left),
-      right:
-        right === SIDE_WIDTH_LEGACY_DEFAULT
-          ? SIDE_WIDTH_DEFAULT
-          : clampSideWidth(right),
+      left: left === SIDE_WIDTH_LEGACY_DEFAULT ? SIDE_WIDTH_DEFAULT : clampSideWidth(left),
+      right: right === SIDE_WIDTH_LEGACY_DEFAULT ? SIDE_WIDTH_DEFAULT : clampSideWidth(right),
     };
   } catch {
     return { left: SIDE_WIDTH_DEFAULT, right: SIDE_WIDTH_DEFAULT };
@@ -97,10 +98,7 @@ export function TarkovRaidWorkspace({
   const dockShown = showDock && sidebarsOpen && (desktopDock || dockOpen);
   useEffect(() => {
     try {
-      localStorage.setItem(
-        SIDE_WIDTH_KEY,
-        JSON.stringify({ left: leftPct, right: rightPct }),
-      );
+      localStorage.setItem(SIDE_WIDTH_KEY, JSON.stringify({ left: leftPct, right: rightPct }));
     } catch {
       /* 隐私模式写不进 */
     }
@@ -117,8 +115,7 @@ export function TarkovRaidWorkspace({
     const move = (ev: PointerEvent) => {
       if (rect.width <= 0) return;
       const x = ev.clientX - rect.left;
-      const pct =
-        side === "left" ? (x / rect.width) * 100 : ((rect.width - x) / rect.width) * 100;
+      const pct = side === "left" ? (x / rect.width) * 100 : ((rect.width - x) / rect.width) * 100;
       const next = clampSideWidth(pct);
       if (side === "left") setLeftPct(next);
       else setRightPct(next);
@@ -158,9 +155,7 @@ export function TarkovRaidWorkspace({
             {meta ? <div className={styles.roomMeta}>{meta}</div> : null}
           </div>
           {members}
-          {topActions ? (
-            <div className={styles.topActions}>{topActions}</div>
-          ) : null}
+          {topActions ? <div className={styles.topActions}>{topActions}</div> : null}
         </div>
       ) : null}
       {belowBar}
@@ -175,9 +170,7 @@ export function TarkovRaidWorkspace({
               aria-controls="tarkov-raid-dock"
               onClick={onToggleDock}
             >
-              <span className={styles.srOnly}>
-                {dockOpen ? "收起任务栏" : "展开任务栏"}
-              </span>
+              <span className={styles.srOnly}>{dockOpen ? "收起任务栏" : "展开任务栏"}</span>
               <span aria-hidden>{dockOpen ? "›" : "‹"}</span>
             </button>
           ) : null}

@@ -13,11 +13,7 @@ export default function TarkovMePage() {
   const bodyPane = isAssistantBodyPane();
   if (!user) {
     return (
-      <TarkovItemsPageShell
-        crumbs={[]}
-        sectionLabel="个人中心"
-        hideHead={bodyPane}
-      >
+      <TarkovItemsPageShell crumbs={[]} sectionLabel="个人中心" hideHead={bodyPane}>
         <TarkovLoginPrompt feature="个人中心（任务进度、钥匙、收集、藏身处规划与日志）" />
       </TarkovItemsPageShell>
     );

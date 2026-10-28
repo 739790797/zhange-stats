@@ -68,4 +68,3 @@ def test_robots_txt_disallows_all() -> None:
     assert resp.status_code == 200
     assert "Disallow: /" in resp.text
     assert "User-agent: *" in resp.text
-

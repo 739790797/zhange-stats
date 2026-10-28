@@ -2,9 +2,7 @@ from app.core.http_cache import catalog_etag, catalog_freshness, etag_matches
 
 
 def test_catalog_etag_stable_for_same_parts() -> None:
-    assert catalog_etag("ammo", "pvp", "2026-01-01") == catalog_etag(
-        "ammo", "pvp", "2026-01-01"
-    )
+    assert catalog_etag("ammo", "pvp", "2026-01-01") == catalog_etag("ammo", "pvp", "2026-01-01")
 
 
 def test_catalog_etag_changes_when_synced_at_changes() -> None:
@@ -15,7 +13,7 @@ def test_etag_matches_weak_and_strong() -> None:
     etag = catalog_etag("maps", "pvp")
     assert etag_matches(etag, etag)
     assert etag_matches(f"W/{etag.removeprefix('W/')}", etag)
-    assert etag_matches(f"{etag}, W/\"other\"", etag)
+    assert etag_matches(f'{etag}, W/"other"', etag)
     assert not etag_matches("", etag)
     assert not etag_matches("*", etag)
     assert not etag_matches('W/"deadbeef"', etag)

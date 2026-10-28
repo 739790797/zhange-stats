@@ -34,9 +34,7 @@ describe("isBindTokenBroken", () => {
       isBindTokenBroken({
         bound: true,
         token_ok: true,
-        today_results: [
-          { status: "error", message: "登录已失效，请重新绑定" },
-        ],
+        today_results: [{ status: "error", message: "登录已失效，请重新绑定" }],
       }),
     ).toBe(false);
   });

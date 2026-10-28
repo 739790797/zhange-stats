@@ -37,11 +37,7 @@ export function TarkovGoonSightingHint({
   const text = variant === "tile" ? short : full;
   if (!text) return null;
   const className =
-    variant === "inline"
-      ? styles.hintInline
-      : variant === "tile"
-        ? styles.hintTile
-        : styles.hint;
+    variant === "inline" ? styles.hintInline : variant === "tile" ? styles.hintTile : styles.hint;
   return (
     <span className={className} title={full || undefined}>
       {text}

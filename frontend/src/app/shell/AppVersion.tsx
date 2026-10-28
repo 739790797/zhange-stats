@@ -23,8 +23,7 @@ export function AppVersion({
   if (!version) return null;
 
   const admin = isAdminUser(user);
-  const tip =
-    hasUpdate && latestVersion ? `有新版本 v${latestVersion}` : undefined;
+  const tip = hasUpdate && latestVersion ? `有新版本 v${latestVersion}` : undefined;
   const wrapStyle = {
     textDecoration: "none" as const,
     display: inline ? ("inline-flex" as const) : ("block" as const),

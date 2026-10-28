@@ -32,15 +32,15 @@ export function AuthGuestShell({
   showVersion = true,
   children,
 }: Props) {
-  const wrapContent = useContext(AuthGuestContentBoundaryContext);  useDocumentTitle(title || (brand ? "登录" : "战鸽数据"));
+  const wrapContent = useContext(AuthGuestContentBoundaryContext);
+  useDocumentTitle(title || (brand ? "登录" : "战鸽数据"));
   return (
     <div
       style={{
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        background:
-          "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
+        background: "radial-gradient(ellipse at top left, #2c3e50 0%, #1a2332 45%, #0f1419 100%)",
       }}
     >
       <div
@@ -97,10 +97,7 @@ export function AuthGuestShell({
               </Typography.Title>
             ) : null}
             {subtitle ? (
-              <Typography.Paragraph
-                type="secondary"
-                style={{ marginTop: 8, marginBottom: 0 }}
-              >
+              <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
                 {subtitle}
               </Typography.Paragraph>
             ) : null}

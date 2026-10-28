@@ -24,12 +24,8 @@ export const ARTICLE_INDENT_MAX = 4;
 
 const COLOR_KEYS = new Set(ARTICLE_COLORS.map((row) => row.key));
 const MARK_KEYS = new Set(ARTICLE_MARKS.map((row) => row.key));
-const COLOR_BY_VALUE = new Map(
-  ARTICLE_COLORS.map((row) => [row.value.toLowerCase(), row.key]),
-);
-const MARK_BY_VALUE = new Map(
-  ARTICLE_MARKS.map((row) => [row.value.toLowerCase(), row.key]),
-);
+const COLOR_BY_VALUE = new Map(ARTICLE_COLORS.map((row) => [row.value.toLowerCase(), row.key]));
+const MARK_BY_VALUE = new Map(ARTICLE_MARKS.map((row) => [row.value.toLowerCase(), row.key]));
 const CSS_NAMED_COLORS: Record<string, [number, number, number]> = {
   red: [255, 0, 0],
   orange: [255, 165, 0],
@@ -43,9 +39,7 @@ const CSS_NAMED_COLORS: Record<string, [number, number, number]> = {
 };
 
 export function articleAlignClass(align: string | null | undefined): string {
-  return align && ARTICLE_ALIGN.includes(align as ArticleAlign)
-    ? `article-align-${align}`
-    : "";
+  return align && ARTICLE_ALIGN.includes(align as ArticleAlign) ? `article-align-${align}` : "";
 }
 
 export function articleColorClass(key: string | null | undefined): string {
@@ -65,27 +59,16 @@ export function articleIndentClass(level: number | null | undefined): string {
   return `article-indent-${level}`;
 }
 
-export function parseArticleAlign(
-  className: string,
-  styleAlign?: string,
-): ArticleAlign | null {
-  const match = /(?:^|\s)article-align-(left|center|right)(?:\s|$)/.exec(
-    className || "",
-  );
+export function parseArticleAlign(className: string, styleAlign?: string): ArticleAlign | null {
+  const match = /(?:^|\s)article-align-(left|center|right)(?:\s|$)/.exec(className || "");
   if (match) return match[1] as ArticleAlign;
-  if (
-    styleAlign === "left" ||
-    styleAlign === "center" ||
-    styleAlign === "right"
-  ) {
+  if (styleAlign === "left" || styleAlign === "center" || styleAlign === "right") {
     return styleAlign;
   }
   return null;
 }
 
-export function parseCssColor(
-  value?: string,
-): [number, number, number] | null {
+export function parseCssColor(value?: string): [number, number, number] | null {
   const text = (value || "").trim().toLowerCase();
   if (!text || text === "transparent" || text === "inherit" || text === "currentcolor") {
     return null;
@@ -107,17 +90,14 @@ export function parseCssColor(
       Number.parseInt(raw.slice(4, 6), 16),
     ];
   }
-  const rgb = /^rgba?\(\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)(?:\s*[,/]\s*([0-9.]+))?\s*\)$/.exec(
-    text,
-  );
+  const rgb =
+    /^rgba?\(\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)\s*[, ]\s*([0-9.]+)(%?)(?:\s*[,/]\s*([0-9.]+))?\s*\)$/.exec(
+      text,
+    );
   if (rgb) {
     const alpha = rgb[7] == null ? 1 : Number(rgb[7]);
     if (Number.isNaN(alpha) || alpha <= 0) return null;
-    return [
-      channel(rgb[1], rgb[2]),
-      channel(rgb[3], rgb[4]),
-      channel(rgb[5], rgb[6]),
-    ];
+    return [channel(rgb[1], rgb[2]), channel(rgb[3], rgb[4]), channel(rgb[5], rgb[6])];
   }
   return null;
 }
@@ -153,10 +133,7 @@ export function classifyArticleMark(
   return "blue";
 }
 
-export function parseArticleColor(
-  className: string,
-  styleColor?: string,
-): string | null {
+export function parseArticleColor(className: string, styleColor?: string): string | null {
   const match = /(?:^|\s)article-color-([a-z]+)(?:\s|$)/.exec(className || "");
   if (match && COLOR_KEYS.has(match[1] as (typeof ARTICLE_COLORS)[number]["key"])) {
     return match[1];
@@ -166,16 +143,14 @@ export function parseArticleColor(
 }
 
 export function cssStyleProp(style: string, name: string): string {
-  const match = new RegExp(`(?:^|;)\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+)`, "i").exec(
-    style || "",
-  );
+  const match = new RegExp(
+    `(?:^|;)\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+)`,
+    "i",
+  ).exec(style || "");
   return match ? match[1].trim() : "";
 }
 
-export function parseArticleMark(
-  className: string,
-  styleBackground?: string,
-): string | null {
+export function parseArticleMark(className: string, styleBackground?: string): string | null {
   const match = /(?:^|\s)article-mark-([a-z]+)(?:\s|$)/.exec(className || "");
   if (match && MARK_KEYS.has(match[1] as (typeof ARTICLE_MARKS)[number]["key"])) {
     return match[1];
@@ -206,10 +181,7 @@ export function isAllowedArticleClass(name: string): boolean {
 }
 
 export function filterArticleClasses(className: string): string {
-  return (className || "")
-    .split(/\s+/)
-    .filter(isAllowedArticleClass)
-    .join(" ");
+  return (className || "").split(/\s+/).filter(isAllowedArticleClass).join(" ");
 }
 
 export function isSafeArticleHref(href: string): boolean {
@@ -223,9 +195,7 @@ export function isSafeArticleHref(href: string): boolean {
   try {
     const parsed = new URL(text);
     return (
-      parsed.protocol === "http:" ||
-      parsed.protocol === "https:" ||
-      parsed.protocol === "mailto:"
+      parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:"
     );
   } catch {
     return false;
@@ -296,9 +266,7 @@ function channel(raw: string, percent: string): number {
 }
 
 function rgbToHex(rgb: [number, number, number]): string {
-  return `#${rgb
-    .map((n) => n.toString(16).padStart(2, "0"))
-    .join("")}`;
+  return `#${rgb.map((n) => n.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function rgbToHsl(rgb: [number, number, number]): [number, number, number] {
@@ -320,10 +288,7 @@ function rgbToHsl(rgb: [number, number, number]): [number, number, number] {
 
 export type TextChunk = { pos: number; text: string };
 
-export function findTextRanges(
-  chunks: TextChunk[],
-  query: string,
-): { from: number; to: number }[] {
+export function findTextRanges(chunks: TextChunk[], query: string): { from: number; to: number }[] {
   const needle = query || "";
   if (!needle) return [];
   const out: { from: number; to: number }[] = [];

@@ -71,9 +71,7 @@ class RequestLogMiddleware:
                 _log_request(scope, method, path, status_code, elapsed_ms)
 
 
-def _log_request(
-    scope: Scope, method: str, path: str, status_code: int, elapsed_ms: float
-) -> None:
+def _log_request(scope: Scope, method: str, path: str, status_code: int, elapsed_ms: float) -> None:
     client = "-"
     peer = scope.get("client")
     if peer:

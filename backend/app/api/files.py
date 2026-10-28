@@ -345,9 +345,7 @@ def files_create_file(
     _: User = Depends(require_admin),
 ) -> FileOkOut:
     try:
-        result = files_svc.create_file(
-            body.root_id, body.path, body.name, body.content
-        )
+        result = files_svc.create_file(body.root_id, body.path, body.name, body.content)
     except files_svc.FileManagerError as exc:
         _raise_fm(exc)
     return _ok(result)
@@ -375,4 +373,3 @@ def files_delete(
     except files_svc.FileManagerError as exc:
         _raise_fm(exc)
     return _ok(result)
-

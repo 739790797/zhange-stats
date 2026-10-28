@@ -28,10 +28,7 @@ class CheckinQueueItem:
 def window_minutes_of_day(now_hour: int, now_minute: int) -> list[int]:
     """哪些设定时分（hour*60+minute）的窗口此刻仍开着，供 SQL 先筛掉窗口外的偏好。"""
     current = int(now_hour) * 60 + int(now_minute)
-    return [
-        (current - delta) % _MINUTES_PER_DAY
-        for delta in range(CHECKIN_QUEUE_WINDOW_MINUTES)
-    ]
+    return [(current - delta) % _MINUTES_PER_DAY for delta in range(CHECKIN_QUEUE_WINDOW_MINUTES)]
 
 
 def elapsed_scheduled_minutes(
@@ -42,8 +39,7 @@ def elapsed_scheduled_minutes(
 ) -> int | None:
     """设定时分到现在过了几分钟。未到点或已超出窗口则返回 None。"""
     delta = (
-        (int(now_hour) * 60 + int(now_minute))
-        - (int(scheduled_hour) * 60 + int(scheduled_minute))
+        (int(now_hour) * 60 + int(now_minute)) - (int(scheduled_hour) * 60 + int(scheduled_minute))
     ) % _MINUTES_PER_DAY
     if delta >= CHECKIN_QUEUE_WINDOW_MINUTES:
         return None
@@ -75,9 +71,7 @@ def plan_checkin_queue(
     pending: dict[int, tuple[int, set[RoleKey] | None]] = {}
     attempts: dict[int, int] = {}
     for item in items:
-        elapsed = elapsed_scheduled_minutes(
-            item.hour, item.minute, now.hour, now.minute
-        )
+        elapsed = elapsed_scheduled_minutes(item.hour, item.minute, now.hour, now.minute)
         if elapsed is None:
             continue
         left = minutes_left_in_window(elapsed)
@@ -85,9 +79,7 @@ def plan_checkin_queue(
         attempts[member_id] = max(attempts.get(member_id, 0), int(item.attempts))
         current = pending.get(member_id)
         if current is None:
-            roles: set[RoleKey] | None = (
-                None if item.role_key is None else {item.role_key}
-            )
+            roles: set[RoleKey] | None = None if item.role_key is None else {item.role_key}
             pending[member_id] = (left, roles)
             continue
         tight_left, roles = current

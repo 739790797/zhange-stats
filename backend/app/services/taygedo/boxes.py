@@ -29,9 +29,7 @@ from app.services.taygedo.client import (
 logger = logging.getLogger(__name__)
 
 # 静态立绘 CDN（与开源 taygedo.py assets.nte 一致）
-_CHAR_CDN = (
-    "https://webstatic.tajiduo.com/bbs/yh-game-records-web-source/character"
-)
+_CHAR_CDN = "https://webstatic.tajiduo.com/bbs/yh-game-records-web-source/character"
 
 # 品质排序：未知靠后
 _QUALITY_RANK = {
@@ -163,9 +161,7 @@ def _h5_headers(creds: TaygedoCredentials) -> dict[str, str]:
     }
 
 
-def fetch_exastris_characters(
-    creds: TaygedoCredentials, role_id: str
-) -> dict[str, Any]:
+def fetch_exastris_characters(creds: TaygedoCredentials, role_id: str) -> dict[str, Any]:
     """GET /apihub/awapi/yh/characters?roleId= — 返回上游整包 JSON。"""
     rid = str(role_id or "").strip()
     if not rid:
@@ -193,9 +189,7 @@ def _parse_char(item: dict[str, Any]) -> ExastrisChar | None:
     if not name:
         name = char_id
     quality_raw = str(item.get("quality") or "").strip()
-    element_raw = str(
-        item.get("elementType") or item.get("element_type") or ""
-    ).strip()
+    element_raw = str(item.get("elementType") or item.get("element_type") or "").strip()
     group_raw = str(item.get("groupType") or item.get("group_type") or "").strip()
     try:
         awaken_lev = int(item.get("awakenLev") or item.get("awaken_lev") or 0)

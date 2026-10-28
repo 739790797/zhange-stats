@@ -14,10 +14,7 @@ const SKIP_SUBSTRINGS = [
   "/raid-prep/state",
 ];
 
-export function isTarkovCatalogGet(
-  method: string | undefined,
-  url: string,
-): boolean {
+export function isTarkovCatalogGet(method: string | undefined, url: string): boolean {
   const verb = (method || "get").toLowerCase();
   if (verb !== "get") return false;
   if (!url.includes("/guides/tarkov")) return false;

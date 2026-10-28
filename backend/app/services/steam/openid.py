@@ -20,9 +20,7 @@ from app.core.timeutil import UTC, utc_now
 
 STEAM_OPENID_ENDPOINT = "https://steamcommunity.com/openid/login"
 OPENID_NS = "http://specs.openid.net/auth/2.0"
-CLAIMED_ID_RE = re.compile(
-    r"^https?://steamcommunity\.com/openid/id/(\d{17})$"
-)
+CLAIMED_ID_RE = re.compile(r"^https?://steamcommunity\.com/openid/id/(\d{17})$")
 STATE_PURPOSE = "steam_openid_bind"
 STATE_TTL_MINUTES = 15
 # 断言里的 response_nonce 只认前后这么多秒内签发的；每个 nonce 只收一次
@@ -188,9 +186,7 @@ def verify_steam_openid_assertion(query: dict[str, str], *, return_to: str) -> s
     signed = {f.strip() for f in (query.get("openid.signed") or "").split(",")}
     missing = REQUIRED_SIGNED_FIELDS - signed
     if missing:
-        raise SteamOpenIdError(
-            "verify_failed", f"openid.signed 缺少 {','.join(sorted(missing))}"
-        )
+        raise SteamOpenIdError("verify_failed", f"openid.signed 缺少 {','.join(sorted(missing))}")
 
     nonce = query.get("openid.response_nonce") or ""
     if not _nonce_is_fresh(nonce):
@@ -234,14 +230,10 @@ def verify_steam_openid_assertion(query: dict[str, str], *, return_to: str) -> s
                 timeout=20,
             )
         if resp.status_code >= 400:
-            raise SteamOpenIdError(
-                "upstream_error", f"Steam 校验失败 HTTP {resp.status_code}"
-            )
+            raise SteamOpenIdError("upstream_error", f"Steam 校验失败 HTTP {resp.status_code}")
         text = resp.text
     except HttpRequestError as exc:
-        raise SteamOpenIdError(
-            "upstream_error", f"无法连接 Steam 校验服务: {type(exc).__name__}"
-        ) from exc
+        raise SteamOpenIdError("upstream_error", f"无法连接 Steam 校验服务: {type(exc).__name__}") from exc
 
     if not _is_valid_response(text):
         raise SteamOpenIdError("verify_failed", "Steam 登录校验未通过")

@@ -11,9 +11,15 @@ import { fetchTarkovBossDetail, fetchTarkovBosses } from "@/features/guides/tark
 import { apiError } from "@/shared/api/apiError";
 import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
 import { useTarkovDocumentTitle } from "@/features/guides/tarkov/model/tarkovDocumentTitle";
-import { showBossKindBadge, TARKOV_BOSS_KIND_LABELS } from "@/features/guides/tarkov/model/tarkovBossKinds";
+import {
+  showBossKindBadge,
+  TARKOV_BOSS_KIND_LABELS,
+} from "@/features/guides/tarkov/model/tarkovBossKinds";
 import { buildBossPortraitIndex } from "@/features/guides/tarkov/model/tarkovBossHeatmap";
-import { resolveBossSpawnGroups, spawnGroupComboNumbers } from "@/features/guides/tarkov/model/tarkovBossSpawnGroups";
+import {
+  resolveBossSpawnGroups,
+  spawnGroupComboNumbers,
+} from "@/features/guides/tarkov/model/tarkovBossSpawnGroups";
 import styles from "./TarkovBossPanel.module.css";
 import {
   TarkovBossEscortChips,
@@ -83,74 +89,65 @@ export function TarkovBossPanel({ slug }: Props) {
               ) : null}
               <h2 className={styles.name}>{detail.name}</h2>
               {detail.wiki_link ? (
-                <a
-                  className={styles.wiki}
-                  href={detail.wiki_link}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a className={styles.wiki} href={detail.wiki_link} target="_blank" rel="noreferrer">
                   Wiki
                 </a>
               ) : null}
             </div>
-          {detail.bio ? <p className={styles.bio}>{detail.bio}</p> : null}
-          {detail.description ? (
-            <>
-              <span className={styles.sectionLabel}>行为</span>
-              <p className={styles.desc}>{detail.description}</p>
-            </>
-          ) : null}
-          <div className={styles.stats}>
-            <div>
-              <div className={styles.statLabel}>
-                <EyeOutlined className={styles.statIcon} />
-                行为
-              </div>
-              <div className={styles.statValue}>{detail.behavior_zh || "—"}</div>
-            </div>
-            <div>
-              <div className={styles.statLabel}>
-                <EnvironmentOutlined className={styles.statIcon} />
-                地图
-              </div>
-              <div className={styles.statValue}>{detail.maps_label || "—"}</div>
-            </div>
-            <div>
-              <div className={styles.statLabel}>
-                <LineChartOutlined className={styles.statIcon} />
-                刷新概率
-              </div>
-              <div className={styles.statValue}>{detail.spawn_label || "—"}</div>
-            </div>
-            <div>
-              <div className={styles.statLabel}>
-                <HeartOutlined className={styles.statIcon} />
-                生命值
-              </div>
-              <div className={styles.statValue}>
-                <div className={styles.healthTotal}>
-                  {detail.health_total || "—"}
+            {detail.bio ? <p className={styles.bio}>{detail.bio}</p> : null}
+            {detail.description ? (
+              <>
+                <span className={styles.sectionLabel}>行为</span>
+                <p className={styles.desc}>{detail.description}</p>
+              </>
+            ) : null}
+            <div className={styles.stats}>
+              <div>
+                <div className={styles.statLabel}>
+                  <EyeOutlined className={styles.statIcon} />
+                  行为
                 </div>
-                {detail.health?.length ? (
-                  <div className={styles.healthParts}>
-                    {detail.health
-                      .map((part) => `${part.name} ${part.max}`)
-                      .join(" · ")}
-                  </div>
-                ) : null}
+                <div className={styles.statValue}>{detail.behavior_zh || "—"}</div>
+              </div>
+              <div>
+                <div className={styles.statLabel}>
+                  <EnvironmentOutlined className={styles.statIcon} />
+                  地图
+                </div>
+                <div className={styles.statValue}>{detail.maps_label || "—"}</div>
+              </div>
+              <div>
+                <div className={styles.statLabel}>
+                  <LineChartOutlined className={styles.statIcon} />
+                  刷新概率
+                </div>
+                <div className={styles.statValue}>{detail.spawn_label || "—"}</div>
+              </div>
+              <div>
+                <div className={styles.statLabel}>
+                  <HeartOutlined className={styles.statIcon} />
+                  生命值
+                </div>
+                <div className={styles.statValue}>
+                  <div className={styles.healthTotal}>{detail.health_total || "—"}</div>
+                  {detail.health?.length ? (
+                    <div className={styles.healthParts}>
+                      {detail.health.map((part) => `${part.name} ${part.max}`).join(" · ")}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className={styles.posterWrap}>
-          {detail.poster_link || detail.portrait_link ? (
-            <img
-              className={styles.poster}
-              src={detail.poster_link || detail.portrait_link}
-              alt=""
-            />
-          ) : null}
-        </div>
+          <div className={styles.posterWrap}>
+            {detail.poster_link || detail.portrait_link ? (
+              <img
+                className={styles.poster}
+                src={detail.poster_link || detail.portrait_link}
+                alt=""
+              />
+            ) : null}
+          </div>
         </div>
         <TarkovBossSpawnMap detail={detail} />
       </section>
@@ -172,31 +169,19 @@ export function TarkovBossPanel({ slug }: Props) {
               </thead>
               <tbody>
                 {spawnGroups.map((group, index) => (
-                  <tr
-                    key={
-                      group.maps.map((row) => row.slug || row.name).join("|") +
-                      index
-                    }
-                  >
+                  <tr key={group.maps.map((row) => row.slug || row.name).join("|") + index}>
                     <td>
                       {comboNumbers[index] ? (
-                        <div className={styles.spawnCombo}>
-                          组合{comboNumbers[index]}
-                        </div>
+                        <div className={styles.spawnCombo}>组合{comboNumbers[index]}</div>
                       ) : null}
                       <TarkovBossMapChips group={group} />
                     </td>
-                    <td className={styles.spawnLand}>
-                      {group.landLabel || "—"}
-                    </td>
+                    <td className={styles.spawnLand}>{group.landLabel || "—"}</td>
                     <td>
                       <TarkovBossLocationChips group={group} />
                     </td>
                     <td>
-                      <TarkovBossEscortChips
-                        group={group}
-                        portraits={portraits}
-                      />
+                      <TarkovBossEscortChips group={group} portraits={portraits} />
                     </td>
                   </tr>
                 ))}

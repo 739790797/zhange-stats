@@ -4,10 +4,7 @@ import { useEffect } from "react";
 export const SITE_DOCUMENT_TITLE = "战鸽数据 · Zhange Stats";
 export const SITE_DOCUMENT_BRAND = "战鸽数据";
 
-export function formatDocumentTitle(
-  page: string,
-  brand = SITE_DOCUMENT_BRAND,
-): string {
+export function formatDocumentTitle(page: string, brand = SITE_DOCUMENT_BRAND): string {
   const next = page.trim();
   if (!next) return SITE_DOCUMENT_TITLE;
   if (next === SITE_DOCUMENT_TITLE) return next;
@@ -15,10 +12,7 @@ export function formatDocumentTitle(
   return `${next} · ${brand}`;
 }
 
-export function useDocumentTitle(
-  page: string,
-  brand = SITE_DOCUMENT_BRAND,
-) {
+export function useDocumentTitle(page: string, brand = SITE_DOCUMENT_BRAND) {
   useEffect(() => {
     const prev = document.title;
     document.title = formatDocumentTitle(page, brand);

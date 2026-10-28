@@ -6,12 +6,11 @@ export type TarkovMapFullscreenRoot = {
   toggle: () => void;
 };
 
-export const TarkovMapFullscreenRootContext =
-  createContext<TarkovMapFullscreenRoot>({
-    root: null,
-    fullscreen: false,
-    toggle: () => {},
-  });
+export const TarkovMapFullscreenRootContext = createContext<TarkovMapFullscreenRoot>({
+  root: null,
+  fullscreen: false,
+  toggle: () => {},
+});
 
 /** 房间地图把左右栏和地图放在同一层，全屏这个节点才能带着两侧的展开/收起一起走。 */
 export const RAID_WORKSPACE_SELECTOR = "[data-raid-workspace]";

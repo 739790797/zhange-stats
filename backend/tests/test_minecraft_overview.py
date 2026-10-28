@@ -23,9 +23,7 @@ def test_jar_display_name_strips_extension():
 
 
 def test_parse_whitelist_json():
-    rows = parse_whitelist_json(
-        '[{"uuid":"aaa","name":"Steve"},{"id":"bbb","name":"Alex"}]'
-    )
+    rows = parse_whitelist_json('[{"uuid":"aaa","name":"Steve"},{"id":"bbb","name":"Alex"}]')
     assert rows == [
         {"name": "Steve", "id": "aaa"},
         {"name": "Alex", "id": "bbb"},
@@ -55,10 +53,7 @@ def test_merge_overview_mods_falls_back_to_applied_when_unread():
 
 
 def test_query_from_jar_strips_loader_and_version():
-    assert (
-        query_from_jar("DistantHorizons-2.3.0-1.21.1-fabric-neoforge.jar")
-        == "DistantHorizons"
-    )
+    assert query_from_jar("DistantHorizons-2.3.0-1.21.1-fabric-neoforge.jar") == "DistantHorizons"
     assert query_from_jar("Jade-1.21.1-NeoForge-15.10.3.jar") == "Jade"
     assert query_from_jar("Chunky-NeoForge-1.4.23.jar") == "Chunky"
 

@@ -7,7 +7,10 @@ import {
 } from "@/features/guides/tarkov/api/guidesApi";
 import { apiError } from "@/shared/api/apiError";
 import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
-import { taskVisibleForFaction, useTarkovPmcFaction } from "@/features/guides/tarkov/model/tarkovPmcFaction";
+import {
+  taskVisibleForFaction,
+  useTarkovPmcFaction,
+} from "@/features/guides/tarkov/model/tarkovPmcFaction";
 import styles from "./TarkovWorkbenchBuild.module.css";
 
 type Props = {

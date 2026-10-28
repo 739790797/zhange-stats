@@ -31,9 +31,7 @@ export function collectLogBreakpoints(
   identities: readonly TarkovLogIdentity[],
 ): TarkovLogBreakpoint[] {
   const first = new Map<string, TarkovLogBreakpoint>();
-  const ordered = [...identities].sort((a, b) =>
-    compareBeijingClock(a.at || "", b.at || ""),
-  );
+  const ordered = [...identities].sort((a, b) => compareBeijingClock(a.at || "", b.at || ""));
   for (const row of ordered) {
     const profileId = (row.profileId || "").trim();
     const sessionMode = (row.sessionMode || "").trim();
@@ -49,9 +47,7 @@ export function collectLogBreakpoints(
     const key = breakpointKey(item);
     if (!first.has(key)) first.set(key, item);
   }
-  return [...first.values()].sort((a, b) =>
-    compareBeijingClock(a.at, b.at),
-  );
+  return [...first.values()].sort((a, b) => compareBeijingClock(a.at, b.at));
 }
 
 export function breakpointMatchesGameMode(
@@ -73,9 +69,7 @@ export function defaultLogBreakpoint(
     latest?: TarkovLogIdentity | null;
   },
 ): TarkovLogBreakpoint | null {
-  const matching = breakpoints.filter((row) =>
-    breakpointMatchesGameMode(row, opts.gameMode),
-  );
+  const matching = breakpoints.filter((row) => breakpointMatchesGameMode(row, opts.gameMode));
   if (!matching.length) return null;
   const wipeFrom = (opts.wipeFrom || "").trim();
   const inWipe = wipeFrom
@@ -127,9 +121,7 @@ export function sessionStubMatchesBreakpoint(
 export function formatLogBreakpointLabel(row: TarkovLogBreakpoint): string {
   const version = row.version || "未知版本";
   const mode = sessionModeLabel(row.sessionMode) || row.sessionMode;
-  const profile = row.profileId.length > 10
-    ? `${row.profileId.slice(0, 8)}…`
-    : row.profileId;
+  const profile = row.profileId.length > 10 ? `${row.profileId.slice(0, 8)}…` : row.profileId;
   const at = (row.at || "").replace(/\.\d+$/, "") || "—";
   return `${version} · ${mode} · ${profile} · ${at}`;
 }

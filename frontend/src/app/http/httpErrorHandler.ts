@@ -29,10 +29,7 @@ export function handleHttpError(error: unknown): Promise<never> {
     window.dispatchEvent(new Event(UPSTREAM_REPO_NOT_SYNCED_EVENT));
   }
   if (status === 503 && code === "SETUP_REQUIRED") {
-    if (
-      typeof window !== "undefined" &&
-      !window.location.pathname.startsWith("/setup")
-    ) {
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/setup")) {
       window.location.assign("/setup");
     }
     return Promise.reject(error);

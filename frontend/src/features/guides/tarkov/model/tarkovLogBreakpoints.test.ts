@@ -10,8 +10,7 @@ import {
 import type { TarkovLogIdentity } from "./tarkovGameLogs";
 
 function ident(
-  extra: Partial<TarkovLogIdentity> &
-    Pick<TarkovLogIdentity, "profileId" | "sessionMode" | "at">,
+  extra: Partial<TarkovLogIdentity> & Pick<TarkovLogIdentity, "profileId" | "sessionMode" | "at">,
 ): TarkovLogIdentity {
   return {
     version: extra.version || "0.16.0.0",

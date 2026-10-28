@@ -32,18 +32,14 @@ def test_pick_hits_ranks_exact_before_token_match():
 
 def test_pick_hits_matches_catalog_short_name():
     rows = catalog.parse_catalog_items(SOURCE_JSON_API, _json_envelope())
-    picked, total = search.pick_hits(
-        rows, "6B13", ("name", "short_name", "id"), limit=10
-    )
+    picked, total = search.pick_hits(rows, "6B13", ("name", "short_name", "id"), limit=10)
     assert total == 1
     assert picked[0]["id"] == "ar1"
 
 
 def test_pick_hits_matches_task_locale_name():
     rows = tasks.parse_task_rows(_task_envelope())
-    picked, total = search.pick_hits(
-        rows, "首秀", ("name", "normalized_name", "id"), limit=10
-    )
+    picked, total = search.pick_hits(rows, "首秀", ("name", "normalized_name", "id"), limit=10)
     assert total == 1
     assert picked[0]["id"] == "t1"
 
@@ -72,9 +68,7 @@ def test_trader_search_alias_matches_community_name():
 
 
 def test_boss_search_alias_matches_community_name():
-    rows = search._boss_search_rows(
-        [{"slug": "reshala", "name": "Reshala", "maps_label": "海关"}]
-    )
+    rows = search._boss_search_rows([{"slug": "reshala", "name": "Reshala", "maps_label": "海关"}])
     assert rows[0]["search_alias"] == "沙拉"
     picked, total = search.pick_hits(
         rows,

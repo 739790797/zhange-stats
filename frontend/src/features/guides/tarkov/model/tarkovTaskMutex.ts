@@ -1,7 +1,9 @@
 /** 互斥任务组同一时间最多一个已完成。 */
 
 function asId(raw: string | null | undefined): string {
-  return String(raw || "").trim().toLowerCase();
+  return String(raw || "")
+    .trim()
+    .toLowerCase();
 }
 
 function asIdList(ids: Iterable<string>): string[] {
@@ -115,12 +117,8 @@ export function applyMutexLedger(
       if (startedSet.has(other)) extraFail.add(other);
     }
   }
-  const failed = asIdList([...asIdList(failedIds), ...extraFail]).filter(
-    (id) => !doneKeep.has(id),
-  );
+  const failed = asIdList([...asIdList(failedIds), ...extraFail]).filter((id) => !doneKeep.has(id));
   const failedSet = new Set(failed);
-  const started = asIdList(startedIds).filter(
-    (id) => !doneKeep.has(id) && !failedSet.has(id),
-  );
+  const started = asIdList(startedIds).filter((id) => !doneKeep.has(id) && !failedSet.has(id));
   return { done, started, failed };
 }

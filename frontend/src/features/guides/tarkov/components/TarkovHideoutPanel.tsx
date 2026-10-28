@@ -28,7 +28,10 @@ import {
   tarkovStashFloor,
   traderLevelsForHideout,
 } from "@/features/guides/tarkov/model/tarkovProfile";
-import { formatDurationSeconds, formatMoney } from "@/features/guides/tarkov/model/tarkovItemFormat";
+import {
+  formatDurationSeconds,
+  formatMoney,
+} from "@/features/guides/tarkov/model/tarkovItemFormat";
 import { TarkovGuideItemStack } from "@/features/guides/tarkov/components/TarkovGuideItemCell";
 import { TarkovHideoutCalcModal } from "@/features/guides/tarkov/components/TarkovHideoutCalcModal";
 import { TarkovHideoutTree } from "@/features/guides/tarkov/components/TarkovHideoutTree";
@@ -156,14 +159,9 @@ function HideoutReqList({
   const stations = spec.station_requirements || [];
   const traders = spec.trader_requirements || [];
   const skills = spec.skill_requirements || [];
-  const items = showItems
-    ? hideoutUpgradeMaterialItems(spec.item_requirements)
-    : [];
+  const items = showItems ? hideoutUpgradeMaterialItems(spec.item_requirements) : [];
   const noReqs =
-    !stations.length &&
-    !traders.length &&
-    !skills.length &&
-    !(spec.item_requirements || []).length;
+    !stations.length && !traders.length && !skills.length && !(spec.item_requirements || []).length;
   return (
     <div className={styles.reqList}>
       {title ? <div className={styles.reqTitle}>{title}</div> : null}
@@ -178,9 +176,7 @@ function HideoutReqList({
                 key={`${req.station_id}-${req.level}`}
                 status={status}
                 wiki={wiki}
-                icon={
-                  other?.image_link ? <img src={other.image_link} alt="" /> : null
-                }
+                icon={other?.image_link ? <img src={other.image_link} alt="" /> : null}
               >
                 {req.station_name || other?.name || req.station_slug} Lv.
                 {req.level}
@@ -219,10 +215,7 @@ function HideoutReqList({
       ) : null}
       {items.map((req) => {
         const ident = (req.id || "").trim();
-        const label = [
-          req.name || req.short_name || ident,
-          req.found_in_raid ? "战局内" : "",
-        ]
+        const label = [req.name || req.short_name || ident, req.found_in_raid ? "战局内" : ""]
           .filter(Boolean)
           .join(" · ");
         const body = (
@@ -255,9 +248,7 @@ function HideoutReqList({
         );
       })}
       {showFooter && spec.construction_time ? (
-        <div className={styles.reqNote}>
-          建造 {formatDurationSeconds(spec.construction_time)}
-        </div>
+        <div className={styles.reqNote}>建造 {formatDurationSeconds(spec.construction_time)}</div>
       ) : null}
       {showFooter && !wiki ? (
         <div className={styles.reqNote}>
@@ -312,19 +303,11 @@ function HideoutBonusList({
             {table.levels.map((level, index) => {
               const isFocus = level === focus;
               const isBuilt = level === current;
-              const mark = isFocus
-                ? isBuilt
-                  ? " 当前"
-                  : " 选中"
-                : isBuilt
-                  ? " 已建"
-                  : "";
+              const mark = isFocus ? (isBuilt ? " 当前" : " 选中") : isBuilt ? " 已建" : "";
               return (
                 <li
                   key={level}
-                  className={`${styles.bonusLv}${
-                    isFocus ? ` ${styles.bonusLvNow}` : ""
-                  }`}
+                  className={`${styles.bonusLv}${isFocus ? ` ${styles.bonusLvNow}` : ""}`}
                 >
                   <span>
                     Lv.{level}
@@ -350,10 +333,7 @@ function HideoutMaterialList({ items }: { items: HideoutItemReq[] }) {
       {items.map((req) => {
         const ident = (req.id || "").trim();
         const key = hideoutUpgradeItemKey(req) || `${req.name}-${req.count}`;
-        const label = [
-          req.name || req.short_name || ident,
-          req.found_in_raid ? "战局内" : "",
-        ]
+        const label = [req.name || req.short_name || ident, req.found_in_raid ? "战局内" : ""]
           .filter(Boolean)
           .join(" · ");
         const countText =
@@ -433,9 +413,7 @@ function StationDetail({
   });
   const crafts = useMemo(() => {
     const rows = (craftsQuery.data?.items || []) as Craft[];
-    return [...rows].sort(
-      (a, b) => Number(a.level || 0) - Number(b.level || 0),
-    );
+    return [...rows].sort((a, b) => Number(a.level || 0) - Number(b.level || 0));
   }, [craftsQuery.data]);
   const bonusTable = useMemo(() => buildHideoutBonusTable(station), [station]);
   const cost = spec ? hideoutUpgradeFleaCost(spec.item_requirements) : null;
@@ -452,9 +430,7 @@ function StationDetail({
     {
       title: "材料",
       key: "need",
-      render: (_: unknown, row) => (
-        <TarkovGuideItemStack items={row.required_items} />
-      ),
+      render: (_: unknown, row) => <TarkovGuideItemStack items={row.required_items} />,
     },
     {
       title: "模块",
@@ -490,11 +466,7 @@ function StationDetail({
                   ? ` · ${spec.description}`
                   : ""
                 : `${
-                    built
-                      ? " · 已建成"
-                      : current > 0
-                        ? ` · 已建到 Lv.${current}`
-                        : " · 尚未建造"
+                    built ? " · 已建成" : current > 0 ? ` · 已建到 Lv.${current}` : " · 尚未建造"
                   }${spec?.description ? ` · ${spec.description}` : ""}`}
             </div>
           </div>
@@ -503,11 +475,7 @@ function StationDetail({
         {bonusTable.rows.length ? (
           <section>
             <h4 className={styles.sectionTitle}>效果</h4>
-            <HideoutBonusList
-              table={bonusTable}
-              current={current}
-              focus={selected}
-            />
+            <HideoutBonusList table={bonusTable} current={current} focus={selected} />
           </section>
         ) : selected > 0 ? (
           <div className={styles.detailSub}>该等级没有列出加成。</div>
@@ -539,9 +507,7 @@ function StationDetail({
               <h4 className={styles.sectionTitle}>
                 {roman ? `${roman} ` : ""}建造材料
                 {cost != null ? (
-                  <span className={styles.needMeta}>
-                    {` · 跳蚤 ${formatMoney(cost)}`}
-                  </span>
+                  <span className={styles.needMeta}>{` · 跳蚤 ${formatMoney(cost)}`}</span>
                 ) : null}
               </h4>
               <HideoutMaterialList items={materialItems} />
@@ -558,9 +524,7 @@ function StationDetail({
         <section>
           <h4 className={styles.sectionTitle}>制作</h4>
           <div className={styles.detailSub}>
-            {wiki
-              ? "本设施全部配方。"
-              : "本设施全部配方；高于当前已建等级的行灰显预告。"}
+            {wiki ? "本设施全部配方。" : "本设施全部配方；高于当前已建等级的行灰显预告。"}
           </div>
           <div className={tableStyles.table}>
             <Table<Craft>
@@ -572,8 +536,7 @@ function StationDetail({
               rowClassName={
                 wiki
                   ? undefined
-                  : (row) =>
-                      Number(row.level || 0) > current ? styles.craftLocked : ""
+                  : (row) => (Number(row.level || 0) > current ? styles.craftLocked : "")
               }
             />
           </div>
@@ -596,8 +559,7 @@ export function TarkovHideoutPanel({
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const [calcOpen, setCalcOpen] = useState(false);
-  const selectedKey =
-    (stationSlug || searchParams.get("station") || "").trim();
+  const selectedKey = (stationSlug || searchParams.get("station") || "").trim();
 
   const catalogQuery = useQuery({
     queryKey: ["guides-tarkov-hideout", gameMode],
@@ -623,24 +585,16 @@ export function TarkovHideoutPanel({
   const stashFloor = wiki
     ? tarkovStashFloor(undefined)
     : tarkovStashFloor(profileQuery.data?.game_edition);
-  const traderLevels = wiki
-    ? undefined
-    : traderLevelsForHideout(profileQuery.data?.trader_levels);
+  const traderLevels = wiki ? undefined : traderLevelsForHideout(profileQuery.data?.trader_levels);
   const stations = (catalogQuery.data?.items || EMPTY_STATIONS) as Station[];
   const byId = useMemo(() => indexHideoutStations(stations), [stations]);
   const levels = useMemo(
     () =>
-      filledHideoutLevels(
-        stations,
-        hideoutLevelsFromRows(levelsQuery.data?.levels),
-        stashFloor,
-      ),
+      filledHideoutLevels(stations, hideoutLevelsFromRows(levelsQuery.data?.levels), stashFloor),
     [stations, levelsQuery.data, stashFloor],
   );
   const selected =
-    stations.find(
-      (row) => row.slug === selectedKey || row.id === selectedKey,
-    ) || null;
+    stations.find((row) => row.slug === selectedKey || row.id === selectedKey) || null;
   const selectedLevel = (() => {
     if (!selected) return undefined;
     const high = hideoutMaxLevel(selected);
@@ -649,8 +603,7 @@ export function TarkovHideoutPanel({
       const value = Math.trunc(raw);
       return high ? Math.min(value, high) : value;
     }
-    const current =
-      levels[selected.id] ?? hideoutDefaultLevel(selected, stashFloor);
+    const current = levels[selected.id] ?? hideoutDefaultLevel(selected, stashFloor);
     return Math.max(current, 1);
   })();
 
@@ -658,10 +611,7 @@ export function TarkovHideoutPanel({
     mutationFn: ({ stationId, level }: { stationId: string; level: number }) =>
       setTarkovHideoutLevel(stationId, level),
     onSuccess: (data) => {
-      queryClient.setQueryData(
-        ["guides-tarkov-hideout-levels", gameMode],
-        data,
-      );
+      queryClient.setQueryData(["guides-tarkov-hideout-levels", gameMode], data);
     },
     onError: (error) => {
       message.error(apiError(error, "藏身处等级保存失败"));
@@ -677,12 +627,9 @@ export function TarkovHideoutPanel({
       const params = new URLSearchParams();
       if (level && level > 0) params.set("level", String(level));
       const query = params.toString();
-      navigate(
-        `${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}${
-          query ? `?${query}` : ""
-        }`,
-        { replace: true },
-      );
+      navigate(`${TARKOV_HIDEOUT_PATH}/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`, {
+        replace: true,
+      });
       return;
     }
     if (stationSlug) return;
@@ -711,10 +658,7 @@ export function TarkovHideoutPanel({
     mutation.mutate({ stationId: ident, level: target });
   };
 
-  if (
-    catalogQuery.isLoading ||
-    (!wiki && (levelsQuery.isLoading || profileQuery.isLoading))
-  ) {
+  if (catalogQuery.isLoading || (!wiki && (levelsQuery.isLoading || profileQuery.isLoading))) {
     return (
       <div className={trade.status}>
         <Spin />
@@ -755,10 +699,7 @@ export function TarkovHideoutPanel({
         ) : (
           <span />
         )}
-        <Button
-          icon={<CalculatorOutlined />}
-          onClick={() => setCalcOpen(true)}
-        >
+        <Button icon={<CalculatorOutlined />} onClick={() => setCalcOpen(true)}>
           材料计算
         </Button>
       </div>
@@ -791,9 +732,7 @@ export function TarkovHideoutPanel({
       )}
       <div className={trade.meta}>
         {catalogQuery.data?.station_count ?? stations.length} 个模块
-        {catalogQuery.data?.synced_at
-          ? ` · 同步 ${catalogQuery.data.synced_at}`
-          : ""}
+        {catalogQuery.data?.synced_at ? ` · 同步 ${catalogQuery.data.synced_at}` : ""}
       </div>
       <TarkovHideoutCalcModal
         open={calcOpen}

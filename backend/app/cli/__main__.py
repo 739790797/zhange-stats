@@ -99,9 +99,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         logging.getLogger("zhange.cli").exception("任务执行异常：%s", exc)
         return 1
 
-    logging.getLogger("zhange.cli").info(
-        "任务结束 run_id=%s status=%s", run_id, status
-    )
+    logging.getLogger("zhange.cli").info("任务结束 run_id=%s status=%s", run_id, status)
     return 0
 
 

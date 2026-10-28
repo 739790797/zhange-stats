@@ -34,10 +34,17 @@ import {
 } from "@/features/guides/tarkov/api/guidesApi";
 import { apiError } from "@/shared/api/apiError";
 import { isAssistantEmbed } from "@/shared/lib/assistantShell";
-import { parseTarkovGameMode, useTarkovGameMode, useTarkovGameModeControls } from "@/features/guides/tarkov/model/tarkovGameMode";
+import {
+  parseTarkovGameMode,
+  useTarkovGameMode,
+  useTarkovGameModeControls,
+} from "@/features/guides/tarkov/model/tarkovGameMode";
 import { useTarkovPmcFaction } from "@/features/guides/tarkov/model/tarkovPmcFaction";
 import { mergeRaidPrepGuideTasks } from "@/features/guides/tarkov/model/eftarkovGuide";
-import { TARKOV_HOME_PATH, TARKOV_RAID_PREP_PATH } from "@/features/guides/tarkov/model/tarkovHomeNav";
+import {
+  TARKOV_HOME_PATH,
+  TARKOV_RAID_PREP_PATH,
+} from "@/features/guides/tarkov/model/tarkovHomeNav";
 import {
   RAID_PREP_MAX_SELECTED,
   clipRaidPrepStateObjectiveDones,
@@ -72,7 +79,10 @@ import {
 } from "@/features/guides/tarkov/model/tarkovLiveWatch";
 import { TarkovLogSyncRangeModal } from "@/features/guides/tarkov/components/TarkovLogSyncRangeModal";
 import { useTarkovLogSyncDialog } from "@/features/guides/tarkov/hooks/useTarkovLogSyncDialog";
-import { useTarkovLastLogMapId, useTarkovLastLogPhase } from "@/features/guides/tarkov/hooks/useTarkovLiveWatch";
+import {
+  useTarkovLastLogMapId,
+  useTarkovLastLogPhase,
+} from "@/features/guides/tarkov/hooks/useTarkovLiveWatch";
 import { useRaidPrepGeometry } from "@/features/guides/tarkov/hooks/useRaidPrepGeometry";
 import { useTarkovRaidDockOpen } from "@/features/guides/tarkov/model/tarkovRaidDockPrefs";
 import {
@@ -126,7 +136,10 @@ import {
   type TarkovMapDrawMode,
 } from "@/features/guides/tarkov/model/tarkovRaidRooms";
 import { useDocumentHidden, visibleRefetchInterval } from "@/shared/hooks/visibleRefetchInterval";
-import { TarkovRaidPrepFilters, TarkovShotDirButton } from "@/features/guides/tarkov/components/TarkovRaidPrepFilters";
+import {
+  TarkovRaidPrepFilters,
+  TarkovShotDirButton,
+} from "@/features/guides/tarkov/components/TarkovRaidPrepFilters";
 import { TarkovRaidPrepTaskGroups } from "@/features/guides/tarkov/components/TarkovRaidPrepTaskGroups";
 import { TarkovRaidPrepSummary } from "@/features/guides/tarkov/components/TarkovRaidPrepSummary";
 import { TarkovRaidPrepGuideOverview } from "@/features/guides/tarkov/components/TarkovRaidPrepGuideOverview";
@@ -171,9 +184,7 @@ function DrawToolIcon({ name }: { name: DrawToolIconName }) {
           d="M8 2v12M2 8h12M8 2 6.2 3.8M8 2l1.8 1.8M8 14l-1.8-1.8M8 14l1.8-1.8M2 8l1.8-1.8M2 8l1.8 1.8M14 8l-1.8-1.8M14 8l-1.8 1.8"
         />
       ) : null}
-      {name === "pen" ? (
-        <path {...stroke} d="M10.6 2.2 13.8 5.4 5.6 13.6 2.2 14l.4-3.4Z" />
-      ) : null}
+      {name === "pen" ? <path {...stroke} d="M10.6 2.2 13.8 5.4 5.6 13.6 2.2 14l.4-3.4Z" /> : null}
       {name === "pin" ? (
         <>
           <path
@@ -184,18 +195,14 @@ function DrawToolIcon({ name }: { name: DrawToolIconName }) {
         </>
       ) : null}
       {name === "line" ? <path {...stroke} d="M3 13 13 3" /> : null}
-      {name === "text" ? (
-        <path {...stroke} d="M3 3.2h10M8 3.2v9.6M5.6 12.8h4.8" />
-      ) : null}
+      {name === "text" ? <path {...stroke} d="M3 3.2h10M8 3.2v9.6M5.6 12.8h4.8" /> : null}
       {name === "erase" ? (
         <path
           {...stroke}
           d="M6.2 13.2h7M3.4 10.1 9.2 4.3a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2L7.2 13.3H3.3l.1-3.2Z"
         />
       ) : null}
-      {name === "undo" ? (
-        <path {...stroke} d="M3.2 6.4V3.2h3.2M3.5 6.2A5 5 0 1 1 4.9 12" />
-      ) : null}
+      {name === "undo" ? <path {...stroke} d="M3.2 6.4V3.2h3.2M3.5 6.2A5 5 0 1 1 4.9 12" /> : null}
       {name === "clear" ? (
         <path {...stroke} d="M3.2 4.2h9.6M6.2 4.2V2.8h3.6v1.4M4.4 4.2l.6 9h5.9l.6-9" />
       ) : null}
@@ -331,33 +338,24 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   const refetchRoomRef = useRef<() => void>(() => {});
   const isMember = Boolean(room?.is_member);
   const clearPendingMarks = useCallback(() => setPendingMarks([]), []);
-  const {
-    wsRef,
-    wsGen,
-    wsLive,
-    wsStopReason,
-    logPhases,
-    logPhaseRoomRef,
-    sendLogPhase,
-  } = useRaidRoomSession({
-    publicId,
-    token,
-    isMember,
-    meId: me?.id,
-    mapIdRef,
-    setRoom,
-    refetch: () => void refetchRoomRef.current(),
-    clearPendingMarks,
-  });
+  const { wsRef, wsGen, wsLive, wsStopReason, logPhases, logPhaseRoomRef, sendLogPhase } =
+    useRaidRoomSession({
+      publicId,
+      token,
+      isMember,
+      meId: me?.id,
+      mapIdRef,
+      setRoom,
+      refetch: () => void refetchRoomRef.current(),
+      clearPendingMarks,
+    });
 
   const roomQuery = useQuery({
     queryKey: ["guides-tarkov-raid-room", publicId],
     queryFn: () => fetchTarkovRaidRoom(publicId),
     retry: 1,
     refetchInterval: (query) =>
-      query.state.data?.is_member && !wsLive
-        ? visibleRefetchInterval(30_000, hidden)
-        : false,
+      query.state.data?.is_member && !wsLive ? visibleRefetchInterval(30_000, hidden) : false,
   });
   refetchRoomRef.current = roomQuery.refetch;
 
@@ -436,18 +434,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     .filter(Boolean)
     .sort()
     .join(",");
-  const claimedIds = useMemo(
-    () => claimedKey.split(",").filter(Boolean),
-    [claimedKey],
-  );
+  const claimedIds = useMemo(() => claimedKey.split(",").filter(Boolean), [claimedKey]);
   const geometry = useRaidPrepGeometry(mapId, claimedIds);
 
   const applyRoom = useCallback((next: TarkovRaidRoomDetail) => {
     setRoom((current) =>
-      withRaidRoomViewerFlags(
-        keepRaidRoomPresence(next, current),
-        meIdRef.current,
-      ),
+      withRaidRoomViewerFlags(keepRaidRoomPresence(next, current), meIdRef.current),
     );
     setError("");
   }, []);
@@ -533,14 +525,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     onError: (exc) => setError(apiError(exc, "清空房间失败")),
   });
   const kickMut = useMutation({
-    mutationFn: (userId: number) =>
-      removeTarkovRaidRoomMember(publicId, userId),
+    mutationFn: (userId: number) => removeTarkovRaidRoomMember(publicId, userId),
     onSuccess: (next) => applyRoom(next),
     onError: (exc) => setError(apiError(exc, "移除失败")),
   });
   const transferMut = useMutation({
-    mutationFn: (userId: number) =>
-      transferTarkovRaidRoomHost(publicId, userId),
+    mutationFn: (userId: number) => transferTarkovRaidRoomHost(publicId, userId),
     onSuccess: (next) => {
       applyRoom(next);
       if (!next.is_host) setManageOpen(false);
@@ -568,10 +558,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     onError: (exc) => setError(apiError(exc, "加入失败")),
   });
   const claims = room?.claims;
-  const myClaimIds = useMemo(
-    () => claimTaskIdsForUser(claims, me?.id),
-    [claims, me?.id],
-  );
+  const myClaimIds = useMemo(() => claimTaskIdsForUser(claims, me?.id), [claims, me?.id]);
   const myClaims = useMemo(() => new Set(myClaimIds), [myClaimIds]);
   const groups = useMemo(() => groupClaimsByTask(claims), [claims]);
   const participantsByTask = useMemo(() => {
@@ -587,10 +574,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     }
     return map;
   }, [groups]);
-  const catalog = useMemo(
-    () => prepQuery.data?.items ?? [],
-    [prepQuery.data],
-  );
+  const catalog = useMemo(() => prepQuery.data?.items ?? [], [prepQuery.data]);
   const onMapTaskIds = useMemo(
     () => (prepQuery.isSuccess ? raidPrepOnMapTaskIds(catalog) : null),
     [catalog, prepQuery.isSuccess],
@@ -661,16 +645,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [catalogRich, guideTaskId, selectedTasks],
   );
   const rows = useMemo(
-    () =>
-      filterRaidPrepRows(catalogRich, { q: query, faction }),
+    () => filterRaidPrepRows(catalogRich, { q: query, faction }),
     [catalogRich, faction, query],
   );
   const statusGroups = useMemo(() => {
-    const grouped = groupRaidPrepRowsByProgress(
-      rows,
-      doneTaskSet,
-      startedTaskSet,
-    );
+    const grouped = groupRaidPrepRowsByProgress(rows, doneTaskSet, startedTaskSet);
     return {
       active: pinSelectedRaidPrepRows(grouped.active, myClaims),
       todo: pinSelectedRaidPrepRows(grouped.todo, myClaims),
@@ -679,49 +658,45 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   }, [doneTaskSet, myClaims, rows, startedTaskSet]);
   const overlayTasksRef = useRef(overlayTasks);
   overlayTasksRef.current = overlayTasks;
-  const overlays = useMemo(
-    () => buildRaidPrepOverlays(overlayTasks, mapId),
-    [overlayTasks, mapId],
-  );
+  const overlays = useMemo(() => buildRaidPrepOverlays(overlayTasks, mapId), [overlayTasks, mapId]);
   const markQueueRef = useRef(Promise.resolve());
   const flushCompletedTaskMarks = useCallback(
     (completedIds: readonly string[]) => {
       if (!completedIds.length) return;
-      markQueueRef.current = markQueueRef.current.then(async () => {
-        if (!canEditRef.current || !mapIdRef.current) return;
-        const pending = roomObjectiveMarksForCompletedTasks(
-          completedIds,
-          overlayTasksRef.current,
-          mapIdRef.current,
-          roomObjDonesRef.current,
-          meIdRef.current,
-        );
-        if (!pending.length) return;
-        const extra = new Map<string, Set<string>>();
-        for (const row of pending) {
-          const bucket = new Set(extra.get(row.taskId) || []);
-          bucket.add(row.objectiveId);
-          extra.set(row.taskId, bucket);
-        }
-        const stored = readRaidPrepObjectiveDoneWithLegacy(
-          objDoneScope,
-          objDoneLegacy,
-        );
-        const merged = mergeSkipMapsIfChanged(stored, extra);
-        const next = adoptObjectiveSkip(stored, merged);
-        if (next) replaceObjDone(next);
-        await run(() =>
-          markTarkovRaidRoomObjectivesDone(
-            publicId,
-            pending.map((row) => ({
-              task_id: row.taskId,
-              objective_id: row.objectiveId,
-            })),
-          ),
-        );
-      }).catch(() => {
-        /* 单次失败不堵后续日志回填 */
-      });
+      markQueueRef.current = markQueueRef.current
+        .then(async () => {
+          if (!canEditRef.current || !mapIdRef.current) return;
+          const pending = roomObjectiveMarksForCompletedTasks(
+            completedIds,
+            overlayTasksRef.current,
+            mapIdRef.current,
+            roomObjDonesRef.current,
+            meIdRef.current,
+          );
+          if (!pending.length) return;
+          const extra = new Map<string, Set<string>>();
+          for (const row of pending) {
+            const bucket = new Set(extra.get(row.taskId) || []);
+            bucket.add(row.objectiveId);
+            extra.set(row.taskId, bucket);
+          }
+          const stored = readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy);
+          const merged = mergeSkipMapsIfChanged(stored, extra);
+          const next = adoptObjectiveSkip(stored, merged);
+          if (next) replaceObjDone(next);
+          await run(() =>
+            markTarkovRaidRoomObjectivesDone(
+              publicId,
+              pending.map((row) => ({
+                task_id: row.taskId,
+                objective_id: row.objectiveId,
+              })),
+            ),
+          );
+        })
+        .catch(() => {
+          /* 单次失败不堵后续日志回填 */
+        });
     },
     [adoptObjectiveSkip, objDoneLegacy, objDoneScope, publicId, replaceObjDone, run],
   );
@@ -732,27 +707,21 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       if (!detail || detail.mode !== gameMode) return;
       setProgressTick((n) => n + 1);
       flushCompletedTaskMarks(detail.completedIds || []);
-      const stored = readRaidPrepObjectiveDoneWithLegacy(
-        objDoneScope,
-        objDoneLegacy,
-      );
+      const stored = readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy);
       const merged = mergeObjectivePairs(stored, detail.objectives);
       const next = adoptObjectiveSkip(stored, merged);
       if (next) replaceObjDone(next);
       if (!canEdit) return;
       const settled = settleRaidPrepSelection({
         selectedIds: myClaimIds,
-        completedIds: detail.completedIds?.length
-          ? detail.completedIds
-          : detail.done,
+        completedIds: detail.completedIds?.length ? detail.completedIds : detail.done,
       });
       for (const id of settled.removedIds) {
         void runQuiet(() => unclaimTarkovRaidRoomTask(publicId, id));
       }
     };
     window.addEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
-    return () =>
-      window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
+    return () => window.removeEventListener(TARKOV_TASK_PROGRESS_EVENT, onProgress);
   }, [
     canEdit,
     adoptObjectiveSkip,
@@ -770,18 +739,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     if (!canEdit || !mapId || !claimedKey) return;
     const localDone = new Set(loadTaskDoneIds(gameMode));
     flushCompletedTaskMarks(
-      overlayTasksRef.current
-        .map((task) => task.id)
-        .filter((id) => localDone.has(id)),
+      overlayTasksRef.current.map((task) => task.id).filter((id) => localDone.has(id)),
     );
-  }, [
-    canEdit,
-    claimedKey,
-    flushCompletedTaskMarks,
-    gameMode,
-    geometry.items,
-    mapId,
-  ]);
+  }, [canEdit, claimedKey, flushCompletedTaskMarks, gameMode, geometry.items, mapId]);
   const colorByTask = useMemo(() => {
     const map = new Map<string, string>();
     groups.forEach((group, index) => {
@@ -790,13 +750,9 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     return map;
   }, [groups]);
   const currentMap = mapOptions.find((item) => item.id === mapId);
-  const dockMapLabel =
-    mapOptions.find((item) => item.id === dockMapId)?.label || dockMapId;
+  const dockMapLabel = mapOptions.find((item) => item.id === dockMapId)?.label || dockMapId;
   const mapLabel = currentMap?.label || mapId;
-  const title =
-    (room?.title || "").trim() ||
-    (room?.host_display_name || "").trim() ||
-    "房间";
+  const title = (room?.title || "").trim() || (room?.host_display_name || "").trim() || "房间";
   const members = useMemo(
     () =>
       room?.occupants?.length
@@ -845,31 +801,34 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     setStatsOpen(true);
   };
 
-  const pickOwnMap = useCallback((nextMap: string) => {
-    const slug = normalizeRaidPrepMapId(nextMap);
-    if (!slug || pickingMap) return;
-    if (mapId && raidPrepMapsEquivalent(slug, mapId)) {
-      setStatsOpen(false);
-      return;
-    }
-    const previous = mapIdRef.current;
-    setPickingMap(true);
-    mapIdRef.current = slug;
-    writeRaidRoomViewMap(publicId, slug);
-    setViewMapId(slug);
-    setPendingMarks([]);
-    void run(() => setTarkovRaidRoomMap(publicId, slug))
-      .then((ok) => {
-        if (ok || mapIdRef.current !== slug) return;
-        mapIdRef.current = previous;
-        writeRaidRoomViewMap(publicId, previous);
-        setViewMapId(previous);
-      })
-      .finally(() => {
-        setPickingMap(false);
+  const pickOwnMap = useCallback(
+    (nextMap: string) => {
+      const slug = normalizeRaidPrepMapId(nextMap);
+      if (!slug || pickingMap) return;
+      if (mapId && raidPrepMapsEquivalent(slug, mapId)) {
         setStatsOpen(false);
-      });
-  }, [mapId, pickingMap, publicId, run]);
+        return;
+      }
+      const previous = mapIdRef.current;
+      setPickingMap(true);
+      mapIdRef.current = slug;
+      writeRaidRoomViewMap(publicId, slug);
+      setViewMapId(slug);
+      setPendingMarks([]);
+      void run(() => setTarkovRaidRoomMap(publicId, slug))
+        .then((ok) => {
+          if (ok || mapIdRef.current !== slug) return;
+          mapIdRef.current = previous;
+          writeRaidRoomViewMap(publicId, previous);
+          setViewMapId(previous);
+        })
+        .finally(() => {
+          setPickingMap(false);
+          setStatsOpen(false);
+        });
+    },
+    [mapId, pickingMap, publicId, run],
+  );
 
   const serverViewMap = raidRoomViewerMapSlug(room?.view_maps, me?.id);
   useEffect(() => {
@@ -950,10 +909,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       if (doneTaskSet.has(taskId)) {
         return;
       }
-      if (
-        !mapCapTaskIds.includes(taskId) &&
-        mapCapTaskIds.length >= RAID_PREP_MAX_SELECTED
-      ) {
+      if (!mapCapTaskIds.includes(taskId) && mapCapTaskIds.length >= RAID_PREP_MAX_SELECTED) {
         setError(`最多勾选 ${RAID_PREP_MAX_SELECTED} 个任务`);
         return;
       }
@@ -963,7 +919,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
 
   useEffect(() => {
-    if (!canEdit || !mapId || dockMapId !== mapId || !room?.is_member || !prepQuery.isSuccess) return;
+    if (!canEdit || !mapId || dockMapId !== mapId || !room?.is_member || !prepQuery.isSuccess)
+      return;
     const key = `${publicId}:${mapId}:${gameMode}`;
     if (autoClaimKeyRef.current === key) return;
     // 进房（或换到这张图）只勾一次。之后取消勾选不再按进行中补回。
@@ -1006,38 +963,25 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     async (itemId: string) => {
       if (!me) return;
       const have = userOwnsKey(room?.key_owns, itemId, me.id);
-      const name =
-        (me.display_name || me.username || "").trim() || `用户${me.id}`;
+      const name = (me.display_name || me.username || "").trim() || `用户${me.id}`;
       const user = { userId: me.id, name };
       setRoom((current) =>
         current
           ? {
               ...current,
-              key_owns: patchRaidRoomKeyOwns(
-                current.key_owns,
-                itemId,
-                user,
-                !have,
-              ),
+              key_owns: patchRaidRoomKeyOwns(current.key_owns, itemId, user, !have),
             }
           : current,
       );
       try {
-        const data = have
-          ? await removeTarkovKeyOwn(itemId)
-          : await addTarkovKeyOwn(itemId);
+        const data = have ? await removeTarkovKeyOwn(itemId) : await addTarkovKeyOwn(itemId);
         applyTarkovKeyOwnsCache(queryClient, data.item_ids || []);
       } catch (exc) {
         setRoom((current) =>
           current
             ? {
                 ...current,
-                key_owns: patchRaidRoomKeyOwns(
-                  current.key_owns,
-                  itemId,
-                  user,
-                  have,
-                ),
+                key_owns: patchRaidRoomKeyOwns(current.key_owns, itemId, user, have),
               }
             : current,
         );
@@ -1047,16 +991,11 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     [me, queryClient, room?.key_owns],
   );
 
-  const myName =
-    (me?.display_name || me?.username || "").trim() ||
-    (me ? `用户${me.id}` : "");
+  const myName = (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "");
   onUserObjectiveToggleRef.current = (taskId, objectiveId, checked) => {
     objectiveSaveGenRef.current += 1;
     if (mapId && me && stateQuery.isSuccess && prepQuery.isSuccess) {
-      const stored = readRaidPrepObjectiveDoneWithLegacy(
-        objDoneScope,
-        objDoneLegacy,
-      );
+      const stored = readRaidPrepObjectiveDoneWithLegacy(objDoneScope, objDoneLegacy);
       const fromServer = stateQuery.data
         ? objectiveDonesToSkipMap(
             (stateQuery.data.objective_dones || []).map((row) => ({
@@ -1069,20 +1008,15 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
         : undefined;
       const fromRoom = objectiveDonesToSkipMap(room?.objective_dones, me.id);
       const next =
-        adoptObjectiveSkip(
-          stored,
-          mergeSkipMapsIfChanged(stored, fromServer, fromRoom),
-        ) ?? stored;
+        adoptObjectiveSkip(stored, mergeSkipMapsIfChanged(stored, fromServer, fromRoom)) ?? stored;
       if (next !== stored) replaceObjDone(next);
       const body: RaidPrepStateBody = {
         selected: stateQuery.data?.selected ?? [],
         objective_dones: clipRaidPrepStateObjectiveDones(
-          skipMapToObjectiveDones(next, { userId: me.id, name: myName }).map(
-            (row) => ({
-              task_id: row.task_id,
-              objective_id: row.objective_id,
-            }),
-          ),
+          skipMapToObjectiveDones(next, { userId: me.id, name: myName }).map((row) => ({
+            task_id: row.task_id,
+            objective_id: row.objective_id,
+          })),
           catalog.map((row) => row.id),
         ),
         key_brings: stateQuery.data?.key_brings ?? [],
@@ -1106,16 +1040,12 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     }
     if (!canEdit) return;
     const request = checked
-      ? markTarkovRaidRoomObjectivesDone(publicId, [
-          { task_id: taskId, objective_id: objectiveId },
-        ])
+      ? markTarkovRaidRoomObjectivesDone(publicId, [{ task_id: taskId, objective_id: objectiveId }])
       : unmarkTarkovRaidRoomObjectiveDone(publicId, taskId, objectiveId);
     void request.then((nextRoom) => applyRoom(nextRoom)).catch(() => {});
   };
   const viewerObjectiveDones = useMemo(() => {
-    const others = (room?.objective_dones || []).filter(
-      (row) => row.user_id !== me?.id,
-    );
+    const others = (room?.objective_dones || []).filter((row) => row.user_id !== me?.id);
     if (!me) return others;
     return [
       ...others,
@@ -1173,13 +1103,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   ]);
 
   useEffect(() => {
-    if (
-      !mapId ||
-      !me ||
-      !objDoneScope ||
-      !stateQuery.isSuccess ||
-      !prepQuery.isSuccess
-    ) {
+    if (!mapId || !me || !objDoneScope || !stateQuery.isSuccess || !prepQuery.isSuccess) {
       return;
     }
     const body = {
@@ -1223,29 +1147,16 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     stateQuery.isSuccess,
   ]);
 
-  const onStroke = useCallback((stroke: { floor: string; points: StrokePoint[] }) => {
-    if (!canEdit || !stroke.points.length) return;
-    const first = stroke.points[0];
-    const last = stroke.points[stroke.points.length - 1];
-    const tempId = -Date.now();
-    setPendingMarks((current) => [
-      ...current,
-      {
-        id: tempId,
-        kind: "stroke",
-        floor: stroke.floor,
-        x: first.x,
-        z: first.z,
-        x2: last.x,
-        z2: last.z,
-        points: stroke.points.map((point) => [point.x, point.z]),
-        author_user_id: me?.id || 0,
-        author_display_name: me?.display_name || "",
-      },
-    ]);
-    void (async () => {
-      const ok = await run(() =>
-        addTarkovRaidRoomMark(publicId, {
+  const onStroke = useCallback(
+    (stroke: { floor: string; points: StrokePoint[] }) => {
+      if (!canEdit || !stroke.points.length) return;
+      const first = stroke.points[0];
+      const last = stroke.points[stroke.points.length - 1];
+      const tempId = -Date.now();
+      setPendingMarks((current) => [
+        ...current,
+        {
+          id: tempId,
           kind: "stroke",
           floor: stroke.floor,
           x: first.x,
@@ -1253,12 +1164,28 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
           x2: last.x,
           z2: last.z,
           points: stroke.points.map((point) => [point.x, point.z]),
-        }),
-      );
-      void ok;
-      setPendingMarks((current) => current.filter((row) => row.id !== tempId));
-    })();
-  }, [canEdit, me?.display_name, me?.id, publicId, run]);
+          author_user_id: me?.id || 0,
+          author_display_name: me?.display_name || "",
+        },
+      ]);
+      void (async () => {
+        const ok = await run(() =>
+          addTarkovRaidRoomMark(publicId, {
+            kind: "stroke",
+            floor: stroke.floor,
+            x: first.x,
+            z: first.z,
+            x2: last.x,
+            z2: last.z,
+            points: stroke.points.map((point) => [point.x, point.z]),
+          }),
+        );
+        void ok;
+        setPendingMarks((current) => current.filter((row) => row.id !== tempId));
+      })();
+    },
+    [canEdit, me?.display_name, me?.id, publicId, run],
+  );
 
   const onPin = useCallback(
     (mark: { floor: string; x: number; z: number }) => {
@@ -1276,13 +1203,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
   );
 
   const onLine = useCallback(
-    (mark: {
-      floor: string;
-      x: number;
-      z: number;
-      x2: number;
-      z2: number;
-    }) => {
+    (mark: { floor: string; x: number; z: number; x2: number; z2: number }) => {
       if (!canEdit) return;
       void run(() =>
         addTarkovRaidRoomMark(publicId, {
@@ -1364,9 +1285,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             return {
               ...current,
               marks: current.marks.map((row) =>
-                row.id === mark.id
-                  ? { ...row, x: prev.x, z: prev.z }
-                  : row,
+                row.id === mark.id ? { ...row, x: prev.x, z: prev.z } : row,
               ),
             };
           });
@@ -1469,9 +1388,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
     <TarkovRaidWorkspace
       dockOpen={dockOpen}
       sidebarsOpen={sidebarsOpen}
-      onToggleDock={
-        room.is_member ? () => setDockOpen((open) => !open) : undefined
-      }
+      onToggleDock={room.is_member ? () => setDockOpen((open) => !open) : undefined}
       picking={showOverlap}
       showDock={room.is_member && !showOverlap}
       belowBar={
@@ -1483,28 +1400,27 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               message="你还不是房间成员"
               description={
                 token ? (
-                <div className={styles.joinGate}>
-                  {room.has_password ? (
-                    <Input.Password
-                      value={joinPassword}
-                      onChange={(event) => setJoinPassword(event.target.value)}
-                      placeholder="房间密码"
-                      maxLength={32}
-                      onPressEnter={() => joinMut.mutate()}
-                    />
-                  ) : null}
-                  <button
-                    type="button"
-                    className={styles.dockChip}
-                    disabled={
-                      joinMut.isPending ||
-                      (Boolean(room.has_password) && !joinPassword.trim())
-                    }
-                    onClick={() => joinMut.mutate()}
-                  >
-                    {joinMut.isPending ? "加入中…" : "加入房间"}
-                  </button>
-                </div>
+                  <div className={styles.joinGate}>
+                    {room.has_password ? (
+                      <Input.Password
+                        value={joinPassword}
+                        onChange={(event) => setJoinPassword(event.target.value)}
+                        placeholder="房间密码"
+                        maxLength={32}
+                        onPressEnter={() => joinMut.mutate()}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      className={styles.dockChip}
+                      disabled={
+                        joinMut.isPending || (Boolean(room.has_password) && !joinPassword.trim())
+                      }
+                      onClick={() => joinMut.mutate()}
+                    >
+                      {joinMut.isPending ? "加入中…" : "加入房间"}
+                    </button>
+                  </div>
                 ) : (
                   <TarkovLoginPrompt feature="加入房间后才能看棋盘、认领任务和标点" />
                 )
@@ -1544,8 +1460,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             suppressLocalFix={hideLocalFix}
             authorUserId={me?.id || 0}
             authorDisplayName={
-              (me?.display_name || me?.username || "").trim() ||
-              (me ? `用户${me.id}` : "")
+              (me?.display_name || me?.username || "").trim() || (me ? `用户${me.id}` : "")
             }
             drawMode={canEdit ? tool : "pan"}
             canEdit={canEdit}
@@ -1558,9 +1473,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                 meta={
                   <>
                     {mapLabel || "未选地图"}
-                    {mapId ? (
-                      <TarkovGoonSightingHint mapId={mapId} variant="inline" />
-                    ) : null}
+                    {mapId ? <TarkovGoonSightingHint mapId={mapId} variant="inline" /> : null}
                     {" · "}
                     {room.member_count}/{room.max_members}
                   </>
@@ -1585,9 +1498,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                 viewMaps={
                   me?.id && mapId
                     ? [
-                        ...(room.view_maps || []).filter(
-                          (row) => row.user_id !== me.id,
-                        ),
+                        ...(room.view_maps || []).filter((row) => row.user_id !== me.id),
                         { user_id: me.id, map_slug: mapId },
                       ]
                     : room.view_maps
@@ -1652,9 +1563,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                       aria-label="清板"
                       onClick={() =>
                         void (async () => {
-                          const ok = await run(() =>
-                            clearTarkovRaidRoomMarks(publicId),
-                          );
+                          const ok = await run(() => clearTarkovRaidRoomMarks(publicId));
                           if (ok) setPendingMarks([]);
                         })()
                       }
@@ -1695,12 +1604,8 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
               <div className={styles.dockLeadActions}>
                 {showOverlap ? (
                   <p className={styles.dockHint}>
-                    {dockMapLabel
-                      ? `预览${dockMapLabel}任务`
-                      : "点左侧地图预览任务"}
-                    {canClaimOnDock
-                      ? "；可勾进本房"
-                      : "。选好地图后可勾进房间"}
+                    {dockMapLabel ? `预览${dockMapLabel}任务` : "点左侧地图预览任务"}
+                    {canClaimOnDock ? "；可勾进本房" : "。选好地图后可勾进房间"}
                   </p>
                 ) : null}
                 <TarkovShotDirButton />
@@ -1747,10 +1652,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
             }
           />
           {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- 点列表空白处清高亮只是鼠标便捷操作，行内控件各自可键盘操作 */}
-          <div
-            className={styles.taskList}
-            onClick={() => setHighlightTaskId("")}
-          >
+          <div className={styles.taskList} onClick={() => setHighlightTaskId("")}>
             {prepQuery.isLoading && !prepQuery.data && !rows.length ? (
               <div className={styles.empty}>
                 <Spin />
@@ -1849,9 +1751,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
                     style={{ background: colorForUserId(row.user_id) }}
                   />
                   <span className={styles.manageNameText}>{row.display_name}</span>
-                  {row.is_host ? (
-                    <span className={styles.manageHostTag}>房主</span>
-                  ) : null}
+                  {row.is_host ? <span className={styles.manageHostTag}>房主</span> : null}
                 </span>
                 {!row.is_host ? (
                   <div className={styles.manageRowActions}>

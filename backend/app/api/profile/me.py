@@ -19,6 +19,7 @@ from app.api.profile.helpers import (
 
 router = APIRouter(tags=["profile"])
 
+
 @router.get("/profile/me", response_model=MemberProfileOut)
 def get_my_profile(
     db: Session = Depends(get_db),
@@ -33,8 +34,8 @@ def get_my_profile(
             joinedload(Member.skland_bind),
             joinedload(Member.taygedo_bind),
             joinedload(Member.exilium_bind),
-                joinedload(Member.kujiequ_bind),
-                joinedload(Member.mihoyo_bind),
+            joinedload(Member.kujiequ_bind),
+            joinedload(Member.mihoyo_bind),
         )
         .filter(Member.id == member.id)
         .first()
@@ -101,12 +102,5 @@ def update_my_profile(
     steam_persona = _apply_profile_fields(db, user, member, data)
     db.commit()
     db.refresh(member)
-    member = (
-        db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id == member.id)
-        .first()
-    )
+    member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == member.id).first()
     return _profile_from_member(member, steam_persona)
-
-

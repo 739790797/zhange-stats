@@ -58,12 +58,8 @@ FACTORY_EXIT_KEY_ID = "5448ba0b4bdc2d02308b456c"
 # 游戏车辆预制体把这把钥匙当成默认 KeyId。json.tarkov.dev 原样抽出，
 # 全库只有这一把钥匙跨 4+ 张图：门只在工厂/海关，其余全是 trunk。
 # 百科实机：工厂门、海关门、立交桥/海岸线油罐车。灯塔/街区/零号的 trunk 丢掉。
-FACTORY_EXIT_KEY_MAPS = frozenset(
-    {"factory", "customs", "interchange", "shoreline"}
-)
-_FACTORY_MED_GATE_EXTRACT_IDS = frozenset(
-    {"7bb46d641d59983a58440a7a58d65933d981c211"}
-)
+FACTORY_EXIT_KEY_MAPS = frozenset({"factory", "customs", "interchange", "shoreline"})
+_FACTORY_MED_GATE_EXTRACT_IDS = frozenset({"7bb46d641d59983a58440a7a58d65933d981c211"})
 _FACTORY_MED_GATE_EXTRACT_NAMES = frozenset({"gate m", "医疗帐篷大门"})
 _FACTORY_MED_GATE_SNAP_MIN_M = 8.0
 _FACTORY_MED_GATE_SNAP_MAX_M = 40.0
@@ -104,9 +100,7 @@ class MapsBundle:
         row = _find_map(self.hub_rows, slug)
         return copy.deepcopy(row) if row is not None else None
 
-    def loot_row(
-        self, slug: str, *, loot_loose: bool, loot_containers: bool
-    ) -> dict[str, Any] | None:
+    def loot_row(self, slug: str, *, loot_loose: bool, loot_containers: bool) -> dict[str, Any] | None:
         """含指定图层的行（只解析这一张图）。返回副本，调用方随便改。"""
         key = (resolve_map_slug(slug), loot_loose, loot_containers)
         row = self._loot_rows.get(key)
@@ -163,6 +157,7 @@ def maps_bundle(db: Session) -> MapsBundle:
         if hit is not None:
             return hit
         return _load_bundle(db)
+
 
 # tarkov.dev /maps/{slug}_thumb.jpg 已被 SPA 路由吞成 HTML；改用 assets 上的 svg/瓦片。
 MAP_THUMB_ASSETS: dict[str, str] = {
@@ -370,15 +365,9 @@ def _boss_locations(spawn: dict[str, Any], locale: dict[str, Any]) -> list[dict[
 def classify_map_spawn(spawn: dict[str, Any]) -> str | None:
     """把 maps dump 的 spawn 归到 pmc / scav / sniper；boss 仍走 bosses.locations。"""
     categories = {
-        str(item).strip().lower()
-        for item in (spawn.get("categories") or [])
-        if item is not None and str(item).strip()
+        str(item).strip().lower() for item in (spawn.get("categories") or []) if item is not None and str(item).strip()
     }
-    sides = {
-        str(item).strip().lower()
-        for item in (spawn.get("sides") or [])
-        if item is not None and str(item).strip()
-    }
+    sides = {str(item).strip().lower() for item in (spawn.get("sides") or []) if item is not None and str(item).strip()}
     if "boss" in categories:
         return None
     if "player" in categories and ("pmc" in sides or "all" in sides):
@@ -590,13 +579,7 @@ def _snap_factory_exit_med_gate_lock(row: dict[str, Any]) -> None:
         return
     extracts = row.get("extracts") if isinstance(row.get("extracts"), list) else []
     gate = next(
-        (
-            item
-            for item in extracts
-            if isinstance(item, dict)
-            and _has_xz(item)
-            and _is_factory_med_gate_extract(item)
-        ),
+        (item for item in extracts if isinstance(item, dict) and _has_xz(item) and _is_factory_med_gate_extract(item)),
         None,
     )
     if not gate:
@@ -724,11 +707,7 @@ def enrich_lock_keys(
 
 
 def _enrich_map_lock_keys(db: Session, locks: list[Any]) -> None:
-    ids = {
-        str(row.get("key_id") or "").strip()
-        for row in locks
-        if isinstance(row, dict)
-    }
+    ids = {str(row.get("key_id") or "").strip() for row in locks if isinstance(row, dict)}
     ids.discard("")
     if not ids:
         return
@@ -739,11 +718,7 @@ def _enrich_map_lock_keys(db: Session, locks: list[Any]) -> None:
     except Exception:  # noqa: BLE001
         logger.warning("map lock keys: items catalog unavailable", exc_info=True)
         return
-    by_id = {
-        str(item.get("id") or "").strip(): item
-        for item in rows
-        if isinstance(item, dict) and item.get("id")
-    }
+    by_id = {str(item.get("id") or "").strip(): item for item in rows if isinstance(item, dict) and item.get("id")}
     enrich_lock_keys(locks, by_id)
 
 
@@ -933,9 +908,7 @@ def _parse_map_hazards(
     for index, row in enumerate(rows or []):
         if not isinstance(row, dict):
             continue
-        hazard_type = str(
-            row.get("hazardType") or row.get("hazard_type") or default_type or ""
-        ).strip()
+        hazard_type = str(row.get("hazardType") or row.get("hazard_type") or default_type or "").strip()
         name = _hazard_label(
             hazard_type=hazard_type,
             name=str(row.get("name") or ""),
@@ -981,11 +954,7 @@ def _parse_map_hazards_with_artillery(
     locale: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     hazards = _parse_map_hazards(raw.get("hazards"), locale)
-    seen = {
-        (row.get("hazard_type"), row.get("x"), row.get("z"))
-        for row in hazards
-        if _has_xz(row)
-    }
+    seen = {(row.get("hazard_type"), row.get("x"), row.get("z")) for row in hazards if _has_xz(row)}
     for row in _parse_artillery_zones(raw.get("artillery"), locale):
         key = (row.get("hazard_type"), row.get("x"), row.get("z"))
         if _has_xz(row) and key in seen:
@@ -1080,9 +1049,7 @@ def _parse_map_switches(
                 {
                     "id": ident,
                     "name": _localized(lang, row.get("name"), ident),
-                    "switch_type": str(
-                        row.get("switchType") or row.get("switch_type") or ""
-                    ).strip(),
+                    "switch_type": str(row.get("switchType") or row.get("switch_type") or "").strip(),
                     "activated_by": activated_by,
                     "activates": activates,
                 },
@@ -1108,14 +1075,17 @@ def _parse_map_stationary_weapons(
             weapons,
         )
         weapon_id = str(weapon.get("id") or row.get("id") or "").strip()
-        name = _resolved_item_name(
-            lang,
-            weapon.get("name"),
-            f"{weapon_id} Name" if weapon_id else "",
-            weapon.get("shortName") or weapon.get("short_name"),
-            f"{weapon_id} ShortName" if weapon_id else "",
-            row.get("name"),
-        ) or "固定武器"
+        name = (
+            _resolved_item_name(
+                lang,
+                weapon.get("name"),
+                f"{weapon_id} Name" if weapon_id else "",
+                weapon.get("shortName") or weapon.get("short_name"),
+                f"{weapon_id} ShortName" if weapon_id else "",
+                row.get("name"),
+            )
+            or "固定武器"
+        )
         ident = weapon_id or _marker_id("stationary", name, index)
         out.append(_attach_point({"id": ident, "name": name}, row))
     return out
@@ -1213,9 +1183,7 @@ def _parse_map_loot_containers(
             boxes,
         )
         container_id = str(box.get("id") or "").strip()
-        normalized = str(
-            box.get("normalizedName") or box.get("normalized_name") or ""
-        ).strip()
+        normalized = str(box.get("normalizedName") or box.get("normalized_name") or "").strip()
         if _is_blank_item_label(normalized):
             normalized = ""
         name = _resolved_item_name(
@@ -1365,11 +1333,7 @@ def _fill_item_refs(
             ref["types"] = [str(t) for t in types if t is not None and str(t).strip()]
         handbook = item.get("handbook_ids")
         if isinstance(handbook, list) and not ref.get("handbook_ids"):
-            ref["handbook_ids"] = [
-                str(cid).strip()
-                for cid in handbook
-                if cid is not None and str(cid).strip()
-            ]
+            ref["handbook_ids"] = [str(cid).strip() for cid in handbook if cid is not None and str(cid).strip()]
 
 
 def _collect_map_item_refs(row: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1401,18 +1365,14 @@ def _enrich_map_item_refs(db: Session, row: dict[str, Any]) -> None:
         logger.warning("map item refs: items catalog unavailable", exc_info=True)
         return
     by_id = {
-        str(item.get("id") or "").strip(): item
-        for item in catalog_rows
-        if isinstance(item, dict) and item.get("id")
+        str(item.get("id") or "").strip(): item for item in catalog_rows if isinstance(item, dict) and item.get("id")
     }
     _fill_item_refs(refs, by_id)
 
 
 def _row_needs_marker_meta(row: dict[str, Any]) -> bool:
     if "key_id" in row or "key_name" in row:
-        return _is_blank_item_label(str(row.get("key_name") or "")) or not str(
-            row.get("key_icon") or ""
-        ).strip()
+        return _is_blank_item_label(str(row.get("key_name") or "")) or not str(row.get("key_icon") or "").strip()
     kind = str(row.get("normalized_name") or "").strip()
     name = str(row.get("name") or "").strip()
     return (not kind or _is_blank_item_label(kind)) or _needs_display_name(name)
@@ -1480,6 +1440,7 @@ def _merge_marker_layer(
         return incoming
     return current
 
+
 def _extracts_have_coords(extracts: list[dict[str, Any]]) -> bool:
     return any(
         row.get("x") is not None and row.get("z") is not None
@@ -1496,15 +1457,12 @@ def _transit_raw_id(ident: str) -> str:
 
 
 def _transits_missing(extracts: list[dict[str, Any]]) -> bool:
-    return not any(
-        _is_transit_extract(row) for row in extracts if isinstance(row, dict)
-    )
+    return not any(_is_transit_extract(row) for row in extracts if isinstance(row, dict))
 
 
 def _transit_coords_missing(extracts: list[dict[str, Any]]) -> bool:
     return any(
-        _is_transit_extract(row)
-        and (row.get("x") is None or row.get("z") is None)
+        _is_transit_extract(row) and (row.get("x") is None or row.get("z") is None)
         for row in extracts
         if isinstance(row, dict)
     )
@@ -1519,9 +1477,7 @@ def _bosses_need_coords(bosses: list[Any]) -> bool:
         locs = boss.get("locations") if isinstance(boss.get("locations"), list) else []
         if not locs:
             return True
-        if not any(
-            isinstance(loc, dict) and loc.get("positions") for loc in locs
-        ):
+        if not any(isinstance(loc, dict) and loc.get("positions") for loc in locs):
             return True
     return False
 
@@ -1590,39 +1546,19 @@ def _apply_map_markers(
     need_transits = _transits_missing(extracts)
     need_transit_coords = _transit_coords_missing(extracts)
     need_boss_coords = _bosses_need_coords(bosses)
-    need_spawns = not (
-        isinstance(row.get("spawns"), list) and len(row.get("spawns") or []) > 0
-    )
+    need_spawns = not (isinstance(row.get("spawns"), list) and len(row.get("spawns") or []) > 0)
     need_locks = _layer_needs_fill(
         row.get("locks") if isinstance(row.get("locks"), list) else []
-    ) or _locks_need_key_names(
-        row.get("locks") if isinstance(row.get("locks"), list) else []
-    )
-    need_hazards = _layer_needs_fill(
-        row.get("hazards") if isinstance(row.get("hazards"), list) else []
-    )
-    need_switches = _layer_needs_fill(
-        row.get("switches") if isinstance(row.get("switches"), list) else []
-    )
+    ) or _locks_need_key_names(row.get("locks") if isinstance(row.get("locks"), list) else [])
+    need_hazards = _layer_needs_fill(row.get("hazards") if isinstance(row.get("hazards"), list) else [])
+    need_switches = _layer_needs_fill(row.get("switches") if isinstance(row.get("switches"), list) else [])
     need_stationary = _layer_needs_fill(
-        row.get("stationary_weapons")
-        if isinstance(row.get("stationary_weapons"), list)
-        else []
+        row.get("stationary_weapons") if isinstance(row.get("stationary_weapons"), list) else []
     )
-    need_btr = _layer_needs_fill(
-        row.get("btr_stops") if isinstance(row.get("btr_stops"), list) else []
-    )
+    need_btr = _layer_needs_fill(row.get("btr_stops") if isinstance(row.get("btr_stops"), list) else [])
     need_containers = loot_containers and (
-        _layer_needs_fill(
-            row.get("loot_containers")
-            if isinstance(row.get("loot_containers"), list)
-            else []
-        )
-        or _containers_need_names(
-            row.get("loot_containers")
-            if isinstance(row.get("loot_containers"), list)
-            else []
-        )
+        _layer_needs_fill(row.get("loot_containers") if isinstance(row.get("loot_containers"), list) else [])
+        or _containers_need_names(row.get("loot_containers") if isinstance(row.get("loot_containers"), list) else [])
     )
     need_loot_loose = loot_loose and _layer_needs_fill(
         row.get("loot_loose") if isinstance(row.get("loot_loose"), list) else []
@@ -1651,14 +1587,10 @@ def _apply_map_markers(
     gql_extracts = extra.get("extracts") if isinstance(extra.get("extracts"), list) else []
     gql_transits = extra.get("transits") if isinstance(extra.get("transits"), list) else []
     extract_by_id = {
-        str(item.get("id") or ""): item
-        for item in gql_extracts
-        if isinstance(item, dict) and item.get("id")
+        str(item.get("id") or ""): item for item in gql_extracts if isinstance(item, dict) and item.get("id")
     }
     extract_by_name = {
-        str(item.get("name") or ""): item
-        for item in gql_extracts
-        if isinstance(item, dict) and item.get("name")
+        str(item.get("name") or ""): item for item in gql_extracts if isinstance(item, dict) and item.get("name")
     }
     transit_by_id = {
         str(item.get("id") or ""): item
@@ -1668,8 +1600,7 @@ def _apply_map_markers(
     transit_by_desc = {
         str(item.get("description") or item.get("name") or ""): item
         for item in gql_transits
-        if isinstance(item, dict)
-        and (item.get("description") or item.get("name"))
+        if isinstance(item, dict) and (item.get("description") or item.get("name"))
     }
     for extract in extracts:
         if not isinstance(extract, dict):
@@ -1678,17 +1609,13 @@ def _apply_map_markers(
             continue
         if _is_transit_extract(extract):
             raw_id = _transit_raw_id(str(extract.get("id") or ""))
-            src = transit_by_id.get(raw_id) or transit_by_desc.get(
-                str(extract.get("name") or "")
-            )
+            src = transit_by_id.get(raw_id) or transit_by_desc.get(str(extract.get("name") or ""))
             # 兼容 locale 前原始 description 仍写在 id 后缀里的情况
             if not src and raw_id and raw_id not in transit_by_id:
                 src = transit_by_desc.get(raw_id)
             _fill_point_from_src(extract, src if isinstance(src, dict) else None)
             continue
-        src = extract_by_id.get(str(extract.get("id") or "")) or extract_by_name.get(
-            str(extract.get("name") or "")
-        )
+        src = extract_by_id.get(str(extract.get("id") or "")) or extract_by_name.get(str(extract.get("name") or ""))
         _fill_point_from_src(extract, src if isinstance(src, dict) else None)
     if need_transits:
         seen = {str(item.get("name") or "") for item in extracts if isinstance(item, dict)}
@@ -1747,9 +1674,7 @@ def _apply_map_markers(
             else []
         )
         row["stationary_weapons"] = _merge_marker_layer(
-            row.get("stationary_weapons")
-            if isinstance(row.get("stationary_weapons"), list)
-            else [],
+            row.get("stationary_weapons") if isinstance(row.get("stationary_weapons"), list) else [],
             _parse_map_stationary_weapons(gql_stationary, locale or {}),
             ("id", "name"),
         )
@@ -1775,9 +1700,7 @@ def _apply_map_markers(
             else []
         )
         row["loot_containers"] = _merge_marker_layer(
-            row.get("loot_containers")
-            if isinstance(row.get("loot_containers"), list)
-            else [],
+            row.get("loot_containers") if isinstance(row.get("loot_containers"), list) else [],
             _parse_map_loot_containers(gql_boxes, locale or {}),
             ("container_id", "normalized_name"),
             fill_meta=True,
@@ -1809,11 +1732,7 @@ def slim_loot_loose_item(item: dict[str, Any]) -> dict[str, Any]:
         "id": str(item.get("id") or "").strip(),
         "name": str(item.get("name") or "").strip(),
         "short_name": str(item.get("short_name") or "").strip(),
-        "handbook_ids": [
-            str(cid).strip()
-            for cid in handbook
-            if cid is not None and str(cid).strip()
-        ],
+        "handbook_ids": [str(cid).strip() for cid in handbook if cid is not None and str(cid).strip()],
     }
 
 
@@ -1841,9 +1760,7 @@ def parse_map_rows(
     locale = payload.get("locale") if isinstance(payload.get("locale"), dict) else {}
     maps = _maps_blob(payload)
     mobs = _mobs_blob(payload)
-    container_catalog = (
-        _loot_containers_blob(payload) if loot_containers else {}
-    )
+    container_catalog = _loot_containers_blob(payload) if loot_containers else {}
     weapon_catalog = _stationary_weapons_blob(payload)
     slugs = assign_boss_slugs(_spawn_mobs(maps, mobs))
     rows: list[dict[str, Any]] = []
@@ -1983,9 +1900,7 @@ def _attach_map_loot_layers(
 ) -> None:
     map_slug = str(row.get("slug") or "")
     if map_slug and (loot_loose or loot_containers):
-        loot_row = bundle.loot_row(
-            map_slug, loot_loose=loot_loose, loot_containers=loot_containers
-        )
+        loot_row = bundle.loot_row(map_slug, loot_loose=loot_loose, loot_containers=loot_containers)
         if loot_row is not None:
             if loot_loose:
                 row["loot_loose"] = loot_row.get("loot_loose") or []

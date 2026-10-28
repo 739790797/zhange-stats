@@ -17,13 +17,7 @@ export const COMMUNITY_KEY_HINT = "来源非官方 API（社区百科归包，�
 export type TarkovKeyOwnedFilter = "all" | "missing" | "owned";
 
 export type TarkovKeySourceKind = "barter" | "craft" | "task" | "flea";
-export type TarkovKeyTagKind =
-  | TarkovKeySourceKind
-  | "uses"
-  | "access"
-  | "lock"
-  | "power"
-  | "need";
+export type TarkovKeyTagKind = TarkovKeySourceKind | "uses" | "access" | "lock" | "power" | "need";
 
 export type TarkovKeyPackSources = {
   barters?: Array<{
@@ -125,9 +119,7 @@ export type TarkovKeyPackOwnedState = {
 
 function asIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (id): id is string => typeof id === "string" && id.trim().length > 0,
-  );
+  return value.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
 }
 
 export function parseOwnedState(raw: string | null | undefined): string[] {
@@ -184,10 +176,7 @@ export function markOwnsMigrated(ids: string[]): void {
 export const TARKOV_KEY_OWNS_QUERY_KEY = ["guides-tarkov-key-owns"] as const;
 
 /** 账号钥匙拥有写入缓存，并让钥匙管理 / 房间快照一起刷新。 */
-export function applyTarkovKeyOwnsCache(
-  queryClient: QueryClient,
-  ids: string[],
-): void {
+export function applyTarkovKeyOwnsCache(queryClient: QueryClient, ids: string[]): void {
   markOwnsMigrated(ids);
   queryClient.setQueryData(TARKOV_KEY_OWNS_QUERY_KEY, { item_ids: ids });
   void queryClient.invalidateQueries({ queryKey: ["guides-tarkov-raid-room"] });
@@ -213,9 +202,7 @@ export function packOwnedCount(
   return { have, total: keys.length };
 }
 
-export function isCommunityKeyBind(
-  key: Pick<TarkovKeyPackKey, "community">,
-): boolean {
+export function isCommunityKeyBind(key: Pick<TarkovKeyPackKey, "community">): boolean {
   return key.community === true;
 }
 
@@ -267,10 +254,7 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
       label: "以物易物",
       hint: uniqueHints(
         barters.map((row) => {
-          const name = traderDisplayName(
-            row.trader_slug || "",
-            row.trader_name || "",
-          );
+          const name = traderDisplayName(row.trader_slug || "", row.trader_name || "");
           const level = Number(row.min_trader_level || 0);
           return level > 0 ? `${name} ${level}级` : name;
         }),
@@ -290,9 +274,7 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
           return level > 0 ? `${name} ${level}级` : name;
         }),
       ),
-      href: first?.station_slug
-        ? tarkovHideoutHref(first.station_slug)
-        : undefined,
+      href: first?.station_slug ? tarkovHideoutHref(first.station_slug) : undefined,
     });
   }
   const tasks = sources?.tasks || [];
@@ -301,11 +283,7 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
     tags.push({
       kind: "task",
       label: "任务奖励",
-      hint: uniqueHints(
-        tasks.map((row) =>
-          isPlaceholderTaskName(row.name) ? "" : row.name,
-        ),
-      ),
+      hint: uniqueHints(tasks.map((row) => (isPlaceholderTaskName(row.name) ? "" : row.name))),
       href: first?.id ? tarkovTaskHref(first.id) : undefined,
     });
   }
@@ -314,10 +292,7 @@ export function formatKeySourceTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
     tags.push({
       kind: "flea",
       label: "跳蚤市场",
-      hint:
-        price != null && Number.isFinite(price) && price > 0
-          ? formatMoney(price)
-          : "可上架",
+      hint: price != null && Number.isFinite(price) && price > 0 ? formatMoney(price) : "可上架",
       href: itemHrefFromTypes(key.id, key.types || []),
     });
   }
@@ -375,9 +350,7 @@ export function formatKeyObtainTags(key: TarkovKeyPackKey): TarkovKeySourceTag[]
     }));
 }
 
-export function formatKeyFleaTag(
-  key: TarkovKeyPackKey,
-): TarkovKeySourceTag | null {
+export function formatKeyFleaTag(key: TarkovKeyPackKey): TarkovKeySourceTag | null {
   return formatKeySourceTags(key).find((tag) => tag.kind === "flea") || null;
 }
 
@@ -388,9 +361,7 @@ export function formatKeyUsageMarks(key: TarkovKeyPackKey): string[] {
   return marks;
 }
 
-export function inferLockTypesFromText(
-  ...texts: Array<string | undefined>
-): string[] {
+export function inferLockTypesFromText(...texts: Array<string | undefined>): string[] {
   const hay = texts.map((part) => part || "").join(" ");
   if (!hay.trim()) return [];
   const out: string[] = [];
@@ -409,11 +380,7 @@ export function formatKeyLockTypes(key: TarkovKeyPackKey): string[] {
     if (label && !fromApi.includes(label)) fromApi.push(label);
   }
   if (fromApi.length) return fromApi;
-  const inferred = inferLockTypesFromText(
-    key.description,
-    key.name,
-    key.short_name,
-  );
+  const inferred = inferLockTypesFromText(key.description, key.name, key.short_name);
   if (inferred.length) return inferred;
   if ((key.lock_count || 0) > 0) return ["门"];
   return [];
@@ -423,9 +390,7 @@ export function formatKeyLockTypeLine(key: TarkovKeyPackKey): string {
   return formatKeyLockTypes(key).join(" · ");
 }
 
-export function formatKeyUsageNeedTags(
-  key: TarkovKeyPackKey,
-): TarkovKeySourceTag[] {
+export function formatKeyUsageNeedTags(key: TarkovKeyPackKey): TarkovKeySourceTag[] {
   return formatKeyUsageTags(key).filter((tag) => tag.kind === "need");
 }
 
@@ -448,9 +413,7 @@ export function keyLockTypeSortValue(key: TarkovKeyPackKey): string {
 
 export function formatKeyUsageTags(key: TarkovKeyPackKey): TarkovKeySourceTag[] {
   const tags: TarkovKeySourceTag[] = [];
-  const types = (key.lock_types || [])
-    .map((row) => lockTypeLabel(row))
-    .filter(Boolean);
+  const types = (key.lock_types || []).map((row) => lockTypeLabel(row)).filter(Boolean);
   if (types.length) {
     tags.push({ kind: "lock", label: "门锁", hint: uniqueHints(types) });
   }
@@ -460,18 +423,12 @@ export function formatKeyUsageTags(key: TarkovKeyPackKey): TarkovKeySourceTag[] 
   const tasks = key.used_in_tasks || [];
   for (const task of tasks.slice(0, MAX_NEED_TAGS)) {
     const notes = (task.notes || []).filter(
-      (note) =>
-        note.trim() &&
-        !isPlaceholderTaskName(note) &&
-        !isKeySpawnHint(note),
+      (note) => note.trim() && !isPlaceholderTaskName(note) && !isKeySpawnHint(note),
     );
     tags.push({
       kind: "need",
       label: "任务需要",
-      hint: uniqueHints([
-        isPlaceholderTaskName(task.name) ? "" : task.name,
-        ...notes,
-      ]),
+      hint: uniqueHints([isPlaceholderTaskName(task.name) ? "" : task.name, ...notes]),
       href: task.id ? tarkovTaskHref(task.id) : undefined,
     });
   }
@@ -488,12 +445,7 @@ export function formatKeyUsageTags(key: TarkovKeyPackKey): TarkovKeySourceTag[] 
 export function keyMatchesQuery(key: TarkovKeyPackKey, q: string): boolean {
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
-  const parts: Array<string | undefined> = [
-    key.name,
-    key.short_name,
-    key.id,
-    key.description,
-  ];
+  const parts: Array<string | undefined> = [key.name, key.short_name, key.id, key.description];
   if (key.access) parts.push("入场");
   if (key.needs_power) parts.push("供电", "需供电");
   for (const label of formatKeyLockTypes(key)) {
@@ -505,9 +457,7 @@ export function keyMatchesQuery(key: TarkovKeyPackKey, q: string): boolean {
   for (const task of key.sources?.tasks || []) {
     parts.push(task.name);
   }
-  const hay = parts
-    .map((part) => String(part || "").toLowerCase())
-    .join(" ");
+  const hay = parts.map((part) => String(part || "").toLowerCase()).join(" ");
   return hay.includes(needle);
 }
 
@@ -525,9 +475,7 @@ export function filterPackKeys(
   });
 }
 
-export function readOwnedFilter(
-  raw: string | null | undefined,
-): TarkovKeyOwnedFilter {
+export function readOwnedFilter(raw: string | null | undefined): TarkovKeyOwnedFilter {
   if (raw === "owned" || raw === "missing") return raw;
   return "all";
 }
@@ -553,25 +501,16 @@ export function collectPackKeys(
   return out;
 }
 
-export function resolvePackSlug(
-  requested: string | null | undefined,
-  slugs: string[],
-): string {
+export function resolvePackSlug(requested: string | null | undefined, slugs: string[]): string {
   const raw = (requested || "").trim().toLowerCase();
   if (!raw || raw === ALL_PACK_SLUG) return ALL_PACK_SLUG;
   if (!slugs.length) return ALL_PACK_SLUG;
   const canon = raw === UNBOUND_PACK_SLUG ? UNBOUND_PACK_SLUG : tarkovMapSlug(raw);
-  const hit = slugs.find(
-    (slug) =>
-      slug === raw || slug === canon || tarkovMapSlug(slug) === canon,
-  );
+  const hit = slugs.find((slug) => slug === raw || slug === canon || tarkovMapSlug(slug) === canon);
   return hit || ALL_PACK_SLUG;
 }
 
-export function firstPackSlugForQuery(
-  packs: TarkovKeyPackNavItem[],
-  q: string,
-): string | null {
+export function firstPackSlugForQuery(packs: TarkovKeyPackNavItem[], q: string): string | null {
   const needle = q.trim();
   if (!needle) return null;
   for (const pack of packs) {

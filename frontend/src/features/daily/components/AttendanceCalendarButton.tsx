@@ -1,16 +1,6 @@
 import { CalendarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Empty,
-  Modal,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Empty, Modal, Space, Spin, Tag, Typography, message } from "antd";
 import { useState } from "react";
 import {
   CheckinAwardsLine,
@@ -106,11 +96,7 @@ export function AttendanceCalendarButton({
         width={840}
         footer={
           <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              loading={refreshing}
-              onClick={() => void onRefresh()}
-            >
+            <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => void onRefresh()}>
               刷新
             </Button>
             <Button type="primary" onClick={() => setOpen(false)}>
@@ -125,21 +111,13 @@ export function AttendanceCalendarButton({
             <Spin />
           </div>
         ) : query.isError ? (
-          <Alert
-            type="warning"
-            showIcon
-            message={apiError(query.error, "加载签到日历失败")}
-          />
+          <Alert type="warning" showIcon message={apiError(query.error, "加载签到日历失败")} />
         ) : !data?.days?.length ? (
           <Empty description="暂无签到日历数据" />
         ) : (
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             {data.stale ? (
-              <Alert
-                type="warning"
-                showIcon
-                message="官方同步失败，正在显示缓存"
-              />
+              <Alert type="warning" showIcon message="官方同步失败，正在显示缓存" />
             ) : null}
             {!progressReliable && unreliableHint ? (
               <Alert type="info" showIcon message={unreliableHint} />
@@ -160,10 +138,7 @@ export function AttendanceCalendarButton({
                 )
               ) : null}
             </Space>
-            <Typography.Paragraph
-              type="secondary"
-              style={{ marginBottom: 0, fontSize: 12 }}
-            >
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
               {dayOrdinalHint}
             </Typography.Paragraph>
             <div
@@ -181,13 +156,10 @@ export function AttendanceCalendarButton({
                   <div
                     key={day.day}
                     style={{
-                      border:
-                        "1px solid var(--ant-color-border-secondary, #f0f0f0)",
+                      border: "1px solid var(--ant-color-border-secondary, #f0f0f0)",
                       borderRadius: 8,
                       padding: "10px 12px",
-                      background: showClaimed
-                        ? "rgba(82, 196, 26, 0.06)"
-                        : "transparent",
+                      background: showClaimed ? "rgba(82, 196, 26, 0.06)" : "transparent",
                       opacity: showClaimMarks ? (showClaimed ? 1 : 0.85) : 1,
                     }}
                   >

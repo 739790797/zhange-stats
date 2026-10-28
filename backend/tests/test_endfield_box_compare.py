@@ -171,7 +171,10 @@ def test_compare_reads_other_members_from_cache_only(db, monkeypatch) -> None:
     assert row["roles"][0]["role_name"] == "白衣"
     candidates = compare.list_compare_candidates(db, viewer)
     assert next(candidate for candidate in candidates if candidate["member_id"] == other.id)["game_role_name"] == "白衣"
-    assert next(candidate for candidate in candidates if candidate["member_id"] == other.id)["avatar_url"] == other.avatar_url
+    assert (
+        next(candidate for candidate in candidates if candidate["member_id"] == other.id)["avatar_url"]
+        == other.avatar_url
+    )
     assert [candidate["member_id"] for candidate in candidates] == [
         viewer.member.id,
         other.id,
@@ -212,9 +215,7 @@ def test_other_member_uid_must_be_in_cached_roles(db, monkeypatch) -> None:
         lambda *_args, **_kwargs: pytest.fail("must not fetch another member"),
     )
 
-    row = compare.build_box_compare(
-        db, viewer, [other.id], role_uids={other.id: "unknown-uid"}
-    )["rows"][0]
+    row = compare.build_box_compare(db, viewer, [other.id], role_uids={other.id: "unknown-uid"})["rows"][0]
     assert row["status"] == "error"
     assert row["owned"] == {}
     assert [role["uid"] for role in row["roles"]] == ["uid-other"]

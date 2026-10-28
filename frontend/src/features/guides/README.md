@@ -1,9 +1,5 @@
-# 自托管攻略字体资产
+# 攻略 feature 资源
 
-攻略壳使用随 feature 提交的本地字体，不依赖运行时 Google Fonts 请求。
+塔科夫页面与桌面端共用的设计令牌、基础控件和字体来自 `frontend/vendor/zhange-base/design-system/`。字体依赖由本前端直接声明，字体许可随 base 仓库的 `design-system/licenses/fonts/` 保存，并随静态 Release 附带。
 
-| Feature | 文件 | 许可/说明 |
-|---|---|---|
-| `tarkov/assets/fonts/` | IBM Plex Sans、IBM Plex Mono、Rajdhani 拉丁子集 | SIL Open Font License 1.1；许可文件与字体并置。 |
-
-Tarkov 的 CJK 字体由 `tarkov/components/tarkovFonts.css` 回退到本机字体。再分发时保留对应 feature 的许可/notice 文件。
+地图数据、页面图标和攻略页面专属样式仍归对应 guide feature；不要在 feature 内复制共享字体或设计令牌。

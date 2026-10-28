@@ -343,12 +343,7 @@ function apply(measured: Measured) {
   paintAxis(track, "x", measured.x, measured.rtl);
 }
 
-function paintAxis(
-  track: Track,
-  axis: Axis,
-  placed: Measured["y"],
-  rtl: boolean,
-) {
+function paintAxis(track: Track, axis: Axis, placed: Measured["y"], rtl: boolean) {
   if (!placed) {
     const thumb = track[axis];
     if (thumb) thumb.hidden = true;
@@ -363,9 +358,7 @@ function paintAxis(
     thumb.style.width = `${BAR}px`;
     thumb.style.height = `${placed.metrics.size}px`;
     thumb.style.top = `${placed.box.top + EDGE + placed.metrics.offset}px`;
-    thumb.style.left = rtl
-      ? `${placed.box.left + EDGE}px`
-      : `${placed.box.right - BAR - EDGE}px`;
+    thumb.style.left = rtl ? `${placed.box.left + EDGE}px` : `${placed.box.right - BAR - EDGE}px`;
     return;
   }
   thumb.style.height = `${BAR}px`;
@@ -379,9 +372,7 @@ function ensureThumb(track: Track, axis: Axis): HTMLDivElement {
   if (existing) return existing;
   const thumb = document.createElement("div");
   thumb.className =
-    axis === "x"
-      ? "app-overlay-scrollbar app-overlay-scrollbar--x"
-      : "app-overlay-scrollbar";
+    axis === "x" ? "app-overlay-scrollbar app-overlay-scrollbar--x" : "app-overlay-scrollbar";
   thumb.hidden = true;
   thumb.setAttribute("aria-hidden", "true");
   bindThumb(track.el, axis, thumb);
@@ -486,7 +477,13 @@ function viewportBox(): Box {
 }
 
 function overflowClips(value: string): boolean {
-  return value === "auto" || value === "scroll" || value === "hidden" || value === "clip" || value === "overlay";
+  return (
+    value === "auto" ||
+    value === "scroll" ||
+    value === "hidden" ||
+    value === "clip" ||
+    value === "overlay"
+  );
 }
 
 function scrollerFrom(target: EventTarget | null): HTMLElement | null {
@@ -528,9 +525,7 @@ function isLightSurface(el: HTMLElement): boolean {
 }
 
 function parseColor(bg: string): { r: number; g: number; b: number; a: number } | null {
-  const match = bg.match(
-    /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)/,
-  );
+  const match = bg.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)/);
   if (!match) return null;
   return {
     r: Number(match[1]),

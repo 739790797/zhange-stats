@@ -12,9 +12,7 @@ export type WorkbenchSlotWalkNode = {
   children?: WorkbenchSlotWalkNode[];
 };
 
-export function pairsSignature(
-  pairs: TarkovWorkbenchPair[] | undefined,
-): string {
+export function pairsSignature(pairs: TarkovWorkbenchPair[] | undefined): string {
   return [...(pairs || [])]
     .filter((row) => row.slot_id && row.item_id)
     .map((row) => `${row.slot_id}:${row.item_id}`)
@@ -22,9 +20,7 @@ export function pairsSignature(
     .join(",");
 }
 
-export function pairsFromTree(
-  nodes: WorkbenchSlotWalkNode[] | undefined,
-): TarkovWorkbenchPair[] {
+export function pairsFromTree(nodes: WorkbenchSlotWalkNode[] | undefined): TarkovWorkbenchPair[] {
   const out: TarkovWorkbenchPair[] = [];
   for (const node of nodes || []) {
     const installedId = node.installed?.id;
@@ -50,9 +46,7 @@ export function findSlotNode<T extends WorkbenchSlotWalkNode>(
   return null;
 }
 
-export function collectSlotIds(
-  nodes: WorkbenchSlotWalkNode[] | undefined,
-): string[] {
+export function collectSlotIds(nodes: WorkbenchSlotWalkNode[] | undefined): string[] {
   const out: string[] = [];
   for (const node of nodes || []) {
     if (node.id) out.push(node.id);
@@ -61,9 +55,7 @@ export function collectSlotIds(
   return out;
 }
 
-export function collectInstalledParts(
-  nodes: WorkbenchSlotWalkNode[] | undefined,
-): Array<{
+export function collectInstalledParts(nodes: WorkbenchSlotWalkNode[] | undefined): Array<{
   id: string;
   conflicting_ids?: string[] | null;
   category_ids?: string[] | null;
@@ -138,12 +130,7 @@ export function formatSignedStat(value: number | null | undefined): string {
   return rounded > 0 ? `+${rounded}` : String(rounded);
 }
 
-export type WorkbenchPartSortKey =
-  | "name"
-  | "ergonomics"
-  | "recoil"
-  | "weight"
-  | "price";
+export type WorkbenchPartSortKey = "name" | "ergonomics" | "recoil" | "weight" | "price";
 
 export type WorkbenchPartSortDir = "asc" | "desc";
 
@@ -198,10 +185,7 @@ export function sortWorkbenchParts<T extends WorkbenchSortablePart>(
   return [...parts].sort((a, b) => {
     const cmp = compareWorkbenchPartField(a, b, sort.key) * sign;
     if (cmp !== 0) return cmp;
-    return (a.name || a.short_name || a.id).localeCompare(
-      b.name || b.short_name || b.id,
-      "zh",
-    );
+    return (a.name || a.short_name || a.id).localeCompare(b.name || b.short_name || b.id, "zh");
   });
 }
 
@@ -211,10 +195,7 @@ function compareWorkbenchPartField(
   key: WorkbenchPartSortKey,
 ): number {
   if (key === "name") {
-    return (a.name || a.short_name || a.id).localeCompare(
-      b.name || b.short_name || b.id,
-      "zh",
-    );
+    return (a.name || a.short_name || a.id).localeCompare(b.name || b.short_name || b.id, "zh");
   }
   const left = workbenchPartSortValue(a, key);
   const right = workbenchPartSortValue(b, key);
@@ -236,39 +217,22 @@ export const WORKBENCH_STRENGTH_MAX = 51;
 export const WORKBENCH_STRENGTH_DEFAULT = 10;
 export const WORKBENCH_EQUIP_ERGO_PENALTY_MIN = 0;
 export const WORKBENCH_EQUIP_ERGO_PENALTY_MAX = 100;
-export const WORKBENCH_STRENGTH_STORAGE_KEY =
-  "zhange.guides.tarkov.workbench.strengthLevel";
+export const WORKBENCH_STRENGTH_STORAGE_KEY = "zhange.guides.tarkov.workbench.strengthLevel";
 export const WORKBENCH_EQUIP_ERGO_PENALTY_STORAGE_KEY =
   "zhange.guides.tarkov.workbench.equipErgoPenalty";
 
-function clampInt(
-  raw: unknown,
-  min: number,
-  max: number,
-  fallback: number,
-): number {
-  const n =
-    typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
+function clampInt(raw: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
 export function clampWorkbenchStrengthLevel(raw: unknown): number {
-  return clampInt(
-    raw,
-    WORKBENCH_STRENGTH_MIN,
-    WORKBENCH_STRENGTH_MAX,
-    WORKBENCH_STRENGTH_DEFAULT,
-  );
+  return clampInt(raw, WORKBENCH_STRENGTH_MIN, WORKBENCH_STRENGTH_MAX, WORKBENCH_STRENGTH_DEFAULT);
 }
 
 export function clampWorkbenchEquipErgoPenaltyPct(raw: unknown): number {
-  return clampInt(
-    raw,
-    WORKBENCH_EQUIP_ERGO_PENALTY_MIN,
-    WORKBENCH_EQUIP_ERGO_PENALTY_MAX,
-    0,
-  );
+  return clampInt(raw, WORKBENCH_EQUIP_ERGO_PENALTY_MIN, WORKBENCH_EQUIP_ERGO_PENALTY_MAX, 0);
 }
 
 /** 滑条 0–100 的惩罚百分点 → 公式用的小数（负值）。 */
@@ -278,9 +242,7 @@ export function workbenchEquipErgoModifier(penaltyPct: number): number {
 
 export function loadWorkbenchStrengthLevel(): number {
   try {
-    return clampWorkbenchStrengthLevel(
-      localStorage.getItem(WORKBENCH_STRENGTH_STORAGE_KEY),
-    );
+    return clampWorkbenchStrengthLevel(localStorage.getItem(WORKBENCH_STRENGTH_STORAGE_KEY));
   } catch {
     return WORKBENCH_STRENGTH_DEFAULT;
   }
@@ -319,36 +281,21 @@ export function saveWorkbenchEquipErgoPenaltyPct(value: number) {
 }
 
 /** 人机对应的重量上限（kg），与后端 workbench 过摆判定同一式。 */
-export function workbenchErgoWeightCap(
-  ergo: number,
-  equipErgo = 0,
-): number {
+export function workbenchErgoWeightCap(ergo: number, equipErgo = 0): number {
   const adjusted = ergo * (1 + equipErgo);
   return 0.0007556 * adjusted * adjusted + 0.02736 * adjusted + 2.9159;
 }
 
-function workbenchEvoErgoDeltaRaw(
-  ergo: number,
-  weight: number,
-  equipErgo = 0,
-): number {
+function workbenchEvoErgoDeltaRaw(ergo: number, weight: number, equipErgo = 0): number {
   return -15 * (weight - workbenchErgoWeightCap(ergo, equipErgo));
 }
 
 /** Evo 人机 Delta：-15 × (重量 − 人机重量上限)。正值未过摆。展示取一位小数。 */
-export function workbenchEvoErgoDelta(
-  ergo: number,
-  weight: number,
-  equipErgo = 0,
-): number {
+export function workbenchEvoErgoDelta(ergo: number, weight: number, equipErgo = 0): number {
   return Math.round(workbenchEvoErgoDeltaRaw(ergo, weight, equipErgo) * 10) / 10;
 }
 
-export function workbenchOverswing(
-  ergo: number,
-  weight: number,
-  equipErgo = 0,
-): boolean {
+export function workbenchOverswing(ergo: number, weight: number, equipErgo = 0): boolean {
   return workbenchEvoErgoDeltaRaw(ergo, weight, equipErgo) < 0;
 }
 
@@ -377,16 +324,12 @@ export function formatWorkbenchErgo(value: number | null | undefined): string {
   return String(Math.round(value * 10) / 10);
 }
 
-export function formatWorkbenchAccuracyMoa(
-  value: number | null | undefined,
-): string {
+export function formatWorkbenchAccuracyMoa(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${value.toFixed(2)} MOA`;
 }
 
-export function formatWorkbenchArmStamina(
-  value: number | null | undefined,
-): string {
+export function formatWorkbenchArmStamina(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${value.toFixed(1)}s`;
 }
@@ -397,9 +340,7 @@ export function formatWorkbenchEed(value: number | null | undefined): string {
   return value > 0 ? `+${text}` : text;
 }
 
-export function formatWorkbenchMuzzleVelocity(
-  value: number | null | undefined,
-): string {
+export function formatWorkbenchMuzzleVelocity(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${Math.round(value)} m/s`;
 }

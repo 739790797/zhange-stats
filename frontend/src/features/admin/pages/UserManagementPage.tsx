@@ -1,16 +1,6 @@
 import { QqOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  message,
-} from "antd";
+import { Button, Form, Input, Modal, Select, Space, Table, Tag, message } from "antd";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUser, deleteUser, fetchUsers, updateUser } from "@/features/profile/api/usersApi";
@@ -82,13 +72,7 @@ function BindPlatformMark({ icon }: { icon: PlatformIconName | "qq" }) {
   return <PlatformIcon name={icon} size={BIND_ICON_SIZE} />;
 }
 
-function BindStatusTags({
-  row,
-  platforms,
-}: {
-  row: UserBrief;
-  platforms: BindPlatform[];
-}) {
+function BindStatusTags({ row, platforms }: { row: UserBrief; platforms: BindPlatform[] }) {
   return (
     <Space size={[4, 4]} wrap>
       {platforms.map((p) => {
@@ -158,13 +142,7 @@ export default function UserManagementPage() {
   });
 
   const saveUser = useMutation({
-    mutationFn: ({
-      id,
-      values,
-    }: {
-      id: number;
-      values: UserFormValues;
-    }) => {
+    mutationFn: ({ id, values }: { id: number; values: UserFormValues }) => {
       const payload: {
         email?: string;
         display_name?: string;
@@ -233,20 +211,14 @@ export default function UserManagementPage() {
           {
             title: "平台绑定",
             key: "binds",
-            render: (_, row) => (
-              <BindStatusTags row={row} platforms={platforms} />
-            ),
+            render: (_, row) => <BindStatusTags row={row} platforms={platforms} />,
           },
           {
             title: "角色",
             dataIndex: "role",
             width: 100,
             render: (role: string) =>
-              role === "admin" ? (
-                <Tag color="gold">管理员</Tag>
-              ) : (
-                <Tag>普通用户</Tag>
-              ),
+              role === "admin" ? <Tag color="gold">管理员</Tag> : <Tag>普通用户</Tag>,
           },
           {
             title: "操作",
@@ -306,11 +278,7 @@ export default function UserManagementPage() {
         confirmLoading={addUser.isPending}
         destroyOnClose
       >
-        <Form
-          form={createForm}
-          layout="vertical"
-          onFinish={(values) => addUser.mutate(values)}
-        >
+        <Form form={createForm} layout="vertical" onFinish={(values) => addUser.mutate(values)}>
           <Form.Item
             name="email"
             label="邮箱"
@@ -394,19 +362,14 @@ export default function UserManagementPage() {
               },
             ]}
           >
-            <Input.Password
-              placeholder="新密码（可选）"
-              autoComplete="new-password"
-            />
+            <Input.Password placeholder="新密码（可选）" autoComplete="new-password" />
           </Form.Item>
           <Form.Item
             name="role"
             label="角色"
             rules={[{ required: true, message: "请选择角色" }]}
             extra={
-              editing && currentUser?.id === editing.id
-                ? "不能将自己的角色改为普通用户"
-                : undefined
+              editing && currentUser?.id === editing.id ? "不能将自己的角色改为普通用户" : undefined
             }
           >
             <Select

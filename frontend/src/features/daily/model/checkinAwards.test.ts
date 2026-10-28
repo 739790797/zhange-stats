@@ -25,12 +25,8 @@ describe("parseAwardsText", () => {
       { name: "经验", count: 55 },
       { name: "积分", count: 40 },
     ]);
-    expect(parseAwardsText("库洛币+40")).toEqual([
-      { name: "库洛币", count: 40 },
-    ]);
-    expect(parseAwardsText("合成玉x80")).toEqual([
-      { name: "合成玉", count: 80 },
-    ]);
+    expect(parseAwardsText("库洛币+40")).toEqual([{ name: "库洛币", count: 40 }]);
+    expect(parseAwardsText("合成玉x80")).toEqual([{ name: "合成玉", count: 80 }]);
   });
 
   it("ignores status-only copy", () => {
@@ -49,12 +45,10 @@ describe("resolveAwardIconUrl", () => {
   });
 
   it("uses arknights item art only for ALL_CAPS types", () => {
-    expect(
-      resolveAwardIconUrl({ name: "合成玉", resource_type: "DIAMOND_SHD" }),
-    ).toBe(`${ARKNIGHTS_ITEM_ICON_BASE}/DIAMOND_SHD.png`);
-    expect(
-      resolveAwardIconUrl({ name: "积分", resource_type: "score" }),
-    ).toBeNull();
+    expect(resolveAwardIconUrl({ name: "合成玉", resource_type: "DIAMOND_SHD" })).toBe(
+      `${ARKNIGHTS_ITEM_ICON_BASE}/DIAMOND_SHD.png`,
+    );
+    expect(resolveAwardIconUrl({ name: "积分", resource_type: "score" })).toBeNull();
     expect(resolveAwardIconUrl({ name: "情报拼图" })).toBeNull();
   });
 });
@@ -73,13 +67,11 @@ describe("formatAwardsPlainText", () => {
 
 describe("awardsForDisplay", () => {
   it("keeps structured awards and parses text when empty", () => {
-    expect(
-      awardsForDisplay([{ name: "原石", count: 20 }], "今日已签到"),
-    ).toEqual([{ name: "原石", count: 20 }]);
-    expect(awardsForDisplay([], "今日已签到")).toEqual([]);
-    expect(awardsForDisplay(null, "经验+10")).toEqual([
-      { name: "经验", count: 10 },
+    expect(awardsForDisplay([{ name: "原石", count: 20 }], "今日已签到")).toEqual([
+      { name: "原石", count: 20 },
     ]);
+    expect(awardsForDisplay([], "今日已签到")).toEqual([]);
+    expect(awardsForDisplay(null, "经验+10")).toEqual([{ name: "经验", count: 10 }]);
   });
 });
 

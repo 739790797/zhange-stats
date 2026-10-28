@@ -1,4 +1,5 @@
 """森空岛页：活动日历（代理 game-schedule）。"""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -37,9 +38,7 @@ def skland_game_events(
         raise HTTPException(status_code=403, detail="该功能未启用")
 
     try:
-        data = get_game_events(
-            db, game, force=force, include_ended=include_ended
-        )
+        data = get_game_events(db, game, force=force, include_ended=include_ended)
     except GameScheduleError as exc:
         raise HTTPException(status_code=502, detail=exc.message) from exc
 
@@ -51,14 +50,8 @@ def skland_game_events(
         ongoing_count=int(data.get("ongoing_count") or 0),
         upcoming_count=int(data.get("upcoming_count") or 0),
         permanent_count=int(data.get("permanent_count") or 0),
-        events=[
-            GameScheduleEventOut(**e)
-            for e in (data.get("events") or [])
-            if isinstance(e, dict)
-        ],
+        events=[GameScheduleEventOut(**e) for e in (data.get("events") or []) if isinstance(e, dict)],
         permanent_events=[
-            GameScheduleEventOut(**e)
-            for e in (data.get("permanent_events") or [])
-            if isinstance(e, dict)
+            GameScheduleEventOut(**e) for e in (data.get("permanent_events") or []) if isinstance(e, dict)
         ],
     )

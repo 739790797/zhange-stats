@@ -35,36 +35,23 @@ describe("minecraft file paths", () => {
   });
 
   it("keeps relative paths inside a config root", () => {
-    expect(normalizeMinecraftPath("/config/chunky/../chunky")).toBe(
-      "/config/chunky",
-    );
-    expect(isMinecraftPathWithin("/config/chunky", "/config/chunky/config.yml")).toBe(
-      true,
-    );
-    expect(isMinecraftPathWithin("/config/chunky", "/config/other.yml")).toBe(
-      false,
-    );
+    expect(normalizeMinecraftPath("/config/chunky/../chunky")).toBe("/config/chunky");
+    expect(isMinecraftPathWithin("/config/chunky", "/config/chunky/config.yml")).toBe(true);
+    expect(isMinecraftPathWithin("/config/chunky", "/config/other.yml")).toBe(false);
     expect(parentMinecraftPathWithin("/config/chunky", "/config/chunky/tasks")).toBe(
       "/config/chunky",
     );
-    expect(parentMinecraftPathWithin("/config/chunky", "/config/chunky")).toBe(
-      "/config/chunky",
-    );
+    expect(parentMinecraftPathWithin("/config/chunky", "/config/chunky")).toBe("/config/chunky");
     expect(isMinecraftPathWithin("/", "/plugins/Chunky/config.yml")).toBe(true);
     expect(parentMinecraftPathWithin("/", "/config")).toBe("/");
   });
 
   it("turns a picked path into a config-relative filename", () => {
-    expect(
-      relativeMinecraftPathWithin(
-        "/config/chunky",
-        "/config/chunky/tasks/config.json",
-      ),
-    ).toBe("tasks/config.json");
-    expect(configRelPath("/config/chunky", "config.json")).toBe("config.json");
-    expect(configRelPath("/config/chunky", "/config/chunky/core.conf")).toBe(
-      "core.conf",
+    expect(relativeMinecraftPathWithin("/config/chunky", "/config/chunky/tasks/config.json")).toBe(
+      "tasks/config.json",
     );
+    expect(configRelPath("/config/chunky", "config.json")).toBe("config.json");
+    expect(configRelPath("/config/chunky", "/config/chunky/core.conf")).toBe("core.conf");
     expect(configRelPath("/config/chunky", "../server.properties")).toBe("");
   });
 
@@ -119,14 +106,10 @@ describe("minecraft file paths", () => {
 
 describe("overview helpers", () => {
   it("shows join host without port", () => {
-    expect(displayJoinHost({ publicHost: "play.example.com" })).toBe(
-      "play.example.com",
-    );
+    expect(displayJoinHost({ publicHost: "play.example.com" })).toBe("play.example.com");
     expect(displayJoinHost({ address: "mc.example:25565" })).toBe("mc.example");
     expect(displayJoinHost({ address: "[::1]:25565" })).toBe("::1");
-    expect(displayJoinHost({ address: "play.example.com" })).toBe(
-      "play.example.com",
-    );
+    expect(displayJoinHost({ address: "play.example.com" })).toBe("play.example.com");
     expect(displayJoinHost({})).toBe("");
   });
 
@@ -167,9 +150,7 @@ describe("overview helpers", () => {
   });
 
   it("formats mod names and join hints", () => {
-    expect(displayModName({ filename: "lithium.jar", project_title: "Lithium" })).toBe(
-      "Lithium",
-    );
+    expect(displayModName({ filename: "lithium.jar", project_title: "Lithium" })).toBe("Lithium");
     expect(displayModName({ filename: "extra.jar" })).toBe("extra");
     expect(
       joinHints({
@@ -216,10 +197,8 @@ describe("minecraft upload progress copy", () => {
 
 describe("heap flags carried onto a jar command", () => {
   it("keeps only -Xms and -Xmx", () => {
-    expect(
-      heapFlagsFromText(
-        "-Xms4G --add-opens java.base/java.lang=ALL-UNNAMED -Xmx4G",
-      ),
-    ).toBe("-Xms4G -Xmx4G");
+    expect(heapFlagsFromText("-Xms4G --add-opens java.base/java.lang=ALL-UNNAMED -Xmx4G")).toBe(
+      "-Xms4G -Xmx4G",
+    );
   });
 });

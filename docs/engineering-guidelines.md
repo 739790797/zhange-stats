@@ -4,15 +4,15 @@
 
 ## 权威主题文档
 
-| 主题 | 权威来源 |
-|---|---|
-| 数据库模型、迁移与表结构 | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md) |
-| 安全、鉴权、文件管理、上传、跨源与房间权限 | [`security.md`](security.md) |
-| Python 运行日志 | [`logging.md`](logging.md) |
-| 代码分包与运行时目录 | [`directory-layout.md`](directory-layout.md)、[`frontend-architecture.md`](frontend-architecture.md)、[`data/README.md`](../data/README.md) |
-| 前端路由权限 | [`frontend/README.md`](../frontend/README.md) |
-| 开发环境与 CI 质量门 | [`develop.md`](develop.md) |
-| 安装、运行、配置和发版 | [`deploy.md`](deploy.md) |
+| 主题                                       | 权威来源                                                                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 数据库模型、迁移与表结构                   | [`database.md`](database.md)、[`backend/alembic/README.md`](../backend/alembic/README.md)                                                   |
+| 安全、鉴权、文件管理、上传、跨源与房间权限 | [`security.md`](security.md)                                                                                                                |
+| Python 运行日志                            | [`logging.md`](logging.md)                                                                                                                  |
+| 代码分包与运行时目录                       | [`directory-layout.md`](directory-layout.md)、[`frontend-architecture.md`](frontend-architecture.md)、[`data/README.md`](../data/README.md) |
+| 前端路由权限                               | [`frontend/README.md`](../frontend/README.md)                                                                                               |
+| 开发环境与 CI 质量门                       | [`develop.md`](develop.md)                                                                                                                  |
+| 安装、运行、配置和发版                     | [`deploy.md`](deploy.md)                                                                                                                    |
 
 修改行为时先确认权威文档与实际代码一致；项目事实变化时，在同一改动里更新权威文档，不在多个位置复制容易漂移的长规范。
 
@@ -84,6 +84,10 @@
 ## 测试与成对更新
 
 - 规则在哪层实现就优先在哪层测：后端测 service 解析、策略、权限/安全与 OpenAPI 不变量；前端测展示文案、格式化等纯函数。不要重复断言后端已覆盖的 payload 投影/slug 规范化/奖励择优。
+- 测试聚焦用户可观察行为与领域不变量；一个用例只负责一个主要失败原因。对等价输入使用参数化，对不同契约拆开测试；断言具体项目异常，不用宽泛 `Exception`，不测试某个内部函数或属性“不存在”。
+- 异步收发和重试测试必须有界，避免无期限等待循环。测试数据与临时路径使用 fixture 管理，安全权限断言区分操作系统能力，不依赖文本模式写入产生的换行字节。
+- 测试套件变大时，按公开行为、模块 owner 或生命周期拆分文件，保留各自有意义的边界场景；不设行数门槛，不复制同一规则的跨层断言，不为 getter、常量或 mock 调用次数补测试。
+- 格式统一使用根目录 EditorConfig 与 Prettier；Python 使用 Ruff formatter 和 linter。前端生成的 OpenAPI 契约、子模块、运行时数据与构建产物不手工格式化。
 - 不为整页组件随意引入 jsdom 测试；不使用真实 MySQL、同步 `TestClient` lifespan 或真实上游网络来验证普通单测。根据项目 fixture 隔离依赖，跨层只测各层差异。
 - 签到渠道、Adapter、`force`、路径/密钥、日志抑制、外部数据回退等行为变化先找相邻回归测试并补差量；不要为了新平台复制已有公共行为的空壳测试。
 - 必须同步的产物：API schema 变化生成 OpenAPI；表结构变更增加 migration 并更新 `docs/database.md`；配置模板字段变更递增 `_version` 并跑配置同步测试；附件走 `user_files` 并保持 API `serial` 契约；生产行为变化复核 [`security.md`](security.md)/[`deploy.md`](deploy.md)；日志变更对照 [`logging.md`](logging.md)。

@@ -77,10 +77,7 @@ export function MinecraftPerfCard() {
       (row.tps != null && Number.isFinite(row.tps)) ||
       (row.mspt != null && Number.isFinite(row.mspt)),
   );
-  const msptMax = Math.max(
-    50,
-    ...chartData.map((row) => Number(row.mspt) || 0),
-  );
+  const msptMax = Math.max(50, ...chartData.map((row) => Number(row.mspt) || 0));
   const xDomainMin = spanMs > 0 ? rangeStart : undefined;
   const xDomainMax = spanMs > 0 ? rangeEnd : undefined;
 
@@ -101,17 +98,11 @@ export function MinecraftPerfCard() {
           {hasPoint ? (
             <div className={styles.perfLegend} aria-hidden>
               <span className={styles.perfLegendItem}>
-                <span
-                  className={styles.perfLegendDot}
-                  style={{ background: "#5b8ff9" }}
-                />
+                <span className={styles.perfLegendDot} style={{ background: "#5b8ff9" }} />
                 TPS
               </span>
               <span className={styles.perfLegendItem}>
-                <span
-                  className={styles.perfLegendDot}
-                  style={{ background: "#faad14" }}
-                />
+                <span className={styles.perfLegendDot} style={{ background: "#faad14" }} />
                 MSPT
               </span>
             </div>
@@ -131,9 +122,7 @@ export function MinecraftPerfCard() {
             {apiError(query.error, "无法读取性能")}
           </Typography.Text>
         ) : !perf?.enabled && !hasPoint ? (
-          <Typography.Text type="secondary">
-            {perf?.message || "暂无性能数据"}
-          </Typography.Text>
+          <Typography.Text type="secondary">{perf?.message || "暂无性能数据"}</Typography.Text>
         ) : (
           <>
             {perf?.message && !perf.ok ? (
@@ -158,13 +147,11 @@ export function MinecraftPerfCard() {
                 axis={{
                   x: {
                     title: false,
-                    labelFormatter: (value: number) =>
-                      formatAxisTick(Number(value), spanMs),
+                    labelFormatter: (value: number) => formatAxisTick(Number(value), spanMs),
                   },
                 }}
                 tooltip={{
-                  title: (d: { t?: number }) =>
-                    formatTooltipTime(Number(d?.t), spanMs),
+                  title: (d: { t?: number }) => formatTooltipTime(Number(d?.t), spanMs),
                 }}
                 children={[
                   {
@@ -219,9 +206,7 @@ export function MinecraftPerfCard() {
               />
             ) : (
               <Typography.Text type="secondary">
-                {range === "30m"
-                  ? "正在采集，片刻后显示折线"
-                  : "该时间段暂无样本"}
+                {range === "30m" ? "正在采集，片刻后显示折线" : "该时间段暂无样本"}
               </Typography.Text>
             )}
           </>

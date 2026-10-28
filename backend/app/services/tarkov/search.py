@@ -41,9 +41,7 @@ def prepare_query(needle: str) -> PreparedQuery:
     return compact_text(needle), tuple(search_tokens(needle))
 
 
-def hit_rank_prepared(
-    compact_q: str, tokens: tuple[str, ...], *fields: str
-) -> int | None:
+def hit_rank_prepared(compact_q: str, tokens: tuple[str, ...], *fields: str) -> int | None:
     """越小越靠前：0 精确压缩、1 前缀、2 包含、3 分词全中。"""
     if not compact_q and not tokens:
         return None
@@ -81,9 +79,7 @@ def pick_hits(
     prepared = prepare_query(needle)
     scored: list[tuple[int, str, dict[str, Any]]] = []
     for row in rows:
-        rank = hit_rank_prepared(
-            *prepared, *(str(row.get(key) or "") for key in fields)
-        )
+        rank = hit_rank_prepared(*prepared, *(str(row.get(key) or "") for key in fields))
         if rank is None:
             continue
         name = str(row.get("name") or row.get("label") or "")
@@ -214,9 +210,7 @@ def _boss_rows(db: Session) -> list[dict[str, Any]]:
         return []
 
 
-def search_site(
-    db: Session, q: str, *, limit: int = SEARCH_LIMIT, faction: str | None = None
-) -> dict[str, Any]:
+def search_site(db: Session, q: str, *, limit: int = SEARCH_LIMIT, faction: str | None = None) -> dict[str, Any]:
     needle = (q or "").strip()
     if not needle:
         return _empty("")

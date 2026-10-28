@@ -2,15 +2,13 @@ import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import rawMaps from "../src/features/guides/tarkov/data/tarkov-dev-maps.json";
-import { findInteractiveMap, type TarkovDevMapGroup } from "../src/features/guides/tarkov/model/tarkovMapImages";
+import {
+  findInteractiveMap,
+  type TarkovDevMapGroup,
+} from "../src/features/guides/tarkov/model/tarkovMapImages";
 import { snapshotUpstreamPlaces } from "../src/features/guides/tarkov/model/tarkovMapPlaceLabels";
 
-const SKIP = new Set([
-  "shoreline",
-  "streets-of-tarkov",
-  "transits",
-  "openworld",
-]);
+const SKIP = new Set(["shoreline", "streets-of-tarkov", "transits", "openworld"]);
 
 const NAME_MAX = 64;
 

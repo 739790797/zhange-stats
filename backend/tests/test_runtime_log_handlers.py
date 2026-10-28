@@ -39,10 +39,7 @@ def fresh_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     log_file = tmp_path / "logs" / "app.jsonl"
     old = [h for h in (runtime_log_buffer._BUFFER, log_persistence._FILE_HANDLER) if h is not None]
     loggers = {name: logging.getLogger(name) for name in _LOGGERS}
-    saved = {
-        name: (lg.propagate, lg.level, [h for h in old if h in lg.handlers])
-        for name, lg in loggers.items()
-    }
+    saved = {name: (lg.propagate, lg.level, [h for h in old if h in lg.handlers]) for name, lg in loggers.items()}
     for name, lg in loggers.items():
         for handler in saved[name][2]:
             lg.removeHandler(handler)

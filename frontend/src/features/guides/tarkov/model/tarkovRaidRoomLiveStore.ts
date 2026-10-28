@@ -29,11 +29,7 @@ export const useRaidRoomLiveStore = create<RaidRoomLiveState>((set) => ({
   drafts: [],
   fixes: [],
   bind: (roomId) =>
-    set((current) =>
-      current.roomId === roomId
-        ? current
-        : { roomId, drafts: [], fixes: [] },
-    ),
+    set((current) => (current.roomId === roomId ? current : { roomId, drafts: [], fixes: [] })),
   setDraft: (draft, userId) =>
     set((current) => {
       const rest = current.drafts.filter((row) => row.userId !== userId);
@@ -44,12 +40,10 @@ export const useRaidRoomLiveStore = create<RaidRoomLiveState>((set) => ({
   dropDraftsOnMap: (mapId) =>
     set((current) => ({
       drafts: current.drafts.filter(
-        (row) =>
-          Boolean(row.mapId) && !raidPrepMapsEquivalent(row.mapId || "", mapId),
+        (row) => Boolean(row.mapId) && !raidPrepMapsEquivalent(row.mapId || "", mapId),
       ),
     })),
-  upsertFix: (fix) =>
-    set((current) => ({ fixes: upsertPlayerFix(current.fixes, fix) })),
+  upsertFix: (fix) => set((current) => ({ fixes: upsertPlayerFix(current.fixes, fix) })),
   dropFixesNotIn: (onlineIds) =>
     set((current) => ({
       fixes: dropPlayerFixesNotIn(current.fixes, onlineIds),
@@ -60,9 +54,7 @@ export const useRaidRoomLiveStore = create<RaidRoomLiveState>((set) => ({
     })),
   filterMap: (mapId) =>
     set((current) => ({
-      fixes: current.fixes.filter((row) =>
-        playerFixMatchesRoomMap(row.mapId, mapId),
-      ),
+      fixes: current.fixes.filter((row) => playerFixMatchesRoomMap(row.mapId, mapId)),
     })),
   pruneFixes: () =>
     set((current) => {

@@ -34,13 +34,9 @@ SOURCE_GAME_SCHEDULE = "game-schedule"
 SOURCE_FZ_WIKI = "fz.wiki"
 
 # 方舟公告子项常见「一、」「十一、」编号前缀
-_TITLE_ORDINAL_RE = re.compile(
-    r"^[一二三四五六七八九十百千零〇两\d]+[、.．]\s*"
-)
+_TITLE_ORDINAL_RE = re.compile(r"^[一二三四五六七八九十百千零〇两\d]+[、.．]\s*")
 # wiki / 公告常见「2026/9/2 7:00:00」
-_LOOSE_TIME_RE = re.compile(
-    r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$"
-)
+_LOOSE_TIME_RE = re.compile(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$")
 _LINK_URL_MAX_LEN = 2048
 _LINK_HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*")
 
@@ -145,21 +141,15 @@ def _normalize_event(raw: dict[str, Any], *, game: GameCode) -> dict[str, Any] |
         "id": str(raw.get("id") or f"{game}:{title}:{start_raw}"),
         "game": game,
         "title": title,
-        "start_time": (
-            start_dt.strftime("%Y-%m-%d %H:%M") if start_dt else str(start_raw or "")
-        ),
-        "end_time": (
-            end_dt.strftime("%Y-%m-%d %H:%M") if end_dt else str(end_raw or "")
-        ),
+        "start_time": (start_dt.strftime("%Y-%m-%d %H:%M") if start_dt else str(start_raw or "")),
+        "end_time": (end_dt.strftime("%Y-%m-%d %H:%M") if end_dt else str(end_raw or "")),
         "banner": str(banner).strip() if banner else None,
         "link_url": _safe_link_url(link),
         "event_type": str(event_type).strip() if event_type else None,
     }
 
 
-def _classify(
-    event: dict[str, Any], *, at: datetime
-) -> Literal["ongoing", "upcoming", "ended"]:
+def _classify(event: dict[str, Any], *, at: datetime) -> Literal["ongoing", "upcoming", "ended"]:
     start = _parse_schedule_time(event.get("start_time"))
     end = _parse_schedule_time(event.get("end_time"))
     if start is None and end is None:
@@ -239,9 +229,7 @@ def _wiki_activity_to_schedule_item(act: dict[str, Any]) -> dict[str, Any] | Non
     elif isinstance(tags, str):
         event_type = tags.strip()
     link_title = str(act.get("linkTitle") or "").strip()
-    link_url = (
-        f"{ENDFIELD_WIKI_PAGE_BASE}/{quote(link_title, safe='/')}" if link_title else ""
-    )
+    link_url = f"{ENDFIELD_WIKI_PAGE_BASE}/{quote(link_title, safe='/')}" if link_title else ""
     banner = act.get("tabImgUrl") or act.get("banner")
     return {
         "id": str(act.get("activityId") or act.get("id") or title),
@@ -265,11 +253,7 @@ def wiki_activities_to_schedule_data(payload: dict[str, Any]) -> list[dict[str, 
 
 
 def get_game_schedule_raw(db: Session, game: GameCode) -> GameScheduleRaw | None:
-    return (
-        db.query(GameScheduleRaw)
-        .filter(GameScheduleRaw.game == game)
-        .one_or_none()
-    )
+    return db.query(GameScheduleRaw).filter(GameScheduleRaw.game == game).one_or_none()
 
 
 def _download_game_schedule(game: GameCode) -> tuple[dict[str, Any], str]:
@@ -301,9 +285,7 @@ def _download_game_schedule(game: GameCode) -> tuple[dict[str, Any], str]:
     if not isinstance(payload, dict):
         raise GameScheduleError("活动日历上游响应格式异常")
     if payload.get("code") not in (0, 200, None):
-        raise GameScheduleError(
-            str(payload.get("message") or payload.get("msg") or "活动日历上游失败")
-        )
+        raise GameScheduleError(str(payload.get("message") or payload.get("msg") or "活动日历上游失败"))
     data = payload.get("data")
     if not isinstance(data, list):
         raise GameScheduleError("活动日历上游无 data 列表")
@@ -563,9 +545,7 @@ def _game_schedule_sync_job(game: GameCode) -> None:
 
     job_key = SCHEDULE_JOB_KEYS[game]
     db = SessionLocal()
-    job = create_or_reuse_job_run(
-        db, job_key, message="正在同步活动日历", stats={"phase": "start"}
-    )
+    job = create_or_reuse_job_run(db, job_key, message="正在同步活动日历", stats={"phase": "start"})
     db.commit()
     run_id = job.id
     try:

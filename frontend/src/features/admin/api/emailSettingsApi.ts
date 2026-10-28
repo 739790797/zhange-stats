@@ -16,9 +16,8 @@ export async function updateEmailSettings(payload: EmailSettingsUpdate) {
 }
 
 export async function testEmailSettings(to_email: string) {
-  const { data } = await client.post<{ ok: boolean; message: string }>(
-    "/settings/email/test",
-    { to_email } satisfies components["schemas"]["EmailTestRequest"],
-  );
+  const { data } = await client.post<{ ok: boolean; message: string }>("/settings/email/test", {
+    to_email,
+  } satisfies components["schemas"]["EmailTestRequest"]);
   return data;
 }

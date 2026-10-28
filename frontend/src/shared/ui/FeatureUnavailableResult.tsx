@@ -8,10 +8,7 @@ type Props = {
 };
 
 /** 与具体功能导航解耦的不可用结果视图。 */
-export function FeatureUnavailableResult({
-  featureName,
-  loadError = false,
-}: Props) {
+export function FeatureUnavailableResult({ featureName, loadError = false }: Props) {
   const title = loadError ? "暂时无法确认功能开关" : `${featureName}未启用`;
   useDocumentTitle(title);
   return (

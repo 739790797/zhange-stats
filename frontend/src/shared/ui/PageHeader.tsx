@@ -10,12 +10,7 @@ export interface PageHeaderProps {
   compact?: boolean;
 }
 
-export function PageHeader({
-  title,
-  subtitle,
-  extra,
-  compact = false,
-}: PageHeaderProps) {
+export function PageHeader({ title, subtitle, extra, compact = false }: PageHeaderProps) {
   useDocumentTitle(title);
   if (compact) {
     if (!subtitle && !extra) return null;
@@ -30,9 +25,7 @@ export function PageHeader({
         }}
       >
         <div>
-          {subtitle ? (
-            <Typography.Text type="secondary">{subtitle}</Typography.Text>
-          ) : null}
+          {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
         </div>
         {extra}
       </div>
@@ -52,9 +45,7 @@ export function PageHeader({
         <Typography.Title level={3} style={{ margin: 0 }}>
           {title}
         </Typography.Title>
-        {subtitle ? (
-          <Typography.Text type="secondary">{subtitle}</Typography.Text>
-        ) : null}
+        {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
       </div>
       {extra}
     </div>

@@ -15,9 +15,9 @@ describe("platform feature navigation", () => {
   });
 
   it("uses the selected submenu label as the page title", () => {
-    expect(
-      resolvePlatformFeaturePageTitle("森空岛", { key: "checkin", label: "签到" }),
-    ).toBe("森空岛");
+    expect(resolvePlatformFeaturePageTitle("森空岛", { key: "checkin", label: "签到" })).toBe(
+      "森空岛",
+    );
     expect(
       resolvePlatformFeaturePageTitle("森空岛", {
         key: "endfield",
@@ -28,24 +28,16 @@ describe("platform feature navigation", () => {
 
   it("selects a requested submenu feature and falls back for stale links", () => {
     const items = [{ key: "checkin" }, { key: "arknights" }];
-    expect(resolvePlatformFeatureTabKey(items, "arknights", "checkin")).toBe(
-      "arknights",
-    );
-    expect(resolvePlatformFeatureTabKey(items, "removed", "checkin")).toBe(
-      "checkin",
-    );
+    expect(resolvePlatformFeatureTabKey(items, "arknights", "checkin")).toBe("arknights");
+    expect(resolvePlatformFeatureTabKey(items, "removed", "checkin")).toBe("checkin");
   });
 
   it("does not show another feature on the landing page if check-in is disabled", () => {
-    expect(
-      resolvePlatformFeatureTabKey([{ key: "exchange" }], null, "checkin"),
-    ).toBe("");
+    expect(resolvePlatformFeatureTabKey([{ key: "exchange" }], null, "checkin")).toBe("");
   });
 
   it("builds stable query-based links for submenu entries", () => {
-    expect(platformFeatureMenuKey("/skland", "endfield")).toBe(
-      "/skland?tab=endfield",
-    );
+    expect(platformFeatureMenuKey("/skland", "endfield")).toBe("/skland?tab=endfield");
     expect(platformFeatureMenuKey("/platform", "feature / one")).toBe(
       "/platform?tab=feature%20%2F%20one",
     );
@@ -55,9 +47,7 @@ describe("platform feature navigation", () => {
     const checkinPlatforms = PLATFORM_NAV.filter((item) => item.path !== "/steam");
     expect(checkinPlatforms.every((item) => item.children?.length)).toBe(true);
     expect(
-      checkinPlatforms.every((item) =>
-        item.children?.every((child) => Boolean(child.icon)),
-      ),
+      checkinPlatforms.every((item) => item.children?.every((child) => Boolean(child.icon))),
     ).toBe(true);
   });
 });
@@ -77,11 +67,7 @@ describe("platformFeatures", () => {
   it("picks first enabled nav path", () => {
     expect(firstEnabledPlatformPath(null)).toBe("/profile");
     expect(firstEnabledPlatformPath({ skland: true })).toBe("/skland");
-    expect(firstEnabledPlatformPath({ steam: true, skland: true })).toBe(
-      "/steam",
-    );
-    expect(firstEnabledPlatformPath({ "guides.tarkov": true })).toBe(
-      "/guides/tarkov",
-    );
+    expect(firstEnabledPlatformPath({ steam: true, skland: true })).toBe("/steam");
+    expect(firstEnabledPlatformPath({ "guides.tarkov": true })).toBe("/guides/tarkov");
   });
 });

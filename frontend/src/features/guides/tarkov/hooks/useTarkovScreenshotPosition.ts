@@ -3,7 +3,10 @@ import {
   useTarkovScreenshotFix,
 } from "@/features/guides/tarkov/hooks/useTarkovLiveWatch";
 
-export type { TarkovScreenshotFix, LiveWatchPerm as ScreenshotWatchPerm } from "@/features/guides/tarkov/providers/tarkovLiveWatchContexts";
+export type {
+  TarkovScreenshotFix,
+  LiveWatchPerm as ScreenshotWatchPerm,
+} from "@/features/guides/tarkov/providers/tarkovLiveWatchContexts";
 
 /** 地图页消费全站截图轮询；授权按钮仍走同一套目录。 */
 export function useTarkovScreenshotPosition() {

@@ -73,20 +73,12 @@ def upstream(monkeypatch, db_member) -> list[tuple[str, bool]]:
         status="already",
         message="",
     )
-    monkeypatch.setattr(
-        "app.services.skland.session_cache.get_cached_skland_session", lambda *_a: None
-    )
-    monkeypatch.setattr(
-        "app.services.skland.session_cache.put_cached_skland_session", lambda *_a: None
-    )
+    monkeypatch.setattr("app.services.skland.session_cache.get_cached_skland_session", lambda *_a: None)
+    monkeypatch.setattr("app.services.skland.session_cache.put_cached_skland_session", lambda *_a: None)
     monkeypatch.setattr(skland_checkin, "login_with_token", stub("login", session))
     monkeypatch.setattr(skland_checkin, "list_roles", stub("list_roles", [_ROLE]))
-    monkeypatch.setattr(
-        skland_checkin, "skland_query_today_all", stub("query_today", (session, [today]))
-    )
-    monkeypatch.setattr(
-        skland_checkin, "fetch_arknights_attendance", stub("fetch_calendar", {"calendar": []})
-    )
+    monkeypatch.setattr(skland_checkin, "skland_query_today_all", stub("query_today", (session, [today])))
+    monkeypatch.setattr(skland_checkin, "fetch_arknights_attendance", stub("fetch_calendar", {"calendar": []}))
     monkeypatch.setattr(
         skland_checkin,
         "parse_arknights_attendance_calendar",
@@ -101,12 +93,10 @@ def test_skland_preview_roles_holds_no_transaction_upstream(db_member, upstream)
     assert upstream == [("login", False), ("list_roles", False)]
 
 
-def test_skland_calendar_refresh_releases_connection_before_each_upstream_call(
-    db_member, upstream
-) -> None:
+def test_skland_calendar_refresh_releases_connection_before_each_upstream_call(db_member, upstream) -> None:
     db, member = db_member
-    _parsed, role, roles, synced_at, stale = (
-        skland_checkin.get_arknights_attendance_calendar_for_member(db, member, force=True)
+    _parsed, role, roles, synced_at, stale = skland_checkin.get_arknights_attendance_calendar_for_member(
+        db, member, force=True
     )
     # 拉完角色后还查了一次 raw 表，再拉日历前要重新交还连接
     assert upstream == [("login", False), ("list_roles", False), ("fetch_calendar", False)]

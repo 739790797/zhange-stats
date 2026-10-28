@@ -21,7 +21,11 @@ import {
   TARKOV_WORKBENCH_PATH,
   tarkovWorkbenchHref,
 } from "@/features/guides/tarkov/model/tarkovHomeNav";
-import { formatMoney, formatPercent, formatWeight } from "@/features/guides/tarkov/model/tarkovItemFormat";
+import {
+  formatMoney,
+  formatPercent,
+  formatWeight,
+} from "@/features/guides/tarkov/model/tarkovItemFormat";
 import { hdPreviewUrl, inventoryThumbUrl } from "@/features/guides/tarkov/model/tarkovItemImages";
 import { itemDetailHref } from "@/features/guides/tarkov/model/tarkovItemTypes";
 import {
@@ -70,9 +74,7 @@ function partLabel(part: TarkovWorkbenchPart | null | undefined): string {
 }
 
 function slotPickerTitle(slot: TarkovWorkbenchSlotNode): string {
-  const installed = slot.installed
-    ? partLabel(slot.installed)
-    : "空";
+  const installed = slot.installed ? partLabel(slot.installed) : "空";
   return `${slot.name}${slot.required ? " · 必装" : ""} · ${installed}`;
 }
 
@@ -129,9 +131,7 @@ function SlotPartPicker({
             <button
               type="button"
               className={styles.partHeadBtn}
-              onClick={() =>
-                setSort((current) => toggleWorkbenchPartSort(current, "ergonomics"))
-              }
+              onClick={() => setSort((current) => toggleWorkbenchPartSort(current, "ergonomics"))}
             >
               人机{sortMark("ergonomics")}
             </button>
@@ -190,12 +190,8 @@ function SlotPartPicker({
                     <span className={styles.slotIconEmpty} />
                   )}
                   <span className={styles.slotPart}>{partLabel(part)}</span>
-                  <span className={styles.partMeta}>
-                    {formatSignedStat(part.ergonomics)}
-                  </span>
-                  <span className={styles.partMeta}>
-                    {formatPercent(part.recoil_modifier)}
-                  </span>
+                  <span className={styles.partMeta}>{formatSignedStat(part.ergonomics)}</span>
+                  <span className={styles.partMeta}>{formatPercent(part.recoil_modifier)}</span>
                   <span className={styles.partMeta}>{formatWeight(part.weight)}</span>
                   <span className={styles.partMeta}>{formatMoney(part.price_rub)}</span>
                 </button>
@@ -249,10 +245,7 @@ function WorkbenchIconBoard({
   onClosePicker: (slotId?: string) => void;
   onUnload: (node: TarkovWorkbenchSlotNode) => void;
 }) {
-  const layout = useMemo(
-    () => layoutWorkbenchGrid(collectWorkbenchGridSlots(slots)),
-    [slots],
-  );
+  const layout = useMemo(() => layoutWorkbenchGrid(collectWorkbenchGridSlots(slots)), [slots]);
   const hasInstalled = layout.cells.some((cell) => !cell.empty);
   const gunArt = useMemo(() => {
     const raw = workbenchGunArtSource({
@@ -297,9 +290,7 @@ function WorkbenchIconBoard({
               +
             </span>
           )}
-          {cell.shortName ? (
-            <span className={styles.gridShortName}>{cell.shortName}</span>
-          ) : null}
+          {cell.shortName ? <span className={styles.gridShortName}>{cell.shortName}</span> : null}
         </span>
         <span className={styles.gridLabel}>{cell.slotName}</span>
       </button>
@@ -329,9 +320,7 @@ function WorkbenchIconBoard({
                 +
               </span>
             )}
-            <span className={styles.gridLabel}>
-              {gun.short_name || gun.name || ""}
-            </span>
+            <span className={styles.gridLabel}>{gun.short_name || gun.name || ""}</span>
           </div>
           {gridCells.map((cell) =>
             renderCell(cell, {
@@ -398,11 +387,7 @@ export function TarkovWorkbenchBuild({
   }, [gunQuery.data]);
 
   const calcMutation = useMutation({
-    mutationFn: (next: {
-      pairs: TarkovWorkbenchPair[];
-      ammoId?: string | null;
-      epoch: number;
-    }) =>
+    mutationFn: (next: { pairs: TarkovWorkbenchPair[]; ammoId?: string | null; epoch: number }) =>
       fetchTarkovWorkbenchCalculate({
         gunId,
         pairs: next.pairs,
@@ -415,9 +400,7 @@ export function TarkovWorkbenchBuild({
       setStats(data.stats);
       setPairs(pairsFromTree(nextSlots));
       if (vars.ammoId !== undefined) setAmmoId(vars.ammoId);
-      setActiveSlotId((current) =>
-        current && findSlotNode(nextSlots, current) ? current : null,
-      );
+      setActiveSlotId((current) => (current && findSlotNode(nextSlots, current) ? current : null));
     },
     onError: (error) => {
       message.error(apiError(error, "属性计算失败"));
@@ -434,24 +417,15 @@ export function TarkovWorkbenchBuild({
   });
 
   const activeSlot = activeSlotId ? findSlotNode(slots, activeSlotId) : null;
-  const installedIds = useMemo(
-    () => pairs.map((row) => row.item_id).filter(Boolean),
-    [pairs],
-  );
+  const installedIds = useMemo(() => pairs.map((row) => row.item_id).filter(Boolean), [pairs]);
   const installedParts = useMemo(() => collectInstalledParts(slots), [slots]);
   const installedCategoryIds = useMemo(
     () => collectInstalledCategoryIds(installedParts),
     [installedParts],
   );
-  const conflicts = useMemo(
-    () => new Set(stats?.conflicts || []),
-    [stats?.conflicts],
-  );
+  const conflicts = useMemo(() => new Set(stats?.conflicts || []), [stats?.conflicts]);
 
-  const applyPairsAsync = (
-    next: TarkovWorkbenchPair[],
-    nextAmmo?: string | null,
-  ) => {
+  const applyPairsAsync = (next: TarkovWorkbenchPair[], nextAmmo?: string | null) => {
     const epoch = ++calcEpoch.current;
     return calcMutation.mutateAsync({
       pairs: next,
@@ -475,9 +449,7 @@ export function TarkovWorkbenchBuild({
       setActiveSlotId(null);
       const nextPairs = data.pairs || [];
       const nextAmmo = data.ammo_id ?? ammoId;
-      const apply = nextPairs.length
-        ? applyPairsAsync(nextPairs, nextAmmo)
-        : Promise.resolve();
+      const apply = nextPairs.length ? applyPairsAsync(nextPairs, nextAmmo) : Promise.resolve();
       void apply.then(() => {
         if (data.status === "optimal") {
           message.success("已满足枪匠要求");
@@ -538,12 +510,7 @@ export function TarkovWorkbenchBuild({
       message.warning("与已装配件冲突");
       return;
     }
-    const next = replacePair(
-      pairs,
-      activeSlot.id,
-      part.id,
-      collectSlotIds(activeSlot.children),
-    );
+    const next = replacePair(pairs, activeSlot.id, part.id, collectSlotIds(activeSlot.children));
     setPairs(next);
     setSlots((current) => replaceSlotInstalled(current, activeSlot.id, part));
     applyPairs(next);
@@ -585,14 +552,10 @@ export function TarkovWorkbenchBuild({
     <div className={styles.wrap}>
       <div className={styles.head}>
         <h2 className={styles.title}>
-          <Link to={itemDetailHref("guns", gun.id)}>
-            {gun.name || gun.short_name || gun.id}
-          </Link>
+          <Link to={itemDetailHref("guns", gun.id)}>{gun.name || gun.short_name || gun.id}</Link>
         </h2>
         <div className={styles.actions}>
-          {onPickGunsmith ? (
-            <Button onClick={() => onPickGunsmith()}>枪匠任务</Button>
-          ) : null}
+          {onPickGunsmith ? <Button onClick={() => onPickGunsmith()}>枪匠任务</Button> : null}
           <Button
             onClick={() => {
               closePicker();
@@ -601,11 +564,7 @@ export function TarkovWorkbenchBuild({
           >
             社区方案
           </Button>
-          <Button
-            onClick={() =>
-              onChangeGun ? onChangeGun() : navigate(tarkovWorkbenchHref())
-            }
-          >
+          <Button onClick={() => (onChangeGun ? onChangeGun() : navigate(tarkovWorkbenchHref()))}>
             换一把枪
           </Button>
           <Button
@@ -630,10 +589,7 @@ export function TarkovWorkbenchBuild({
       </div>
 
       <div className={styles.layout}>
-        <section
-          className={`${styles.pane} ${styles.previewPane}`}
-          aria-label="预览与配件"
-        >
+        <section className={`${styles.pane} ${styles.previewPane}`} aria-label="预览与配件">
           <div className={styles.preview}>
             <WorkbenchIconBoard
               gun={gun}
@@ -700,9 +656,7 @@ export function TarkovWorkbenchBuild({
                 solving={solveMutation.isPending}
                 onSolve={() => solveMutation.mutate()}
                 onClear={() =>
-                  onClearGunsmith
-                    ? onClearGunsmith()
-                    : navigate(tarkovWorkbenchHref(gunId))
+                  onClearGunsmith ? onClearGunsmith() : navigate(tarkovWorkbenchHref(gunId))
                 }
               />
             ) : taskId && gunsmithQuery.isFetched && !spec ? (

@@ -10,12 +10,7 @@ from app.services.minecraft.entities import (
 
 
 def test_parse_neoforge_multiline_entity_list():
-    raw = (
-        "Total: 8\n"
-        " 5: minecraft:item\n"
-        " 2: minecraft:zombie\n"
-        " 1: create:carriage\n"
-    )
+    raw = "Total: 8\n 5: minecraft:item\n 2: minecraft:zombie\n 1: create:carriage\n"
     rows = parse_entity_list(raw)
     assert rows == [
         {"id": "minecraft:item", "count": 5},
@@ -25,10 +20,7 @@ def test_parse_neoforge_multiline_entity_list():
 
 
 def test_parse_forge_inline_entity_list():
-    raw = (
-        "Total: 24  12: minecraft:chicken  5: minecraft:cow  "
-        "2: minecraft:item  2: minecraft:item_frame"
-    )
+    raw = "Total: 24  12: minecraft:chicken  5: minecraft:cow  2: minecraft:item  2: minecraft:item_frame"
     rows = {row["id"]: row["count"] for row in parse_entity_list(raw)}
     assert rows["minecraft:chicken"] == 12
     assert rows["minecraft:item_frame"] == 2

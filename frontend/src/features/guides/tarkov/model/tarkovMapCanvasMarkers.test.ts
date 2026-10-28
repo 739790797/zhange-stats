@@ -68,14 +68,12 @@ describe("tarkov map canvas markers", () => {
     expect(pointHitsCanvasIcon({ x: 10, y: 10 }, rect)).toBe(true);
     expect(pointHitsCanvasIcon({ x: 34, y: 20 }, rect)).toBe(false);
     expect(
-      hitTestCanvasIcons(
-        [hit("loot", rect, 10), hit("lock", rect, 50), hit("spawn", rect, 40)],
-        { x: 20, y: 20 },
-      )?.id,
+      hitTestCanvasIcons([hit("loot", rect, 10), hit("lock", rect, 50), hit("spawn", rect, 40)], {
+        x: 20,
+        y: 20,
+      })?.id,
     ).toBe("lock");
-    expect(
-      hitTestCanvasIcons([hit("loot", rect, 10)], { x: 0, y: 0 }),
-    ).toBeNull();
+    expect(hitTestCanvasIcons([hit("loot", rect, 10)], { x: 0, y: 0 })).toBeNull();
   });
 
   it("sorts paint order and dedupes icon urls", () => {
@@ -103,9 +101,7 @@ describe("tarkov map canvas markers", () => {
     expect(isCanvasMarkerEvent(undefined)).toBe(false);
     markCanvasMarkerEvent(event);
     expect(isCanvasMarkerEvent(event)).toBe(true);
-    expect((event as unknown as Record<string, boolean>)[CANVAS_MARKER_EVENT]).toBe(
-      true,
-    );
+    expect((event as unknown as Record<string, boolean>)[CANVAS_MARKER_EVENT]).toBe(true);
   });
 
   it("clamps canvas icon opacity for off-height drawing", () => {
@@ -118,11 +114,7 @@ describe("tarkov map canvas markers", () => {
 
   it("rejects icons fully outside the padded view", () => {
     const view = { left: 0, top: 0, right: 100, bottom: 80 };
-    expect(rectsOverlap({ left: 90, top: 70, right: 110, bottom: 90 }, view)).toBe(
-      true,
-    );
-    expect(rectsOverlap({ left: 100, top: 0, right: 120, bottom: 20 }, view)).toBe(
-      false,
-    );
+    expect(rectsOverlap({ left: 90, top: 70, right: 110, bottom: 90 }, view)).toBe(true);
+    expect(rectsOverlap({ left: 100, top: 0, right: 120, bottom: 20 }, view)).toBe(false);
   });
 });

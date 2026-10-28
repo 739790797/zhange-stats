@@ -57,14 +57,7 @@ def test_parse_json_top_level_scalars_skips_nested():
 
 
 def test_conf_line_replace_keeps_comments():
-    text = (
-        "# BlueMap core\n"
-        "accept-download: false\n"
-        "render-thread-count: 2\n"
-        "webapp {\n"
-        "  enabled: true\n"
-        "}\n"
-    )
+    text = "# BlueMap core\naccept-download: false\nrender-thread-count: 2\nwebapp {\n  enabled: true\n}\n"
     parsed = parse_scalar_keys(text, "core.conf")
     assert parsed["accept-download"] == "false"
     assert parsed["render-thread-count"] == "2"
@@ -130,9 +123,7 @@ def test_safe_server_file_path_and_directories():
     assert safe_server_file_path("config/chunky/config.json") == "/config/chunky/config.json"
     assert safe_server_file_path("/config/../secret.conf") == ""
     assert safe_server_file_path("") == ""
-    assert normalize_directories(["/", "/config/chunky", "../x", "/config/chunky"]) == [
-        "/config/chunky"
-    ]
+    assert normalize_directories(["/", "/config/chunky", "../x", "/config/chunky"]) == ["/config/chunky"]
     assert path_is_within("/config/chunky/config.json", "/config/chunky")
     assert not path_is_within("/config/other.json", "/config/chunky")
     pins = [
@@ -169,9 +160,7 @@ def test_user_directories_kept_when_saving_pins():
         "/config/chunky",
         "/plugins/Chunky",
     ]
-    assert [row["file"] for row in read_saved_pins(blob, "chunky")] == [
-        "/config/chunky/config.json"
-    ]
+    assert [row["file"] for row in read_saved_pins(blob, "chunky")] == ["/config/chunky/config.json"]
     kept = write_saved_pins(blob, "chunky", [])
     assert read_saved_directories(kept, "chunky") == [
         "/config/chunky",
@@ -193,9 +182,7 @@ def test_reconcile_three_states():
     missing = reconcile_pins(pins=pins, files={})
     assert missing["status"] == "missing_files"
 
-    empty = reconcile_pins(
-        pins=[], files={"/config/bluemap/core.conf": "a: 1\n"}
-    )
+    empty = reconcile_pins(pins=[], files={"/config/bluemap/core.conf": "a: 1\n"})
     assert empty["status"] == "no_preset"
 
     mismatch = reconcile_pins(
@@ -211,9 +198,7 @@ def test_reconcile_three_states():
     )
     assert match["status"] == "match"
 
-    gone = reconcile_pins(
-        pins=pins, files={"/config/bluemap/core.conf": None}
-    )
+    gone = reconcile_pins(pins=pins, files={"/config/bluemap/core.conf": None})
     assert gone["status"] == "missing_files"
     assert gone["missing_files"] == ["/config/bluemap/core.conf"]
 

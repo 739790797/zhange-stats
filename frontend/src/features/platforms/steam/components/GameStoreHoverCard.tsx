@@ -9,7 +9,11 @@ export function GameStoreHoverCard({
   appId: string;
   fallbackName: string;
 }) {
-  const { data: card, isLoading, isError } = useQuery({
+  const {
+    data: card,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["steam-app-store", appId],
     queryFn: () => fetchSteamAppStore(appId),
     staleTime: 30 * 60 * 1000,

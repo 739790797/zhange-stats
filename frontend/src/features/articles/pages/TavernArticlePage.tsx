@@ -10,7 +10,8 @@ import styles from "@/features/articles/components/TavernReading.module.css";
 import { apiError, isApiForbidden } from "@/shared/api/apiError";
 import { articleCategoryChipColor } from "@/features/articles/model/articleCategory";
 import {
-  TAVERN_ADMIN_PATH,  TAVERN_PATH,
+  TAVERN_ADMIN_PATH,
+  TAVERN_PATH,
   TAVERN_WRITE_PATH,
   tavernEditPath,
 } from "@/features/articles/model/tavernNav";
@@ -23,8 +24,7 @@ export default function TavernArticlePage() {
   const navigate = useNavigate();
   const token = Boolean(useAuthStore((s) => s.user));
   const user = useAuthStore((s) => s.user);
-  const reserved =
-    slug === "admin" || slug === "manage" || slug === "write" || slug === "new";
+  const reserved = slug === "admin" || slug === "manage" || slug === "write" || slug === "new";
   const query = useQuery({
     queryKey: ["article", slug],
     queryFn: () => fetchArticle(slug),
@@ -55,11 +55,7 @@ export default function TavernArticlePage() {
     );
   }
   if (query.isError || !query.data) {
-    return (
-      <p className={styles.empty}>
-        {apiError(query.error, "文章不存在或无法加载")}
-      </p>
-    );
+    return <p className={styles.empty}>{apiError(query.error, "文章不存在或无法加载")}</p>;
   }
 
   const article = query.data;
@@ -78,10 +74,7 @@ export default function TavernArticlePage() {
               战鸽酒馆
             </Link>
             {canEdit ? (
-              <Button
-                size="small"
-                onClick={() => navigate(tavernEditPath(article.id))}
-              >
+              <Button size="small" onClick={() => navigate(tavernEditPath(article.id))}>
                 编辑
               </Button>
             ) : null}
@@ -96,10 +89,7 @@ export default function TavernArticlePage() {
           {(article.categories || []).length || (article.tags || []).length ? (
             <div className={styles.tags}>
               {(article.categories || []).map((cat) => (
-                <Link
-                  key={cat.id}
-                  to={`${TAVERN_PATH}?category=${encodeURIComponent(cat.slug)}`}
-                >
+                <Link key={cat.id} to={`${TAVERN_PATH}?category=${encodeURIComponent(cat.slug)}`}>
                   <Tag color={articleCategoryChipColor(cat)}>{cat.name}</Tag>
                 </Link>
               ))}
@@ -111,9 +101,7 @@ export default function TavernArticlePage() {
         </div>
       </header>
       <div className={styles.paper}>
-        {article.cover_url ? (
-          <img className={styles.cover} src={article.cover_url} alt="" />
-        ) : null}
+        {article.cover_url ? <img className={styles.cover} src={article.cover_url} alt="" /> : null}
         <ArticleBody body={article.body} format={article.body_format} />
         <div className={styles.comments}>
           <ArticleComments slug={article.slug} />

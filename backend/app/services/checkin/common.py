@@ -151,11 +151,7 @@ def _awards_items_polluted(items: list[dict[str, Any]] | None) -> bool:
 def _awards_items_weak_exp_signin(items: list[dict[str, Any]] | None) -> bool:
     if not items:
         return False
-    names = [
-        str(a.get("name") or "")
-        for a in items
-        if isinstance(a, dict) and a.get("name")
-    ]
+    names = [str(a.get("name") or "") for a in items if isinstance(a, dict) and a.get("name")]
     if not names:
         return False
     return all(n == "签到奖励" or n == "签到" for n in names)
@@ -218,18 +214,14 @@ def prefer_richer_awards(current: str | None, incoming: str | None) -> str | Non
     cur = (
         None
         if (
-            is_placeholder_awards(cur_raw)
-            or is_polluted_task_exp_awards(cur_raw)
-            or is_weak_exp_signin_awards(cur_raw)
+            is_placeholder_awards(cur_raw) or is_polluted_task_exp_awards(cur_raw) or is_weak_exp_signin_awards(cur_raw)
         )
         else cur_raw
     )
     inc = (
         None
         if (
-            is_placeholder_awards(inc_raw)
-            or is_polluted_task_exp_awards(inc_raw)
-            or is_weak_exp_signin_awards(inc_raw)
+            is_placeholder_awards(inc_raw) or is_polluted_task_exp_awards(inc_raw) or is_weak_exp_signin_awards(inc_raw)
         )
         else inc_raw
     )
@@ -250,21 +242,13 @@ def prefer_richer_award_items(
 ) -> list[dict[str, Any]] | None:
     """与 prefer_richer_awards 同步选择结构化奖励列表；同等文案时优先带图标。"""
     # 污染 / 弱经验签到条目视为无效，避免盖住任务中心塔塔币
-    if _awards_items_polluted(current_items) or _awards_items_weak_exp_signin(
-        current_items
-    ):
+    if _awards_items_polluted(current_items) or _awards_items_weak_exp_signin(current_items):
         current_items = None
-        if is_polluted_task_exp_awards(current_text) or is_weak_exp_signin_awards(
-            current_text
-        ):
+        if is_polluted_task_exp_awards(current_text) or is_weak_exp_signin_awards(current_text):
             current_text = None
-    if _awards_items_polluted(incoming_items) or _awards_items_weak_exp_signin(
-        incoming_items
-    ):
+    if _awards_items_polluted(incoming_items) or _awards_items_weak_exp_signin(incoming_items):
         incoming_items = None
-        if is_polluted_task_exp_awards(incoming_text) or is_weak_exp_signin_awards(
-            incoming_text
-        ):
+        if is_polluted_task_exp_awards(incoming_text) or is_weak_exp_signin_awards(incoming_text):
             incoming_text = None
 
     merged = prefer_richer_awards(current_text, incoming_text)
@@ -274,11 +258,7 @@ def prefer_richer_award_items(
     def _icon_score(items: list[dict[str, Any]] | None) -> int:
         if not items:
             return 0
-        return sum(
-            1
-            for a in items
-            if isinstance(a, dict) and str(a.get("icon_url") or "").strip()
-        )
+        return sum(1 for a in items if isinstance(a, dict) and str(a.get("icon_url") or "").strip())
 
     cur_items = list(current_items) if current_items else None
     inc_items = list(incoming_items) if incoming_items else None
@@ -344,12 +324,7 @@ def _is_bilibili_channel(channel_name: str | None) -> bool:
     name = (channel_name or "").strip().lower()
     if not name:
         return False
-    return (
-        "bilibili" in name
-        or "哔哩" in (channel_name or "")
-        or "b服" in name
-        or "b 服" in name
-    )
+    return "bilibili" in name or "哔哩" in (channel_name or "") or "b服" in name or "b 服" in name
 
 
 _QUERY_PENDING_MESSAGES = frozenset(
@@ -403,9 +378,7 @@ def summarize_results(results: list[CheckinResult], *, empty_message: str) -> tu
     if not results:
         return False, empty_message
     okish = all(is_success_status(r.status) for r in results)
-    lines = [
-        f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}" for r in results
-    ]
+    lines = [f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}" for r in results]
     return okish, "\n".join(lines)
 
 
@@ -417,10 +390,7 @@ def day_results_payload(results: list[CheckinResult]) -> dict[str, Any]:
     """组装 status 用的今日结果（不访问上游）。"""
     if results:
         ok = all(r.status != "error" for r in results)
-        summary = "\n".join(
-            f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}"
-            for r in results
-        )
+        summary = "\n".join(f"[{r.game_name}] {r.role_name}（{r.channel_name}）：{r.message}" for r in results)
     else:
         ok, summary = False, "未找到可签到目标"
     return {
@@ -477,9 +447,7 @@ def today_done_from_logs(
 
     role_keys: 仅检查这些 (game_code, role_uid)；为 None 时检查全日全部角色。
     """
-    cached = load_day_checkin_results(
-        db, log_model, member_id=member_id, checkin_date=checkin_date
-    )
+    cached = load_day_checkin_results(db, log_model, member_id=member_id, checkin_date=checkin_date)
     if not cached:
         return None
     if role_keys is None:
@@ -513,11 +481,7 @@ def upsert_day_checkin_logs(
     source=action：立即签到或调度真正执行。
     已有 action 行不会被 status 写回降成 status。
     """
-    source = (
-        LOG_SOURCE_ACTION
-        if source == LOG_SOURCE_ACTION
-        else LOG_SOURCE_STATUS
-    )
+    source = LOG_SOURCE_ACTION if source == LOG_SOURCE_ACTION else LOG_SOURCE_STATUS
     for r in results:
         role_uid = str(r.role_uid or "-")
         game_code = str(r.game_code or "")
@@ -526,11 +490,7 @@ def upsert_day_checkin_logs(
             message = f"{message}\n{r.extra_text}" if message else r.extra_text
         # 明日方舟执行记录：成功态只落 award，不写状态句
         awards_text = r.awards_text
-        if (
-            source == LOG_SOURCE_ACTION
-            and game_code == "arknights"
-            and is_success_status(r.status)
-        ):
+        if source == LOG_SOURCE_ACTION and game_code == "arknights" and is_success_status(r.status):
             awards_text = (r.awards_text or "").strip() or None
             message = awards_text or ""
         filters = (
@@ -581,16 +541,8 @@ def upsert_day_checkin_logs(
         prev_items = loads_awards_json(getattr(row, "awards_json", None))
         row.awards_text = prefer_richer_awards(prev_text, awards_text)
         if hasattr(row, "awards_json"):
-            row.awards_json = dumps_awards_json(
-                prefer_richer_award_items(
-                    prev_text, prev_items, awards_text, r.awards
-                )
-            )
-        if (
-            source == LOG_SOURCE_ACTION
-            and game_code == "arknights"
-            and is_success_status(r.status)
-        ):
+            row.awards_json = dumps_awards_json(prefer_richer_award_items(prev_text, prev_items, awards_text, r.awards))
+        if source == LOG_SOURCE_ACTION and game_code == "arknights" and is_success_status(r.status):
             # 方舟执行摘要只保留 award（合并后），不写「今日已签到」等状态句
             row.message = row.awards_text or ""
         # action 优先：status 同步不得把已执行记录改回「仅查询」
@@ -606,9 +558,7 @@ def upsert_day_checkin_logs(
             row.checked_at = now
 
 
-def _insert_unless_taken(
-    db: Any, log_model: Any, values: dict[str, Any], filters: tuple[Any, ...]
-) -> Any | None:
+def _insert_unless_taken(db: Any, log_model: Any, values: dict[str, Any], filters: tuple[Any, ...]) -> Any | None:
     """插入今日行并返回 None；同键刚被并发请求（打开页 / 调度）插入时返回那一行，由调用方合并。"""
     try:
         with db.begin_nested():
@@ -661,11 +611,7 @@ def upsert_and_reload_day_results(
     )
     if cached is None:
         return results
-    extras = {
-        (str(r.game_code or ""), str(r.role_uid or "")): r.extra_text
-        for r in results
-        if r.extra_text
-    }
+    extras = {(str(r.game_code or ""), str(r.role_uid or "")): r.extra_text for r in results if r.extra_text}
     if not extras:
         return cached
     for row in cached:
@@ -674,4 +620,3 @@ def upsert_and_reload_day_results(
         if text:
             row.extra_text = text
     return cached
-

@@ -13,9 +13,7 @@ class RumSample(Base):
     __table_args__ = (Index("ix_rum_samples_kind_recorded", "kind", "recorded_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    recorded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     kind: Mapped[str] = mapped_column(String(8), nullable=False)
     url_key: Mapped[str] = mapped_column(String(256), nullable=False)
     host: Mapped[str] = mapped_column(String(128), nullable=False, default="")

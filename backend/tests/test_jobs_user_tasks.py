@@ -26,9 +26,7 @@ from app.services.platform_features import invalidate_feature_cache
 
 @pytest.fixture
 def engine():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     invalidate_feature_cache()
     yield engine
@@ -202,8 +200,7 @@ def _seed(db) -> None:
 
 def _rows(page) -> list[tuple]:
     return [
-        (t.task_key, t.user_label, t.included, t.auto_checkin, t.checkin_hour, t.checkin_minute)
-        for t in page.items
+        (t.task_key, t.user_label, t.included, t.auto_checkin, t.checkin_hour, t.checkin_minute) for t in page.items
     ]
 
 
@@ -273,9 +270,7 @@ def test_tasks_pages_concatenate_to_the_full_list(db) -> None:
 
     assert [p.total for p in pages] == [7, 7, 7, 7]
     assert [len(p.items) for p in pages] == [3, 3, 1, 0]
-    assert [t.model_dump() for p in pages for t in p.items] == [
-        t.model_dump() for t in full.items
-    ]
+    assert [t.model_dump() for p in pages for t in p.items] == [t.model_dump() for t in full.items]
 
 
 def _seed_members(db, count: int) -> None:

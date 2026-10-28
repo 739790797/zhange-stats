@@ -106,10 +106,7 @@ function rollProbe(probe: Uint8Array, bytes: Uint8Array): Uint8Array {
     bytes.length >= PROBE_BYTES
       ? bytes.subarray(bytes.length - PROBE_BYTES)
       : concatBytes(probe, bytes);
-  const tail =
-    source.length > PROBE_BYTES
-      ? source.subarray(source.length - PROBE_BYTES)
-      : source;
+  const tail = source.length > PROBE_BYTES ? source.subarray(source.length - PROBE_BYTES) : source;
   const out = new Uint8Array(tail.length);
   out.set(tail);
   return out;

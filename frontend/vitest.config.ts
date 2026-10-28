@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(frontendDir, "src"),
+      "@zhange-base": path.resolve(frontendDir, "vendor/zhange-base/design-system"),
     },
   },
   test: {

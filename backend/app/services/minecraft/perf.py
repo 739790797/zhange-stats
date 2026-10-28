@@ -127,9 +127,7 @@ def bucket_series(
     return out
 
 
-def resolve_window(
-    db: Session, range_key: str, end: datetime | None = None
-) -> tuple[datetime, datetime]:
+def resolve_window(db: Session, range_key: str, end: datetime | None = None) -> tuple[datetime, datetime]:
     if range_key not in PERF_RANGES:
         raise ValueError("不支持的时间段")
     end_n = to_naive(end) if end is not None else now_naive()
@@ -145,21 +143,13 @@ def resolve_window(
     return end_n - timedelta(seconds=RANGE_SECONDS[range_key]), end_n
 
 
-def _fetch_samples(
-    db: Session, start_n: datetime, end_n: datetime
-) -> list[MinecraftPerfSample]:
+def _fetch_samples(db: Session, start_n: datetime, end_n: datetime) -> list[MinecraftPerfSample]:
     filters = (
         MinecraftPerfSample.sampled_at >= start_n,
         MinecraftPerfSample.sampled_at <= end_n,
     )
-    count = (
-        db.query(func.count(MinecraftPerfSample.id)).filter(*filters).scalar() or 0
-    )
-    query = (
-        db.query(MinecraftPerfSample)
-        .filter(*filters)
-        .order_by(MinecraftPerfSample.sampled_at.asc())
-    )
+    count = db.query(func.count(MinecraftPerfSample.id)).filter(*filters).scalar() or 0
+    query = db.query(MinecraftPerfSample).filter(*filters).order_by(MinecraftPerfSample.sampled_at.asc())
     if count <= RAW_CAP:
         return query.all()
     stride = max(1, count // RAW_CAP)
@@ -279,9 +269,7 @@ def collect_entities(host: str, port: int, password: str) -> None:
             }
         )
     except MinecraftRconError as exc:
-        log_until_change(
-            logger, "minecraft.rcon.entities", "minecraft rcon entities: %s", exc.message
-        )
+        log_until_change(logger, "minecraft.rcon.entities", "minecraft rcon entities: %s", exc.message)
         _save_entities(
             {
                 **_empty_entities(),
@@ -291,9 +279,7 @@ def collect_entities(host: str, port: int, password: str) -> None:
             }
         )
     except OSError as exc:
-        log_until_change(
-            logger, "minecraft.rcon.entities", "minecraft rcon entities os: %s", exc
-        )
+        log_until_change(logger, "minecraft.rcon.entities", "minecraft rcon entities os: %s", exc)
         _save_entities(
             {
                 **_empty_entities(),
@@ -321,19 +307,13 @@ def load_status(db: Session | None = None) -> dict[str, Any]:
                 "message": str(data.get("message") or ""),
                 "tps": _as_float(data.get("tps")),
                 "mspt": _as_float(data.get("mspt")),
-                "entity_total": _as_float(
-                    data.get("entity_total", data.get("entities"))
-                ),
+                "entity_total": _as_float(data.get("entity_total", data.get("entities"))),
                 "chunks": _as_float(data.get("chunks")),
                 "at": str(data.get("at") or ""),
             }
     if db is None:
         return _empty_status()
-    last = (
-        db.query(MinecraftPerfSample)
-        .order_by(MinecraftPerfSample.sampled_at.desc())
-        .first()
-    )
+    last = db.query(MinecraftPerfSample).order_by(MinecraftPerfSample.sampled_at.desc()).first()
     if last is None:
         return _empty_status()
     return {
@@ -378,11 +358,7 @@ def collect_perf(db: Session) -> None:
     sampled_at = now_naive()
     collect_entities(host, port, password)
     entities_state = load_entities()
-    entities_total = (
-        float(int(entities_state.get("total") or 0))
-        if entities_state.get("ok")
-        else None
-    )
+    entities_total = float(int(entities_state.get("total") or 0)) if entities_state.get("ok") else None
 
     chunks_total: float | None = None
     try:
@@ -391,13 +367,9 @@ def collect_perf(db: Session) -> None:
         if chunk_hit and chunk_hit.get("chunks") is not None:
             chunks_total = float(int(chunk_hit["chunks"]))
     except MinecraftRconError as exc:
-        log_until_change(
-            logger, "minecraft.rcon.chunks", "minecraft rcon chunks: %s", exc.message
-        )
+        log_until_change(logger, "minecraft.rcon.chunks", "minecraft rcon chunks: %s", exc.message)
     except OSError as exc:
-        log_until_change(
-            logger, "minecraft.rcon.chunks", "minecraft rcon chunks os: %s", exc
-        )
+        log_until_change(logger, "minecraft.rcon.chunks", "minecraft rcon chunks os: %s", exc)
 
     try:
         parsed = query_perf(host, port, password)
@@ -444,9 +416,7 @@ def collect_perf(db: Session) -> None:
                 "at": stamp,
             }
         )
-        log_until_change(
-            logger, "minecraft.rcon.perf", "minecraft rcon perf: %s", exc.message
-        )
+        log_until_change(logger, "minecraft.rcon.perf", "minecraft rcon perf: %s", exc.message)
     except OSError as exc:
         db.rollback()
         _save_status(
@@ -460,9 +430,7 @@ def collect_perf(db: Session) -> None:
                 "at": stamp,
             }
         )
-        log_until_change(
-            logger, "minecraft.rcon.perf", "minecraft rcon perf os: %s", exc
-        )
+        log_until_change(logger, "minecraft.rcon.perf", "minecraft rcon perf os: %s", exc)
 
 
 def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
@@ -471,23 +439,15 @@ def read_public_perf(db: Session, range_key: str = "30m") -> dict[str, Any]:
     enabled, _host, _port, _password = _rcon_ready(db)
     start_n, end_n = resolve_window(db, range_key)
     grain = RANGE_GRAIN.get(range_key)
-    tuples: list[
-        tuple[datetime, float | None, float | None, float | None, float | None]
-    ]
+    tuples: list[tuple[datetime, float | None, float | None, float | None, float | None]]
     if grain:
         tuples = fetch_rollup_tuples(db, grain=grain, start=start_n, end=end_n)
         if not tuples:
             rows = _fetch_samples(db, start_n, end_n)
-            tuples = [
-                (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
-                for row in rows
-            ]
+            tuples = [(row.sampled_at, row.tps, row.mspt, row.entities, row.chunks) for row in rows]
     else:
         rows = _fetch_samples(db, start_n, end_n)
-        tuples = [
-            (row.sampled_at, row.tps, row.mspt, row.entities, row.chunks)
-            for row in rows
-        ]
+        tuples = [(row.sampled_at, row.tps, row.mspt, row.entities, row.chunks) for row in rows]
     samples = bucket_series(tuples, start_n, end_n) if tuples else []
     status = load_status(db)
     message = str(status.get("message") or "")

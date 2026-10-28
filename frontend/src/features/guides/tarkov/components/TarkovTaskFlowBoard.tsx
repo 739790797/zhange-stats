@@ -1,6 +1,14 @@
 /** 个人中心任务进度：有序任务横向链、无序任务网格；商人栏仍纵向。 */
 
-import { forwardRef, useContext, useEffect, useRef, useState, createContext, type HTMLAttributes } from "react";
+import {
+  forwardRef,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  createContext,
+  type HTMLAttributes,
+} from "react";
 import { Link } from "react-router-dom";
 import { Popover } from "antd";
 import type { TarkovTaskListItem } from "@/features/guides/tarkov/api/guidesApi";
@@ -59,11 +67,7 @@ function LoyaltyMark({ level }: { level: number | null | undefined }) {
   const n = taskLoyaltyLevel(level);
   if (n >= 4) {
     return (
-      <svg
-        className={styles.loyaltyIcon}
-        viewBox="0 0 24 24"
-        aria-label="商人好感 4"
-      >
+      <svg className={styles.loyaltyIcon} viewBox="0 0 24 24" aria-label="商人好感 4">
         <path
           fill="currentColor"
           d="M4 17.2 6.4 8.5l3.7 4.2L12 6l1.9 6.7 3.7-4.2L20 17.2H4Zm0 1.6h16V21H4v-2.2Z"
@@ -98,14 +102,7 @@ function StatusSelect({
 }) {
   const derivedClosed = useContext(FlowClosedCtx);
   const label = displayTaskProgressName(task);
-  const status = resolveTaskStatus(
-    task.id,
-    done,
-    started,
-    task,
-    failed,
-    closed ?? derivedClosed,
-  );
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed ?? derivedClosed);
   const derived = isDerivedTaskStatus(
     task.id,
     done,
@@ -122,9 +119,7 @@ function StatusSelect({
       disabled={derived}
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
-      onChange={(event) =>
-        onSetStatus(task.id, event.target.value as TaskStatusKind)
-      }
+      onChange={(event) => onSetStatus(task.id, event.target.value as TaskStatusKind)}
     >
       {TASK_STATUS_KINDS.map((value) => (
         <option
@@ -189,116 +184,101 @@ type TaskCardFaceProps = {
   onActivate?: () => void;
 } & Omit<HTMLAttributes<HTMLElement>, "id">;
 
-const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(
-  function TaskCardFace(
-    {
-      task,
-      done,
-      started,
-      failed,
-      closed,
-      onSetStatus,
-      id,
-      highlight,
-      dim,
-      showTrader,
-      ribbonKinds,
-      open,
-      onActivate,
-      className,
-      onClick,
-      ...rest
-    },
-    ref,
-  ) {
-    const derivedClosed = useContext(FlowClosedCtx);
-    const label = displayTaskProgressName(task);
-    const status = resolveTaskStatus(
-      task.id,
-      done,
-      started,
-      task,
-      failed,
-      closed ?? derivedClosed,
-    );
-    const hasRibbon = Boolean(ribbonKinds?.length);
-    const traderSlug = (task.trader_slug || "").trim();
-    const traderTitle = traderSlug
-      ? traderDisplayName(traderSlug, task.trader_name || traderSlug)
-      : "";
-    return (
-      // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- 键盘走卡内 cardHit 按钮，整卡点击只接冒泡
-      <article
-        {...rest}
-        ref={ref}
-        id={id}
-        className={`${styles.card} ${statusTone(status)}${
-          hasRibbon ? ` ${styles.cardHasRibbon}` : ""
-        }${dim ? ` ${styles.cardDim}` : ""}${
-          highlight ? ` ${styles.flash}` : ""
-        }${onActivate ? ` ${styles.cardJump}` : ""}${
-          className ? ` ${className}` : ""
-        }`}
-        onClick={(event) => {
-          onClick?.(event);
-          onActivate?.();
-        }}
-      >
-        {hasRibbon || onActivate ? (
-          <button
-            type="button"
-            className={styles.cardHit}
-            aria-label={
-              hasRibbon
-                ? `查看「${label}」的前置、阻断与冲突任务`
-                : `在任务流中定位「${label}」`
-            }
-            aria-haspopup={hasRibbon ? "dialog" : undefined}
-            aria-expanded={hasRibbon ? open : undefined}
-          />
-        ) : null}
-        {hasRibbon ? (
-          <span
-            className={styles.cardRibbon}
-            style={{ background: flowCardRibbonGradient(ribbonKinds ?? []) }}
-            aria-hidden
-          />
-        ) : null}
-        <div className={styles.cardHead}>
-          {showTrader && traderSlug ? (
-            <span className={styles.cardTrader}>
-              <TarkovTraderThumb slug={traderSlug} size={20} title={traderTitle} />
-            </span>
-          ) : null}
-          <Link
-            className={styles.cardTitle}
-            to={tarkovTaskHref(task.id)}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {label}
-          </Link>
-        </div>
-        <div className={styles.cardMeta}>
-          <div className={styles.cardReq}>
-            <span>等级要求：</span>
-            <span className={styles.cardReqValue}>
-              {taskPlayerLevelLabel(task.min_player_level)}
-            </span>
-            <span>商人好感：</span>
-            <LoyaltyMark level={task.min_trader_level} />
-          </div>
-          <StatusSelect
-            task={task}
-            done={done}
-            started={started}
-            failed={failed}
-            onSetStatus={onSetStatus}
-          />
-        </div>
-      </article>
-    );
+const TaskCardFace = forwardRef<HTMLElement, TaskCardFaceProps>(function TaskCardFace(
+  {
+    task,
+    done,
+    started,
+    failed,
+    closed,
+    onSetStatus,
+    id,
+    highlight,
+    dim,
+    showTrader,
+    ribbonKinds,
+    open,
+    onActivate,
+    className,
+    onClick,
+    ...rest
   },
-);
+  ref,
+) {
+  const derivedClosed = useContext(FlowClosedCtx);
+  const label = displayTaskProgressName(task);
+  const status = resolveTaskStatus(task.id, done, started, task, failed, closed ?? derivedClosed);
+  const hasRibbon = Boolean(ribbonKinds?.length);
+  const traderSlug = (task.trader_slug || "").trim();
+  const traderTitle = traderSlug
+    ? traderDisplayName(traderSlug, task.trader_name || traderSlug)
+    : "";
+  return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- 键盘走卡内 cardHit 按钮，整卡点击只接冒泡
+    <article
+      {...rest}
+      ref={ref}
+      id={id}
+      className={`${styles.card} ${statusTone(status)}${
+        hasRibbon ? ` ${styles.cardHasRibbon}` : ""
+      }${dim ? ` ${styles.cardDim}` : ""}${
+        highlight ? ` ${styles.flash}` : ""
+      }${onActivate ? ` ${styles.cardJump}` : ""}${className ? ` ${className}` : ""}`}
+      onClick={(event) => {
+        onClick?.(event);
+        onActivate?.();
+      }}
+    >
+      {hasRibbon || onActivate ? (
+        <button
+          type="button"
+          className={styles.cardHit}
+          aria-label={
+            hasRibbon ? `查看「${label}」的前置、阻断与冲突任务` : `在任务流中定位「${label}」`
+          }
+          aria-haspopup={hasRibbon ? "dialog" : undefined}
+          aria-expanded={hasRibbon ? open : undefined}
+        />
+      ) : null}
+      {hasRibbon ? (
+        <span
+          className={styles.cardRibbon}
+          style={{ background: flowCardRibbonGradient(ribbonKinds ?? []) }}
+          aria-hidden
+        />
+      ) : null}
+      <div className={styles.cardHead}>
+        {showTrader && traderSlug ? (
+          <span className={styles.cardTrader}>
+            <TarkovTraderThumb slug={traderSlug} size={20} title={traderTitle} />
+          </span>
+        ) : null}
+        <Link
+          className={styles.cardTitle}
+          to={tarkovTaskHref(task.id)}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {label}
+        </Link>
+      </div>
+      <div className={styles.cardMeta}>
+        <div className={styles.cardReq}>
+          <span>等级要求：</span>
+          <span className={styles.cardReqValue}>{taskPlayerLevelLabel(task.min_player_level)}</span>
+          <span>商人好感：</span>
+          <LoyaltyMark level={task.min_trader_level} />
+        </div>
+        <StatusSelect
+          task={task}
+          done={done}
+          started={started}
+          failed={failed}
+          onSetStatus={onSetStatus}
+        />
+      </div>
+    </article>
+  );
+});
 
 function PeekTask({
   item,
@@ -362,11 +342,7 @@ function FlowCard({
   const skip = new Set([task.id]);
   const prereqs = lookupTasks(node.extraPrereqIds, itemById, skip);
   const prereqIds = new Set(prereqs.map((row) => row.id));
-  const conflicts = lookupTasks(
-    task.mutex_ids,
-    itemById,
-    new Set([...skip, ...prereqIds]),
-  );
+  const conflicts = lookupTasks(task.mutex_ids, itemById, new Set([...skip, ...prereqIds]));
   const conflictIds = new Set(conflicts.map((row) => row.id));
   const blocked = lookupTasks(
     task.blocked_by,
@@ -528,9 +504,7 @@ function FlowBranch({
             key={`choice:${child.options.map((row) => row.task.id).join(",")}`}
             className={styles.choice}
           >
-            <div className={styles.choiceLabel}>
-              {taskChoiceLabel(child.options.length)}
-            </div>
+            <div className={styles.choiceLabel}>{taskChoiceLabel(child.options.length)}</div>
             <div className={styles.choiceRow}>
               {child.options.map((node) => (
                 <FlowColumn
@@ -675,9 +649,7 @@ function FlowLaneBody({
       ) : null}
       {split.isolates.length ? (
         <div className={styles.isolates}>
-          <p className={styles.isolatesHead}>
-            无序任务 · {split.isolates.length}
-          </p>
+          <p className={styles.isolatesHead}>无序任务 · {split.isolates.length}</p>
           <div className={styles.isolateGrid}>
             {split.isolates.map((child) =>
               child.kind === "task" ? (
@@ -733,9 +705,7 @@ export function TarkovTaskFlowBoard({
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !lanes.length) return;
-    const nodes = [
-      ...root.querySelectorAll<HTMLElement>("[data-flow-trader]"),
-    ];
+    const nodes = [...root.querySelectorAll<HTMLElement>("[data-flow-trader]")];
     if (!nodes.length) return;
     const io = new IntersectionObserver(
       (entries) => {
@@ -757,48 +727,41 @@ export function TarkovTaskFlowBoard({
 
   return (
     <FlowClosedCtx.Provider value={closed}>
-    <div ref={rootRef} className={styles.stack}>
-      {lanes.map((lane) => {
-        const title =
-          traderDisplayName(lane.traderSlug, lane.traderName) || "未知商人";
-        const lit = highlightTrader === lane.traderSlug;
-        return (
-          <section
-            key={lane.traderSlug || "none"}
-            id={tarkovFlowTraderAnchor(lane.traderSlug)}
-            data-flow-trader={lane.traderSlug}
-            className={`${styles.lane}${lit ? ` ${styles.laneFlash}` : ""}`}
-          >
-            <h3 className={styles.head}>
-              <span className={styles.headTitle}>
-                {lane.traderSlug ? (
-                  <TarkovTraderThumb
-                    slug={lane.traderSlug}
-                    size={28}
-                    title={title}
-                  />
-                ) : null}
-                <span>{title}</span>
-              </span>
-              <span className={styles.headMeta}>
-                {formatMeta(lane.count, lane.visible)}
-              </span>
-            </h3>
-            <FlowLaneBody
-              forest={lane.forest}
-              done={done}
-              started={started}
-              failed={failed}
-              itemById={itemById}
-              highlightTask={highlightTask}
-              laneTraderSlug={lane.traderSlug}
-              onSetStatus={onSetStatus}
-              onJumpTask={onJumpTask}
-            />
-          </section>
-        );
-      })}
-    </div>
+      <div ref={rootRef} className={styles.stack}>
+        {lanes.map((lane) => {
+          const title = traderDisplayName(lane.traderSlug, lane.traderName) || "未知商人";
+          const lit = highlightTrader === lane.traderSlug;
+          return (
+            <section
+              key={lane.traderSlug || "none"}
+              id={tarkovFlowTraderAnchor(lane.traderSlug)}
+              data-flow-trader={lane.traderSlug}
+              className={`${styles.lane}${lit ? ` ${styles.laneFlash}` : ""}`}
+            >
+              <h3 className={styles.head}>
+                <span className={styles.headTitle}>
+                  {lane.traderSlug ? (
+                    <TarkovTraderThumb slug={lane.traderSlug} size={28} title={title} />
+                  ) : null}
+                  <span>{title}</span>
+                </span>
+                <span className={styles.headMeta}>{formatMeta(lane.count, lane.visible)}</span>
+              </h3>
+              <FlowLaneBody
+                forest={lane.forest}
+                done={done}
+                started={started}
+                failed={failed}
+                itemById={itemById}
+                highlightTask={highlightTask}
+                laneTraderSlug={lane.traderSlug}
+                onSetStatus={onSetStatus}
+                onJumpTask={onJumpTask}
+              />
+            </section>
+          );
+        })}
+      </div>
     </FlowClosedCtx.Provider>
   );
 }

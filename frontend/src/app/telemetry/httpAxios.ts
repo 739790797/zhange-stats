@@ -1,8 +1,4 @@
-import {
-  axiosRequestPath,
-  enqueueRum,
-  shouldCollectApiUrl,
-} from "./rumCollect";
+import { axiosRequestPath, enqueueRum, shouldCollectApiUrl } from "./rumCollect";
 
 const rumStarts = new WeakMap<object, number>();
 

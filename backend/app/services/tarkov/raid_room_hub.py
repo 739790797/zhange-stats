@@ -108,10 +108,7 @@ class RaidRoomHub:
             if not client:
                 continue
             grouped.setdefault(int(user_id), []).append(client)
-        return [
-            {"user_id": user_id, "clients": sorted(clients)}
-            for user_id, clients in sorted(grouped.items())
-        ]
+        return [{"user_id": user_id, "clients": sorted(clients)} for user_id, clients in sorted(grouped.items())]
 
     def log_phases(self, public_id: str) -> list[dict[str, Any]]:
         with self._lock:
@@ -123,9 +120,7 @@ class RaidRoomHub:
             payload = (self._log_phases.get(public_id) or {}).get(int(user_id))
         return dict(payload) if payload else None
 
-    def set_log_phase(
-        self, public_id: str, user_id: int, payload: dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def set_log_phase(self, public_id: str, user_id: int, payload: dict[str, Any]) -> list[dict[str, Any]]:
         with self._lock:
             room = self._log_phases.setdefault(public_id, {})
             room[int(user_id)] = dict(payload)
@@ -136,9 +131,7 @@ class RaidRoomHub:
             room = dict(self._player_fixes.get(public_id) or {})
         return [{"user_id": uid, **dict(payload)} for uid, payload in room.items()]
 
-    def set_player_fix(
-        self, public_id: str, user_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    def set_player_fix(self, public_id: str, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         """记住最近一次截图坐标，供晚加入的手机端从 snapshot 拿到。"""
         body = dict(payload)
         body["at"] = int(time.time() * 1000)
@@ -149,10 +142,7 @@ class RaidRoomHub:
     def view_maps(self, public_id: str) -> list[dict[str, Any]]:
         with self._lock:
             room = dict(self._view_maps.get(public_id) or {})
-        return [
-            {"user_id": uid, "map_slug": slug}
-            for uid, slug in sorted(room.items(), key=lambda item: item[0])
-        ]
+        return [{"user_id": uid, "map_slug": slug} for uid, slug in sorted(room.items(), key=lambda item: item[0])]
 
     def view_map_of(self, public_id: str, user_id: int) -> str:
         with self._lock:
@@ -238,10 +228,7 @@ class RaidRoomHub:
                 self._rooms[public_id] = room
             elif len(room) >= MAX_SOCKETS_PER_ROOM:
                 raise RoomSocketLimit("room")
-            elif (
-                sum(1 for seat_uid, _client in room.values() if seat_uid == uid)
-                >= MAX_SOCKETS_PER_USER
-            ):
+            elif sum(1 for seat_uid, _client in room.values() if seat_uid == uid) >= MAX_SOCKETS_PER_USER:
                 raise RoomSocketLimit("user")
             room[ws] = (uid, presence_client(client))
             return _user_ids(room)

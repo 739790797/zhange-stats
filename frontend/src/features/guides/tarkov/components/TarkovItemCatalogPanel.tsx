@@ -82,8 +82,7 @@ function cellFor(column: CatalogColumnId, row: CatalogRow): string {
       return formatWeight(row.weight);
     case "slotRatio": {
       const slots = innerSlots(props);
-      const area =
-        row.width != null && row.height != null ? row.width * row.height : 0;
+      const area = row.width != null && row.height != null ? row.width * row.height : 0;
       if (!slots || !area) return "—";
       return String(Math.round((slots / area) * 100) / 100);
     }
@@ -177,9 +176,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
 
   const activeChild = findHandbookChild(page.children, childParam) || null;
 
-  const categoryIds = activeChild
-    ? handbookNodeCategoryIds(activeChild)
-    : page.categoryIds;
+  const categoryIds = activeChild ? handbookNodeCategoryIds(activeChild) : page.categoryIds;
   const types = activeChild ? [] : page.types || [];
   const canFetch = categoryIds.some(Boolean) || types.some(Boolean);
   const presetSlug = catalogPresetSlug(page, activeChild);
@@ -190,9 +187,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
     ? readCatalogSort(searchParams.get("sort"), searchParams.get("dir"), sortableIds)
     : null;
   const showRigKind = presetSlug === "rigs";
-  const rigKind = showRigKind
-    ? readRigKindFilter(searchParams.get("rig"))
-    : "all";
+  const rigKind = showRigKind ? readRigKindFilter(searchParams.get("rig")) : "all";
 
   useEffect(() => {
     setKeyword(q);
@@ -284,10 +279,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
                 ) : (
                   <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
                 )}
-                <Link
-                  className={styles.nameLink}
-                  to={itemHrefFromTypes(row.id, row.types)}
-                >
+                <Link className={styles.nameLink} to={itemHrefFromTypes(row.id, row.types)}>
                   {label}
                 </Link>
               </span>
@@ -361,11 +353,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
     const start = (pageNo - 1) * pageSize;
     return sortedRows.slice(start, start + pageSize);
   }, [clientSort, pageNo, pageSize, sortedRows]);
-  const onTableChange: TableProps<CatalogRow>["onChange"] = (
-    pagination,
-    _filters,
-    sorter,
-  ) => {
+  const onTableChange: TableProps<CatalogRow>["onChange"] = (pagination, _filters, sorter) => {
     const params = new URLSearchParams(searchParams);
     const nextPage = pagination.current ?? 1;
     const nextSize = pagination.pageSize ?? pageSize;
@@ -378,9 +366,7 @@ export function TarkovItemCatalogPanel({ page }: Props) {
       const key = String(s?.columnKey || "");
       const order = s?.order;
       const next =
-        order && sortableIds.includes(key as CatalogColumnId)
-          ? catalogSortQuery(key, order)
-          : null;
+        order && sortableIds.includes(key as CatalogColumnId) ? catalogSortQuery(key, order) : null;
       const prevKey = sortState?.key || "";
       const prevDir = sortState ? catalogSortQuery(sortState.key, sortState.order).dir : "";
       if ((next?.sort || "") !== prevKey || (next?.dir || "") !== prevDir) {
@@ -503,11 +489,7 @@ export function TarkovItemBrowseLayout({
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
-        <CatalogFilterChips
-          nodes={nodes}
-          activeId={activeId}
-          onSelect={onSelect}
-        />
+        <CatalogFilterChips nodes={nodes} activeId={activeId} onSelect={onSelect} />
       </aside>
       <div className={styles.main}>{main}</div>
     </div>
@@ -521,13 +503,7 @@ function nodeContainsId(node: TarkovHandbookChild, id: string | null): boolean {
 
 function AllCatIcon() {
   return (
-    <svg
-      className={styles.catIconSvg}
-      viewBox="0 0 16 16"
-      width={22}
-      height={22}
-      aria-hidden
-    >
+    <svg className={styles.catIconSvg} viewBox="0 0 16 16" width={22} height={22} aria-hidden>
       <rect x="1.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
       <rect x="9.25" y="1.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
       <rect x="1.25" y="9.25" width="5.5" height="5.5" rx="0.6" fill="currentColor" />
@@ -623,12 +599,7 @@ function CatNode({
         />
       </div>
       {open && kids.length ? (
-        <CatTree
-          nodes={kids}
-          activeId={activeId}
-          onSelect={onSelect}
-          depth={depth + 1}
-        />
+        <CatTree nodes={kids} activeId={activeId} onSelect={onSelect} depth={depth + 1} />
       ) : null}
     </div>
   );
@@ -650,13 +621,7 @@ function CatTree({
   return (
     <div className={depth === 0 ? styles.treeRoots : styles.treeKids}>
       {ordered.map((node) => (
-        <CatNode
-          key={node.id}
-          node={node}
-          activeId={activeId}
-          onSelect={onSelect}
-          depth={depth}
-        />
+        <CatNode key={node.id} node={node} activeId={activeId} onSelect={onSelect} depth={depth} />
       ))}
     </div>
   );
@@ -702,18 +667,8 @@ function CatalogFilterChips({
 }) {
   return (
     <nav className={styles.tree} aria-label="手册分类">
-      <CatButton
-        id={null}
-        label="全部"
-        active={!activeId}
-        onSelect={onSelect}
-      />
-      <CatTree
-        nodes={nodes}
-        activeId={activeId}
-        onSelect={onSelect}
-        depth={0}
-      />
+      <CatButton id={null} label="全部" active={!activeId} onSelect={onSelect} />
+      <CatTree nodes={nodes} activeId={activeId} onSelect={onSelect} depth={0} />
     </nav>
   );
 }

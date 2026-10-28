@@ -30,9 +30,7 @@ MAX_CODE_ATTEMPTS = 5
 
 _DELIVERY_ERRORS = {
     "smtp_error": "邮件发送失败，请稍后重试",
-    "unavailable": (
-        "邮件服务未配置，无法发送验证码。请配置 SMTP，或本地调试时设置 ALLOW_EMAIL_CODE_LOG=true"
-    ),
+    "unavailable": ("邮件服务未配置，无法发送验证码。请配置 SMTP，或本地调试时设置 ALLOW_EMAIL_CODE_LOG=true"),
 }
 
 
@@ -123,11 +121,7 @@ def _delete_challenges_for_email(db: Session, email: str) -> None:
     ident = (email or "").strip().lower()
     if not ident:
         return
-    (
-        db.query(RegisterChallenge)
-        .filter(RegisterChallenge.email == ident)
-        .delete(synchronize_session=False)
-    )
+    (db.query(RegisterChallenge).filter(RegisterChallenge.email == ident).delete(synchronize_session=False))
 
 
 def _delivery_user_message(delivery: dict, *, sent: str, logged: str) -> str:
@@ -160,19 +154,13 @@ def _consume_register_challenge(
             {RegisterChallenge.attempts: RegisterChallenge.attempts + 1},
             synchronize_session=False,
         )
-        attempts = (
-            db.query(RegisterChallenge.attempts).filter(*challenge).scalar() or 0
-        )
+        attempts = db.query(RegisterChallenge.attempts).filter(*challenge).scalar() or 0
         exhausted = attempts >= MAX_CODE_ATTEMPTS
         if exhausted:
-            db.query(RegisterChallenge).filter(*challenge).delete(
-                synchronize_session=False
-            )
+            db.query(RegisterChallenge).filter(*challenge).delete(synchronize_session=False)
         db.commit()
         if exhausted:
-            raise HTTPException(
-                status_code=400, detail="验证码错误次数过多，请重新获取"
-            )
+            raise HTTPException(status_code=400, detail="验证码错误次数过多，请重新获取")
         raise HTTPException(status_code=400, detail="验证码错误")
     db.delete(row)
     db.flush()

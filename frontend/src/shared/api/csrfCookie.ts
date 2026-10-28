@@ -1,9 +1,7 @@
 export const CSRF_COOKIE = "zhange_csrf";
 
 export function readCookie(name: string, cookieSource = ""): string {
-  const raw =
-    cookieSource ||
-    (typeof document !== "undefined" ? document.cookie : "");
+  const raw = cookieSource || (typeof document !== "undefined" ? document.cookie : "");
   const parts = raw.split(";");
   for (const part of parts) {
     const [k, ...rest] = part.trim().split("=");

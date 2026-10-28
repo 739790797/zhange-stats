@@ -1,8 +1,4 @@
-import {
-  CaretRightOutlined,
-  ReloadOutlined,
-  BorderOutlined,
-} from "@ant-design/icons";
+import { CaretRightOutlined, ReloadOutlined, BorderOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -26,13 +22,7 @@ import {
 } from "@/features/guides/minecraft/api/minecraftApi";
 import { apiError } from "@/shared/api/apiError";
 import { MinecraftConsoleView } from "./MinecraftConsole";
-import {
-  formatBytes,
-  formatLimit,
-  formatUptime,
-  isServerLive,
-  powerLabel,
-} from "./minecraftUi";
+import { formatBytes, formatLimit, formatUptime, isServerLive, powerLabel } from "./minecraftUi";
 import { useMinecraftConsole } from "./useMinecraftConsole";
 import { PanelFallback } from "@/shared/ui/PanelFallback";
 
@@ -48,18 +38,9 @@ const MinecraftResourceCharts = lazy(() =>
   })),
 );
 
-function InfoTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
+function InfoTile({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <Card
-      size="small"
-      styles={{ body: { minHeight: 72, padding: "12px 16px" } }}
-    >
+    <Card size="small" styles={{ body: { minHeight: 72, padding: "12px 16px" } }}>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         {label}
       </Typography.Text>
@@ -105,19 +86,11 @@ export function MinecraftManagePanel() {
   });
 
   if (statusQuery.isError) {
-    return (
-      <Alert
-        type="error"
-        showIcon
-        message={apiError(statusQuery.error, "无法读取服况")}
-      />
-    );
+    return <Alert type="error" showIcon message={apiError(statusQuery.error, "无法读取服况")} />;
   }
 
   if (statusQuery.isLoading) {
-    return (
-      <Typography.Text type="secondary">加载中…</Typography.Text>
-    );
+    return <Typography.Text type="secondary">加载中…</Typography.Text>;
   }
 
   if (!pelicanConfigured) {
@@ -131,9 +104,7 @@ export function MinecraftManagePanel() {
           description="填好 Panel 地址、Client Token 和这台服的 UUID 之后，才能在这里启停和控制台。游戏进程仍在 Pelican 里，战鸽只作为操作入口。"
         />
         <Link to="/settings/integrations">
-          <Button type="primary">
-            去集成密钥配置
-          </Button>
+          <Button type="primary">去集成密钥配置</Button>
         </Link>
       </Card>
     );
@@ -143,19 +114,12 @@ export function MinecraftManagePanel() {
   const meta = console.meta;
   // 上限只用来自 Pelican 面板的 limits（资源配置，0 = 不限制）。
   // 不要用 Wings stats.*_limit_bytes：限额为 0 时它会回报整机内存。
-  const memLimit = meta?.memory_limit_mb
-    ? meta.memory_limit_mb * 1024 * 1024
-    : 0;
-  const diskLimit = meta?.disk_limit_mb
-    ? meta.disk_limit_mb * 1024 * 1024
-    : 0;
+  const memLimit = meta?.memory_limit_mb ? meta.memory_limit_mb * 1024 * 1024 : 0;
+  const diskLimit = meta?.disk_limit_mb ? meta.disk_limit_mb * 1024 * 1024 : 0;
   const cpuLimit = meta?.cpu_limit || 0;
   const name = meta?.name || "Minecraft";
   const address = meta?.address || status?.address || "—";
-  const uptime =
-    stats?.uptime_ms && liveState === "running"
-      ? formatUptime(stats.uptime_ms)
-      : "";
+  const uptime = stats?.uptime_ms && liveState === "running" ? formatUptime(stats.uptime_ms) : "";
 
   return (
     <div>
@@ -198,11 +162,7 @@ export function MinecraftManagePanel() {
             disabled={!live || power.isPending}
             onConfirm={() => power.mutate("restart")}
           >
-            <Button
-              icon={<ReloadOutlined />}
-              loading={power.isPending}
-              disabled={!live}
-            >
+            <Button icon={<ReloadOutlined />} loading={power.isPending} disabled={!live}>
               重启
             </Button>
           </Popconfirm>
@@ -253,7 +213,10 @@ export function MinecraftManagePanel() {
             label="地址"
             value={
               address && address !== "—" ? (
-                <Typography.Text copyable={{ text: address }} style={{ fontSize: 16, fontWeight: 600 }}>
+                <Typography.Text
+                  copyable={{ text: address }}
+                  style={{ fontSize: 16, fontWeight: 600 }}
+                >
                   {address}
                 </Typography.Text>
               ) : (
@@ -269,30 +232,20 @@ export function MinecraftManagePanel() {
           <InfoTile
             label="CPU"
             value={
-              stats
-                ? `${stats.cpu.toFixed(1)}% / ${cpuLimit > 0 ? `${cpuLimit}%` : "∞"}`
-                : "—"
+              stats ? `${stats.cpu.toFixed(1)}% / ${cpuLimit > 0 ? `${cpuLimit}%` : "∞"}` : "—"
             }
           />
         </Col>
         <Col xs={24} md={8}>
           <InfoTile
             label="内存"
-            value={
-              stats
-                ? `${formatBytes(stats.memory_bytes)} / ${formatLimit(memLimit)}`
-                : "—"
-            }
+            value={stats ? `${formatBytes(stats.memory_bytes)} / ${formatLimit(memLimit)}` : "—"}
           />
         </Col>
         <Col xs={24} md={8}>
           <InfoTile
             label="磁盘"
-            value={
-              stats
-                ? `${formatBytes(stats.disk_bytes)} / ${formatLimit(diskLimit)}`
-                : "—"
-            }
+            value={stats ? `${formatBytes(stats.disk_bytes)} / ${formatLimit(diskLimit)}` : "—"}
           />
         </Col>
       </Row>
@@ -321,9 +274,7 @@ export function MinecraftManagePanel() {
 
       <Divider style={{ margin: "32px 0 16px" }} />
 
-      <Suspense
-        fallback={<PanelFallback tip="加载文件管理…" />}
-      >
+      <Suspense fallback={<PanelFallback tip="加载文件管理…" />}>
         <MinecraftFileManager />
       </Suspense>
     </div>

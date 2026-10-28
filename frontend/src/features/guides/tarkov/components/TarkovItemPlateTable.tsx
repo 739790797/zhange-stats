@@ -36,8 +36,7 @@ function compareNullableNumber(left: number | null, right: number | null): numbe
 function filterProps(rows: PlateTableRow[], key: PlateFilterKey) {
   return {
     filters: plateColumnFilters(rows, key),
-    onFilter: (value: boolean | Key, row: PlateTableRow) =>
-      plateColumnMatch(row, key, value),
+    onFilter: (value: boolean | Key, row: PlateTableRow) => plateColumnMatch(row, key, value),
     filterSearch: key === "slot" || key === "material",
   };
 }
@@ -74,10 +73,7 @@ export function TarkovItemPlateTable({ rows, marks }: Props) {
                 <span style={{ width: 36, height: 36, flex: "0 0 36px" }} />
               )}
               <span className={styles.nameBody}>
-                <Link
-                  className={catalog.nameLink}
-                  to={itemHrefFromTypes(row.id, row.types)}
-                >
+                <Link className={catalog.nameLink} to={itemHrefFromTypes(row.id, row.types)}>
                   {row.name}
                 </Link>
                 {row.badges.length ? (

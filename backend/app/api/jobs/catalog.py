@@ -1,4 +1,5 @@
 """定时任务目录与平台映射。"""
+
 from __future__ import annotations
 
 from typing import Any

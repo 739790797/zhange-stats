@@ -1,4 +1,5 @@
 """森空岛：终末地养成盒。"""
+
 from __future__ import annotations
 
 import re
@@ -96,12 +97,9 @@ def skland_endfield_inn_plan(
 ) -> InnPlanOut:
     """为主题和客栈等级生成菜单、厨师与五星目标估算。"""
     try:
-        return InnPlanOut(
-            **build_plan(topic_id=topic_id, level=level, expansions=expansions)
-        )
+        return InnPlanOut(**build_plan(topic_id=topic_id, level=level, expansions=expansions))
     except (InnDataError, RepoError) as exc:
         raise _inn_error(exc) from exc
-
 
 
 @router.post(
@@ -123,6 +121,7 @@ def skland_endfield_inn_query(request: InnQueryIn) -> InnQueryOut:
         )
     except (InnDataError, RepoError) as exc:
         raise _inn_error(exc) from exc
+
 
 def _endfield_char_out(char) -> EndfieldCharOut:
     return EndfieldCharOut(
@@ -224,10 +223,7 @@ def _endfield_compare_row_out(row: dict) -> EndfieldCompareRowOut:
         player_level=row.get("player_level"),
         synced_at=row.get("synced_at"),
         char_count=row.get("char_count") or 0,
-        owned={
-            char_id: _endfield_char_out(char)
-            for char_id, char in (row.get("owned") or {}).items()
-        },
+        owned={char_id: _endfield_char_out(char) for char_id, char in (row.get("owned") or {}).items()},
         roles=[EndfieldCompareRoleOut(**role) for role in row.get("roles", [])],
     )
 
@@ -246,9 +242,7 @@ def skland_endfield_box(
     """终末地养成盒：默认读库二次加工；force 或首次回源落库。"""
     member = _member_or_404(db, user)
     try:
-        box, role, roles, synced_at, stale = get_endfield_box_for_member(
-            db, member, uid, force=force
-        )
+        box, role, roles, synced_at, stale = get_endfield_box_for_member(db, member, uid, force=force)
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
     return _endfield_box_out(box, role, roles, synced_at, stale)
@@ -265,10 +259,7 @@ def skland_endfield_compare_candidates(
 ):
     """终末地养成对比成员：仅显示仍绑定且有角色记录的站内用户。"""
     _member_or_404(db, user)
-    return [
-        EndfieldCompareCandidateOut(**row)
-        for row in list_compare_candidates(db, user)
-    ]
+    return [EndfieldCompareCandidateOut(**row) for row in list_compare_candidates(db, user)]
 
 
 @router.get(
@@ -287,9 +278,7 @@ def skland_endfield_box_compare(
     user: User = Depends(get_current_user),
 ):
     """终末地多用户干员练度对比；仅当前用户可回源，其他用户只读已缓存快照。"""
-    platform_limiter.hit(
-        f"endfield-box-compare:uid:{user.id}", limit=60, window_sec=600
-    )
+    platform_limiter.hit(f"endfield-box-compare:uid:{user.id}", limit=60, window_sec=600)
     _member_or_404(db, user)
     ids: list[int] = []
     for part in member_ids.split(","):
@@ -308,11 +297,7 @@ def skland_endfield_box_compare(
                 continue
             member_raw, sep, uid_raw = part.partition(":")
             member_raw, uid_raw = member_raw.strip(), uid_raw.strip()
-            if (
-                not sep
-                or not _MEMBER_ID_RE.fullmatch(member_raw)
-                or not _ROLE_UID_RE.fullmatch(uid_raw)
-            ):
+            if not sep or not _MEMBER_ID_RE.fullmatch(member_raw) or not _ROLE_UID_RE.fullmatch(uid_raw):
                 raise HTTPException(status_code=400, detail=f"无效的 role_uids: {part}")
             uid_map[int(member_raw)] = uid_raw
 
@@ -347,10 +332,8 @@ def skland_endfield_attendance_calendar(
     """终末地签到周期日历（第 N 天奖励，非公历日期）；默认读库，force 回源。"""
     member = _member_or_404(db, user)
     try:
-        parsed, role, roles, synced_at, stale = (
-            get_endfield_attendance_calendar_for_member(
-                db, member, uid, force=force
-            )
+        parsed, role, roles, synced_at, stale = get_endfield_attendance_calendar_for_member(
+            db, member, uid, force=force
         )
     except SklandApiError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc

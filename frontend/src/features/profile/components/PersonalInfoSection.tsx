@@ -16,7 +16,15 @@ import {
 import type { UploadProps } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { changeOwnPassword, changeOwnUsername, deleteOwnAccount, fetchMe, fetchPasswordPolicy, logoutAllRequest, sendDeleteAccountCode } from "@/features/auth/api/authApi";
+import {
+  changeOwnPassword,
+  changeOwnUsername,
+  deleteOwnAccount,
+  fetchMe,
+  fetchPasswordPolicy,
+  logoutAllRequest,
+  sendDeleteAccountCode,
+} from "@/features/auth/api/authApi";
 import type { MemberProfile } from "@/features/profile/api/types";
 import { apiError } from "@/shared/api/apiError";
 import { useAuthStore } from "@/features/auth/model/authStore";
@@ -199,9 +207,7 @@ export function PersonalInfoSection({
             {displayName}
           </Typography.Title>
           <Descriptions column={1} size="small">
-            {showUsername ? (
-              <Descriptions.Item label="用户名">{username}</Descriptions.Item>
-            ) : null}
+            {showUsername ? <Descriptions.Item label="用户名">{username}</Descriptions.Item> : null}
             <Descriptions.Item label="邮箱">{data?.email || "未绑定"}</Descriptions.Item>
           </Descriptions>
           {showAccountActions ? (
@@ -366,7 +372,8 @@ export function PersonalInfoSection({
             ) : (
               <>
                 <Typography.Paragraph>
-                  注销后无法用原邮箱登录，平台绑定会解除。已发布的酒馆文章会保留并显示「已注销用户」，草稿会删除。通常即时完成（不超过 15 日）。
+                  注销后无法用原邮箱登录，平台绑定会解除。已发布的酒馆文章会保留并显示「已注销用户」，草稿会删除。通常即时完成（不超过
+                  15 日）。
                 </Typography.Paragraph>
                 <Form
                   form={deleteForm}

@@ -28,9 +28,7 @@ def _clamp_expire(value: Any, default: int = _DEFAULT_EXPIRE_MINUTES) -> int:
     return max(_MIN_EXPIRE, min(_MAX_EXPIRE, minutes))
 
 
-def _clamp_min_password_length(
-    value: Any, default: int = _DEFAULT_MIN_PASSWORD_LENGTH
-) -> int:
+def _clamp_min_password_length(value: Any, default: int = _DEFAULT_MIN_PASSWORD_LENGTH) -> int:
     try:
         length = int(value)
     except (TypeError, ValueError):
@@ -68,10 +66,7 @@ def _defaults() -> dict[str, Any]:
 def load_auth_config(_db: Session | None = None) -> dict[str, Any]:
     base = _defaults()
     stored = read_json("auth") or {}
-    if (
-        "access_token_expire_minutes" in stored
-        and stored["access_token_expire_minutes"] is not None
-    ):
+    if "access_token_expire_minutes" in stored and stored["access_token_expire_minutes"] is not None:
         base["access_token_expire_minutes"] = _clamp_expire(
             stored["access_token_expire_minutes"],
             base["access_token_expire_minutes"],
@@ -82,9 +77,7 @@ def load_auth_config(_db: Session | None = None) -> dict[str, Any]:
             base["min_password_length"],
         )
     if "reject_weak_admin_password" in stored:
-        base["reject_weak_admin_password"] = _as_optional_bool(
-            stored.get("reject_weak_admin_password")
-        )
+        base["reject_weak_admin_password"] = _as_optional_bool(stored.get("reject_weak_admin_password"))
     if "enforce_single_admin" in stored and stored["enforce_single_admin"] is not None:
         base["enforce_single_admin"] = bool(stored["enforce_single_admin"])
     if "icp_beian_no" in stored:
@@ -122,12 +115,8 @@ def save_auth_config(_db: Session | None, payload: dict[str, Any]) -> dict[str, 
         icp = normalize_icp_beian_no(payload.get("icp_beian_no"))
 
     data = {
-        "access_token_expire_minutes": _clamp_expire(
-            minutes, current["access_token_expire_minutes"]
-        ),
-        "min_password_length": _clamp_min_password_length(
-            min_len, current["min_password_length"]
-        ),
+        "access_token_expire_minutes": _clamp_expire(minutes, current["access_token_expire_minutes"]),
+        "min_password_length": _clamp_min_password_length(min_len, current["min_password_length"]),
         "reject_weak_admin_password": reject,
         "enforce_single_admin": enforce,
         "icp_beian_no": icp,
@@ -166,24 +155,15 @@ def public_auth_config(
     out: dict[str, Any] = {
         "access_token_expire_minutes": minutes,
         "access_token_expire_days": days,
-        "min_password_length": _clamp_min_password_length(
-            cfg.get("min_password_length"), _DEFAULT_MIN_PASSWORD_LENGTH
-        ),
-        "reject_weak_admin_password": _as_optional_bool(
-            cfg.get("reject_weak_admin_password")
-        ),
+        "min_password_length": _clamp_min_password_length(cfg.get("min_password_length"), _DEFAULT_MIN_PASSWORD_LENGTH),
+        "reject_weak_admin_password": _as_optional_bool(cfg.get("reject_weak_admin_password")),
         "reject_weak_admin_password_effective": reject_effective,
         "enforce_single_admin": bool(cfg.get("enforce_single_admin")),
         "app_env": get_settings().APP_ENV,
         "is_production": get_settings().is_production,
     }
     if db is not None:
-        admins = (
-            db.query(User)
-            .filter(User.role == UserRole.admin)
-            .order_by(User.id.asc())
-            .all()
-        )
+        admins = db.query(User).filter(User.role == UserRole.admin).order_by(User.id.asc()).all()
         weak_ids: set[int] = set()
         if check_weak_passwords:
             from app.services.password_policy import list_admins_with_weak_password
@@ -233,11 +213,7 @@ def lock_admin_ids(db: Session) -> list[int]:
 def admins_remaining(db: Session) -> int:
     """本事务内（含未提交改动）还剩几名管理员；改完角色后复核用。"""
     db.flush()
-    return (
-        db.query(User)
-        .filter(User.role == UserRole.admin, User.anonymized_at.is_(None))
-        .count()
-    )
+    return db.query(User).filter(User.role == UserRole.admin, User.anonymized_at.is_(None)).count()
 
 
 def enforce_single_admin_if_needed(
@@ -248,12 +224,7 @@ def enforce_single_admin_if_needed(
     cfg = load_auth_config(db)
     if not cfg.get("enforce_single_admin"):
         return
-    admins = (
-        db.query(User)
-        .filter(User.role == UserRole.admin)
-        .order_by(User.id.asc())
-        .all()
-    )
+    admins = db.query(User).filter(User.role == UserRole.admin).order_by(User.id.asc()).all()
     if len(admins) <= 1:
         return
     keeper_id = keep_user_id

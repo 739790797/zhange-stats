@@ -30,7 +30,7 @@ from app.models.user import UserRole
 
 _NOW = datetime(2026, 10, 10, 12, 0)
 
-_PROBE_REVISION = '''
+_PROBE_REVISION = """
 import sqlalchemy as sa
 from alembic import op
 
@@ -47,9 +47,9 @@ def upgrade():
 
 def downgrade():
     pass
-'''
+"""
 
-_NOOP_REVISION = '''
+_NOOP_REVISION = """
 revision = "zz_noop_probe"
 down_revision = "{down}"
 branch_labels = None
@@ -62,7 +62,7 @@ def upgrade():
 
 def downgrade():
     pass
-'''
+"""
 
 
 @pytest.fixture
@@ -81,9 +81,7 @@ def sqlite_app_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def _count_sessions(conn, member_id: int) -> int:
     table = PlaySession.__table__
-    return conn.execute(
-        select(func.count()).select_from(table).where(table.c.member_id == member_id)
-    ).scalar_one()
+    return conn.execute(select(func.count()).select_from(table).where(table.c.member_id == member_id)).scalar_one()
 
 
 @pytest.mark.parametrize("migration_fks", ["off", "on"])
@@ -122,9 +120,7 @@ def test_batch_rebuild_keeps_child_rows_only_with_foreign_keys_off(
     head = ScriptDirectory.from_config(cfg).get_current_head()
     probe_dir = tmp_path / "probe_versions"
     probe_dir.mkdir()
-    (probe_dir / "zz_fk_probe.py").write_text(
-        _PROBE_REVISION.format(down=head), encoding="utf-8"
-    )
+    (probe_dir / "zz_fk_probe.py").write_text(_PROBE_REVISION.format(down=head), encoding="utf-8")
     cfg.set_main_option(
         "version_locations",
         os.pathsep.join([str(_BACKEND_ROOT / "alembic" / "versions"), str(probe_dir)]),
@@ -140,9 +136,7 @@ def test_batch_rebuild_keeps_child_rows_only_with_foreign_keys_off(
             assert _count_sessions(conn, member_id) == 0
 
 
-@pytest.mark.parametrize(
-    ("utc_era_head", "expected"), [(True, "utc_pending"), (False, None)]
-)
+@pytest.mark.parametrize(("utc_era_head", "expected"), [(True, "utc_pending"), (False, None)])
 def test_cli_upgrade_marks_utc_era_databases_through_env_py(
     sqlite_app_db,
     tmp_path: Path,
@@ -185,9 +179,7 @@ def _hook_diffs(ddl: str, metadata: sa.MetaData, hook) -> list[tuple[str, str]]:
         with engine.begin() as conn:
             conn.exec_driver_sql(ddl)
         with engine.connect() as conn:
-            ctx = MigrationContext.configure(
-                conn, opts={"compare_server_default": hook, "target_metadata": metadata}
-            )
+            ctx = MigrationContext.configure(conn, opts={"compare_server_default": hook, "target_metadata": metadata})
             return _default_diffs(compare_metadata(ctx, metadata))
     finally:
         engine.dispose()
@@ -259,9 +251,7 @@ def test_run_migrations_keeps_app_loggers_and_root_handlers(sqlite_app_db) -> No
     assert root.level == level
 
 
-def test_revision_change_is_logged_once(
-    sqlite_app_db, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_revision_change_is_logged_once(sqlite_app_db, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO, logger="zhange.migrate")
     head = ScriptDirectory.from_config(_alembic_config()).get_current_head()
 

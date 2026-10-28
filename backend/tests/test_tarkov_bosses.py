@@ -393,9 +393,7 @@ def test_fold_black_division_and_rogues_and_keep_wedge_as_boss():
                         "mob": "bossWedge",
                         "spawnChance": 1,
                         "spawnLocations": [{"name": "Bow", "chance": 1}],
-                        "escorts": [
-                            {"mob": "bossWedge", "amount": [{"chance": 1, "count": 1}]}
-                        ],
+                        "escorts": [{"mob": "bossWedge", "amount": [{"chance": 1, "count": 1}]}],
                     },
                     {
                         "mob": "ExUsec",
@@ -894,13 +892,9 @@ def test_equipment_slot_prefers_handbook_then_types():
         }
     ) == ("armor", "身体护甲")
     assert bosses.equipment_slot_for_item({"types": ["rig"]}) == ("rig", "战术胸挂")
-    assert bosses.equipment_slot_for_item(
-        {"types": ["gun"], "handbook_ids": [bosses.HB_PISTOL]}
-    ) == ("pistol", "手枪")
+    assert bosses.equipment_slot_for_item({"types": ["gun"], "handbook_ids": [bosses.HB_PISTOL]}) == ("pistol", "手枪")
     assert bosses.equipment_slot_for_item({"types": ["gun"]}) == ("gun", "武器")
-    assert bosses.equipment_slot_for_item(
-        {"handbook_ids": [bosses.HB_FACE]}
-    ) == ("face", "面部装备")
+    assert bosses.equipment_slot_for_item({"handbook_ids": [bosses.HB_FACE]}) == ("face", "面部装备")
     assert bosses.equipment_slot_for_item(
         {
             "types": ["glasses", "wearable"],
@@ -911,9 +905,7 @@ def test_equipment_slot_prefers_handbook_then_types():
         bosses.EQUIPMENT_SLOT_OTHER,
         bosses.EQUIPMENT_SLOT_OTHER_LABEL,
     )
-    assert bosses.skip_equipment_slot_item(
-        {"types": ["mods"], "properties_type": "ItemPropertiesMagazine"}
-    )
+    assert bosses.skip_equipment_slot_item({"types": ["mods"], "properties_type": "ItemPropertiesMagazine"})
     assert bosses.skip_equipment_slot_item({"types": ["ammo"]})
     assert not bosses.skip_equipment_slot_item(
         {"types": ["ammo", "grenade"], "properties_type": "ItemPropertiesGrenade"}

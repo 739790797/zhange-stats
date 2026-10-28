@@ -48,9 +48,7 @@ export function MinecraftModToolInstallModal({
     }
     const rows = versionsQuery.data?.versions || [];
     if (!rows.length) return;
-    const current = rows.find(
-      (row) => installed && row.version_number === installed,
-    );
+    const current = rows.find((row) => installed && row.version_number === installed);
     setVersionId((current || rows[0]).version_id);
   }, [open, versionsQuery.data?.versions, installed]);
 
@@ -81,10 +79,8 @@ export function MinecraftModToolInstallModal({
       message.error(apiError(e, mode === "change" ? "更换版本失败" : "安装失败")),
   });
 
-  const title =
-    mode === "change" ? `修改版本 · ${tool.title}` : `安装模组 · ${tool.title}`;
-  const emptyMessage =
-    versionsQuery.data?.message || catalog?.message || "没有匹配当前服的文件";
+  const title = mode === "change" ? `修改版本 · ${tool.title}` : `安装模组 · ${tool.title}`;
+  const emptyMessage = versionsQuery.data?.message || catalog?.message || "没有匹配当前服的文件";
 
   return (
     <Modal
@@ -103,21 +99,15 @@ export function MinecraftModToolInstallModal({
         </Typography.Paragraph>
         <Descriptions column={1} size="small">
           <Descriptions.Item label="来源">Modrinth</Descriptions.Item>
-          <Descriptions.Item label="加载器">
-            {loaderLabel(loader)}
-          </Descriptions.Item>
-          <Descriptions.Item label="游戏版本">
-            {mcVersion || "—"}
-          </Descriptions.Item>
+          <Descriptions.Item label="加载器">{loaderLabel(loader)}</Descriptions.Item>
+          <Descriptions.Item label="游戏版本">{mcVersion || "—"}</Descriptions.Item>
         </Descriptions>
         <div>
           <Typography.Text type="secondary">模组版本</Typography.Text>
           <Select
             showSearch
             optionFilterProp="label"
-            placeholder={
-              versionsQuery.isFetching ? "正在列出兼容版本…" : "选择版本"
-            }
+            placeholder={versionsQuery.isFetching ? "正在列出兼容版本…" : "选择版本"}
             loading={versionsQuery.isFetching}
             value={versionId || undefined}
             onChange={setVersionId}
@@ -126,11 +116,7 @@ export function MinecraftModToolInstallModal({
           />
         </div>
         {versionsQuery.isError ? (
-          <Alert
-            type="error"
-            showIcon
-            message={apiError(versionsQuery.error, "无法列出版本")}
-          />
+          <Alert type="error" showIcon message={apiError(versionsQuery.error, "无法列出版本")} />
         ) : null}
         {!versionsQuery.isFetching && !versions.length ? (
           <Alert type="warning" showIcon message={emptyMessage} />

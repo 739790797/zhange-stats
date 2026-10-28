@@ -33,6 +33,5 @@ function handleFallbackImgError(event: Event) {
 /** 返回解绑函数。 */
 export function attachFallbackImgErrors(container: HTMLElement): () => void {
   container.addEventListener("error", handleFallbackImgError, true);
-  return () =>
-    container.removeEventListener("error", handleFallbackImgError, true);
+  return () => container.removeEventListener("error", handleFallbackImgError, true);
 }

@@ -95,11 +95,7 @@ def format_log_context(ctx: dict[str, str]) -> str:
 @contextmanager
 def log_context(**fields: str | int | None) -> Iterator[None]:
     """在 with 块内为日志附加业务上下文（如 platform、member_id）。"""
-    normalized = {
-        str(k): str(v)
-        for k, v in fields.items()
-        if v is not None and str(v).strip()
-    }
+    normalized = {str(k): str(v) for k, v in fields.items() if v is not None and str(v).strip()}
     if not normalized:
         yield
         return
@@ -170,9 +166,7 @@ def wrap_scheduled_job(
 
     def _wrapped() -> None:
         with log_context(job=job_id):
-            sched_logger.log(
-                logging.DEBUG if quiet else logging.INFO, "scheduled job begin id=%s", job_id
-            )
+            sched_logger.log(logging.DEBUG if quiet else logging.INFO, "scheduled job begin id=%s", job_id)
             try:
                 did_work = func()
             except Exception:

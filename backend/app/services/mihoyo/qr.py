@@ -78,9 +78,7 @@ def poll_qr_bind(db: Session, *, user_id: int, member: Member, scan_id: str) -> 
     pending = _load_pending(scan_id)
     if pending is None:
         return {"status": "expired", "message": "二维码已失效，请刷新后重试"}
-    if int(pending.get("user_id") or 0) != user_id or int(
-        pending.get("member_id") or 0
-    ) != member.id:
+    if int(pending.get("user_id") or 0) != user_id or int(pending.get("member_id") or 0) != member.id:
         raise MihoyoApiError("无权使用该扫码会话")
     if pending.get("completed"):
         return {"status": "ok", "message": "绑定成功"}

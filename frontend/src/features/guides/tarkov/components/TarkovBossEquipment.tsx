@@ -38,20 +38,11 @@ function GearCard({ item }: { item: TarkovBossGearItem }) {
   const nested = item.contains || [];
   const stowed = splitBossGearContains(nested);
   const classLabel = bossGearArmorClassLabel(item);
-  const hasStow =
-    stowed.magazines.length > 0 ||
-    stowed.ammo.length > 0 ||
-    stowed.plates.length > 0;
+  const hasStow = stowed.magazines.length > 0 || stowed.ammo.length > 0 || stowed.plates.length > 0;
   return (
     <article className={styles.card}>
-      <Link
-        className={styles.main}
-        to={itemHrefFromTypes(item.item_id, item.types)}
-        title={text}
-      >
-        <span className={styles.icon}>
-          {thumb ? <img src={thumb} alt="" /> : null}
-        </span>
+      <Link className={styles.main} to={itemHrefFromTypes(item.item_id, item.types)} title={text}>
+        <span className={styles.icon}>{thumb ? <img src={thumb} alt="" /> : null}</span>
         {classLabel ? (
           <span className={styles.mainText}>
             <span className={styles.name}>{text}</span>
@@ -103,13 +94,7 @@ function GearCard({ item }: { item: TarkovBossGearItem }) {
   );
 }
 
-function StowBlock({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function StowBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className={styles.stowBlock}>
       <div className={styles.stowLabel}>{label}</div>
@@ -173,10 +158,7 @@ function AmmoRow({ item }: { item: GearContained }) {
         ) : null}
       </div>
       {showEffects ? (
-        <AmmoArmorStrip
-          penetration={stats.penetration ?? 0}
-          armorDamage={stats.armorDamage ?? 0}
-        />
+        <AmmoArmorStrip penetration={stats.penetration ?? 0} armorDamage={stats.armorDamage ?? 0} />
       ) : (
         <span />
       )}
@@ -204,9 +186,7 @@ function AmmoArmorStrip({
             title={`${index + 1}级 ${ARMOR_EFFECT_LABELS[level]}`}
           >
             <span className={styles.effectClass}>{index + 1}级</span>
-            <span className={styles.effectLabel}>
-              {ARMOR_EFFECT_LABELS[level]}
-            </span>
+            <span className={styles.effectLabel}>{ARMOR_EFFECT_LABELS[level]}</span>
           </div>
         );
       })}
@@ -218,11 +198,7 @@ function slotGridClass(key: string | undefined): string {
   return key === "gun" || key === "pistol" ? styles.gridArmed : styles.grid;
 }
 
-export function TarkovBossEquipment({
-  slots,
-}: {
-  slots: TarkovBossGearSlot[];
-}) {
+export function TarkovBossEquipment({ slots }: { slots: TarkovBossGearSlot[] }) {
   const groups = groupBossGearSlots(mergeBossArmorSlots(slots));
   if (!groups.length) return null;
   return (

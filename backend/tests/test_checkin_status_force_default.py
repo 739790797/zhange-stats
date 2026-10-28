@@ -125,9 +125,7 @@ def _client(monkeypatch: pytest.MonkeyPatch, p: _Platform) -> tuple[TestClient, 
 
 
 @pytest.mark.parametrize("p", _PLATFORMS, ids=lambda p: p.name)
-def test_status_echo_queries_upstream_only_for_display(
-    monkeypatch: pytest.MonkeyPatch, p: _Platform
-) -> None:
+def test_status_echo_queries_upstream_only_for_display(monkeypatch: pytest.MonkeyPatch, p: _Platform) -> None:
     client, forces = _client(monkeypatch, p)
     calls = (
         ("GET", "/status", None, True),

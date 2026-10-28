@@ -63,20 +63,13 @@ const FILTERS: Array<{ id: TarkovKeyOwnedFilter; label: string }> = [
 ];
 
 /** 首页地图格同款 MDI 路径（viewBox 0 0 24 24）。 */
-const ALL_MAP_ICON =
-  "M3,3H11V11H3V3M13,3H21V11H13V3M3,13H11V21H3V13M13,13H21V21H13V13Z";
+const ALL_MAP_ICON = "M3,3H11V11H3V3M13,3H21V11H13V3M3,13H11V21H3V13M13,13H21V21H13V13Z";
 const UNBOUND_MAP_ICON =
   "M7,14A3,3 0 0,1 4,11A3,3 0 0,1 7,8A3,3 0 0,1 10,11A3,3 0 0,1 7,14M12.65,10C11.83,7.67 9.61,6 7,6A5,5 0 0,0 2,11A5,5 0 0,0 7,16C9.61,16 11.83,14.33 12.65,12H17V16H21V12H22V10H12.65Z";
 
 function PackMapIcon({ path }: { path: string }) {
   return (
-    <svg
-      className={styles.packIcon}
-      viewBox="0 0 24 24"
-      width="20"
-      height="20"
-      aria-hidden
-    >
+    <svg className={styles.packIcon} viewBox="0 0 24 24" width="20" height="20" aria-hidden>
       <path d={path} fill="currentColor" />
     </svg>
   );
@@ -92,12 +85,7 @@ function KeyTagList({ tags }: { tags: TarkovKeySourceTag[] }) {
         const reactKey = `${tag.kind}-${tag.label}-${tag.hint}-${tag.href || index}`;
         if (tag.href) {
           return (
-            <Link
-              key={reactKey}
-              className={className}
-              to={tag.href}
-              title={line}
-            >
+            <Link key={reactKey} className={className} to={tag.href} title={line}>
               {line}
             </Link>
           );
@@ -122,9 +110,7 @@ function UsageCell({ row }: { row: TarkovKeyPackKey }) {
   return (
     <div className={styles.usage}>
       {usage ? <p className={styles.desc}>{usage}</p> : null}
-      {marks.length ? (
-        <span className={styles.marks}>{marks.join(" · ")}</span>
-      ) : null}
+      {marks.length ? <span className={styles.marks}>{marks.join(" · ")}</span> : null}
       {needs.length ? <KeyTagList tags={needs} /> : null}
     </div>
   );
@@ -147,13 +133,8 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
   const qRef = useRef(q);
   const migratedRef = useRef(false);
   const user = useAuthStore((s) => s.user);
-  const [ownedIds, setOwnedIds] = useState<string[]>(() =>
-    wiki ? [] : loadOwnedIds(),
-  );
-  const owned = useMemo(
-    () => (wiki ? new Set<string>() : new Set(ownedIds)),
-    [wiki, ownedIds],
-  );
+  const [ownedIds, setOwnedIds] = useState<string[]>(() => (wiki ? [] : loadOwnedIds()));
+  const owned = useMemo(() => (wiki ? new Set<string>() : new Set(ownedIds)), [wiki, ownedIds]);
   const ownedIdsRef = useRef(ownedIds);
   ownedIdsRef.current = ownedIds;
   const touchedRef = useRef(false);
@@ -180,13 +161,8 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
   });
 
   const toggleMut = useMutation({
-    mutationFn: async ({
-      itemId,
-      nextHas,
-    }: {
-      itemId: string;
-      nextHas: boolean;
-    }) => (nextHas ? addTarkovKeyOwn(itemId) : removeTarkovKeyOwn(itemId)),
+    mutationFn: async ({ itemId, nextHas }: { itemId: string; nextHas: boolean }) =>
+      nextHas ? addTarkovKeyOwn(itemId) : removeTarkovKeyOwn(itemId),
     onSuccess: (data) => applyOwns(data.item_ids || []),
     onError: async () => {
       const result = await ownsQuery.refetch();
@@ -235,20 +211,14 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
   });
 
   const packs = useMemo(
-    () =>
-      buildKeyPackNav(
-        catalogQuery.data?.maps ?? [],
-        catalogQuery.data?.unbound ?? [],
-      ),
+    () => buildKeyPackNav(catalogQuery.data?.maps ?? [], catalogQuery.data?.unbound ?? []),
     [catalogQuery.data],
   );
   const slugs = useMemo(() => packs.map((row) => row.slug), [packs]);
   const allKeys = useMemo(() => collectPackKeys(packs), [packs]);
   const activeSlug = resolvePackSlug(mapRaw, slugs);
   const allMaps = isAllPackSlug(activeSlug);
-  const active = allMaps
-    ? null
-    : packs.find((row) => row.slug === activeSlug) || null;
+  const active = allMaps ? null : packs.find((row) => row.slug === activeSlug) || null;
   const activeKeys = allMaps ? allKeys : active?.keys || EMPTY_PACK_KEYS;
 
   useEffect(() => {
@@ -278,60 +248,57 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
     setSearchParams(params, { replace: true });
   };
 
-  const toggleOwned = useCallback((itemId: string) => {
-    const nextHas = !ownedIdsRef.current.includes(itemId);
-    const next = toggleOwnedId(ownedIdsRef.current, itemId);
-    touchedRef.current = true;
-    ownedIdsRef.current = next;
-    setOwnedIds(next);
-    saveOwnedIds(next, true);
-    toggleMut.mutate({ itemId, nextHas });
-  }, [toggleMut]);
+  const toggleOwned = useCallback(
+    (itemId: string) => {
+      const nextHas = !ownedIdsRef.current.includes(itemId);
+      const next = toggleOwnedId(ownedIdsRef.current, itemId);
+      touchedRef.current = true;
+      ownedIdsRef.current = next;
+      setOwnedIds(next);
+      saveOwnedIds(next, true);
+      toggleMut.mutate({ itemId, nextHas });
+    },
+    [toggleMut],
+  );
 
   const visible = filterPackKeys(activeKeys, q, have, owned);
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(pageNo, pageCount);
   const allCounts = packOwnedCount(allKeys, owned);
 
-  const columns = useMemo<ColumnsType<TarkovKeyPackKey>>(
-    () => {
-      const ownedCol: ColumnsType<TarkovKeyPackKey>[number] = {
-        title: "我有",
-        key: "owned",
-        width: 56,
-        align: "center",
-        render: (_: unknown, row) => {
-          const haveKey = owned.has(row.id);
-          return (
-            <button
-              type="button"
-              className={`${styles.checkBtn}${haveKey ? ` ${styles.checkOn}` : ""}`}
-              aria-pressed={haveKey}
-              aria-label={
-                haveKey
-                  ? `取消我有 ${row.name || row.id}`
-                  : `标记我有 ${row.name || row.id}`
-              }
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleOwned(row.id);
-              }}
-            >
-              {haveKey ? "✓" : ""}
-            </button>
-          );
-        },
-      };
-      const rest: ColumnsType<TarkovKeyPackKey> = [
+  const columns = useMemo<ColumnsType<TarkovKeyPackKey>>(() => {
+    const ownedCol: ColumnsType<TarkovKeyPackKey>[number] = {
+      title: "我有",
+      key: "owned",
+      width: 56,
+      align: "center",
+      render: (_: unknown, row) => {
+        const haveKey = owned.has(row.id);
+        return (
+          <button
+            type="button"
+            className={`${styles.checkBtn}${haveKey ? ` ${styles.checkOn}` : ""}`}
+            aria-pressed={haveKey}
+            aria-label={
+              haveKey ? `取消我有 ${row.name || row.id}` : `标记我有 ${row.name || row.id}`
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleOwned(row.id);
+            }}
+          >
+            {haveKey ? "✓" : ""}
+          </button>
+        );
+      },
+    };
+    const rest: ColumnsType<TarkovKeyPackKey> = [
       {
         title: "钥匙",
         key: "name",
         width: 240,
         sorter: (a, b) =>
-          (a.name || a.short_name || a.id).localeCompare(
-            b.name || b.short_name || b.id,
-            "zh",
-          ),
+          (a.name || a.short_name || a.id).localeCompare(b.name || b.short_name || b.id, "zh"),
         render: (_: unknown, row) => (
           <span className={styles.nameCell}>
             <TarkovGuideItemCell
@@ -345,11 +312,7 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
               showCount={false}
             />
             {isCommunityKeyBind(row) ? (
-              <Tooltip
-                title={COMMUNITY_KEY_HINT}
-                mouseEnterDelay={0.12}
-                mouseLeaveDelay={0.08}
-              >
+              <Tooltip title={COMMUNITY_KEY_HINT} mouseEnterDelay={0.12} mouseLeaveDelay={0.08}>
                 <span className={styles.communityMark} aria-label={COMMUNITY_KEY_HINT}>
                   ?
                 </span>
@@ -390,16 +353,13 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
         title: "制作 / 任务 / 商人",
         key: "obtain",
         width: 220,
-        render: (_: unknown, row) => (
-          <KeyTagList tags={formatKeyObtainTags(row)} />
-        ),
+        render: (_: unknown, row) => <KeyTagList tags={formatKeyObtainTags(row)} />,
       },
       {
         title: "门锁",
         key: "lock",
         width: 96,
-        sorter: (a, b) =>
-          keyLockTypeSortValue(a).localeCompare(keyLockTypeSortValue(b), "zh"),
+        sorter: (a, b) => keyLockTypeSortValue(a).localeCompare(keyLockTypeSortValue(b), "zh"),
         render: (_: unknown, row) =>
           formatKeyLockTypeLine(row) || <span className={styles.dash}>—</span>,
       },
@@ -409,10 +369,8 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
         render: (_: unknown, row) => <UsageCell row={row} />,
       },
     ];
-      return wiki ? rest : [ownedCol, ...rest];
-    },
-    [owned, toggleOwned, wiki],
-  );
+    return wiki ? rest : [ownedCol, ...rest];
+  }, [owned, toggleOwned, wiki]);
 
   if (catalogQuery.isLoading && !catalogQuery.data) {
     return (
@@ -450,19 +408,19 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
           aria-label="搜索钥匙、任务或用途"
         />
         {wiki ? null : (
-        <div className={trade.chipBar} role="group" aria-label="拥有筛选">
-          {FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={have === item.id}
-              className={`${trade.chipBtn} ${trade.chipAll}${have === item.id ? ` ${trade.chipOn}` : ""}`}
-              onClick={() => setHave(have === item.id ? "all" : item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+          <div className={trade.chipBar} role="group" aria-label="拥有筛选">
+            {FILTERS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={have === item.id}
+                className={`${trade.chipBtn} ${trade.chipAll}${have === item.id ? ` ${trade.chipOn}` : ""}`}
+                onClick={() => setHave(have === item.id ? "all" : item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
       <div className={styles.rail} role="group" aria-label="地图">
@@ -497,8 +455,7 @@ export function TarkovKeyPacksPanel({ wiki = false }: { wiki?: boolean }) {
             >
               <PackMapIcon
                 path={
-                  pack.icon ||
-                  (pack.slug === UNBOUND_PACK_SLUG ? UNBOUND_MAP_ICON : ALL_MAP_ICON)
+                  pack.icon || (pack.slug === UNBOUND_PACK_SLUG ? UNBOUND_MAP_ICON : ALL_MAP_ICON)
                 }
               />
               <span className={styles.packName}>{pack.name}</span>

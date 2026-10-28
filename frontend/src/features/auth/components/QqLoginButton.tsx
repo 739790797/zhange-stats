@@ -32,14 +32,10 @@ export function QqLoginButton({
     setLoading(true);
     try {
       const { url } =
-        mode === "bind"
-          ? await startQqOAuthBind(memberId)
-          : await startQqOAuthLogin();
+        mode === "bind" ? await startQqOAuthBind(memberId) : await startQqOAuthLogin();
       window.location.href = url;
     } catch (e: unknown) {
-      message.error(
-        apiError(e, mode === "bind" ? "无法跳转 QQ 绑定" : "无法跳转 QQ 登录"),
-      );
+      message.error(apiError(e, mode === "bind" ? "无法跳转 QQ 绑定" : "无法跳转 QQ 登录"));
       setLoading(false);
     }
   };

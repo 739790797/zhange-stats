@@ -15,10 +15,7 @@ export type SvgFloorGroupClasses = {
   "hidden-layer": boolean;
 };
 
-export function isSvgBaseFloorGroup(
-  group: SvgFloorGroupLike,
-  baseId: string,
-): boolean {
+export function isSvgBaseFloorGroup(group: SvgFloorGroupLike, baseId: string): boolean {
   if (!group.id || !baseId) return false;
   return group.id === baseId || group.keepWithGroup === baseId;
 }
@@ -27,10 +24,7 @@ export function isSvgBaseFloorGroup(
  * 选中高度层时是否压暗地面。
  * `keepBaseOpaque` 对应 maps.json 的 `show: true`（如立交桥 2 层）：tarkov.dev 此时不降地面透明度。
  */
-export function mapBaseOffLevel(
-  selectedFloorId: string,
-  keepBaseOpaque = false,
-): boolean {
+export function mapBaseOffLevel(selectedFloorId: string, keepBaseOpaque = false): boolean {
   return Boolean(selectedFloorId) && !keepBaseOpaque;
 }
 

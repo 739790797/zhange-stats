@@ -61,10 +61,7 @@ def arclight_download_url(mc_version: str, loader: str, channel: str, build: str
         raise CoreBuildError("版本无效", status_code=400)
     if not re.fullmatch(r"\d+(?:\.\d+){1,2}", mc_version or ""):
         raise CoreBuildError("认不出 Minecraft 版本", status_code=400)
-    return (
-        f"{_FILES}/arclight/minecraft/{mc_version}/loaders/{loader}"
-        f"/versions-{channel}/{build}"
-    )
+    return f"{_FILES}/arclight/minecraft/{mc_version}/loaders/{loader}/versions-{channel}/{build}"
 
 
 def _get_json(url: str) -> dict[str, Any]:
@@ -94,10 +91,7 @@ def list_arclight_builds(loader: str, mc_version: str) -> list[dict[str, Any]]:
         raise CoreBuildError(f"Arclight 没有 {loader or '这个'} 加载器的构建", status_code=400)
     options: list[dict[str, Any]] = []
     for channel in _CHANNELS:
-        url = (
-            f"{_FILES}/arclight/minecraft/{mc_version}/loaders/{loader}"
-            f"/versions-{channel}"
-        )
+        url = f"{_FILES}/arclight/minecraft/{mc_version}/loaders/{loader}/versions-{channel}"
         listing = _get_json(url)
         files = listing.get("files")
         limit = 20 if channel == "stable" else _SNAPSHOT_LIMIT

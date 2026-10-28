@@ -51,7 +51,7 @@ def test_cli_dispatches_each_registered_sync_job(monkeypatch) -> None:
     monkeypatch.setattr("app.core.database.SessionLocal", lambda: SimpleNamespace(close=lambda: None))
     monkeypatch.setattr(
         "app.services.scheduler_runtime.resolve_sync_job_handler",
-        lambda job_id, _db: (resolved.append(job_id) or (lambda: None)),
+        lambda job_id, _db: resolved.append(job_id) or (lambda: None),
     )
     monkeypatch.setattr(
         "app.services.job_runner.execute_sync_job",
@@ -76,7 +76,7 @@ def test_cli_rejects_unknown_job_and_web_child_reuses_run_id(monkeypatch) -> Non
     monkeypatch.setattr("app.core.database.SessionLocal", lambda: SimpleNamespace(close=lambda: None))
     monkeypatch.setattr(
         "app.services.scheduler_runtime.resolve_sync_job_handler",
-        lambda job_id, _db: (resolved.append(job_id) or (lambda: None)),
+        lambda job_id, _db: resolved.append(job_id) or (lambda: None),
     )
     monkeypatch.setattr(
         "app.services.job_runner.execute_sync_job",
@@ -86,9 +86,7 @@ def test_cli_rejects_unknown_job_and_web_child_reuses_run_id(monkeypatch) -> Non
     )
 
     assert cli.main(["run-job", "not-a-sync-job"]) == 2
-    assert cli.main(
-        ["run-job", "endfield_repo_sync", "--run-id", "73", "--json-events"]
-    ) == 0
+    assert cli.main(["run-job", "endfield_repo_sync", "--run-id", "73", "--json-events"]) == 0
     assert resolved == ["endfield_repo_sync"]
     assert executed == [("endfield_repo_sync", 73, False)]
 
@@ -108,18 +106,14 @@ def test_sync_runner_reuses_queued_run_and_records_failure(monkeypatch, tmp_path
         logging.getLogger("test.sync").info("progress token=secret-value")
         db = factory()
         try:
-            create_or_reuse_job_run(
-                db, "endfield_repo_sync", message="仓库同步完成", stats={"phase": "done"}
-            )
+            create_or_reuse_job_run(db, "endfield_repo_sync", message="仓库同步完成", stats={"phase": "done"})
             db.commit()
         finally:
             db.close()
 
     test_logger = logging.getLogger("test.sync")
     test_logger.setLevel(logging.INFO)
-    run_id, status = job_runner.execute_sync_job(
-        "endfield_repo_sync", _make_task_run, capture_logs=True
-    )
+    run_id, status = job_runner.execute_sync_job("endfield_repo_sync", _make_task_run, capture_logs=True)
     db = factory()
     row = db.get(JobRun, run_id)
     assert status == "ok"
@@ -167,16 +161,15 @@ def test_job_run_logs_are_sanitized_capped_and_cursor_readable(monkeypatch, tmp_
     assert "[已隐藏]" in rows[0].message
     assert "[已隐藏]" in rows[1].message
     assert rows[2].is_truncation is True
-    assert job_run_logs.append_job_run_logs(
-        run_id, [job_run_logs.JobRunLogEvent("ERROR", "sync", "ignored")]
-    ) == 0
+    assert job_run_logs.append_job_run_logs(run_id, [job_run_logs.JobRunLogEvent("ERROR", "sync", "ignored")]) == 0
     assert [row.id for row in job_run_logs.list_job_run_logs(run_id, after_id=rows[0].id)] == [
         rows[1].id,
         rows[2].id,
     ]
-    assert job_run_logs.sanitize_job_log_message(
-        'upstream response: {"data":"private"}'
-    ) == "upstream response: [结构化上游响应已省略]"
+    assert (
+        job_run_logs.sanitize_job_log_message('upstream response: {"data":"private"}')
+        == "upstream response: [结构化上游响应已省略]"
+    )
     assert len(job_run_logs.sanitize_job_log_message("终" * 2_000).encode("utf-8")) <= 4_096
     engine.dispose()
 
@@ -196,9 +189,7 @@ def test_job_run_pruning_cascades_to_logs(monkeypatch, tmp_path) -> None:
     db.refresh(run)
     run_id = run.id
     db.close()
-    job_run_logs.append_job_run_logs(
-        run_id, [job_run_logs.JobRunLogEvent("INFO", "sync", "old output")]
-    )
+    job_run_logs.append_job_run_logs(run_id, [job_run_logs.JobRunLogEvent("INFO", "sync", "old output")])
     monkeypatch.setattr(job_runs_prune, "prune_checkin_logs", lambda *_a, **_k: {})
     monkeypatch.setattr(job_runs_prune, "maintain_perf_archive", lambda *_a, **_k: {})
     monkeypatch.setattr(job_runs_prune, "prune_rum_samples", lambda *_a, **_k: 0)
@@ -282,9 +273,7 @@ def test_process_group_arguments_are_cross_platform(monkeypatch) -> None:
     from app.services.job_process_supervisor import _platform_process_options
 
     windows_process_group = 0x00000200
-    monkeypatch.setattr(
-        subprocess, "CREATE_NEW_PROCESS_GROUP", windows_process_group, raising=False
-    )
+    monkeypatch.setattr(subprocess, "CREATE_NEW_PROCESS_GROUP", windows_process_group, raising=False)
     assert _platform_process_options("nt") == {
         "creationflags": windows_process_group,
     }
@@ -346,9 +335,7 @@ def test_child_nonzero_exit_marks_run_failed(monkeypatch) -> None:
     monkeypatch.setattr(
         supervisor,
         "write_job_run",
-        lambda run_id, job_id, **kwargs: writes.append(
-            {"run_id": run_id, "job_id": job_id, **kwargs}
-        ),
+        lambda run_id, job_id, **kwargs: writes.append({"run_id": run_id, "job_id": job_id, **kwargs}),
     )
     monkeypatch.setattr(supervisor, "_STOPPING", threading.Event())
 
@@ -365,8 +352,7 @@ def test_process_monitor_persists_structured_stdout_events(monkeypatch) -> None:
 
     class FakeProcess:
         stdout = io.StringIO(
-            '{"ts":"2026-10-20 12:00:00","level":"WARNING",'
-            '"logger":"sync.job","message":"partial result"}\n'
+            '{"ts":"2026-10-20 12:00:00","level":"WARNING","logger":"sync.job","message":"partial result"}\n'
         )
 
         def wait(self) -> int:
@@ -389,9 +375,7 @@ def test_process_monitor_persists_structured_stdout_events(monkeypatch) -> None:
     )
     monkeypatch.setattr(supervisor, "_PROCESSES", {})
 
-    supervisor._monitor_process(
-        supervisor.ManagedSyncProcess("endfield_repo_sync", 73, FakeProcess())
-    )
+    supervisor._monitor_process(supervisor.ManagedSyncProcess("endfield_repo_sync", 73, FakeProcess()))
 
     assert len(stored) == 1
     assert stored[0].level == "WARNING"

@@ -24,12 +24,7 @@ export function MinecraftModFeatures({
         <div className={styles.sectionTitle}>模组功能</div>
       </div>
       {features.map((feature) => (
-        <ModFeatureWidget
-          key={feature.id}
-          feature={feature}
-          data={data}
-          canCommand={canCommand}
-        />
+        <ModFeatureWidget key={feature.id} feature={feature} data={data} canCommand={canCommand} />
       ))}
     </div>
   );
@@ -45,22 +40,10 @@ function ModFeatureWidget({
   canCommand: boolean;
 }) {
   if (feature.id === "chunky.pregenerate") {
-    return (
-      <MinecraftChunkyWorkspace
-        data={data}
-        canCommand={canCommand}
-        feature={feature}
-      />
-    );
+    return <MinecraftChunkyWorkspace data={data} canCommand={canCommand} feature={feature} />;
   }
   if (feature.id === "bluemap.render") {
-    return (
-      <MinecraftBluemapWorkspace
-        data={data}
-        canCommand={canCommand}
-        feature={feature}
-      />
-    );
+    return <MinecraftBluemapWorkspace data={data} canCommand={canCommand} feature={feature} />;
   }
   return null;
 }

@@ -32,12 +32,7 @@ def ensure_welcome_article(db: Session) -> Article | None:
     existing = db.query(Article).filter(Article.slug == WELCOME_SLUG).first()
     if existing is not None:
         return existing
-    admin = (
-        db.query(User)
-        .filter(User.role == UserRole.admin)
-        .order_by(User.id.asc())
-        .first()
-    )
+    admin = db.query(User).filter(User.role == UserRole.admin).order_by(User.id.asc()).first()
     if admin is None:
         return None
     return articles_svc.create_article(

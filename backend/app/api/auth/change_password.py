@@ -121,11 +121,7 @@ def change_username(
     new_username = _normalize_username(body.new_username)
     if new_username.lower() == current.username.lower():
         raise HTTPException(status_code=400, detail="新用户名与当前相同")
-    taken = (
-        db.query(User)
-        .filter(User.username == new_username, User.id != current.id)
-        .first()
-    )
+    taken = db.query(User).filter(User.username == new_username, User.id != current.id).first()
     if taken:
         raise HTTPException(status_code=400, detail="该用户名已被占用")
     current.username = new_username

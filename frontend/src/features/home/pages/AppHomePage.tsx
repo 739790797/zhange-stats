@@ -91,11 +91,7 @@ export default function AppHomePage() {
 
   return (
     <>
-      <PageHeader
-        title="首页"
-        subtitle="演示"
-        extra={<Tag color="gold">演示</Tag>}
-      />
+      <PageHeader title="首页" subtitle="演示" extra={<Tag color="gold">演示</Tag>} />
       <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
         {name ? `${name}，` : ""}
         这是战鸽助手的首页，当前只是演示。启动时会先确认登录，未登录会进入登录页。

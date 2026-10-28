@@ -26,9 +26,7 @@ export function OwnedCard({
   const phase = owned.evolve_phase ?? 0;
   const potential = Math.max(0, Math.min(5, owned.potential_rank | 0));
   const avatar = owned.avatar_url || op.avatar_url;
-  const src = useAvatar
-    ? avatar || undefined
-    : portraitSrc(op.char_id, phase);
+  const src = useAvatar ? avatar || undefined : portraitSrc(op.char_id, phase);
   const eliteLabel = evolveLabel(phase);
 
   const card = (
@@ -99,8 +97,7 @@ export function OwnedCard({
             right: 0,
             top: 0,
             height: 36,
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)",
+            background: "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%)",
             pointerEvents: "none",
           }}
         />

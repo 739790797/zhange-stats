@@ -62,10 +62,7 @@ export function cachedSteamIcon(appId?: string | null): string | null {
   return isSteamClientIconUrl(url) ? url : null;
 }
 
-export function resolveSteamIcon(
-  appId?: string | null,
-  iconUrl?: string | null,
-): string | null {
+export function resolveSteamIcon(appId?: string | null, iconUrl?: string | null): string | null {
   if (isSteamClientIconUrl(iconUrl)) return (iconUrl || "").trim();
   return cachedSteamIcon(appId);
 }

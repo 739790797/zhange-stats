@@ -310,9 +310,7 @@ def test_build_key_source_index_joins_barter_craft_task_flea() -> None:
         ],
     )
     dorm = index["dorm-114"]
-    assert dorm["barters"] == [
-        {"trader_slug": "therapist", "trader_name": "Therapist", "min_trader_level": 1}
-    ]
+    assert dorm["barters"] == [{"trader_slug": "therapist", "trader_name": "Therapist", "min_trader_level": 1}]
     assert dorm["crafts"][0]["station_name"] == "情报中心"
     assert [row["id"] for row in dorm["tasks"]] == ["task-1"]
     assert dorm["flea"] == {"price": 88000}
@@ -327,15 +325,11 @@ def test_task_source_replaces_placeholder_name() -> None:
                 "id": "6745fcde0dfbbc74ca0f721d",
                 "name": "6745fcde0dfbbc74ca0f721d name",
                 "normalizedName": "old-house-toilet",
-                "finishRewards": {
-                    "items": [{"item": "old-toilet-key", "count": 1}]
-                },
+                "finishRewards": {"items": [{"item": "old-toilet-key", "count": 1}]},
             }
         ]
     )
-    assert index["old-toilet-key"]["tasks"] == [
-        {"id": "6745fcde0dfbbc74ca0f721d", "name": "Old House Toilet"}
-    ]
+    assert index["old-toilet-key"]["tasks"] == [{"id": "6745fcde0dfbbc74ca0f721d", "name": "Old House Toilet"}]
 
 
 def test_group_collects_lock_types_and_power() -> None:
@@ -414,11 +408,7 @@ def test_attach_key_usage_fills_grouped_keys() -> None:
     }
     attach_key_usage(
         grouped,
-        {
-            "dorm-114": [
-                {"id": "t", "name": "验收", "notes": ["打开宿舍 114 的门"]}
-            ]
-        },
+        {"dorm-114": [{"id": "t", "name": "验收", "notes": ["打开宿舍 114 的门"]}]},
     )
     assert grouped["maps"][0]["keys"][0]["used_in_tasks"][0]["name"] == "验收"
     assert grouped["unbound"][0]["used_in_tasks"] == []
@@ -489,9 +479,7 @@ def test_parse_json_maps_locks_rejects_boss_slim_without_locks() -> None:
             }
         }
     }
-    assert maps_have_lock_data(
-        [{"normalizedName": "customs", "locks": [], "accessKeys": []}]
-    ) is False
+    assert maps_have_lock_data([{"normalizedName": "customs", "locks": [], "accessKeys": []}]) is False
     with pytest.raises(TarkovKeyPacksError, match="没有门锁"):
         parse_json_maps_locks(payload)
 

@@ -31,8 +31,8 @@ export function SteamBindEntry({
           description={
             isAdmin ? (
               <span>
-                请先在 <Link to="/settings/integrations">集成密钥</Link>{" "}
-                填写 Steam Web API Key，再绑定账号。
+                请先在 <Link to="/settings/integrations">集成密钥</Link> 填写 Steam Web API
+                Key，再绑定账号。
               </span>
             ) : (
               "管理员尚未配置 Steam API Key，暂无法绑定。"

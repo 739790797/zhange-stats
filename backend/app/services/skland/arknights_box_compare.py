@@ -74,9 +74,7 @@ def _payload_has_detail(payload: dict[str, Any]) -> bool:
     return isinstance(sample, dict) and "skills" in sample
 
 
-def _load_snapshot(
-    db: Session, member_id: int, uid: str | None
-) -> dict[str, Any] | None:
+def _load_snapshot(db: Session, member_id: int, uid: str | None) -> dict[str, Any] | None:
     day = today()
     if uid:
         row = (
@@ -302,9 +300,7 @@ def fetch_member_owned_chars(
                 db.rollback()
             except Exception:  # noqa: BLE001
                 pass
-            logger.exception(
-                "save arknights box snapshot failed member_id=%s", member_id
-            )
+            logger.exception("save arknights box snapshot failed member_id=%s", member_id)
     return payload
 
 
@@ -314,11 +310,7 @@ def _member_ids_with_arknights(db: Session) -> set[int]:
     for (mid,) in db.query(ArknightsBoxSnapshot.member_id).distinct():
         if mid is not None:
             ids.add(int(mid))
-    for (mid,) in (
-        db.query(SklandCheckinLog.member_id)
-        .filter(SklandCheckinLog.game_code == GAME_ARKNIGHTS)
-        .distinct()
-    ):
+    for (mid,) in db.query(SklandCheckinLog.member_id).filter(SklandCheckinLog.game_code == GAME_ARKNIGHTS).distinct():
         if mid is not None:
             ids.add(int(mid))
     for (mid,) in (
@@ -358,11 +350,7 @@ def list_compare_candidates(db: Session, viewer: User) -> list[dict[str, Any]]:
     self_id = _viewer_member_id(db, viewer)
     candidate_ids = _member_ids_with_arknights(db)
     # 自己已绑森空岛即可出现在列表（即便尚未写出方舟日志/快照）
-    self_bind = (
-        db.query(SklandBind.id)
-        .filter(SklandBind.member_id == self_id)
-        .first()
-    )
+    self_bind = db.query(SklandBind.id).filter(SklandBind.member_id == self_id).first()
     if self_bind is not None:
         candidate_ids.add(self_id)
     if not candidate_ids:
@@ -416,18 +404,12 @@ def build_box_compare(
 
     self_id = _viewer_member_id(db, viewer)
     allowed = _member_ids_with_arknights(db)
-    self_bind = (
-        db.query(SklandBind.id)
-        .filter(SklandBind.member_id == self_id)
-        .first()
-    )
+    self_bind = db.query(SklandBind.id).filter(SklandBind.member_id == self_id).first()
     if self_bind is not None:
         allowed.add(self_id)
     for mid in ordered_ids:
         if mid not in allowed:
-            raise ArknightsCatalogError(
-                f"无权查看成员 {mid} 的盒子（需为站内有明日方舟账号的用户）"
-            )
+            raise ArknightsCatalogError(f"无权查看成员 {mid} 的盒子（需为站内有明日方舟账号的用户）")
 
     operators = ensure_catalog(db)
     meta = get_catalog_meta(db)
@@ -475,9 +457,7 @@ def build_box_compare(
             )
             continue
         selected_uid = (uid_map.get(mid) or "").strip() or None
-        owned_payload = fetch_member_owned_chars(
-            db, member, uid=selected_uid, allow_upstream=mid == self_id
-        )
+        owned_payload = fetch_member_owned_chars(db, member, uid=selected_uid, allow_upstream=mid == self_id)
         rows.append(
             {
                 "member_id": member.id,
@@ -490,8 +470,7 @@ def build_box_compare(
                 "channel_name": owned_payload.get("channel_name"),
                 "player_name": owned_payload.get("player_name"),
                 "player_level": owned_payload.get("player_level"),
-                "char_count": owned_payload.get("char_count")
-                or len(owned_payload.get("owned") or {}),
+                "char_count": owned_payload.get("char_count") or len(owned_payload.get("owned") or {}),
                 "owned": owned_payload.get("owned") or {},
                 "roles": owned_payload.get("roles") or [],
             }
@@ -532,11 +511,7 @@ def sync_box_for_bind(db: Session, bind: SklandBind) -> dict[str, Any]:
 
 
 def run_arknights_box_sync_job(db: Session) -> dict[str, Any]:
-    binds = (
-        db.query(SklandBind)
-        .options(joinedload(SklandBind.member))
-        .all()
-    )
+    binds = db.query(SklandBind).options(joinedload(SklandBind.member)).all()
     stats: dict[str, Any] = {"total": len(binds), "ok": 0, "failed": 0, "skipped": 0}
     day = today()
     for bind in binds:
@@ -587,9 +562,7 @@ def box_sync_job_wrapper() -> None:
     from app.services.job_run_progress import create_or_reuse_job_run, versioned_job_stats
 
     db = SessionLocal()
-    job = create_or_reuse_job_run(
-        db, JOB_KEY, message="正在同步干员练度", stats={"phase": "start"}
-    )
+    job = create_or_reuse_job_run(db, JOB_KEY, message="正在同步干员练度", stats={"phase": "start"})
     db.commit()
     run_id = job.id
     try:

@@ -74,9 +74,7 @@ function layoutPockets(itemId: string | null | undefined): GridPocket[] {
   return parseLayoutPockets(LAYOUTS[key]);
 }
 
-function pocketSignature(
-  pockets: Array<{ width: number; height: number }>,
-): string {
+function pocketSignature(pockets: Array<{ width: number; height: number }>): string {
   return pockets
     .map((pocket) => `${pocket.width}x${pocket.height}`)
     .sort()
@@ -109,9 +107,7 @@ const LAYOUT_BY_SIGNATURE: Map<string, GridPocket[] | null> = (() => {
   return out;
 })();
 
-function dumpPockets(
-  properties: Record<string, unknown> | undefined,
-): Array<{
+function dumpPockets(properties: Record<string, unknown> | undefined): Array<{
   width: number;
   height: number;
   col: number | null;
@@ -130,12 +126,7 @@ function dumpPockets(
     if (!row) continue;
     const width = Number(row.width);
     const height = Number(row.height);
-    if (
-      !Number.isFinite(width) ||
-      !Number.isFinite(height) ||
-      width <= 0 ||
-      height <= 0
-    ) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       continue;
     }
     out.push({
@@ -149,15 +140,10 @@ function dumpPockets(
 }
 
 /** 缺坐标时按行堆叠，避免用 index 当 col 导致口袋重叠。 */
-export function packGridPockets(
-  pockets: Array<{ width: number; height: number }>,
-): GridPocket[] {
+export function packGridPockets(pockets: Array<{ width: number; height: number }>): GridPocket[] {
   if (!pockets.length) return [];
   const total = pockets.reduce((sum, pocket) => sum + pocket.width * pocket.height, 0);
-  const wrapAt = Math.max(
-    ...pockets.map((pocket) => pocket.width),
-    Math.ceil(Math.sqrt(total)),
-  );
+  const wrapAt = Math.max(...pockets.map((pocket) => pocket.width), Math.ceil(Math.sqrt(total)));
   let x = 0;
   let y = 0;
   let rowHeight = 0;
@@ -210,9 +196,7 @@ function halfCells(value: number): number {
   return Math.round(value * 2);
 }
 
-export function composeGridOccupancy(
-  pockets: GridPocket[],
-): GridOccupancy | null {
+export function composeGridOccupancy(pockets: GridPocket[]): GridOccupancy | null {
   if (!pockets.length) return null;
   let width = 0;
   let height = 0;
@@ -236,21 +220,10 @@ export function composeGridOccupancy(
   return { width, height, cells };
 }
 
-export function gridOccupancyCaption(
-  pockets: GridPocket[],
-  capacity?: number | null,
-): string {
-  const filled = pockets.reduce(
-    (sum, pocket) => sum + pocket.width * pocket.height,
-    0,
-  );
+export function gridOccupancyCaption(pockets: GridPocket[], capacity?: number | null): string {
+  const filled = pockets.reduce((sum, pocket) => sum + pocket.width * pocket.height, 0);
   const parts: string[] = [`${filled} 格`];
-  if (
-    capacity != null &&
-    Number.isFinite(capacity) &&
-    capacity > 0 &&
-    capacity !== filled
-  ) {
+  if (capacity != null && Number.isFinite(capacity) && capacity > 0 && capacity !== filled) {
     parts.push(`容量 ${capacity}`);
   }
   if (pockets.length) {
@@ -260,9 +233,7 @@ export function gridOccupancyCaption(
       counts.set(label, (counts.get(label) || 0) + 1);
     }
     parts.push(
-      [...counts.entries()]
-        .map(([label, n]) => (n > 1 ? `${label} ×${n}` : label))
-        .join(" · "),
+      [...counts.entries()].map(([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(" · "),
     );
   }
   return parts.join(" · ");

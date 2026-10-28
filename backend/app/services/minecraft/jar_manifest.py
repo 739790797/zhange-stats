@@ -113,9 +113,7 @@ def _yaml_scalar(text: str, key: str) -> str:
     if not match:
         return ""
     value = match.group(1).strip()
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
         value = value[1:-1]
     return value.strip()
 

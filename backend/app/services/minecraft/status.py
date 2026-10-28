@@ -109,10 +109,7 @@ def _hex_legacy(color: str) -> str:
 
 def _style_prefix(style: dict[str, Any]) -> str:
     color = str(style.get("color") or "").strip()
-    has_format = any(
-        style.get(key)
-        for key in ("bold", "italic", "underlined", "strikethrough", "obfuscated")
-    )
+    has_format = any(style.get(key) for key in ("bold", "italic", "underlined", "strikethrough", "obfuscated"))
     if not color and not has_format:
         return ""
     parts = ["§r"]
@@ -210,13 +207,7 @@ def ping_server(host: str, port: int, *, timeout: float = 3.0) -> dict[str, Any]
     if port < 1 or port > 65535:
         raise MinecraftPingError("端口无效")
 
-    handshake_payload = (
-        pack_varint(0)
-        + pack_varint(760)
-        + pack_string(host)
-        + struct.pack(">H", port)
-        + pack_varint(1)
-    )
+    handshake_payload = pack_varint(0) + pack_varint(760) + pack_string(host) + struct.pack(">H", port) + pack_varint(1)
     handshake = pack_varint(len(handshake_payload)) + handshake_payload
     status_req = pack_varint(1) + b"\x00"
 

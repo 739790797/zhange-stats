@@ -163,9 +163,7 @@ def refresh_all() -> list[str]:
     try:
         bundle = _fetch_bundle()
     except GoonTrackerError:
-        log_until_change(
-            logger, "goon_tracker.fetch", "goon tracker fetch failed", exc_info=True
-        )
+        log_until_change(logger, "goon_tracker.fetch", "goon tracker fetch failed", exc_info=True)
         return []
     clear_log_until_change("goon_tracker.fetch")
     changed: list[str] = []
@@ -272,9 +270,7 @@ def _parse_stammtisch_sighting(row: Any) -> dict[str, Any] | None:
     if not isinstance(row, dict):
         return None
     mapped = row.get("map") if isinstance(row.get("map"), dict) else {}
-    slug = str(
-        mapped.get("normalizedName") or mapped.get("slug") or mapped.get("name") or ""
-    )
+    slug = str(mapped.get("normalizedName") or mapped.get("slug") or mapped.get("name") or "")
     seen = str(row.get("timestamp") or row.get("currentDate") or "")
     origin = str(row.get("externalSource") or row.get("source") or "")
     username = str(row.get("username") or "")
@@ -292,22 +288,12 @@ def _parse_stammtisch_sighting(row: Any) -> dict[str, Any] | None:
 def _tracking_map_slug(tracking: dict[str, Any]) -> str:
     mapped = tracking.get("map")
     if isinstance(mapped, dict):
-        return str(
-            mapped.get("slug")
-            or mapped.get("normalizedName")
-            or mapped.get("name")
-            or ""
-        )
+        return str(mapped.get("slug") or mapped.get("normalizedName") or mapped.get("name") or "")
     return str(tracking.get("map_slug") or "")
 
 
 def _tracking_seen_at(tracking: dict[str, Any]) -> str:
-    return str(
-        tracking.get("currentDate")
-        or tracking.get("timestamp")
-        or tracking.get("seen_at")
-        or ""
-    )
+    return str(tracking.get("currentDate") or tracking.get("timestamp") or tracking.get("seen_at") or "")
 
 
 def _normalize_iso(raw: str) -> str:

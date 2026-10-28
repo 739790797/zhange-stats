@@ -1,21 +1,13 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Card,
-  Empty,
-  Space,
-  Spin,
-  Tag,
-  Tooltip,
-  Typography,
-  message,
-} from "antd";
+import { Alert, Button, Card, Empty, Space, Spin, Tag, Tooltip, Typography, message } from "antd";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Dayjs } from "dayjs";
 import { fetchSklandGameEvents } from "@/features/platforms/skland/api/sklandApi";
-import type { GameScheduleCalendar, GameScheduleEvent } from "@/features/platforms/skland/api/types";
+import type {
+  GameScheduleCalendar,
+  GameScheduleEvent,
+} from "@/features/platforms/skland/api/types";
 import { apiError } from "@/shared/api/apiError";
 import { nowBeijing, parseBeijing } from "@/shared/lib/time";
 
@@ -107,10 +99,7 @@ function buildRange(events: GameScheduleEvent[]): {
 }
 
 function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
-  const { rangeStart, dayCount } = useMemo(
-    () => buildRange(events),
-    [events],
-  );
+  const { rangeStart, dayCount } = useMemo(() => buildRange(events), [events]);
   const laidOut = useMemo(
     () => layoutEvents(events, rangeStart, dayCount),
     [events, rangeStart, dayCount],
@@ -162,8 +151,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                     left: i * DAY_WIDTH,
                     width: DAY_WIDTH,
                     height: "100%",
-                    borderLeft:
-                      i === 0 ? undefined : "1px solid rgba(0,0,0,0.04)",
+                    borderLeft: i === 0 ? undefined : "1px solid rgba(0,0,0,0.04)",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -175,9 +163,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                     background: isToday ? "rgba(22,119,255,0.08)" : undefined,
                   }}
                 >
-                  {isMonthStart ? (
-                    <span style={{ fontSize: 10 }}>{d.format("M月")}</span>
-                  ) : null}
+                  {isMonthStart ? <span style={{ fontSize: 10 }}>{d.format("M月")}</span> : null}
                   <span>{d.format("D")}</span>
                 </div>
               );
@@ -191,8 +177,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
             <div style={{ lineHeight: 1.5 }}>
               <div>{event.title}</div>
               <div>
-                {start.format("YYYY-MM-DD HH:mm")} ~{" "}
-                {end.format("YYYY-MM-DD HH:mm")}
+                {start.format("YYYY-MM-DD HH:mm")} ~ {end.format("YYYY-MM-DD HH:mm")}
               </div>
               {event.event_type ? <div>{event.event_type}</div> : null}
             </div>
@@ -272,8 +257,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                 height: ROW_HEIGHT,
                 borderBottom: "1px solid rgba(0,0,0,0.04)",
                 background: "#fff",
-                backgroundImage:
-                  "linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px)",
+                backgroundImage: "linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px)",
                 backgroundSize: `${DAY_WIDTH}px 100%`,
               }}
             >
@@ -299,12 +283,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                   getPopupContainer={() => document.body}
                 >
                   {event.link_url ? (
-                    <a
-                      href={event.link_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={labelStyle}
-                    >
+                    <a href={event.link_url} target="_blank" rel="noreferrer" style={labelStyle}>
                       {barContent}
                     </a>
                   ) : (
@@ -361,9 +340,7 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {data
             ? `进行中 ${data.ongoing_count} · 未开始 ${data.upcoming_count}` +
-              (data.permanent_count
-                ? ` · 常驻 ${data.permanent_count}`
-                : "")
+              (data.permanent_count ? ` · 常驻 ${data.permanent_count}` : "")
             : "加载中…"}
           {data?.synced_at ? ` · 同步 ${data.synced_at}` : ""}
         </Typography.Text>
@@ -441,18 +418,12 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <Space size={6} wrap style={{ marginBottom: 2 }}>
                       {event.event_type ? (
-                        <Tag style={{ marginInlineEnd: 0 }}>
-                          {event.event_type}
-                        </Tag>
+                        <Tag style={{ marginInlineEnd: 0 }}>{event.event_type}</Tag>
                       ) : (
                         <Tag style={{ marginInlineEnd: 0 }}>常驻</Tag>
                       )}
                     </Space>
-                    <Typography.Text
-                      strong
-                      ellipsis
-                      style={{ display: "block" }}
-                    >
+                    <Typography.Text strong ellipsis style={{ display: "block" }}>
                       {event.title}
                     </Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -485,11 +456,7 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
         {data?.source === "fz.wiki" ? (
           <>
             数据来自{" "}
-            <a
-              href="https://www.fz.wiki/wiki/%E6%B4%BB%E5%8A%A8"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href="https://www.fz.wiki/wiki/%E6%B4%BB%E5%8A%A8" target="_blank" rel="noreferrer">
               终末地 Wiki
             </a>
             ，非森空岛官方接口。

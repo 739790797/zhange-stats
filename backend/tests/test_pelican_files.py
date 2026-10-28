@@ -238,9 +238,14 @@ def _reject_unless(expected: bytes):
 def test_pull_file_verified_replaces_same_name_only_after_check(monkeypatch):
     panel = _FakePanel(monkeypatch, {"/mods/a.jar": b"old"}, served=b"new")
     path = pelican.pull_file_verified(
-        "https://p", "tok", "uuid",
-        url="https://cdn/a.jar", directory="mods", filename="a.jar",
-        verify=_reject_unless(b"new"), max_bytes=100,
+        "https://p",
+        "tok",
+        "uuid",
+        url="https://cdn/a.jar",
+        directory="mods",
+        filename="a.jar",
+        verify=_reject_unless(b"new"),
+        max_bytes=100,
     )
     temp = f"/mods/a.jar{pelican.PULL_TEMP_SUFFIX}"
     assert path == "/mods/a.jar"
@@ -257,9 +262,14 @@ def test_pull_file_verified_failure_discards_temp_and_keeps_original(monkeypatch
     panel = _FakePanel(monkeypatch, {"/mods/a.jar": b"old"}, served=b"tampered")
     with pytest.raises(PelicanError, match="校验"):
         pelican.pull_file_verified(
-            "https://p", "tok", "uuid",
-            url="https://cdn/a.jar", directory="/mods", filename="a.jar",
-            verify=_reject_unless(b"new"), max_bytes=100,
+            "https://p",
+            "tok",
+            "uuid",
+            url="https://cdn/a.jar",
+            directory="/mods",
+            filename="a.jar",
+            verify=_reject_unless(b"new"),
+            max_bytes=100,
         )
     assert panel.files == {"/mods/a.jar": b"old"}
     assert [call[0] for call in panel.calls] == ["pull", "download", "delete"]

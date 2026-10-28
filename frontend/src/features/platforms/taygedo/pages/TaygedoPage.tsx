@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useMemo, type ReactNode } from "react";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
-import { fetchTaygedoStatus, triggerTaygedoCheckin, updateTaygedoRolePref } from "@/features/platforms/taygedo/api/taygedoApi";
+import {
+  fetchTaygedoStatus,
+  triggerTaygedoCheckin,
+  updateTaygedoRolePref,
+} from "@/features/platforms/taygedo/api/taygedoApi";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
 import { PlatformFeatureTabsPage } from "@/features/platforms/shared/components/PlatformFeatureTabsPage";
 import { TaygedoAttendanceCalendarButton } from "@/features/platforms/taygedo/components/TaygedoAttendanceCalendar";
@@ -43,14 +47,10 @@ export default function TaygedoPage() {
     staleTime: 30_000,
   });
 
-  const featuresReady =
-    featuresQuery.isSuccess && Boolean(featuresQuery.data);
-  const showCheckin =
-    featuresReady && isFeatureOn(featuresQuery.data, "taygedo.checkin");
-  const showExchange =
-    featuresReady && isFeatureOn(featuresQuery.data, "taygedo.exchange");
-  const showExastris =
-    featuresReady && isFeatureOn(featuresQuery.data, "taygedo.exastris");
+  const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
+  const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "taygedo.checkin");
+  const showExchange = featuresReady && isFeatureOn(featuresQuery.data, "taygedo.exchange");
+  const showExastris = featuresReady && isFeatureOn(featuresQuery.data, "taygedo.exastris");
 
   const tabItems = useMemo(() => {
     const items: { key: TabKey; label: string; children: ReactNode }[] = [];
@@ -72,11 +72,7 @@ export default function TaygedoPage() {
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
               const roleUid = row.role_uid;
-              if (
-                !gameCode ||
-                !roleUid ||
-                !hasTaygedoAttendanceCalendar(gameCode)
-              ) {
+              if (!gameCode || !roleUid || !hasTaygedoAttendanceCalendar(gameCode)) {
                 return null;
               }
               return (
@@ -105,9 +101,7 @@ export default function TaygedoPage() {
         label: "异环",
         children: (
           <ExastrisBoxPanel
-            enabled={Boolean(
-              statusQuery.data?.bound && statusQuery.data?.token_ok !== false,
-            )}
+            enabled={Boolean(statusQuery.data?.bound && statusQuery.data?.token_ok !== false)}
           />
         ),
       });

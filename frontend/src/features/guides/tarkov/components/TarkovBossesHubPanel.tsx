@@ -24,14 +24,8 @@ export function TarkovBossesHubPanel() {
     retry: 1,
   });
   const items = catalogQuery.data?.items;
-  const named = useMemo(
-    () => selectTopLevelNamedBosses(items ?? []),
-    [items],
-  );
-  const others = useMemo(
-    () => selectOtherBosses(items ?? []),
-    [items],
-  );
+  const named = useMemo(() => selectTopLevelNamedBosses(items ?? []), [items]);
+  const others = useMemo(() => selectOtherBosses(items ?? []), [items]);
   const portraits = useMemo(() => buildBossPortraitIndex(items ?? []), [items]);
 
   if (catalogQuery.isLoading) {
@@ -69,11 +63,7 @@ export function TarkovBossesHubPanel() {
                   {TARKOV_BOSS_HUB_SECTION_LABELS[key]}
                   <span className={styles.listSectionCount}>{list.length}</span>
                 </h2>
-                <TarkovBossHeatmap
-                  key={`${gameMode}-${key}`}
-                  bosses={list}
-                  portraits={portraits}
-                />
+                <TarkovBossHeatmap key={`${gameMode}-${key}`} bosses={list} portraits={portraits} />
               </div>
             </section>
           );

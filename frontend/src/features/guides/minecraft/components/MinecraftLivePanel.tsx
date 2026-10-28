@@ -3,11 +3,7 @@ import { Alert, Card } from "antd";
 import { useEffect, useState } from "react";
 import { fetchMinecraftStatus } from "@/features/guides/minecraft/api/minecraftApi";
 import { apiError } from "@/shared/api/apiError";
-import {
-  DEFAULT_SERVER_ICON,
-  displayJoinHost,
-  pingBadge,
-} from "./minecraftUi";
+import { DEFAULT_SERVER_ICON, displayJoinHost, pingBadge } from "./minecraftUi";
 import { parseMotdLines, motdColorOnLight } from "./minecraftMotd";
 import styles from "./MinecraftLivePanel.module.css";
 
@@ -64,10 +60,8 @@ export function MinecraftLivePanel() {
   }, [status?.favicon]);
 
   const badge = pingBadge(Boolean(status?.ping_online), status?.power_state);
-  const iconSrc =
-    !iconFailed && status?.favicon ? status.favicon : DEFAULT_SERVER_ICON;
-  const motdRaw =
-    status?.motd_raw || status?.motd || applied?.properties?.motd || "";
+  const iconSrc = !iconFailed && status?.favicon ? status.favicon : DEFAULT_SERVER_ICON;
+  const motdRaw = status?.motd_raw || status?.motd || applied?.properties?.motd || "";
   const motdFallback = status?.ping_online
     ? "A Minecraft Server"
     : statusQuery.isLoading
@@ -83,11 +77,7 @@ export function MinecraftLivePanel() {
   return (
     <div className={styles.wrap}>
       {statusQuery.isError ? (
-        <Alert
-          type="error"
-          showIcon
-          message={apiError(statusQuery.error, "无法读取服况")}
-        />
+        <Alert type="error" showIcon message={apiError(statusQuery.error, "无法读取服况")} />
       ) : null}
       {status && status.pelican_configured === false ? (
         <Alert
@@ -121,9 +111,7 @@ export function MinecraftLivePanel() {
             <div className={styles.body}>
               <div className={styles.titleBlock}>
                 <MinecraftMotd raw={motdRaw} fallback={motdFallback} />
-                {joinHost ? (
-                  <div className={styles.joinHost}>{joinHost}</div>
-                ) : null}
+                {joinHost ? <div className={styles.joinHost}>{joinHost}</div> : null}
               </div>
               <div className={styles.badge}>
                 <span
@@ -148,9 +136,7 @@ export function MinecraftLivePanel() {
               <div className={styles.latency}>
                 {status?.latency_ms != null ? `${status.latency_ms} ms` : " "}
               </div>
-              {versionLabel ? (
-                <div className={styles.version}>{versionLabel}</div>
-              ) : null}
+              {versionLabel ? <div className={styles.version}>{versionLabel}</div> : null}
             </div>
           </div>
         )}

@@ -39,9 +39,7 @@ def decode_invite_code(code: str) -> str:
 def resolve_vanity(api_key: str, vanity: str) -> str:
     if not api_key:
         raise RuntimeError("STEAM_API_KEY 未配置，无法解析自定义主页名")
-    params = urllib.parse.urlencode(
-        {"key": api_key, "vanityurl": vanity, "url_type": 1}
-    )
+    params = urllib.parse.urlencode({"key": api_key, "vanityurl": vanity, "url_type": 1})
     url = f"https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/?{params}"
     try:
         resp = http_request(

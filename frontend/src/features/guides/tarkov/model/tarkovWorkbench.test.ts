@@ -74,9 +74,7 @@ describe("tarkovWorkbench", () => {
       { slot_id: "stock", item_id: "s1" },
       { slot_id: "grip", item_id: "g2" },
     ]);
-    expect(replacePair(pairs, "stock", null)).toEqual([
-      { slot_id: "grip", item_id: "g1" },
-    ]);
+    expect(replacePair(pairs, "stock", null)).toEqual([{ slot_id: "grip", item_id: "g1" }]);
     expect(
       replacePair(
         [
@@ -113,9 +111,7 @@ describe("tarkovWorkbench", () => {
     const next = replaceSlotInstalled(tree, "grip", { id: "g2", name: "Grip 2" });
     expect(next[0].installed?.id).toBe("g2");
     expect(next[0].children).toEqual([]);
-    expect(
-      replaceSlotInstalled(tree, "rail", null)[0].children?.[0].installed,
-    ).toBeNull();
+    expect(replaceSlotInstalled(tree, "rail", null)[0].children?.[0].installed).toBeNull();
   });
 
   it("formats signed attachment stats", () => {
@@ -151,26 +147,15 @@ describe("tarkovWorkbench", () => {
 
   it("flags parts that conflict with other installed items", () => {
     expect(
-      partConflictsWith(
-        { id: "grip2", conflicting_ids: ["stock1"] },
-        ["grip2", "stock1"],
-        "grip2",
-      ),
+      partConflictsWith({ id: "grip2", conflicting_ids: ["stock1"] }, ["grip2", "stock1"], "grip2"),
     ).toBe(true);
     expect(
-      partConflictsWith(
-        { id: "grip2", conflicting_ids: ["stock1"] },
-        ["grip2"],
-        "grip2",
-      ),
+      partConflictsWith({ id: "grip2", conflicting_ids: ["stock1"] }, ["grip2"], "grip2"),
     ).toBe(false);
     expect(
-      partConflictsWith(
-        { id: "stock1" },
-        ["grip2", "stock1"],
-        "stock1",
-        [{ id: "grip2", conflicting_ids: ["stock1"] }],
-      ),
+      partConflictsWith({ id: "stock1" }, ["grip2", "stock1"], "stock1", [
+        { id: "grip2", conflicting_ids: ["stock1"] },
+      ]),
     ).toBe(true);
   });
 
@@ -185,25 +170,29 @@ describe("tarkovWorkbench", () => {
   });
 
   it("toggles column sort and sorts by the selected field", () => {
-    expect(
-      toggleWorkbenchPartSort({ key: "ergonomics", dir: "desc" }, "ergonomics"),
-    ).toEqual({ key: "ergonomics", dir: "asc" });
-    expect(
-      toggleWorkbenchPartSort({ key: "ergonomics", dir: "desc" }, "name"),
-    ).toEqual({ key: "name", dir: "asc" });
+    expect(toggleWorkbenchPartSort({ key: "ergonomics", dir: "desc" }, "ergonomics")).toEqual({
+      key: "ergonomics",
+      dir: "asc",
+    });
+    expect(toggleWorkbenchPartSort({ key: "ergonomics", dir: "desc" }, "name")).toEqual({
+      key: "name",
+      dir: "asc",
+    });
     const parts = [
       { id: "a", name: "B", ergonomics: 1, recoil_modifier: 0.1, weight: 2, price_rub: 100 },
       { id: "b", name: "A", ergonomics: 8, recoil_modifier: -0.2, weight: 1, price_rub: 50 },
     ];
-    expect(
-      sortWorkbenchParts(parts, { key: "name", dir: "asc" }).map((row) => row.id),
-    ).toEqual(["b", "a"]);
+    expect(sortWorkbenchParts(parts, { key: "name", dir: "asc" }).map((row) => row.id)).toEqual([
+      "b",
+      "a",
+    ]);
     expect(
       sortWorkbenchParts(parts, { key: "ergonomics", dir: "desc" }).map((row) => row.id),
     ).toEqual(["b", "a"]);
-    expect(
-      sortWorkbenchParts(parts, { key: "recoil", dir: "asc" }).map((row) => row.id),
-    ).toEqual(["b", "a"]);
+    expect(sortWorkbenchParts(parts, { key: "recoil", dir: "asc" }).map((row) => row.id)).toEqual([
+      "b",
+      "a",
+    ]);
   });
 
   it("computes evo ergo delta with the same cap as overswing", () => {

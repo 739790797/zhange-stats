@@ -50,15 +50,7 @@ function SearchIcon() {
   );
 }
 
-function SectionHead({
-  title,
-  en,
-  extra,
-}: {
-  title: string;
-  en?: string;
-  extra?: ReactNode;
-}) {
+function SectionHead({ title, en, extra }: { title: string; en?: string; extra?: ReactNode }) {
   return (
     <div className={styles.sectionHead}>
       <span className={styles.sectionBar} aria-hidden />
@@ -91,21 +83,9 @@ function HomeTile({
   const body = (
     <>
       {isImage ? (
-        <img
-          className={styles.mapIconImg}
-          src={icon}
-          alt=""
-          width={18}
-          height={18}
-        />
+        <img className={styles.mapIconImg} src={icon} alt="" width={18} height={18} />
       ) : (
-        <svg
-          className={styles.mapIcon}
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          aria-hidden
-        >
+        <svg className={styles.mapIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden>
           <path d={icon} fill="currentColor" />
         </svg>
       )}
@@ -147,11 +127,7 @@ function MapCard({ item }: { item: TarkovMapCard }) {
       label={item.label}
       soon={soon}
       goon={goon}
-      extra={
-        soon ? undefined : (
-          <TarkovGoonSightingHint mapId={item.id} variant="tile" />
-        )
-      }
+      extra={soon ? undefined : <TarkovGoonSightingHint mapId={item.id} variant="tile" />}
     />
   );
 }
@@ -179,9 +155,7 @@ function SearchResultRow({ hit }: { hit: TarkovSiteSearchRow }) {
       <ResultThumb src={hit.icon} />
       <span className={styles.resultBody}>
         <span className={styles.resultLabel}>{hit.label}</span>
-        {hit.extra ? (
-          <span className={styles.resultExtra}>{hit.extra}</span>
-        ) : null}
+        {hit.extra ? <span className={styles.resultExtra}>{hit.extra}</span> : null}
       </span>
     </>
   );
@@ -211,8 +185,7 @@ export function TarkovHomeView() {
   const searching = committed.length > 0;
   const searchQuery = useQuery({
     queryKey: ["guides-tarkov-search", gameMode, faction, committed],
-    queryFn: () =>
-      fetchTarkovSiteSearch(committed, { faction: faction || undefined }),
+    queryFn: () => fetchTarkovSiteSearch(committed, { faction: faction || undefined }),
     enabled: searching,
     staleTime: 60_000,
     retry: 1,
@@ -245,9 +218,7 @@ export function TarkovHomeView() {
   const results = (
     <>
       {searchQuery.isError ? (
-        <div className={styles.empty}>
-          {apiError(searchQuery.error, "搜索失败")}
-        </div>
+        <div className={styles.empty}>{apiError(searchQuery.error, "搜索失败")}</div>
       ) : null}
       {waiting ? (
         <div className={styles.empty}>搜索中…</div>
@@ -269,35 +240,33 @@ export function TarkovHomeView() {
   );
 
   const hero = (
-    <section
-      className={`${styles.hero}${searchOnly && !searching ? ` ${styles.heroOnly}` : ""}`}
-    >
-        <div className={styles.heroInner}>
-          <h1 className={styles.title}>逃离塔科夫</h1>
-          <p className={styles.subtitle}>ESCAPE FROM TARKOV · 中文攻略站</p>
-          <form
-            className={styles.search}
-            onSubmit={(e) => {
-              e.preventDefault();
-              commitSearch(draft);
-            }}
-          >
-            <span className={styles.searchIcon}>
-              <SearchIcon />
-            </span>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="搜物品、任务、地图、商人、BOSS…"
-              aria-label="全站搜索攻略"
-              autoComplete="off"
-              enterKeyHint="search"
-              // oxlint-disable-next-line jsx-a11y/no-autofocus -- 只在助手搜索窗格里聚焦：那个窗格只有这一个搜索框
-              autoFocus={searchOnly}
-            />
-            <kbd className={styles.kbd}>Enter</kbd>
-          </form>
-        </div>
+    <section className={`${styles.hero}${searchOnly && !searching ? ` ${styles.heroOnly}` : ""}`}>
+      <div className={styles.heroInner}>
+        <h1 className={styles.title}>逃离塔科夫</h1>
+        <p className={styles.subtitle}>ESCAPE FROM TARKOV · 中文攻略站</p>
+        <form
+          className={styles.search}
+          onSubmit={(e) => {
+            e.preventDefault();
+            commitSearch(draft);
+          }}
+        >
+          <span className={styles.searchIcon}>
+            <SearchIcon />
+          </span>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="搜物品、任务、地图、商人、BOSS…"
+            aria-label="全站搜索攻略"
+            autoComplete="off"
+            enterKeyHint="search"
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- 只在助手搜索窗格里聚焦：那个窗格只有这一个搜索框
+            autoFocus={searchOnly}
+          />
+          <kbd className={styles.kbd}>Enter</kbd>
+        </form>
+      </div>
     </section>
   );
 
@@ -377,11 +346,7 @@ export function TarkovHomeView() {
                 <SectionHead title="商人" en="Traders" />
                 <div className={styles.traderGrid}>
                   {TARKOV_HOME_TRADERS.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={item.href}
-                      className={styles.traderCard}
-                    >
+                    <Link key={item.id} to={item.href} className={styles.traderCard}>
                       <img
                         className={styles.traderAvatar}
                         src={traderPortraitUrl(item.id)}
@@ -416,11 +381,7 @@ export function TarkovHomeView() {
             <div className={styles.footerLinks}>
               <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
               <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
-              <a
-                href="https://github.com/739790797/zhange-stats"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href="https://github.com/739790797/zhange-stats" target="_blank" rel="noreferrer">
                 GitHub
               </a>
               <a href="https://tarkov.dev" target="_blank" rel="noreferrer">

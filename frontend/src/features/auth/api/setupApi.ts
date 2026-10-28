@@ -22,15 +22,10 @@ function setupTokenHeaders(token: string) {
   return value ? { [SETUP_TOKEN_HEADER]: value } : {};
 }
 
-export async function completeSetupDatabase(
-  payload: SetupDatabaseRequest,
-  token: string,
-) {
-  const { data } = await client.post<SetupDatabaseResult>(
-    "/setup/database",
-    payload,
-    { headers: setupTokenHeaders(token) },
-  );
+export async function completeSetupDatabase(payload: SetupDatabaseRequest, token: string) {
+  const { data } = await client.post<SetupDatabaseResult>("/setup/database", payload, {
+    headers: setupTokenHeaders(token),
+  });
   return data;
 }
 

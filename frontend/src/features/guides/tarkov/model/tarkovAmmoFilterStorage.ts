@@ -32,10 +32,7 @@ export function saveTarkovAmmoFilters(state: TarkovAmmoFilterState) {
 }
 
 /** 用当前可选口径校正历史勾选；`null` 默认全选；允许空数组（用户清空） */
-export function resolveCaliberSelection(
-  available: string[],
-  saved: string[] | null,
-): string[] {
+export function resolveCaliberSelection(available: string[], saved: string[] | null): string[] {
   if (saved === null) return [...available];
   const availableSet = new Set(available);
   return saved.filter((c) => availableSet.has(c));

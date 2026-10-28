@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  logTextGrownFrom,
-  readTarkovLogText,
-  type TarkovLogTextEntry,
-} from "./tarkovLogTextCache";
+import { logTextGrownFrom, readTarkovLogText, type TarkovLogTextEntry } from "./tarkovLogTextCache";
 import {
   buildRaidsFromEvents,
   classifyLogsRoot,
@@ -64,30 +60,22 @@ const NIGHT_FACTORY_LINE =
 
 describe("session folder names", () => {
   it("parses TarkovMonitor-style log folders", () => {
-    expect(isSessionFolderName("log_2023.12.29_19-03-20_0.14.0.0.28375")).toBe(
-      true,
-    );
+    expect(isSessionFolderName("log_2023.12.29_19-03-20_0.14.0.0.28375")).toBe(true);
     expect(parseSessionFolderTime("log_2021.03.09_17-48-09_0.12.9.10988")).toBe(
       "2021-03-09 17:48:09",
     );
-    expect(parseSessionFolderTime("log_2026.08.30_8-01-02")).toBe(
-      "2026-08-30 08:01:02",
-    );
+    expect(parseSessionFolderTime("log_2026.08.30_8-01-02")).toBe("2026-08-30 08:01:02");
     expect(isSessionFolderName("Settings")).toBe(false);
   });
 
   it("recognizes rotated application / notifications files", () => {
     expect(isApplicationLogFileName("application.log")).toBe(true);
-    expect(
-      isApplicationLogFileName(
-        "2025.01.20_14-30-45_192.168.1.100 application_000.log",
-      ),
-    ).toBe(true);
+    expect(isApplicationLogFileName("2025.01.20_14-30-45_192.168.1.100 application_000.log")).toBe(
+      true,
+    );
     expect(isNotificationsLogFileName("notifications.log")).toBe(true);
     expect(
-      isNotificationsLogFileName(
-        "2026.08.31_19-08-07_1.1.0.1.46911 push-notifications_000.log",
-      ),
+      isNotificationsLogFileName("2026.08.31_19-08-07_1.1.0.1.46911 push-notifications_000.log"),
     ).toBe(true);
     expect(isNotificationsLogFileName("notifications_001.log")).toBe(true);
     expect(isApplicationLogFileName("application_002.log")).toBe(true);
@@ -100,25 +88,21 @@ describe("session folder names", () => {
 
 describe("classifyLogsRoot", () => {
   it("detects Logs, install root, or a single session folder", () => {
-    expect(
-      classifyLogsRoot(["log_2026.08.30_20-00-00", "log_2026.08.29_10-00-00"]),
-    ).toBe("logs");
+    expect(classifyLogsRoot(["log_2026.08.30_20-00-00", "log_2026.08.29_10-00-00"])).toBe("logs");
     expect(classifyLogsRoot(["Logs", "EscapeFromTarkov.exe"])).toBe("install");
     expect(classifyLogsRoot(["build", "EscapeFromTarkov.exe"])).toBe("install");
     expect(classifyLogsRoot(["steamapps"])).toBe("install");
-    expect(classifyLogsRoot(["application.log", "notifications.log"])).toBe(
-      "session",
-    );
+    expect(classifyLogsRoot(["application.log", "notifications.log"])).toBe("session");
     expect(classifyLogsRoot(["readme.txt"])).toBe("unknown");
   });
 
   it("walks Steam build/Logs and Documents/Screenshots", () => {
-    expect(logWalkCandidatesFrom(["build", "BattlEye"])).toEqual([
-      ["build", "Logs"],
+    expect(logWalkCandidatesFrom(["build", "BattlEye"])).toEqual([["build", "Logs"]]);
+    expect(logWalkCandidatesFrom(["Escape from Tarkov", "steam.dll"])[0]).toEqual([
+      "Escape from Tarkov",
+      "build",
+      "Logs",
     ]);
-    expect(
-      logWalkCandidatesFrom(["Escape from Tarkov", "steam.dll"])[0],
-    ).toEqual(["Escape from Tarkov", "build", "Logs"]);
     expect(logWalkCandidatesFrom(["steamapps"])[0]).toEqual([
       "steamapps",
       "common",
@@ -126,31 +110,21 @@ describe("classifyLogsRoot", () => {
       "build",
       "Logs",
     ]);
-    expect(
-      screenshotWalkCandidatesFrom(["Escape from Tarkov", "My Games"]),
-    ).toEqual([["Escape from Tarkov", "Screenshots"]]);
-    expect(
-      screenshotWalkCandidatesFrom(["2026-08-30_12-00-00.png", "note.txt"]),
-    ).toEqual([[]]);
+    expect(screenshotWalkCandidatesFrom(["Escape from Tarkov", "My Games"])).toEqual([
+      ["Escape from Tarkov", "Screenshots"],
+    ]);
+    expect(screenshotWalkCandidatesFrom(["2026-08-30_12-00-00.png", "note.txt"])).toEqual([[]]);
     expect(isScreenshotFileName("raid.jpg")).toBe(true);
     expect(
-      isNewerScreenshot(
-        { name: "a.png", lastModified: 10 },
-        { name: "b.png", lastModified: 20 },
-      ),
+      isNewerScreenshot({ name: "a.png", lastModified: 10 }, { name: "b.png", lastModified: 20 }),
     ).toBe(true);
     expect(latestScreenshotName(["old.png", "2026-08-30[21-35]_19.91 (0).png"])).toBe(
       "2026-08-30[21-35]_19.91 (0).png",
     );
     expect(
-      latestScreenshotName([
-        "2026-08-30[21-35]_19.91 (0).png",
-        "2026-08-30[21-36]_20.00 (0).png",
-      ]),
+      latestScreenshotName(["2026-08-30[21-35]_19.91 (0).png", "2026-08-30[21-36]_20.00 (0).png"]),
     ).toBe("2026-08-30[21-36]_20.00 (0).png");
-    expect(isTarkovGameScreenshotName("2026-08-30[21-35]_19.91 (0).png")).toBe(
-      true,
-    );
+    expect(isTarkovGameScreenshotName("2026-08-30[21-35]_19.91 (0).png")).toBe(true);
     expect(isTarkovGameScreenshotName("vacation.jpg")).toBe(false);
     expect(
       screenshotNamesToInspect(
@@ -160,10 +134,7 @@ describe("classifyLogsRoot", () => {
     ).toEqual(["2026-08-30[21-35]_19.91 (0).png"]);
     expect(
       screenshotNamesToInspect(
-        [
-          "2026-08-30[21-35]_19.91 (0).png",
-          "2026-08-30[21-36]_20.00 (0).png",
-        ],
+        ["2026-08-30[21-35]_19.91 (0).png", "2026-08-30[21-36]_20.00 (0).png"],
         new Set(),
       ),
     ).toEqual(["2026-08-30[21-35]_19.91 (0).png", "2026-08-30[21-36]_20.00 (0).png"]);
@@ -196,33 +167,21 @@ describe("classifyLogsRoot", () => {
     ).toEqual([]);
     expect(
       screenshotNamesToPrune(
-        [
-          "vacation.jpg",
-          "2026-08-30[21-35]_19.91 (0).png",
-          "2026-08-30[21-36]_20.00 (0).png",
-        ],
+        ["vacation.jpg", "2026-08-30[21-35]_19.91 (0).png", "2026-08-30[21-36]_20.00 (0).png"],
         "2026-08-30[21-36]_20.00 (0).png",
         1,
       ),
     ).toEqual(["2026-08-30[21-35]_19.91 (0).png"]);
     expect(
       screenshotNamesToPrune(
-        [
-          "2026-08-30[21-34]_1.png",
-          "2026-08-30[21-35]_2.png",
-          "2026-08-30[21-36]_3.png",
-        ],
+        ["2026-08-30[21-34]_1.png", "2026-08-30[21-35]_2.png", "2026-08-30[21-36]_3.png"],
         "2026-08-30[21-36]_3.png",
         2,
       ),
     ).toEqual(["2026-08-30[21-34]_1.png"]);
     expect(
       screenshotNamesToPrune(
-        [
-          "2026-08-30[21-34]_1.png",
-          "2026-08-30[21-35]_2.png",
-          "2026-08-30[21-36]_3.png",
-        ],
+        ["2026-08-30[21-34]_1.png", "2026-08-30[21-35]_2.png", "2026-08-30[21-36]_3.png"],
         "2026-08-30[21-36]_3.png",
         20,
       ),
@@ -231,16 +190,10 @@ describe("classifyLogsRoot", () => {
       const stamp = String(index).padStart(2, "0");
       return `2026-08-31[20-${stamp}]_${index}.jpg`;
     });
-    expect(
-      screenshotNamesToPrune(thirtyFour, thirtyFour[33]!, 20),
-    ).toHaveLength(14);
-    expect(
-      screenshotNamesToPrune(
-        [thirtyFour[0]!, thirtyFour[33]!],
-        thirtyFour[33]!,
-        20,
-      ),
-    ).toEqual([]);
+    expect(screenshotNamesToPrune(thirtyFour, thirtyFour[33]!, 20)).toHaveLength(14);
+    expect(screenshotNamesToPrune([thirtyFour[0]!, thirtyFour[33]!], thirtyFour[33]!, 20)).toEqual(
+      [],
+    );
     expect(parseScreenshotPrunePref(null).enabled).toBe(false);
     expect(parseScreenshotPrunePref('{"enabled":true,"keepMax":8}')).toEqual({
       enabled: true,
@@ -254,16 +207,12 @@ describe("classifyLogsRoot", () => {
       ok: false,
       text: "自动删截图需要写入授权。请点「更换」重新选择 Screenshots 文件夹，并在弹窗里允许查看并编辑。",
     });
-    expect(screenshotPruneVerifyResult({ pruneEnabled: true, canWrite: true }).ok).toBe(
-      true,
-    );
+    expect(screenshotPruneVerifyResult({ pruneEnabled: true, canWrite: true }).ok).toBe(true);
     expect(formatBindPath("Escape from Tarkov", ["build", "Logs"])).toBe(
       "Escape from Tarkov\\build\\Logs",
     );
     expect(formatBindPath("Screenshots", [])).toBe("Screenshots");
-    expect(formatBindPath("D:", ["Steam", "steamapps"])).toBe(
-      "D:\\Steam\\steamapps",
-    );
+    expect(formatBindPath("D:", ["Steam", "steamapps"])).toBe("D:\\Steam\\steamapps");
     expect(hasDriveLetter("D:\\Steam\\Logs")).toBe(true);
     expect(joinBindPath(["D:", "Steam", "Logs"])).toBe("D:\\Steam\\Logs");
     expect(
@@ -273,10 +222,7 @@ describe("classifyLogsRoot", () => {
       ),
     ).toBe("D:\\Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs");
     expect(
-      mergeBindPath(
-        "D:\\Steam",
-        "Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs",
-      ),
+      mergeBindPath("D:\\Steam", "Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs"),
     ).toBe("D:\\Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs");
     expect(
       mergeBindPath(
@@ -385,9 +331,7 @@ describe("parseTarkovLogText", () => {
       startedAt: "2023-12-29 19:03:40.000",
     });
     expect(JSON.stringify(parsed.raids)).not.toContain("37.19.203.86");
-    expect(parsed.events.some((event) => event.kind === "match_found")).toBe(
-      true,
-    );
+    expect(parsed.events.some((event) => event.kind === "match_found")).toBe(true);
     expect(latestLogMapId(parsed)).toBe("shoreline");
   });
 
@@ -549,9 +493,7 @@ describe("parseTarkovLogText", () => {
     const parsed = parseTarkovLogBundle([
       {
         name: "application.log",
-        text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join(
-          "\n",
-        ),
+        text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join("\n"),
       },
       {
         name: "notifications.log",
@@ -574,9 +516,7 @@ describe("parseTarkovLogText", () => {
     expect(
       logPhaseFromParsed(
         parseTarkovLogText(
-          [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join(
-            "\n",
-          ),
+          [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join("\n"),
         ),
       ),
     ).toMatchObject({ kind: "raid_started", raidId: "PQXKR6" });
@@ -683,9 +623,7 @@ describe("parseTarkovLogText", () => {
     const parsed = parseTarkovLogBundle([
       {
         name: "application.log",
-        text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join(
-          "\n",
-        ),
+        text: [MATCH_LINE, "2023-12-29 19:03:40.000|x|Info|application|GameStarted"].join("\n"),
       },
       {
         name: "output.log",
@@ -837,9 +775,7 @@ describe("parseTarkovLogText", () => {
 
   it("marks reconnects on the same shortId", () => {
     const events = parseTarkovLogText(
-      [MATCH_LINE, MATCH_LINE.replace("19:03:20.911", "19:20:00.000")].join(
-        "\n",
-      ),
+      [MATCH_LINE, MATCH_LINE.replace("19:03:20.911", "19:20:00.000")].join("\n"),
     ).events;
     const raids = buildRaidsFromEvents(events);
     expect(raids).toHaveLength(1);
@@ -925,9 +861,7 @@ describe("history helpers", () => {
   });
 
   it("formats clocks and labels", () => {
-    expect(formatLogClock("2023-12-29 19:03:40.000")).toBe(
-      "2023-12-29 19:03:40",
-    );
+    expect(formatLogClock("2023-12-29 19:03:40.000")).toBe("2023-12-29 19:03:40");
     expect(raidModeLabel("offline")).toBe("离线");
     expect(sessionModeLabel("pve")).toBe("PvE");
     expect(sessionModeLabel("seasonal")).toBe("赛季");
@@ -966,22 +900,24 @@ describe("history helpers", () => {
 });
 
 describe("incremental live-log parsing", () => {
-  const APP = [
-    "2026-10-13 08:00:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
-    "2026-10-13 08:00:01.000 +01:00|1.0.0.0.1|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:1",
-    MATCH_LINE.replace("2023-12-29 19:03:20.911 +08:00", "2026-10-13 08:01:00.000 +01:00"),
-    "2026-10-13 08:01:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
-    "2026-10-13 08:20:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: Pve",
-  ].join("\n") + "\n";
-  const NOTIFY = [
-    "2026-10-13 08:05:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
-    '{ "type": "new_message",',
-    '  "message": { "type": 10, "templateId": "5ac346a886f7744e1b083d67 description" } }',
-    "2026-10-13 08:10:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | UserMatchOver",
-    '{ "location": "Shoreline", "shortId": "PQXKR6" }',
-    "2026-10-13 08:15:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
-    '{ "type": "new_message", "message": { "type": 12, "templateId": "5ac346a886f7744e1b083d67 description" } }',
-  ].join("\n") + "\n";
+  const APP =
+    [
+      "2026-10-13 08:00:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+      "2026-10-13 08:00:01.000 +01:00|1.0.0.0.1|Info|application|SelectProfile ProfileId:aa11bb22cc33dd44ee55ff66 AccountId:1",
+      MATCH_LINE.replace("2023-12-29 19:03:20.911 +08:00", "2026-10-13 08:01:00.000 +01:00"),
+      "2026-10-13 08:01:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
+      "2026-10-13 08:20:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: Pve",
+    ].join("\n") + "\n";
+  const NOTIFY =
+    [
+      "2026-10-13 08:05:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
+      '{ "type": "new_message",',
+      '  "message": { "type": 10, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+      "2026-10-13 08:10:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | UserMatchOver",
+      '{ "location": "Shoreline", "shortId": "PQXKR6" }',
+      "2026-10-13 08:15:00.000 +01:00|1.0.0.0.1|Info|push-notifications|Got notification | ChatMessageReceived",
+      '{ "type": "new_message", "message": { "type": 12, "templateId": "5ac346a886f7744e1b083d67 description" } }',
+    ].join("\n") + "\n";
 
   function oneShot(app: string, notify: string) {
     return parseTarkovLogBundle([
@@ -1067,14 +1003,15 @@ describe("incremental live-log parsing", () => {
 
   it("rotated application parts parse the same chunk by chunk as in one shot", () => {
     const head = APP;
-    const rotated = [
-      "2026-10-13 08:30:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
-      MATCH_LINE.replace("2023-12-29 19:03:20.911 +08:00", "2026-10-13 08:31:00.000 +01:00").replace(
-        "PQXKR6",
-        "ZZTOP9",
-      ),
-      "2026-10-13 08:31:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
-    ].join("\n") + "\n";
+    const rotated =
+      [
+        "2026-10-13 08:30:00.000 +01:00|1.0.0.0.1|Info|application|Session mode: regular",
+        MATCH_LINE.replace(
+          "2023-12-29 19:03:20.911 +08:00",
+          "2026-10-13 08:31:00.000 +01:00",
+        ).replace("PQXKR6", "ZZTOP9"),
+        "2026-10-13 08:31:30.000 +01:00|1.0.0.0.1|Info|application|GameStarted",
+      ].join("\n") + "\n";
     const names = ["application_1.log", "application.log", "notifications.log"];
     const full = [rotated, head, NOTIFY];
     // 真实轮转：application.log 写满后改名 application_1.log 冻住，新的 application.log 接着写。
@@ -1182,7 +1119,9 @@ describe("session folder time zones", () => {
     expect(beijing).not.toBe(stub);
     expect(stub.startedAt).toBe("2026-10-13 08:00:00");
 
-    const legacy = parseTarkovLogText("2026-10-13 08:00:00.000|1|Info|application|Session mode: regular");
+    const legacy = parseTarkovLogText(
+      "2026-10-13 08:00:00.000|1|Info|application|Session mode: regular",
+    );
     expect(legacy.clockOffset).toBeUndefined();
     expect(sessionStubInBeijing(stub, legacy)).toBe(stub);
     expect(sessionStubInBeijing(stub, null)).toBe(stub);

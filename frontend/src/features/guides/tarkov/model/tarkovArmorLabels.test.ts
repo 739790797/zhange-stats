@@ -17,24 +17,14 @@ describe("formatArmorZoneLabel", () => {
   });
 
   it("maps plate armor-zone enums without keeping Granit/SAPI codes", () => {
-    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_chest")).toBe(
-      "前胸插板",
-    );
-    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_back")).toBe(
-      "后背插板",
-    );
-    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_side_left")).toBe(
-      "左侧插板",
-    );
-    expect(
-      formatArmorZoneLabel("Armor Zone Plate_SSAPI_side_left_high"),
-    ).toBe("左侧插板（高）");
+    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_chest")).toBe("前胸插板");
+    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_back")).toBe("后背插板");
+    expect(formatArmorZoneLabel("Armor Zone Plate_Granit_SAPI_side_left")).toBe("左侧插板");
+    expect(formatArmorZoneLabel("Armor Zone Plate_SSAPI_side_left_high")).toBe("左侧插板（高）");
   });
 
   it("strips dump prefixes when the token is unknown", () => {
-    expect(formatArmorZoneLabel("Collider Type BrandNewHitbox")).toBe(
-      "BrandNewHitbox",
-    );
+    expect(formatArmorZoneLabel("Collider Type BrandNewHitbox")).toBe("BrandNewHitbox");
   });
 });
 
@@ -57,9 +47,7 @@ describe("formatArmorSlotLabel / material / type", () => {
     expect(formatArmorSlotLabel("Front_plate")).toBe("前胸");
     expect(formatArmorMaterial("Aramid")).toBe("芳纶");
     expect(formatArmorMaterial("UHMWPE")).toBe("聚乙烯");
-    expect(formatArmorMaterial({ id: "combined", name: "Combined" })).toBe(
-      "复合材料",
-    );
+    expect(formatArmorMaterial({ id: "combined", name: "Combined" })).toBe("复合材料");
     expect(formatArmorMaterial({ id: "granit", name: "Granit" })).toBe("Granit");
     expect(formatArmorType("Heavy")).toBe("重型");
     expect(formatArmorType("Light")).toBe("轻型");

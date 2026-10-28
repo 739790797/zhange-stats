@@ -17,10 +17,7 @@ export const ARMOR_EFFECT_LABELS: Record<ArmorEffectLevel, string> = {
 };
 
 /** 接近 Wiki 表的红→绿色阶 */
-export const ARMOR_EFFECT_COLORS: Record<
-  ArmorEffectLevel,
-  { bg: string; fg: string }
-> = {
+export const ARMOR_EFFECT_COLORS: Record<ArmorEffectLevel, { bg: string; fg: string }> = {
   0: { bg: "#6d1010", fg: "#ffffff" },
   1: { bg: "#8f2a14", fg: "#ffffff" },
   2: { bg: "#a34818", fg: "#ffffff" },
@@ -76,19 +73,13 @@ function expectedBlockedShots(
     const p = estimatePenChance(penetration, armorClass, dur);
     expected += alive * (1 - p);
     alive *= 1 - p;
-    dur = Math.max(
-      0,
-      dur - durabilityLossPct(penetration, armorClass, armorDamagePct),
-    );
+    dur = Math.max(0, dur - durabilityLossPct(penetration, armorClass, armorDamagePct));
   }
   if (alive > 0.25) return 30;
   return expected;
 }
 
-function levelFromBlocked(
-  blocked: number,
-  firstShotChance: number,
-): ArmorEffectLevel {
+function levelFromBlocked(blocked: number, firstShotChance: number): ArmorEffectLevel {
   // Wiki：6 = 首发穿透率通常 >80% / 平均挡住 <1
   if (firstShotChance >= 0.8 || blocked < 1) return 6;
   if (blocked < 3) return 5;
@@ -116,7 +107,5 @@ export function armorEffectsForAmmo(
   penetration: number,
   armorDamagePct: number,
 ): ArmorEffectLevel[] {
-  return [1, 2, 3, 4, 5, 6].map((c) =>
-    armorEffectLevel(penetration, c, armorDamagePct),
-  );
+  return [1, 2, 3, 4, 5, 6].map((c) => armorEffectLevel(penetration, c, armorDamagePct));
 }

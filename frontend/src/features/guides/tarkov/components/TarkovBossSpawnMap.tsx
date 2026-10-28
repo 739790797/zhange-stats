@@ -25,8 +25,7 @@ type Props = {
 
 function mapChipLabel(view: BossSpawnMapView): string {
   const mark =
-    tarkovMapMarkByName(view.name) ||
-    (view.slug ? tarkovMapMarkByName(view.slug) : null);
+    tarkovMapMarkByName(view.name) || (view.slug ? tarkovMapMarkByName(view.slug) : null);
   return mark?.label || view.name || view.slug;
 }
 
@@ -59,9 +58,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
   useEffect(() => {
     if (!active) return;
     const first = heatmapSpawnLocationOptions(active.points)[0];
-    setFocus(
-      first ? { x: first.x, y: first.y, z: first.z, seq: 1 } : null,
-    );
+    setFocus(first ? { x: first.x, y: first.y, z: first.z, seq: 1 } : null);
     const timer = window.setTimeout(() => {
       window.dispatchEvent(new Event("resize"));
     }, 40);
@@ -81,8 +78,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
         <div className={styles.spawnMapTabs} role="tablist" aria-label="刷点地图">
           {views.map((row) => {
             const mark =
-              tarkovMapMarkByName(row.name) ||
-              (row.slug ? tarkovMapMarkByName(row.slug) : null);
+              tarkovMapMarkByName(row.name) || (row.slug ? tarkovMapMarkByName(row.slug) : null);
             const on = row.slug === active.slug;
             return (
               <button
@@ -105,9 +101,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
                   </svg>
                 ) : null}
                 <span>{mapChipLabel(row)}</span>
-                {row.chance ? (
-                  <span className={styles.mapChance}>（{row.chance}）</span>
-                ) : null}
+                {row.chance ? <span className={styles.mapChance}>（{row.chance}）</span> : null}
               </button>
             );
           })}
@@ -124,9 +118,7 @@ export function TarkovBossSpawnMap({ detail }: Props) {
             <button
               key={`${row.name}-${row.x}-${row.z}`}
               type="button"
-              className={
-                row.name === activeName ? styles.spawnLocOn : styles.spawnLoc
-              }
+              className={row.name === activeName ? styles.spawnLocOn : styles.spawnLoc}
               onClick={() =>
                 setFocus((prev) => ({
                   x: row.x,

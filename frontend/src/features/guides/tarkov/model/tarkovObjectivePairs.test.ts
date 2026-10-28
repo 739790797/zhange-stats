@@ -75,15 +75,9 @@ describe("mergeSkipMapsIfChanged", () => {
     const local = skip({ t1: ["o1"] });
     const account = [{ task_id: "t2", objective_id: "o1" }];
     expect(mergeSkipMapsIfChanged(local, null)).toBeNull();
-    expect(
-      mergeSkipMapsIfChanged(local, undefined),
-    ).toBeNull();
-    expect(
-      [...(mergeObjectivePairs(local, account)!.get("t2") || [])],
-    ).toEqual(["o1"]);
-    expect(
-      [...(raidPrepSkipMapForViewer(local, account).get("t2") || [])],
-    ).toEqual(["o1"]);
+    expect(mergeSkipMapsIfChanged(local, undefined)).toBeNull();
+    expect([...(mergeObjectivePairs(local, account)!.get("t2") || [])]).toEqual(["o1"]);
+    expect([...(raidPrepSkipMapForViewer(local, account).get("t2") || [])]).toEqual(["o1"]);
   });
 });
 
@@ -102,11 +96,7 @@ describe("applyObjectivePins", () => {
     const stored = skip({ t1: ["o1"] });
     const stale = skip({ t1: ["o1", "o2", "o3"] });
     const pins = new Map([[objectivePinKey("t1", "o2"), false]]);
-    const next = adoptMergedObjectiveSkip(
-      stored,
-      mergeSkipMapsIfChanged(stored, stale),
-      pins,
-    );
+    const next = adoptMergedObjectiveSkip(stored, mergeSkipMapsIfChanged(stored, stale), pins);
     expect([...(next!.get("t1") || [])].sort()).toEqual(["o1", "o3"]);
   });
 

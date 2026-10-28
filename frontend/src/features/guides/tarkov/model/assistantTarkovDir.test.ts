@@ -5,7 +5,10 @@ import type { ReadableDir } from "./tarkovGameLogAccess";
 
 describe("assistantBoundToDir", () => {
   function binding(): AssistantBoundDir & { removed: string[] } {
-    const tree: Record<string, { kind: "file" | "directory"; name: string; text?: string; lastModified?: number }[]> = {
+    const tree: Record<
+      string,
+      { kind: "file" | "directory"; name: string; text?: string; lastModified?: number }[]
+    > = {
       "": [
         { kind: "directory", name: "Logs" },
         { kind: "file", name: "shot.png", lastModified: 5 },

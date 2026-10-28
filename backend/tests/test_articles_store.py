@@ -61,9 +61,7 @@ def test_sniff_article_attachment_ext() -> None:
     assert spoof.value.status_code == 400
 
 
-def test_save_article_bytes_uses_user_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_save_article_bytes_uses_user_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 

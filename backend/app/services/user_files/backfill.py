@@ -116,10 +116,7 @@ def backfill_namespace(
     if namespace not in NAMESPACES:
         raise UserFileError("不支持的附件命名空间")
     base = (root or upload_root()).resolve()
-    existing = {
-        rel
-        for (rel,) in db.query(UserFile.rel_path).filter(UserFile.namespace == namespace)
-    }
+    existing = {rel for (rel,) in db.query(UserFile.rel_path).filter(UserFile.namespace == namespace)}
     added = 0
     skipped = 0
     for path in iter_namespace_files(namespace, root=base):
@@ -187,15 +184,10 @@ def fill_missing_avatar_owners(db: Session, *, commit: bool = True) -> int:
 
 
 def backfill_all(db: Session, *, root: Path | None = None) -> dict[str, dict[str, int]]:
-    return {
-        namespace: backfill_namespace(db, namespace, root=root)
-        for namespace in sorted(NAMESPACES)
-    }
+    return {namespace: backfill_namespace(db, namespace, root=root) for namespace in sorted(NAMESPACES)}
 
 
-def ensure_user_files_registered(
-    db: Session, *, root: Path | None = None
-) -> dict[str, dict[str, int]]:
+def ensure_user_files_registered(db: Session, *, root: Path | None = None) -> dict[str, dict[str, int]]:
     """启动钩子：扫盘把存量附件纳入登记，幂等，不改公开 URL。"""
     stats = backfill_all(db, root=root)
     logger.info("user_files ensure registered %s", stats)

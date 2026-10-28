@@ -91,9 +91,7 @@ const MAP_SLUG_ALIAS: Record<string, string> = {
 const NAV_IDS = TARKOV_MAPS.map((row) => row.id);
 
 export function parseChancePct(raw: string | null | undefined): number {
-  const nums = [...String(raw || "").matchAll(/(\d+(?:\.\d+)?)/g)].map((m) =>
-    Number(m[1]),
-  );
+  const nums = [...String(raw || "").matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
   if (!nums.length) return 0;
   return Math.max(...nums);
 }
@@ -168,9 +166,7 @@ function toRecipe(row: Placement): HeatmapRecipe {
     chancePct: row.chancePct,
     land: row.land,
     escorts: row.escorts,
-    escortLabel: row.escorts.length
-      ? row.escorts.map(escortChipLabel).join(" · ")
-      : "无随从",
+    escortLabel: row.escorts.length ? row.escorts.map(escortChipLabel).join(" · ") : "无随从",
     locations: uniqueNames(row.locations),
   };
 }
@@ -211,12 +207,12 @@ export function escortMatchesBoss(
   boss: Pick<HeatmapBoss, "id" | "slug" | "name">,
 ): boolean {
   const keys = new Set(
-    [boss.id, boss.slug, boss.name]
-      .map((row) => row.trim().toLowerCase())
-      .filter(Boolean),
+    [boss.id, boss.slug, boss.name].map((row) => row.trim().toLowerCase()).filter(Boolean),
   );
   for (const raw of [escort.slug, escort.name]) {
-    const key = String(raw || "").trim().toLowerCase();
+    const key = String(raw || "")
+      .trim()
+      .toLowerCase();
     if (key && keys.has(key)) return true;
   }
   return false;
@@ -258,9 +254,7 @@ export function formatHoverSquadCount(
   return `${core}个`;
 }
 
-export function hoverUsesLocationCounts(
-  blocks: readonly HeatmapHoverBlock[],
-): boolean {
+export function hoverUsesLocationCounts(blocks: readonly HeatmapHoverBlock[]): boolean {
   return blocks.some((row) => (row.locations || []).length > 0);
 }
 
@@ -274,9 +268,7 @@ export type HoverEscortScheme = {
 };
 
 export function sharedHoverLand(blocks: readonly HeatmapHoverBlock[]): string {
-  const lands = [
-    ...new Set(blocks.map((row) => row.land.trim()).filter(Boolean)),
-  ];
+  const lands = [...new Set(blocks.map((row) => row.land.trim()).filter(Boolean))];
   return lands.length === 1 ? lands[0] : "";
 }
 
@@ -285,9 +277,7 @@ export function hoverEscortSchemes(
   blocks: readonly HeatmapHoverBlock[],
 ): HoverEscortScheme[] | null {
   if (blocks.length > 1) {
-    const onlySquad = blocks.every(
-      (row) => row.squadSizes.length > 0 && !row.escorts.length,
-    );
+    const onlySquad = blocks.every((row) => row.squadSizes.length > 0 && !row.escorts.length);
     if (onlySquad) return null;
     return blocks.map((row, index) => ({
       index: index + 1,
@@ -371,9 +361,7 @@ type PortraitSource = {
   portrait_link?: string | null;
 };
 
-export function buildBossPortraitIndex(
-  items: readonly PortraitSource[],
-): Map<string, string> {
+export function buildBossPortraitIndex(items: readonly PortraitSource[]): Map<string, string> {
   const map = new Map<string, string>();
   const set = (raw: string, url: string) => {
     const key = raw.trim().toLowerCase();
@@ -395,7 +383,9 @@ export function lookupEscortPortrait(
   portraits: ReadonlyMap<string, string>,
 ): string {
   for (const raw of [escort.slug, escort.name]) {
-    const key = String(raw || "").trim().toLowerCase();
+    const key = String(raw || "")
+      .trim()
+      .toLowerCase();
     const hit = key ? portraits.get(key) : "";
     if (hit) return hit;
   }
@@ -408,9 +398,7 @@ export function heatmapCellHoverBlocks(
   boss?: Pick<HeatmapBoss, "id" | "slug" | "name"> | null,
 ): HeatmapHoverBlock[] {
   if (!recipes.length) return [];
-  const chances = new Set(
-    recipes.map((row) => row.chance.trim()).filter(Boolean),
-  );
+  const chances = new Set(recipes.map((row) => row.chance.trim()).filter(Boolean));
   const showChance = recipes.length > 1 && chances.size > 1;
   if (!boss || !usesSquadSizeHover(recipes, boss)) {
     return recipes.map((row) => ({
@@ -465,9 +453,7 @@ export function heatmapCellHoverBlocks(
       const squadSizes = [...sizeMap.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([size, labels]) => ({ size, chance: recipeLabel(labels) }));
-      const landChances = new Set(
-        list.map((row) => row.recipe.chance.trim()).filter(Boolean),
-      );
+      const landChances = new Set(list.map((row) => row.recipe.chance.trim()).filter(Boolean));
       blocks.push({
         chance: recipeLabel(list.map((row) => row.recipe.chance)),
         showChance: landChances.size > 1,
@@ -498,9 +484,7 @@ function usesSquadSizeHover(
     row.escorts.some((escort) => !escortMatchesBoss(escort, boss)),
   );
   if (hasForeign) return false;
-  return recipes.some((row) =>
-    row.escorts.some((escort) => escortMatchesBoss(escort, boss)),
-  );
+  return recipes.some((row) => row.escorts.some((escort) => escortMatchesBoss(escort, boss)));
 }
 
 function sizeTableKey(sizes: readonly number[]): string {
@@ -535,9 +519,7 @@ function locationSquadBlocks(
     }
   }
   if (byLoc.size < 2) return null;
-  const tables = [...byLoc.values()].map((bucket) =>
-    sizeTableKey([...bucket.sizes.keys()]),
-  );
+  const tables = [...byLoc.values()].map((bucket) => sizeTableKey([...bucket.sizes.keys()]));
   if (new Set(tables).size < 2) return null;
 
   const groups = new Map<string, string[]>();
@@ -558,9 +540,7 @@ function locationSquadBlocks(
     const squadSizes = [...bucket.sizes.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([size, labels]) => ({ size, chance: recipeLabel(labels) }));
-    const landChances = new Set(
-      bucket.chances.map((row) => row.trim()).filter(Boolean),
-    );
+    const landChances = new Set(bucket.chances.map((row) => row.trim()).filter(Boolean));
     return {
       chance: recipeLabel(bucket.chances),
       showChance: landChances.size > 1,
@@ -592,9 +572,7 @@ function mapLocationRows(
   return group.locations.filter((row) => mapKey(row.mapSlug, row.mapName) === key);
 }
 
-function collectSpawnPoints(
-  rows: readonly BossSpawnLocationChip[],
-): HeatmapSpawnPoint[] {
+function collectSpawnPoints(rows: readonly BossSpawnLocationChip[]): HeatmapSpawnPoint[] {
   const out: HeatmapSpawnPoint[] = [];
   for (const row of rows) {
     for (const point of row.positions) {
@@ -610,9 +588,7 @@ function collectSpawnPoints(
   return uniqueSpawnPoints(out);
 }
 
-function uniqueSpawnPoints(
-  rows: readonly HeatmapSpawnPoint[],
-): HeatmapSpawnPoint[] {
+function uniqueSpawnPoints(rows: readonly HeatmapSpawnPoint[]): HeatmapSpawnPoint[] {
   const out: HeatmapSpawnPoint[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -671,9 +647,7 @@ export type BossSpawnOverlay = {
 };
 
 /** 详情页内嵌刷点：按图合并坐标，多套刷法叠在同一张底图上。 */
-export function buildBossSpawnMapViews(
-  input: HeatmapBossInput,
-): BossSpawnMapView[] {
+export function buildBossSpawnMapViews(input: HeatmapBossInput): BossSpawnMapView[] {
   const groups = resolveBossSpawnGroups(input);
   const byKey = new Map<string, BossSpawnMapView>();
   const order: string[] = [];
@@ -684,9 +658,7 @@ export function buildBossSpawnMapViews(
       const key = mapKey(slug, name);
       if (!key) continue;
       const chance = map.spawnChance || group.sharedSpawnChance || "";
-      const points = collectSpawnPoints(
-        mapLocationRows(group, map.slug, map.name),
-      );
+      const points = collectSpawnPoints(mapLocationRows(group, map.slug, map.name));
       const existing = byKey.get(key);
       if (!existing) {
         byKey.set(key, {
@@ -700,9 +672,7 @@ export function buildBossSpawnMapViews(
         continue;
       }
       existing.points = uniqueSpawnPoints([...existing.points, ...points]);
-      existing.chance = recipeLabel(
-        [existing.chance, chance].filter(Boolean),
-      );
+      existing.chance = recipeLabel([existing.chance, chance].filter(Boolean));
       existing.chancePct = parseChancePct(existing.chance);
     }
   }
@@ -711,8 +681,7 @@ export function buildBossSpawnMapViews(
     .filter((row): row is BossSpawnMapView => Boolean(row))
     .sort(
       (a, b) =>
-        mapOrder(a.slug, a.name) - mapOrder(b.slug, b.name) ||
-        a.name.localeCompare(b.name, "zh"),
+        mapOrder(a.slug, a.name) - mapOrder(b.slug, b.name) || a.name.localeCompare(b.name, "zh"),
     );
 }
 
@@ -776,9 +745,9 @@ function collectPlacements(rows: readonly HeatmapBossInput[]): Placement[] {
           land: group.landLabel,
           escorts: group.escorts,
           cluster: locClusterKey(group, map.slug, map.name),
-          locations: mapLocationRows(group, map.slug, map.name).map((row) =>
-            row.name.trim(),
-          ).filter(Boolean),
+          locations: mapLocationRows(group, map.slug, map.name)
+            .map((row) => row.name.trim())
+            .filter(Boolean),
           spawnPoints: collectSpawnPoints(mapLocationRows(group, map.slug, map.name)),
         });
       }
@@ -820,9 +789,7 @@ function detectPoolSlugs(placements: Placement[]): Set<string> {
 }
 
 /** 总览热力：格子写出生率；多区域写成 N个区域；五选一只在具名 Boss 同点+概率加总≈100% 时标。 */
-export function buildBossHeatmap(
-  rows: readonly HeatmapBossInput[],
-): HeatmapModel {
+export function buildBossHeatmap(rows: readonly HeatmapBossInput[]): HeatmapModel {
   const placements = collectPlacements(rows);
   const poolSlugs = detectPoolSlugs(placements);
   const bosses: HeatmapBoss[] = [];
@@ -854,8 +821,7 @@ export function buildBossHeatmap(
     maps.map((col) => {
       const hits = placements.filter(
         (row) =>
-          row.boss.id === boss.id &&
-          mapKey(row.slug, row.name) === mapKey(col.slug, col.name),
+          row.boss.id === boss.id && mapKey(row.slug, row.name) === mapKey(col.slug, col.name),
       );
       if (!hits.length) {
         return {
@@ -884,9 +850,7 @@ export function buildBossHeatmap(
   const drilldowns: Record<string, HeatmapMapDrilldown> = {};
   for (const col of maps) {
     const key = mapKey(col.slug, col.name);
-    const hits = placements.filter(
-      (row) => mapKey(row.slug, row.name) === key,
-    );
+    const hits = placements.filter((row) => mapKey(row.slug, row.name) === key);
     const byBoss = new Map<string, HeatmapMapEntry>();
     for (const row of hits) {
       const existing = byBoss.get(row.boss.id);

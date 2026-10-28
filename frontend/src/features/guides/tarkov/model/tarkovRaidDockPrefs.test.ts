@@ -14,9 +14,7 @@ describe("parseTarkovRaidDockOpen", () => {
     expect(parseTarkovRaidDockOpen("1")).toBe(true);
     expect(parseTarkovRaidDockOpen("false")).toBe(false);
     expect(parseTarkovRaidDockOpen("0")).toBe(false);
-    expect(parseTarkovRaidDockOpen(JSON.stringify({ open: false }))).toBe(
-      false,
-    );
+    expect(parseTarkovRaidDockOpen(JSON.stringify({ open: false }))).toBe(false);
     expect(parseTarkovRaidDockOpen(JSON.stringify({ open: true }))).toBe(true);
   });
 });

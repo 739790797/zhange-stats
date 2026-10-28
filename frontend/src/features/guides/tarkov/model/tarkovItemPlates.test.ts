@@ -138,25 +138,14 @@ describe("extractPlateTableRows", () => {
 
   it("builds filter options for slot / class / material / armor type", () => {
     const rows = extractPlateTableRows(properties);
-    expect(plateColumnFilters(rows, "slot")).toEqual([
-      { text: "前胸", value: "前胸" },
-    ]);
-    expect(plateColumnFilters(rows, "class").map((row) => row.value)).toEqual([
-      "4",
-      "5",
-    ]);
-    expect(plateColumnFilters(rows, "material").map((row) => row.text)).toEqual([
-      "芳纶",
-      "Granit",
-    ]);
+    expect(plateColumnFilters(rows, "slot")).toEqual([{ text: "前胸", value: "前胸" }]);
+    expect(plateColumnFilters(rows, "class").map((row) => row.value)).toEqual(["4", "5"]);
+    expect(plateColumnFilters(rows, "material").map((row) => row.text)).toEqual(["芳纶", "Granit"]);
     expect(plateColumnMatch(rows[0], "armorType", "重型")).toBe(true);
     expect(plateColumnMatch(rows[1], "armorType", "重型")).toBe(false);
   });
 
   it("still lists stripped even when it has no plates", () => {
-    expect(platePresetMarks(properties).map((row) => row.kind)).toEqual([
-      "default",
-      "stripped",
-    ]);
+    expect(platePresetMarks(properties).map((row) => row.kind)).toEqual(["default", "stripped"]);
   });
 });

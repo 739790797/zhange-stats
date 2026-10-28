@@ -39,9 +39,7 @@ export default function TarkovItemDetailPage() {
     return <Navigate to={collapseTo} replace />;
   }
 
-  const parent = page.parentSlug
-    ? handbookRootBySlug(page.parentSlug)
-    : undefined;
+  const parent = page.parentSlug ? handbookRootBySlug(page.parentSlug) : undefined;
   const crumbs = [
     { label: "逃离塔科夫", to: TARKOV_HOME_PATH },
     { label: "物品", to: ITEMS_BASE_PATH },

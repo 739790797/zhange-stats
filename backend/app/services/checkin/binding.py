@@ -16,13 +16,9 @@ from app.services.checkin.role_prefs import list_enabled_role_keys_for_member
 logger = logging.getLogger(__name__)
 
 
-def _delete_member_raws(
-    adapter: CheckinPlatformAdapter, db: Session, member_id: int
-) -> None:
+def _delete_member_raws(adapter: CheckinPlatformAdapter, db: Session, member_id: int) -> None:
     for model in adapter.member_raw_models:
-        db.query(model).filter(model.member_id == member_id).delete(
-            synchronize_session=False
-        )
+        db.query(model).filter(model.member_id == member_id).delete(synchronize_session=False)
 
 
 def after_bind(adapter: CheckinPlatformAdapter, db: Session, bind: Any) -> None:
@@ -38,17 +34,13 @@ def after_bind(adapter: CheckinPlatformAdapter, db: Session, bind: Any) -> None:
     clear_checkin_attempts(adapter.platform, member_id)
     if not bind.auto_checkin:
         return
-    role_keys = list_enabled_role_keys_for_member(
-        db, platform=adapter.platform, member_id=member_id
-    )
+    role_keys = list_enabled_role_keys_for_member(db, platform=adapter.platform, member_id=member_id)
     if role_keys is not None and not role_keys:
         return
     try:
         run_checkin_for_bind(adapter, db, bind, force=False, role_keys=role_keys)
     except Exception:  # noqa: BLE001
-        logger.exception(
-            "%s checkin after bind failed member_id=%s", adapter.platform, member_id
-        )
+        logger.exception("%s checkin after bind failed member_id=%s", adapter.platform, member_id)
         db.rollback()
         db.refresh(bind)
 

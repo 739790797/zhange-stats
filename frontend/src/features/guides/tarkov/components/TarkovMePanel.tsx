@@ -76,28 +76,22 @@ export function TarkovMePanel() {
   };
 
   return (
-    <div
-      className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}
-    >
+    <div className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}>
       {bodyPane ? null : (
-      <div
-        className={`${trade.chipBar} ${styles.tabs}`}
-        role="tablist"
-        aria-label="个人中心栏目"
-      >
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            className={`${trade.chipBtn} ${trade.chipAll}${tab === item.id ? ` ${trade.chipOn}` : ""}`}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+        <div className={`${trade.chipBar} ${styles.tabs}`} role="tablist" aria-label="个人中心栏目">
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              className={`${trade.chipBtn} ${trade.chipAll}${tab === item.id ? ` ${trade.chipOn}` : ""}`}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       )}
       {tab === "profile" ? <TarkovProfilePanel /> : null}
       {tab === "tasks" ? <TarkovTaskManagerPanel /> : null}

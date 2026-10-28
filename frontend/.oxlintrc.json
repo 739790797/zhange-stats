@@ -8,13 +8,7 @@
     "jsx-a11y/label-has-associated-control": [
       "warn",
       {
-        "controlComponents": [
-          "Input",
-          "Input.Password",
-          "Input.TextArea",
-          "InputNumber",
-          "Select"
-        ]
+        "controlComponents": ["Input", "Input.Password", "Input.TextArea", "InputNumber", "Select"]
       }
     ]
   }

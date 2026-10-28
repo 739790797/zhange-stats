@@ -55,13 +55,9 @@ export function getCRS(mapData: TarkovDevMapLayer): L.CRS {
   return L.extend({}, L.CRS.Simple, {
     transformation: new L.Transformation(scaleX, marginX, scaleY, marginY),
     projection: L.extend({}, L.Projection.LonLat, {
-      project: (latLng: L.LatLng) =>
-        L.Projection.LonLat.project(applyRotation(latLng, rotation)),
+      project: (latLng: L.LatLng) => L.Projection.LonLat.project(applyRotation(latLng, rotation)),
       unproject: (point: L.Point) =>
-        applyRotation(
-          L.Projection.LonLat.unproject(point),
-          rotation * -1,
-        ),
+        applyRotation(L.Projection.LonLat.unproject(point), rotation * -1),
     }),
   });
 }

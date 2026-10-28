@@ -6,15 +6,7 @@ import {
   StopOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  InputNumber,
-  Popconfirm,
-  Progress,
-  Select,
-  Tag,
-  message,
-} from "antd";
+import { Button, InputNumber, Popconfirm, Progress, Select, Tag, message } from "antd";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
   runMinecraftChunkyCommand,
@@ -124,11 +116,7 @@ export function MinecraftChunkyWorkspace({
       ? Math.max(0, Math.min(100, status.percent))
       : null;
   const worlds = useMemo(() => {
-    const extra = [
-      "minecraft:overworld",
-      "minecraft:the_nether",
-      "minecraft:the_end",
-    ];
+    const extra = ["minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"];
     const names = [...(data.worlds || []), ...extra, world || "world"];
     return [...new Set(names.filter(Boolean))];
   }, [data.worlds, world]);
@@ -137,9 +125,7 @@ export function MinecraftChunkyWorkspace({
     <>
       <div className={styles.workspace}>
         <section>
-          <div className={styles.paneTitle}>
-            {feature?.title || "生成范围"}
-          </div>
+          <div className={styles.paneTitle}>{feature?.title || "生成范围"}</div>
           <p className={styles.hint}>
             {feature?.summary ||
               "半径按方块计。500 大约覆盖 1000×1000 区域，过程可随时暂停，进度会保留。"}
@@ -229,9 +215,7 @@ export function MinecraftChunkyWorkspace({
               <span className={styles.statLabel}>区块</span>
               <span className={styles.statValue}>
                 {formatCount(status?.chunks)}
-                {status?.chunks_total != null
-                  ? ` / ${formatCount(status.chunks_total)}`
-                  : ""}
+                {status?.chunks_total != null ? ` / ${formatCount(status.chunks_total)}` : ""}
               </span>
             </div>
             <div className={styles.stat}>

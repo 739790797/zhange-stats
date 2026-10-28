@@ -248,24 +248,17 @@ function pathIsOrUnder(pathname: string, base: string): boolean {
  * 攻略壳 main 是否吃满剩余高度（overflow hidden）。
  * 联机大厅 / 工作台 / 收集仓 / 地图详情依赖这条链，Leaflet 才能在确定高度里 fitBounds。
  */
-export function tarkovGuideShellFills(
-  pathname: string,
-  meTab?: string | null,
-): boolean {
+export function tarkovGuideShellFills(pathname: string, meTab?: string | null): boolean {
   if (pathIsOrUnder(pathname, TARKOV_RAID_PREP_PATH)) return true;
   if (pathIsOrUnder(pathname, TARKOV_WORKBENCH_PATH)) return true;
   if (pathname.startsWith(`${MAPS_HREF}/`)) return true;
-  return (
-    pathname === TARKOV_ME_PATH && resolveTarkovMeTab(meTab) === "collection"
-  );
+  return pathname === TARKOV_ME_PATH && resolveTarkovMeTab(meTab) === "collection";
 }
 
 export const TARKOV_MAINTAIN_MODE = "info";
 export type TarkovMaintainMode = typeof TARKOV_MAINTAIN_MODE;
 
-export function parseTarkovMaintainMode(
-  raw: string | null | undefined,
-): TarkovMaintainMode | "" {
+export function parseTarkovMaintainMode(raw: string | null | undefined): TarkovMaintainMode | "" {
   const key = (raw || "").trim();
   if (key === "info" || key === "places" || key === "nav") return "info";
   return "";
@@ -275,10 +268,7 @@ export function tarkovMapsMaintainHref(): string {
   return `${MAPS_HREF}?maintain=${TARKOV_MAINTAIN_MODE}`;
 }
 
-export function tarkovMapMaintainHref(
-  id: string,
-  mode?: TarkovMaintainMode | "",
-): string {
+export function tarkovMapMaintainHref(id: string, mode?: TarkovMaintainMode | ""): string {
   const href = tarkovMapHref(id);
   if (!mode || href === MAPS_HREF) return href;
   return `${href}?maintain=${TARKOV_MAINTAIN_MODE}`;
@@ -287,9 +277,7 @@ export function tarkovMapMaintainHref(
 export function isTarkovAdminPath(pathname: string, search = ""): boolean {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === tarkovRaidPulseDemoHref()) return true;
-  const params = new URLSearchParams(
-    search.startsWith("?") ? search.slice(1) : search,
-  );
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   if (!parseTarkovMaintainMode(params.get("maintain"))) return false;
   return path === MAPS_HREF || path.startsWith(`${MAPS_HREF}/`);
 }
@@ -401,11 +389,7 @@ export function tarkovMapMarkByName(name: string): TarkovMapMark | null {
   }
   const prefixed = [...TARKOV_MAPS]
     .sort((a, b) => b.label.length - a.label.length)
-    .find(
-      (row) =>
-        text.startsWith(row.label) ||
-        lowered.startsWith(row.english.toLowerCase()),
-    );
+    .find((row) => text.startsWith(row.label) || lowered.startsWith(row.english.toLowerCase()));
   if (prefixed) return { id: prefixed.id, label: text, icon: prefixed.icon };
   return { id: "", label: text, icon: "" };
 }
@@ -716,9 +700,7 @@ function bossNavLink(row: BossNavRow, siblings: readonly BossNavRow[]): TarkovHo
 }
 
 /** 顶栏 BOSS 下拉：有目录用热力同一套 Boss / 非 Boss；否则静态兜底。 */
-export function buildTarkovBossNavGroups(
-  items?: readonly BossNavRow[] | null,
-): TarkovHomeGroup[] {
+export function buildTarkovBossNavGroups(items?: readonly BossNavRow[] | null): TarkovHomeGroup[] {
   const fallback: TarkovHomeGroup[] = [
     {
       id: "boss",
@@ -1007,13 +989,13 @@ function linkKeywords(link: TarkovHomeLink): string {
 const SEARCH_TOKEN_RE = /[0-9a-zA-Z]+|[\u4e00-\u9fff]+/g;
 
 export function compactSearchText(text: string): string {
-  return (text || "").trim().toLowerCase().replace(/[\s\-_.·•]+/g, "");
+  return (text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_.·•]+/g, "");
 }
 
-export function textMatchesQuery(
-  query: string,
-  ...fields: Array<string | undefined>
-): boolean {
+export function textMatchesQuery(query: string, ...fields: Array<string | undefined>): boolean {
   const q = (query || "").trim();
   if (!q) return false;
   const compactQ = compactSearchText(q);
@@ -1039,15 +1021,13 @@ export type TarkovHomeItemGroup = {
 };
 
 /** 首页物品格：手册一级，图标用 handbook 分类图。 */
-export const TARKOV_HOME_ITEMS: TarkovItemCard[] = TARKOV_HANDBOOK_ROOTS.map(
-  (root) => {
-    const icon = handbookCategoryIconUrl(root.id);
-    if (!icon) {
-      throw new Error(`missing tarkov handbook icon: ${root.slug}`);
-    }
-    return { ...handbookNavLink(root), icon };
-  },
-);
+export const TARKOV_HOME_ITEMS: TarkovItemCard[] = TARKOV_HANDBOOK_ROOTS.map((root) => {
+  const icon = handbookCategoryIconUrl(root.id);
+  if (!icon) {
+    throw new Error(`missing tarkov handbook icon: ${root.slug}`);
+  }
+  return { ...handbookNavLink(root), icon };
+});
 
 function homeItemsBySlugs(slugs: readonly string[]): TarkovItemCard[] {
   return slugs.map((slug) => {
@@ -1193,10 +1173,7 @@ export function buildSiteSearchSections(
     sections.push({
       id: "traders",
       label: "商人",
-      extra: searchSectionExtra(
-        traders.length,
-        api?.trader_count ?? traders.length,
-      ),
+      extra: searchSectionExtra(traders.length, api?.trader_count ?? traders.length),
       hits: traders.map((hit) => ({
         key: `trader-${hit.slug || hit.id}`,
         href: tarkovTraderHref(hit.slug || hit.id),
@@ -1211,10 +1188,7 @@ export function buildSiteSearchSections(
     sections.push({
       id: "bosses",
       label: "BOSS",
-      extra: searchSectionExtra(
-        bosses.length,
-        api?.boss_count ?? bosses.length,
-      ),
+      extra: searchSectionExtra(bosses.length, api?.boss_count ?? bosses.length),
       hits: bosses.map((hit) => ({
         key: `boss-${hit.slug || hit.id}`,
         href: tarkovBossHref(hit.slug || hit.id),
@@ -1248,9 +1222,7 @@ export function tarkovPageTitle(pathname: string, search = ""): string {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === tarkovRaidPulseDemoHref()) return "测试房间";
   const maintain = parseTarkovMaintainMode(
-    new URLSearchParams(
-      search.startsWith("?") ? search.slice(1) : search,
-    ).get("maintain"),
+    new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("maintain"),
   );
   if (maintain) return "地图信息";
   if (path === "/guides/tarkov") return "逃离塔科夫";
@@ -1283,7 +1255,6 @@ export function isTarkovTopNavActive(
   pathname: string,
   extraHrefs: string[] = [],
 ): boolean {
-  const match = (h: string) =>
-    pathname === h || pathname.startsWith(`${h}/`);
+  const match = (h: string) => pathname === h || pathname.startsWith(`${h}/`);
   return match(href) || extraHrefs.some(match);
 }

@@ -137,9 +137,7 @@ class ModCommandError(ValueError):
     pass
 
 
-BLUEMAP_CORE_PINS: tuple[ModConfigPin, ...] = (
-    ModConfigPin(file="core.conf", key="accept-download", value="true"),
-)
+BLUEMAP_CORE_PINS: tuple[ModConfigPin, ...] = (ModConfigPin(file="core.conf", key="accept-download", value="true"),)
 
 CHUNKY_MOD_PINS: tuple[ModConfigPin, ...] = (
     ModConfigPin(file="config.json", key="language", value="zh_CN"),
@@ -579,9 +577,7 @@ def config_directory_abs(
 
 
 def features_out(spec: ModToolSpec) -> list[dict[str, str]]:
-    return [
-        {"id": row.id, "title": row.title, "summary": row.summary} for row in spec.features
-    ]
+    return [{"id": row.id, "title": row.title, "summary": row.summary} for row in spec.features]
 
 
 def command_tree_out(spec: ModToolSpec) -> list[dict[str, Any]]:
@@ -598,9 +594,7 @@ def command_tree_out(spec: ModToolSpec) -> list[dict[str, Any]]:
                         "id": arg.id,
                         "label": arg.label,
                         "kind": arg.kind,
-                        "options": [
-                            {"value": value, "label": label} for value, label in arg.options
-                        ],
+                        "options": [{"value": value, "label": label} for value, label in arg.options],
                         "min_value": arg.min_value,
                         "max_value": arg.max_value,
                         "optional": arg.optional,

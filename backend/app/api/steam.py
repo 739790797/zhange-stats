@@ -63,12 +63,8 @@ def steam_calendar(
 @router.get("/day", response_model=SteamDayResponse)
 def steam_day(
     date_str: str = Query(..., alias="date", description="起始日期 YYYY-MM-DD"),
-    end_str: str | None = Query(
-        None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"
-    ),
-    member_id: int | None = Query(
-        None, description="只返回该成员的时间轴；缺省为全部可见成员"
-    ),
+    end_str: str | None = Query(None, alias="end", description="结束日期 YYYY-MM-DD；缺省则仅查询当日"),
+    member_id: int | None = Query(None, description="只返回该成员的时间轴；缺省为全部可见成员"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
@@ -81,9 +77,7 @@ def steam_day(
         try:
             end = date.fromisoformat(end_str)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=400, detail="end 格式应为 YYYY-MM-DD"
-            ) from exc
+            raise HTTPException(status_code=400, detail="end 格式应为 YYYY-MM-DD") from exc
     try:
         data = build_range_detail(db, start, end, user, member_id=member_id)
     except ValueError as exc:

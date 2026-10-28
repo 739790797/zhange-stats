@@ -85,9 +85,7 @@ class SecurityHeadersMiddleware:
                             )
                         )
                 csp_name = (
-                    b"content-security-policy"
-                    if settings.CSP_ENFORCE
-                    else b"content-security-policy-report-only"
+                    b"content-security-policy" if settings.CSP_ENFORCE else b"content-security-policy-report-only"
                 )
                 # 响应自带强制 CSP（如 /uploads 沙箱）时不再叠站点策略，Report-Only 也不叠
                 if csp_name not in existing and b"content-security-policy" not in existing:

@@ -10,9 +10,7 @@ export type TarkovGuideItemRef = {
   badge?: string;
 };
 
-export function guideItemFleaCost(
-  items: TarkovGuideItemRef[] | undefined,
-): number | null {
+export function guideItemFleaCost(items: TarkovGuideItemRef[] | undefined): number | null {
   if (!items?.length) return 0;
   let sum = 0;
   for (const item of items) {

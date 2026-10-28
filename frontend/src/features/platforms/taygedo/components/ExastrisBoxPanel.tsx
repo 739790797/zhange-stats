@@ -15,13 +15,7 @@ function qualityColor(quality: string): string {
   return "default";
 }
 
-function Portrait({
-  src,
-  alt,
-}: {
-  src?: string | null;
-  alt: string;
-}) {
+function Portrait({ src, alt }: { src?: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
     return (
@@ -77,9 +71,7 @@ function CharCard({ char }: { char: ExastrisChar }) {
               {char.quality}
             </Tag>
           ) : null}
-          {char.awaken_lev > 0 ? (
-            <Tag style={{ margin: 0 }}>觉醒 {char.awaken_lev}</Tag>
-          ) : null}
+          {char.awaken_lev > 0 ? <Tag style={{ margin: 0 }}>觉醒 {char.awaken_lev}</Tag> : null}
         </Space>
         {meta ? (
           <Typography.Text
@@ -117,9 +109,7 @@ export function ExastrisBoxPanel({ enabled }: Props) {
 
   const filtered = useMemo(() => {
     if (qualityTab === "all") return chars;
-    return chars.filter(
-      (c) => (c.quality || "").toUpperCase() === qualityTab.toUpperCase(),
-    );
+    return chars.filter((c) => (c.quality || "").toUpperCase() === qualityTab.toUpperCase());
   }, [chars, qualityTab]);
 
   const onRefresh = async () => {
@@ -150,11 +140,7 @@ export function ExastrisBoxPanel({ enabled }: Props) {
       onRefresh={() => void onRefresh()}
       stale={box?.stale}
       title={box?.role_name || "异环"}
-      subtitle={
-        box
-          ? `${box.char_count} 名角色${box.uid ? ` · UID ${box.uid}` : ""}`
-          : undefined
-      }
+      subtitle={box ? `${box.char_count} 名角色${box.uid ? ` · UID ${box.uid}` : ""}` : undefined}
       roles={roles.map((r) => ({ uid: r.uid, label: r.role_name }))}
       selectedUid={uid || box?.uid}
       onSelectUid={setUid}

@@ -76,9 +76,7 @@ export function parseMysqlUrl(url: string): MysqlConn {
   const normalized = text.replace(/^mysql\+pymysql:\/\//i, "mysql://");
   const parsed = asUrl(normalized);
   if (!parsed) return { ...MYSQL_CONN_DEFAULTS };
-  const database = decodePart(
-    (parsed.pathname || "").replace(/^\/+/, "").split("/")[0] || "",
-  );
+  const database = decodePart((parsed.pathname || "").replace(/^\/+/, "").split("/")[0] || "");
   return {
     host: stripHostBrackets(parsed.hostname || MYSQL_CONN_DEFAULTS.host),
     port: parsePort(parsed.port, MYSQL_CONN_DEFAULTS.port),

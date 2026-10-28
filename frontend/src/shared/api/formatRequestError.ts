@@ -34,20 +34,16 @@ function detailText(detail: unknown): string | null {
     return parts.length ? parts.join("；") : null;
   }
   if (typeof detail === "object") {
-    const nested = (detail as { msg?: unknown; message?: unknown }).msg ??
+    const nested =
+      (detail as { msg?: unknown; message?: unknown }).msg ??
       (detail as { message?: unknown }).message;
-    return typeof nested === "string" && nested.trim()
-      ? nested.trim()
-      : null;
+    return typeof nested === "string" && nested.trim() ? nested.trim() : null;
   }
   return String(detail);
 }
 
 /** 区分网络/服务故障与业务错误（如账号密码错误）。 */
-export function formatRequestError(
-  e: unknown,
-  fallback = "请求失败",
-): string {
+export function formatRequestError(e: unknown, fallback = "请求失败"): string {
   if (!e || typeof e !== "object") return fallback;
   const err = e as {
     code?: string;
@@ -62,13 +58,9 @@ export function formatRequestError(
   const status = err.response?.status;
   const detail = detailText(err.response?.data?.detail);
   const headerRid =
-    err.response?.headers?.["x-request-id"] ||
-    err.response?.headers?.["X-Request-ID"];
+    err.response?.headers?.["x-request-id"] || err.response?.headers?.["X-Request-ID"];
   const requestId = (err.requestId || headerRid || "").trim();
-  const ridSuffix =
-    requestId && status && status >= 500
-      ? `（编号 ${requestId.slice(0, 8)}）`
-      : "";
+  const ridSuffix = requestId && status && status >= 500 ? `（编号 ${requestId.slice(0, 8)}）` : "";
 
   if (!err.response) {
     if (err.code === "ECONNABORTED" || /timeout/i.test(err.message || "")) {
@@ -77,8 +69,7 @@ export function formatRequestError(
     if (
       "request" in err ||
       err.code === "ERR_NETWORK" ||
-      ("isAxiosError" in err &&
-        Boolean((err as { isAxiosError?: boolean }).isAxiosError))
+      ("isAxiosError" in err && Boolean((err as { isAxiosError?: boolean }).isAxiosError))
     ) {
       return "暂时连不上服务器，请稍后重试";
     }
@@ -98,9 +89,7 @@ export function formatRequestError(
   }
   if (status === 404) {
     const notFound =
-      !detail || detail === "Not Found" || detail === "Not found"
-        ? "接口或资源不存在"
-        : detail;
+      !detail || detail === "Not Found" || detail === "Not found" ? "接口或资源不存在" : detail;
     return notFound + ridSuffix;
   }
   if (status === 403) {

@@ -3,10 +3,7 @@ import type { ColumnsType, TableProps } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import {
-  fetchTarkovTasks,
-  type TarkovTaskListItem,
-} from "@/features/guides/tarkov/api/guidesApi";
+import { fetchTarkovTasks, type TarkovTaskListItem } from "@/features/guides/tarkov/api/guidesApi";
 import { apiError } from "@/shared/api/apiError";
 import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
 import { useTarkovPmcFaction } from "@/features/guides/tarkov/model/tarkovPmcFaction";
@@ -72,16 +69,7 @@ export function TarkovTasksPanel() {
   }, [keyword, searchParams, setSearchParams]);
 
   const catalogQuery = useQuery({
-    queryKey: [
-      "guides-tarkov-tasks",
-      gameMode,
-      faction,
-      trader,
-      map,
-      q,
-      pageNo,
-      pageSize,
-    ],
+    queryKey: ["guides-tarkov-tasks", gameMode, faction, trader, map, q, pageNo, pageSize],
     queryFn: () =>
       fetchTarkovTasks({
         q,
@@ -114,9 +102,7 @@ export function TarkovTasksPanel() {
     setSearchParams(next, { replace: true });
   };
 
-  const onTableChange: TableProps<TarkovTaskListItem>["onChange"] = (
-    pagination,
-  ) => {
+  const onTableChange: TableProps<TarkovTaskListItem>["onChange"] = (pagination) => {
     const nextPage = pagination.current ?? 1;
     const nextSize = pagination.pageSize ?? PAGE_SIZE_DEFAULT;
     const params = new URLSearchParams(searchParams);
@@ -325,9 +311,7 @@ export function TarkovTasksPanel() {
                   onClick={() => setTraderFilter(item.slug)}
                 >
                   <TarkovTraderThumb slug={item.slug} size={40} />
-                  <span className={styles.traderCaption}>
-                    {english}
-                  </span>
+                  <span className={styles.traderCaption}>{english}</span>
                 </button>
               );
             })}
@@ -336,11 +320,7 @@ export function TarkovTasksPanel() {
       </div>
 
       {meta ? (
-        <TarkovDataFreshness
-          source={meta.source}
-          syncedAt={meta.synced_at}
-          note={meta.note}
-        />
+        <TarkovDataFreshness source={meta.source} syncedAt={meta.synced_at} note={meta.note} />
       ) : null}
 
       <div className={catalog.panel}>

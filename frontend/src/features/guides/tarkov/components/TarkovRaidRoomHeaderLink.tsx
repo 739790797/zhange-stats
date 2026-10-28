@@ -22,10 +22,7 @@ export function TarkovRaidRoomHeaderLink() {
     refetchOnWindowFocus: pollMine,
     retry: 1,
   });
-  const href = raidRoomReturnHref(
-    mineQuery.data?.item ? [mineQuery.data.item] : [],
-    pathname,
-  );
+  const href = raidRoomReturnHref(mineQuery.data?.item ? [mineQuery.data.item] : [], pathname);
   if (!href) return null;
 
   return (

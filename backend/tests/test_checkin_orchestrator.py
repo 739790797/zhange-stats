@@ -552,9 +552,7 @@ def test_no_matching_roles_marks_no_targets() -> None:
 
     adapter.run_checkins = early  # type: ignore[method-assign]
     adapter.skip_policy = SkipPolicy.ALWAYS_RUN
-    out = run_checkin_for_bind(
-        adapter, MagicMock(), SimpleNamespace(member_id=1, id=10), role_keys={("g", "x")}
-    )
+    out = run_checkin_for_bind(adapter, MagicMock(), SimpleNamespace(member_id=1, id=10), role_keys={("g", "x")})
     assert out["no_targets"] is True
 
     def filtered(session, *, force, role_keys):
@@ -564,9 +562,7 @@ def test_no_matching_roles_marks_no_targets() -> None:
         )
 
     adapter.run_checkins = filtered  # type: ignore[method-assign]
-    out = run_checkin_for_bind(
-        adapter, MagicMock(), SimpleNamespace(member_id=1, id=10), role_keys={("g", "x")}
-    )
+    out = run_checkin_for_bind(adapter, MagicMock(), SimpleNamespace(member_id=1, id=10), role_keys={("g", "x")})
     assert out["no_targets"] is False
 
 

@@ -51,10 +51,7 @@ export type DiskStack = {
   path: string;
 };
 
-export function stackDiskUsage(
-  siteBytes: number,
-  volumes: DiskVolumeInput[],
-): DiskStack | null {
+export function stackDiskUsage(siteBytes: number, volumes: DiskVolumeInput[]): DiskStack | null {
   if (!volumes.length) return null;
   const vol = volumes.find((row) => row.id === "vol_install") || volumes[0];
   const total = Math.max(0, vol.total_bytes);
@@ -88,10 +85,7 @@ export function parentFileRel(path: string) {
 }
 
 /** 目录浏览从当前根/路径返回上一层；根目录再上一级即「全部」。 */
-export function fileBrowseUp(
-  rootId: string,
-  path: string,
-): { root: string; path: string } {
+export function fileBrowseUp(rootId: string, path: string): { root: string; path: string } {
   if ((path || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")) {
     return { root: rootId, path: parentFileRel(path) };
   }
@@ -130,19 +124,13 @@ export function fileAllRootRows(
 
 export type ManagedUploadPhase = "uploading" | "writing" | "done" | "error";
 
-export function managedUploadProgressPercent(
-  phase: ManagedUploadPhase,
-  percent: number | null,
-) {
+export function managedUploadProgressPercent(phase: ManagedUploadPhase, percent: number | null) {
   if (phase === "done" || phase === "writing") return 100;
   if (percent == null) return 0;
   return Math.min(100, Math.max(0, percent));
 }
 
-export function managedUploadJobLabel(
-  phase: ManagedUploadPhase,
-  percent: number | null,
-) {
+export function managedUploadJobLabel(phase: ManagedUploadPhase, percent: number | null) {
   if (phase === "uploading") {
     return percent == null ? "上传中…" : `上传中 ${percent}%`;
   }

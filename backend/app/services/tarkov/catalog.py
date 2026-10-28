@@ -48,9 +48,7 @@ _HEAVY_PROP_KEYS = {
 }
 
 # (source, rows, synced_at, note)
-_parsed_cache: ModeCache[
-    tuple[str, list[dict[str, Any]], str | None, str | None]
-] = ModeCache()
+_parsed_cache: ModeCache[tuple[str, list[dict[str, Any]], str | None, str | None]] = ModeCache()
 _pack_index_cache: ModeCache[dict[str, dict[str, Any]]] = ModeCache()
 _items_index_cache: ModeCache[ItemsIndex] = ModeCache()
 
@@ -195,11 +193,7 @@ def _category_catalogs(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[st
         item_cats = payload["itemCategories"]
     if not item_cats and isinstance(root_data.get("itemCategories"), dict):
         item_cats = root_data["itemCategories"]
-    handbook_cats = (
-        data.get("handbookCategories")
-        if isinstance(data.get("handbookCategories"), dict)
-        else {}
-    )
+    handbook_cats = data.get("handbookCategories") if isinstance(data.get("handbookCategories"), dict) else {}
     if not handbook_cats and isinstance(payload.get("handbookCategories"), dict):
         handbook_cats = payload["handbookCategories"]
     if not handbook_cats and isinstance(root_data.get("handbookCategories"), dict):
@@ -211,9 +205,7 @@ def lookup_category_names(payload: dict[str, Any], wanted: set[str]) -> dict[str
     """items dump 的 itemCategories / handbookCategories + locale → 分类中文名。"""
     if not wanted:
         return {}
-    return lookup_category_names_in(
-        _category_catalogs(payload), items_svc._locale_map(payload), wanted
-    )
+    return lookup_category_names_in(_category_catalogs(payload), items_svc._locale_map(payload), wanted)
 
 
 def lookup_category_names_in(
@@ -274,9 +266,7 @@ def _hydrate_ref_list(
     items_by_id: Mapping[str, dict[str, Any]],
     locale: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    raw_list = value if isinstance(value, list) else (
-        [value] if value not in (None, "") else []
-    )
+    raw_list = value if isinstance(value, list) else ([value] if value not in (None, "") else [])
     out: list[dict[str, Any]] = []
     for entry in raw_list:
         stub = _resolve_item_ref(entry, items_by_id, locale)
@@ -413,9 +403,7 @@ def _hydrate_armor_slots(
                 if not stub:
                     continue
                 ident = str(stub.get("id") or "")
-                resolved.append(
-                    _enrich_plate_stub(stub, items_by_id.get(ident))
-                )
+                resolved.append(_enrich_plate_stub(stub, items_by_id.get(ident)))
             copied["allowedPlates"] = resolved
         out.append(copied)
     return out
@@ -424,11 +412,7 @@ def _hydrate_armor_slots(
 def _detail_catalogs(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     data = _items_data_blob(payload)
     item_cats = data.get("itemCategories") if isinstance(data.get("itemCategories"), dict) else {}
-    handbook_cats = (
-        data.get("handbookCategories")
-        if isinstance(data.get("handbookCategories"), dict)
-        else {}
-    )
+    handbook_cats = data.get("handbookCategories") if isinstance(data.get("handbookCategories"), dict) else {}
     return item_cats, handbook_cats
 
 
@@ -457,41 +441,24 @@ def _hydrate_detail_refs(
         if key == "presets":
             raw_list = props[key] if isinstance(props[key], list) else []
             props[key] = [
-                stub
-                for stub in (
-                    _hydrate_preset_stub(entry, items_by_id, locale)
-                    for entry in raw_list
-                )
-                if stub
+                stub for stub in (_hydrate_preset_stub(entry, items_by_id, locale) for entry in raw_list) if stub
             ]
         else:
             props[key] = _hydrate_ref_list(props[key], items_by_id, locale)
     if "armorSlots" in props:
-        props["armorSlots"] = _hydrate_armor_slots(
-            props.get("armorSlots"), items_by_id, locale
-        )
+        props["armorSlots"] = _hydrate_armor_slots(props.get("armorSlots"), items_by_id, locale)
     if "content" in props:
         props["content"] = _hydrate_content(props.get("content"), locale)
     if "categories" in item:
-        item["categories"] = _resolve_category_list(
-            item.get("categories"), locale, catalogs
-        )
+        item["categories"] = _resolve_category_list(item.get("categories"), locale, catalogs)
     if "handbookCategories" in item:
-        item["handbookCategories"] = _resolve_category_list(
-            item.get("handbookCategories"), locale, catalogs
-        )
+        item["handbookCategories"] = _resolve_category_list(item.get("handbookCategories"), locale, catalogs)
     if "containsItems" in item:
-        item["containsItems"] = _hydrate_contains_items(
-            item.get("containsItems"), items_by_id, locale
-        )
+        item["containsItems"] = _hydrate_contains_items(item.get("containsItems"), items_by_id, locale)
     if "conflictingItems" in item:
-        item["conflictingItems"] = _hydrate_ref_list(
-            item.get("conflictingItems"), items_by_id, locale
-        )
+        item["conflictingItems"] = _hydrate_ref_list(item.get("conflictingItems"), items_by_id, locale)
     if "conflictingCategories" in item:
-        item["conflictingCategories"] = _resolve_category_list(
-            item.get("conflictingCategories"), locale, catalogs
-        )
+        item["conflictingCategories"] = _resolve_category_list(item.get("conflictingCategories"), locale, catalogs)
     detail["item"] = item
     _localize_armor_props(props, locale)
     detail["properties"] = props
@@ -510,12 +477,8 @@ def _localized_name(
         or raw.get("shortName")
         or item_id
     )
-    short_name = str(
-        locale.get(f"{item_id} ShortName") or raw.get("shortName") or ""
-    )
-    description = str(
-        locale.get(f"{item_id} Description") or raw.get("description") or ""
-    )
+    short_name = str(locale.get(f"{item_id} ShortName") or raw.get("shortName") or "")
+    description = str(locale.get(f"{item_id} Description") or raw.get("description") or "")
     if description.endswith(" Description") and item_id in description:
         description = ""
     placeholder_name = f"{item_id} Name"
@@ -561,9 +524,7 @@ def _localize_enum_list(value: Any, locale: dict[str, Any]) -> Any:
     if not isinstance(value, list):
         return value
     return [
-        _locale_enum_label(locale, item)
-        if item is not None and not isinstance(item, (dict, list))
-        else item
+        _locale_enum_label(locale, item) if item is not None and not isinstance(item, (dict, list)) else item
         for item in value
     ]
 
@@ -680,9 +641,7 @@ def _compact_properties(
             continue
         if isinstance(value, dict):
             slim = {
-                kk: value[kk]
-                for kk in ("id", "name", "normalizedName")
-                if kk in value and value[kk] not in (None, "")
+                kk: value[kk] for kk in ("id", "name", "normalizedName") if kk in value and value[kk] not in (None, "")
             }
             if slim:
                 out[key] = slim
@@ -715,9 +674,7 @@ def _row_from_raw(
         "id": item_id,
         "name": name,
         "short_name": short_name,
-        "icon_link": str(
-            raw.get("baseImageLink") or raw.get("iconLink") or ""
-        ),
+        "icon_link": str(raw.get("baseImageLink") or raw.get("iconLink") or ""),
         "types": type_list,
         "handbook_ids": handbook_ids,
         "properties_type": str(props.get("propertiesType") or ""),
@@ -841,9 +798,7 @@ def _contained_ammo_entries(raw: dict[str, Any]) -> list[tuple[str, int]]:
     return out
 
 
-def parse_ammo_pack_index(
-    source: str, payload: dict[str, Any]
-) -> dict[str, dict[str, Any]]:
+def parse_ammo_pack_index(source: str, payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """子弹 id → 对应弹药包（多包时取发数最多的）。"""
     index: dict[str, dict[str, Any]] = {}
     for item_id, raw in iter_raw_items(source, payload):
@@ -1082,9 +1037,7 @@ class ItemsIndex(Mapping[str, dict[str, Any]]):
         self.locale = items_svc._locale_map(payload)
         self.catalogs = _detail_catalogs(payload)
         self._raw = {
-            ident: json.dumps(raw, separators=(",", ":"))
-            for ident, raw in iter_raw_items(source, payload)
-            if ident
+            ident: json.dumps(raw, separators=(",", ":")) for ident, raw in iter_raw_items(source, payload) if ident
         }
 
     def __getitem__(self, item_id: str) -> dict[str, Any]:
@@ -1134,12 +1087,8 @@ def item_detail_cache_parts(db: Session) -> tuple[str, ...]:
 
     items_svc.ensure_items(db)
     _source, items_synced, _note = items_svc.items_raw_header(db)
-    _maps_source, maps_synced, _note = upstream_svc.raw_row_header(
-        upstream_svc.load_raw_row(db, "maps")
-    )
-    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(
-        upstream_svc.load_raw_row(db, "tasks")
-    )
+    _maps_source, maps_synced, _note = upstream_svc.raw_row_header(upstream_svc.load_raw_row(db, "maps"))
+    _tasks_source, tasks_synced, _note = upstream_svc.raw_row_header(upstream_svc.load_raw_row(db, "tasks"))
     return (
         items_synced or "",
         maps_synced or "",
@@ -1168,9 +1117,7 @@ def _item_detail(
     item_out["shortName"] = short_name
     if description:
         item_out["description"] = description
-    elif "description" in item_out and str(item_out["description"]).endswith(
-        " Description"
-    ):
+    elif "description" in item_out and str(item_out["description"]).endswith(" Description"):
         item_out.pop("description", None)
     detail = {
         "id": item_id,
@@ -1287,9 +1234,7 @@ def _detail_is_key(detail: dict[str, Any]) -> bool:
     return _is_handbook_key(_id_list(item.get("handbookCategories")), types)
 
 
-def lookup_item_rows(
-    db: Session, item_ids: set[str]
-) -> dict[str, dict[str, Any]]:
+def lookup_item_rows(db: Session, item_ids: set[str]) -> dict[str, dict[str, Any]]:
     """一批物品 id → 目录行（名字 / 图标 / types / price），供藏身处 / 商人 / BOSS 配装共用。
 
     无 raw 或查库失败时返回空 dict：调用方展示层降级，不挡整页。

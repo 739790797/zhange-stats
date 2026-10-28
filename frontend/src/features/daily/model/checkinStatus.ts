@@ -23,7 +23,7 @@ export function isCheckinSuccess(status: string | null | undefined): boolean {
 
 export function checkinStatusLabel(
   status: string | null | undefined,
-  statusLabel?: string | null
+  statusLabel?: string | null,
 ): string {
   if (statusLabel) return statusLabel;
   const key = (status || "").trim();
@@ -57,34 +57,23 @@ export type BindTokenStatus = {
   }>;
 };
 
-export function isBindTokenBroken(
-  status: BindTokenStatus | null | undefined,
-): boolean {
+export function isBindTokenBroken(status: BindTokenStatus | null | undefined): boolean {
   if (!status?.bound) return false;
   return status.token_ok === false;
 }
 
 /** 今日结果里是否有凭证失败（列表内提示，不作为整页重绑门禁） */
-export function hasCredentialRowError(
-  status: BindTokenStatus | null | undefined,
-): boolean {
+export function hasCredentialRowError(status: BindTokenStatus | null | undefined): boolean {
   return (status?.today_results || []).some(
-    (row) =>
-      row.status === CHECKIN_STATUS.ERROR &&
-      isCredentialFailureMessage(row.message),
+    (row) => row.status === CHECKIN_STATUS.ERROR && isCredentialFailureMessage(row.message),
   );
 }
 
-export function bindTokenErrorMessage(
-  status: BindTokenStatus | null | undefined,
-): string | null {
+export function bindTokenErrorMessage(status: BindTokenStatus | null | undefined): string | null {
   const direct = (status?.token_error || "").trim();
   if (direct) return direct;
   for (const row of status?.today_results || []) {
-    if (
-      row.status === CHECKIN_STATUS.ERROR &&
-      isCredentialFailureMessage(row.message)
-    ) {
+    if (row.status === CHECKIN_STATUS.ERROR && isCredentialFailureMessage(row.message)) {
       const msg = (row.message || "").trim();
       if (msg) return msg;
     }
@@ -92,12 +81,7 @@ export function bindTokenErrorMessage(
   return null;
 }
 
-export type CheckinDialogKind =
-  | "success"
-  | "already"
-  | "failure"
-  | "credential"
-  | "unknown";
+export type CheckinDialogKind = "success" | "already" | "failure" | "credential" | "unknown";
 
 /** 单次签到响应 → 弹窗标题类别 */
 export function classifyCheckinDialog(input: {

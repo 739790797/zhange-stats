@@ -24,9 +24,7 @@ _SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(password|passwd|secret|token|authorization|cookie|api[\s_-]?key|access[\s_-]?key)"
     r"(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
-_SECRET_QUERY = re.compile(
-    r"(?i)([?&](?:token|key|secret|password|code|authorization)=)[^&\s]+"
-)
+_SECRET_QUERY = re.compile(r"(?i)([?&](?:token|key|secret|password|code|authorization)=)[^&\s]+")
 _BEARER_TOKEN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _TRUNCATION_MESSAGE = "达到单次执行日志上限，后续日志已省略"
@@ -63,9 +61,7 @@ class JobRunLogCaptureHandler(logging.Handler):
                     level=record.levelname,
                     logger=record.name,
                     message=message,
-                    created_at=datetime.fromtimestamp(
-                        record.created, tz=BEIJING
-                    ).replace(tzinfo=None),
+                    created_at=datetime.fromtimestamp(record.created, tz=BEIJING).replace(tzinfo=None),
                 )
             )
 
@@ -92,9 +88,7 @@ def sanitize_job_log_message(value: str) -> str:
     encoded = message.encode("utf-8")
     if len(encoded) > MAX_JOB_RUN_LOG_LINE_BYTES:
         ellipsis_bytes = len("…".encode("utf-8"))
-        message = encoded[: MAX_JOB_RUN_LOG_LINE_BYTES - ellipsis_bytes].decode(
-            "utf-8", "ignore"
-        ) + "…"
+        message = encoded[: MAX_JOB_RUN_LOG_LINE_BYTES - ellipsis_bytes].decode("utf-8", "ignore") + "…"
     return message
 
 
@@ -115,12 +109,7 @@ def append_job_run_logs(run_id: int, events: Iterable[JobRunLogEvent]) -> int:
 
     db = SessionLocal()
     try:
-        count = int(
-            db.query(func.count(JobRunLog.id))
-            .filter(JobRunLog.run_id == run_id)
-            .scalar()
-            or 0
-        )
+        count = int(db.query(func.count(JobRunLog.id)).filter(JobRunLog.run_id == run_id).scalar() or 0)
         already_truncated = (
             db.query(JobRunLog.id)
             .filter(
@@ -157,9 +146,7 @@ def append_job_run_logs(run_id: int, events: Iterable[JobRunLogEvent]) -> int:
         db.close()
 
 
-def list_job_run_logs(
-    run_id: int, *, after_id: int = 0, limit: int = 200
-) -> list[JobRunLog]:
+def list_job_run_logs(run_id: int, *, after_id: int = 0, limit: int = 200) -> list[JobRunLog]:
     db = SessionLocal()
     try:
         return (

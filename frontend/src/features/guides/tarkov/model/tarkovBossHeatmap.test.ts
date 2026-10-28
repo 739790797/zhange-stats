@@ -36,9 +36,7 @@ function terminal(bossId: string, escorts: BossSpawnGroupApi["escorts"] = []) {
         maps: [{ slug: "terminal", name: "码头", spawn_chance: "20%" }],
         shared_spawn_chance: "20%",
         land_label: "与战局时间无关",
-        locations: [
-          { map: "码头", map_slug: "terminal", name: "Zone2ScavPort29", chance: 1 },
-        ],
+        locations: [{ map: "码头", map_slug: "terminal", name: "Zone2ScavPort29", chance: 1 }],
         escorts,
       }),
     ],
@@ -73,9 +71,7 @@ describe("buildBossHeatmap", () => {
             maps: [{ slug: "terminal", name: "码头", spawn_chance: "20%" }],
             shared_spawn_chance: "20%",
             land_label: "与战局时间无关",
-            locations: [
-              { map: "码头", map_slug: "terminal", name: "Zone2ScavPort29", chance: 1 },
-            ],
+            locations: [{ map: "码头", map_slug: "terminal", name: "Zone2ScavPort29", chance: 1 }],
             escorts: [{ slug: "b", name: "卫兵", count: 4, chance: 1 }],
           }),
         ],
@@ -191,9 +187,7 @@ describe("buildBossHeatmap", () => {
     expect(model.maps.map((col) => col.short)).toEqual(["实验室"]);
     expect(model.cells[0][0]).toMatchObject({ label: "60%", recipeCount: 1, pool: false });
     expect(model.maps[0]?.pool).toBe(false);
-    expect(
-      heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0]),
-    ).toEqual([
+    expect(heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0])).toEqual([
       {
         chance: "60%",
         showChance: false,
@@ -294,9 +288,7 @@ describe("buildBossHeatmap", () => {
         ),
       },
     ]);
-    expect(
-      heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0]),
-    ).toEqual([
+    expect(heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0])).toEqual([
       {
         chance: "50%",
         showChance: false,
@@ -312,8 +304,7 @@ describe("buildBossHeatmap", () => {
     ]);
     expect(
       formatHoverSquadSizes(
-        heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0])[0]!
-          .squadSizes,
+        heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0])[0]!.squadSizes,
         false,
       ),
     ).toBe("1–4");
@@ -462,9 +453,7 @@ describe("heatmap spawn map helpers", () => {
     expect(views.map((row) => row.slug)).toEqual(["interchange", "terminal"]);
     expect(views[0]?.points).toHaveLength(2);
     expect(views[0]?.chancePct).toBe(45);
-    expect(views[1]?.points).toEqual([
-      { name: "Dock", chance: 1, x: 9, y: 2, z: 8 },
-    ]);
+    expect(views[1]?.points).toEqual([{ name: "Dock", chance: 1, x: 9, y: 2, z: 8 }]);
   });
 
   it("groups overlay locations by name", () => {
@@ -536,9 +525,7 @@ describe("hoverEscortSchemes", () => {
         ),
       },
     ]);
-    const schemes = hoverEscortSchemes(
-      heatmapCellHoverBlocks(model.cells[0][0].recipes),
-    );
+    const schemes = hoverEscortSchemes(heatmapCellHoverBlocks(model.cells[0][0].recipes));
     expect(schemes?.map((row) => `组合${row.index}：${row.line}`)).toEqual([
       "组合1：保镖 ×2",
       "组合2：保镖 ×3",
@@ -603,7 +590,12 @@ describe("location-specific squad tables", () => {
             land_label: "与战局时间无关",
             locations: [
               { map: "破冰船", map_slug: "icebreaker", name: "BotZoneRoomsFour", chance: 1 },
-              { map: "破冰船", map_slug: "icebreaker", name: "BotZoneRoomsThirdKitchen", chance: 1 },
+              {
+                map: "破冰船",
+                map_slug: "icebreaker",
+                name: "BotZoneRoomsThirdKitchen",
+                chance: 1,
+              },
             ],
           }),
           group({
@@ -612,7 +604,12 @@ describe("location-specific squad tables", () => {
             land_label: "与战局时间无关",
             locations: [
               { map: "破冰船", map_slug: "icebreaker", name: "BotZoneRoomsThird", chance: 1 },
-              { map: "破冰船", map_slug: "icebreaker", name: "BotZoneRoomsThirdKitchen", chance: 1 },
+              {
+                map: "破冰船",
+                map_slug: "icebreaker",
+                name: "BotZoneRoomsThirdKitchen",
+                chance: 1,
+              },
               { map: "破冰船", map_slug: "icebreaker", name: "BotZoneRoomsFour", chance: 1 },
             ],
             escorts: [{ slug: "the-wedge", name: "The Wedge", count: 1, chance: 1 }],
@@ -629,10 +626,7 @@ describe("location-specific squad tables", () => {
         ],
       },
     ]);
-    const blocks = heatmapCellHoverBlocks(
-      model.cells[0][0].recipes,
-      model.bosses[0],
-    );
+    const blocks = heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0]);
     expect(
       blocks.map((row) => ({
         locations: row.locations,
@@ -719,10 +713,7 @@ describe("location-specific squad tables", () => {
         ],
       },
     ]);
-    const blocks = heatmapCellHoverBlocks(
-      model.cells[0][0].recipes,
-      model.bosses[0],
-    );
+    const blocks = heatmapCellHoverBlocks(model.cells[0][0].recipes, model.bosses[0]);
     expect(
       blocks.map((row) => ({
         locations: row.locations,

@@ -41,9 +41,7 @@ def test_overall_prefers_error_then_degraded() -> None:
 
 
 def test_probe_redis_skipped_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=False)
-    )
+    monkeypatch.setattr(rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=False))
     item = rh._probe_redis()
     assert item.id == "redis"
     assert item.status == "skipped"
@@ -53,17 +51,13 @@ def test_probe_redis_skipped_when_unconfigured(monkeypatch: pytest.MonkeyPatch) 
 def test_probe_redis_degraded_in_production_when_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=True)
-    )
+    monkeypatch.setattr(rh, "get_settings", lambda: MagicMock(REDIS_URL="", is_production=True))
     item = rh._probe_redis()
     assert item.status == "degraded"
 
 
 def test_redact_conn_error_strips_url_credentials() -> None:
-    err = RuntimeError(
-        "Can't connect using mysql+pymysql://root:s3cret@127.0.0.1:3306/zhange"
-    )
+    err = RuntimeError("Can't connect using mysql+pymysql://root:s3cret@127.0.0.1:3306/zhange")
     text = rh.redact_conn_error(err)
     assert "s3cret" not in text
     assert "mysql+pymysql://***@" in text
@@ -131,9 +125,7 @@ def test_collect_runtime_health_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         rh,
         "_probe_database",
-        lambda: rh.ServiceHealthItem(
-            "database", "数据库", "ok", latency_ms=1.0, detail="ok"
-        ),
+        lambda: rh.ServiceHealthItem("database", "数据库", "ok", latency_ms=1.0, detail="ok"),
     )
     monkeypatch.setattr(
         rh,

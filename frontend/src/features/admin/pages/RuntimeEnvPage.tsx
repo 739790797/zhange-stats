@@ -17,7 +17,12 @@ import {
   message,
   theme,
 } from "antd";
-import { fetchRuntimeEnv, testRuntimeDatabase, testRuntimeRedis, updateRuntimeEnv } from "@/features/admin/api/runtimeEnvApi";
+import {
+  fetchRuntimeEnv,
+  testRuntimeDatabase,
+  testRuntimeRedis,
+  updateRuntimeEnv,
+} from "@/features/admin/api/runtimeEnvApi";
 import { fetchRuntimeHealth } from "@/features/admin/api/runtimeHealthApi";
 import type { RuntimeHealthService } from "@/features/admin/api/runtimeHealthApi";
 import type { RuntimeEnvSettings } from "@/features/admin/api/runtimeEnvApi";
@@ -118,9 +123,7 @@ function EnvLockedAlert({ name }: { name: string }) {
 
 function isFormValidateError(e: unknown): boolean {
   return Boolean(
-    e &&
-      typeof e === "object" &&
-      Array.isArray((e as { errorFields?: unknown }).errorFields),
+    e && typeof e === "object" && Array.isArray((e as { errorFields?: unknown }).errorFields),
   );
 }
 
@@ -153,12 +156,7 @@ function CardActions({
             测试连接
           </Button>
         ) : null}
-        <Button
-          type="primary"
-          htmlType="submit"
-          loading={saveLoading}
-          disabled={saveDisabled}
-        >
+        <Button type="primary" htmlType="submit" loading={saveLoading} disabled={saveDisabled}>
           保存
         </Button>
       </Space>
@@ -216,8 +214,7 @@ export default function RuntimeEnvPage() {
   const dbLocked = ["db_engine", "db_path", "db_url"].some((f) => locked.has(f));
   const redisLocked = locked.has("redis_url");
   const envLocked = (field: EnvField) => locked.has(field);
-  const envLockedExtra = (field: EnvField) =>
-    envLocked(field) ? ENV_LOCKED_TEXT : undefined;
+  const envLockedExtra = (field: EnvField) => (envLocked(field) ? ENV_LOCKED_TEXT : undefined);
 
   useHydrateUntouchedForm(dbForm, data, dbValuesOf);
   useHydrateUntouchedForm(redisForm, data, redisValuesOf);
@@ -236,8 +233,7 @@ export default function RuntimeEnvPage() {
   const onSaveError = (e: unknown) =>
     message.error({ content: apiError(e, "保存失败"), duration: 8 });
   const saveDb = useMutation({
-    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
-      updateRuntimeEnv(payload),
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) => updateRuntimeEnv(payload),
     onSuccess: (res) => {
       onSaved(res);
       hydrateForm(dbForm, dbValuesOf(res));
@@ -245,8 +241,7 @@ export default function RuntimeEnvPage() {
     onError: onSaveError,
   });
   const saveRedis = useMutation({
-    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
-      updateRuntimeEnv(payload),
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) => updateRuntimeEnv(payload),
     onSuccess: (res) => {
       onSaved(res);
       hydrateForm(redisForm, redisValuesOf(res));
@@ -254,8 +249,7 @@ export default function RuntimeEnvPage() {
     onError: onSaveError,
   });
   const saveEnv = useMutation({
-    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) =>
-      updateRuntimeEnv(payload),
+    mutationFn: (payload: Parameters<typeof updateRuntimeEnv>[0]) => updateRuntimeEnv(payload),
     onSuccess: (res) => {
       onSaved(res);
       hydrateForm(envForm, envValuesOf(res));
@@ -449,12 +443,7 @@ export default function RuntimeEnvPage() {
                     </Col>
                     <Col span={8}>
                       <Form.Item name="port" label="端口" rules={portItemRules}>
-                        <InputNumber
-                          min={1}
-                          max={65535}
-                          precision={0}
-                          style={{ width: "100%" }}
-                        />
+                        <InputNumber min={1} max={65535} precision={0} style={{ width: "100%" }} />
                       </Form.Item>
                     </Col>
                   </Row>

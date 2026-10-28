@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseModToolExpandedMap,
-  resolveModToolExpanded,
-} from "./minecraftModToolCollapse";
+import { parseModToolExpandedMap, resolveModToolExpanded } from "./minecraftModToolCollapse";
 
 describe("minecraft mod tool collapse", () => {
   it("parses a saved expanded map", () => {

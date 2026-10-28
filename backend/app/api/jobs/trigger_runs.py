@@ -78,9 +78,7 @@ def _run_sync_role_checkin(
         name = PLATFORM_SHORT_NAMES.get(adapter.platform, adapter.platform)
         raise HTTPException(status_code=400, detail=f"该用户尚未绑定{name}")
     try:
-        return run_checkin_for_bind(
-            adapter, db, bind, force=True, role_keys={(game_code, role_uid)}
-        )
+        return run_checkin_for_bind(adapter, db, bind, force=True, role_keys={(game_code, role_uid)})
     except adapter.api_error_cls as exc:
         msg = getattr(exc, "message", None) or str(exc)
         raise HTTPException(status_code=400, detail=msg) from exc
@@ -105,17 +103,10 @@ def trigger_scheduled_job(
     if member_id is not None:
         meta = next((m for m in JOB_CATALOG if m["id"] == job_id), None)
         if not meta or meta.get("kind") != "user_schedule":
-            raise HTTPException(
-                status_code=400, detail="仅签到类任务支持按用户手动执行"
-            )
+            raise HTTPException(status_code=400, detail="仅签到类任务支持按用户手动执行")
 
     # 角色级：同步 force 签到，返回上游 HTTP 原文
-    if (
-        job_id in _CHECKIN_JOB_SET
-        and member_id is not None
-        and game_code
-        and role_uid
-    ):
+    if job_id in _CHECKIN_JOB_SET and member_id is not None and game_code and role_uid:
         out = _run_sync_role_checkin(
             db,
             job_id=job_id,
@@ -279,8 +270,7 @@ def list_job_runs(
         total = total.filter(JobRun.id == run_id)
     total_count = total.scalar() or 0
     rows = (
-        query
-        .order_by(desc(JobRun.started_at), desc(JobRun.id))
+        query.order_by(desc(JobRun.started_at), desc(JobRun.id))
         .offset((page - 1) * page_size if run_id is None else 0)
         .limit(page_size if run_id is None else 1)
         .all()
@@ -294,9 +284,7 @@ def list_job_runs(
     )
 
 
-@router.get(
-    "/jobs/{job_id}/runs/{run_id}/events", response_model=JobRunEventsOut
-)
+@router.get("/jobs/{job_id}/runs/{run_id}/events", response_model=JobRunEventsOut)
 def get_job_run_events(
     job_id: str,
     run_id: int,
@@ -329,6 +317,8 @@ def get_job_run_events(
         next_after_id=selected[-1].id if selected else after_id,
         has_more=has_more,
     )
+
+
 def _job_run_out(row: JobRun) -> JobRunOut:
     return JobRunOut(
         id=row.id,

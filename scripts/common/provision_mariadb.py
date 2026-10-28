@@ -86,13 +86,8 @@ def parse_database_url(url: str) -> DbUrl:
     )
 
 
-def build_database_url(
-    user: str, password: str, host: str, port: int, database: str
-) -> str:
-    return (
-        f"mysql+pymysql://{quote(user, safe='')}:{quote(password, safe='')}"
-        f"@{host}:{int(port)}/{database}"
-    )
+def build_database_url(user: str, password: str, host: str, port: int, database: str) -> str:
+    return f"mysql+pymysql://{quote(user, safe='')}:{quote(password, safe='')}@{host}:{int(port)}/{database}"
 
 
 def is_placeholder_url(url: str) -> bool:
@@ -103,11 +98,7 @@ def is_placeholder_url(url: str) -> bool:
         parsed = parse_database_url(text)
     except ProvisionError:
         return True
-    return (
-        parsed.user == "root"
-        and parsed.password == "password"
-        and is_loopback_host(parsed.host)
-    )
+    return parsed.user == "root" and parsed.password == "password" and is_loopback_host(parsed.host)
 
 
 def read_env_map(path: Path) -> dict[str, str]:
@@ -385,9 +376,7 @@ def start_mysqld(mysqld: Path, ini: Path, pid_file: Path, err_log: Path) -> None
     err_handle = err_log.open("ab", buffering=0)
     creationflags = 0
     if os.name == "nt":
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(
-            subprocess, "DETACHED_PROCESS", 0
-        )
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0)
     proc = subprocess.Popen(
         [str(mysqld), f"--defaults-file={ini}"],
         stdout=err_handle,
@@ -714,9 +703,7 @@ def ensure_windows_dist(paths: dict[str, Path]) -> Path:
     if mysqld:
         return mysqld.parent.parent
     if not windows_machine_ok():
-        raise ProvisionError(
-            "当前 Windows 不是 amd64，便携 MariaDB 无对应包。请自备库并填写 config/database.json"
-        )
+        raise ProvisionError("当前 Windows 不是 amd64，便携 MariaDB 无对应包。请自备库并填写 config/database.json")
     archive = paths["zip"]
     if not archive.is_file() or sha256_file(archive) != MARIADB_SHA256:
         if archive.is_file():
@@ -1006,9 +993,7 @@ def provision(root: Path) -> None:
             parsed = None
 
     if parsed and not placeholder and not is_loopback_host(parsed.host):
-        raise ProvisionError(
-            f"无法连接 {parsed.host}:{parsed.port}（非本机），未自动安装。请修正 config/database.json"
-        )
+        raise ProvisionError(f"无法连接 {parsed.host}:{parsed.port}（非本机），未自动安装。请修正 config/database.json")
 
     if parsed and not placeholder and is_loopback_host(parsed.host):
         if tcp_open(parsed.host, parsed.port):
@@ -1043,8 +1028,7 @@ def provision(root: Path) -> None:
                 log("已拉起系统 MariaDB")
                 return
         raise ProvisionError(
-            "当前连接串不是空/占位值且库未运行。请先启动已有 MariaDB，"
-            "或清空 config/database.json 的 url 后再自动安装"
+            "当前连接串不是空/占位值且库未运行。请先启动已有 MariaDB，或清空 config/database.json 的 url 后再自动安装"
         )
 
     database = choose_database_name(env, parsed, placeholder=placeholder)

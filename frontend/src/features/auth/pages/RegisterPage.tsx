@@ -72,126 +72,92 @@ export default function RegisterPage() {
 
   return (
     <AuthGuestShell title="注册账号">
-        {error ? (
-          <Alert
-            type="error"
-            message={error}
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          requiredMark={false}
+      <Form form={form} layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Form.Item
+          name="email"
+          label="邮箱"
+          rules={[
+            { required: true, message: "请输入邮箱" },
+            { type: "email", message: "邮箱格式不正确" },
+          ]}
         >
-          <Form.Item
-            name="email"
-            label="邮箱"
-            rules={[
-              { required: true, message: "请输入邮箱" },
-              { type: "email", message: "邮箱格式不正确" },
-            ]}
-          >
-            <Input
-              size="large"
-              placeholder="用于登录的邮箱"
-              autoComplete="email"
-            />
-          </Form.Item>
+          <Input size="large" placeholder="用于登录的邮箱" autoComplete="email" />
+        </Form.Item>
 
-          <Form.Item label="验证码" required>
-            <Space.Compact style={{ width: "100%" }}>
-              <Form.Item
-                name="code"
-                noStyle
-                rules={[{ required: true, message: "请输入验证码" }]}
-              >
-                <Input
-                  size="large"
-                  placeholder="6 位验证码"
-                  maxLength={6}
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
-              <Button
+        <Form.Item label="验证码" required>
+          <Space.Compact style={{ width: "100%" }}>
+            <Form.Item name="code" noStyle rules={[{ required: true, message: "请输入验证码" }]}>
+              <Input
                 size="large"
-                loading={sending}
-                disabled={countdown > 0}
-                onClick={onSendCode}
-              >
-                {countdown > 0 ? `${countdown}s` : "发送验证码"}
-              </Button>
-            </Space.Compact>
-          </Form.Item>
+                placeholder="6 位验证码"
+                maxLength={6}
+                style={{ width: "100%" }}
+              />
+            </Form.Item>
+            <Button size="large" loading={sending} disabled={countdown > 0} onClick={onSendCode}>
+              {countdown > 0 ? `${countdown}s` : "发送验证码"}
+            </Button>
+          </Space.Compact>
+        </Form.Item>
 
-          <Form.Item
-            name="password"
-            label="密码"
-            rules={[
-              { required: true, message: "请输入密码" },
-              { min: 8, message: "至少 8 位" },
-            ]}
-          >
-            <Input.Password size="large" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            name="confirm"
-            label="确认密码"
-            dependencies={["password"]}
-            rules={[
-              { required: true, message: "请再次输入密码" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("password") === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error("两次密码不一致"));
-                },
-              }),
-            ]}
-          >
-            <Input.Password size="large" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            name="agree"
-            valuePropName="checked"
-            rules={[
-              {
-                validator: (_, value) =>
-                  value
-                    ? Promise.resolve()
-                    : Promise.reject(
-                        new Error("请先阅读并同意服务条款与隐私说明"),
-                      ),
+        <Form.Item
+          name="password"
+          label="密码"
+          rules={[
+            { required: true, message: "请输入密码" },
+            { min: 8, message: "至少 8 位" },
+          ]}
+        >
+          <Input.Password size="large" autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          name="confirm"
+          label="确认密码"
+          dependencies={["password"]}
+          rules={[
+            { required: true, message: "请再次输入密码" },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue("password") === value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error("两次密码不一致"));
               },
-            ]}
-          >
-            <Checkbox>
-              我已阅读并同意{" "}
-              <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
-              {" 与 "}
-              <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
-            </Checkbox>
-          </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            block
-            loading={loading}
-          >
-            注册
-          </Button>
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <Link to="/login">已有账号？去登录</Link>
-          </div>
-        </Form>
+            }),
+          ]}
+        >
+          <Input.Password size="large" autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          name="agree"
+          valuePropName="checked"
+          rules={[
+            {
+              validator: (_, value) =>
+                value
+                  ? Promise.resolve()
+                  : Promise.reject(new Error("请先阅读并同意服务条款与隐私说明")),
+            },
+          ]}
+        >
+          <Checkbox>
+            我已阅读并同意 <Link to={LEGAL_TERMS_PATH}>服务条款</Link>
+            {" 与 "}
+            <Link to={LEGAL_PRIVACY_PATH}>隐私说明</Link>
+          </Checkbox>
+        </Form.Item>
+        <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+          注册
+        </Button>
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <Link to="/login">已有账号？去登录</Link>
+        </div>
+      </Form>
 
-        <QqLoginButton dividerText="或使用 QQ 登录" />
-        <LegalLinks prefix="QQ 登录即表示同意" />
+      <QqLoginButton dividerText="或使用 QQ 登录" />
+      <LegalLinks prefix="QQ 登录即表示同意" />
     </AuthGuestShell>
   );
 }

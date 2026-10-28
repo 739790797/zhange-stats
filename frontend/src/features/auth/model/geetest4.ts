@@ -3,8 +3,7 @@
 const GT4_SCRIPT_URL = "https://static.geetest.com/v4/gt4.js";
 
 /** 库街区 APP 端 captchaId，与后端 GEETEST_CAPTCHA_ID 一致 */
-export const KUJIEQU_GEETEST_CAPTCHA_ID =
-  "3f7e2d848ce0cb7e7d019d621e556ce2";
+export const KUJIEQU_GEETEST_CAPTCHA_ID = "3f7e2d848ce0cb7e7d019d621e556ce2";
 
 export type Geetest4Validate = {
   captcha_id: string;
@@ -46,14 +45,10 @@ function loadGt4Script(): Promise<void> {
     return scriptPromise;
   }
   scriptPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${GT4_SCRIPT_URL}"]`,
-    );
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GT4_SCRIPT_URL}"]`);
     if (existing) {
       existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () =>
-        reject(new Error("极验脚本加载失败")),
-      );
+      existing.addEventListener("error", () => reject(new Error("极验脚本加载失败")));
       if (window.initGeetest4) resolve();
       return;
     }

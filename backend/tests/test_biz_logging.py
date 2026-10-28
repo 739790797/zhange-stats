@@ -58,4 +58,3 @@ def test_log_until_change_repeats_as_debug(caplog) -> None:
     ]
     assert "e1" in records[0].message
     assert "e2" in records[2].message
-

@@ -40,8 +40,7 @@ export function ArticleVersionsModal({
     enabled: open && articleId != null && previewId != null,
   });
   const restoreMut = useMutation({
-    mutationFn: (versionId: number) =>
-      restoreArticleVersion(articleId as number, versionId),
+    mutationFn: (versionId: number) => restoreArticleVersion(articleId as number, versionId),
     onSuccess: (saved) => {
       message.success("已恢复该版本");
       queryClient.setQueryData(["article-editor", saved.id], saved);
@@ -117,11 +116,7 @@ export function ArticleVersionsModal({
         />
       </Modal>
       <Modal
-        title={
-          previewQuery.data
-            ? `第 ${previewQuery.data.version_no} 版`
-            : "版本预览"
-        }
+        title={previewQuery.data ? `第 ${previewQuery.data.version_no} 版` : "版本预览"}
         open={previewId != null}
         onCancel={() => setPreviewId(null)}
         footer={null}
@@ -130,10 +125,7 @@ export function ArticleVersionsModal({
         {previewQuery.isLoading ? (
           <Spin />
         ) : previewQuery.data ? (
-          <ArticleBody
-            body={previewQuery.data.body}
-            format={previewQuery.data.body_format}
-          />
+          <ArticleBody body={previewQuery.data.body} format={previewQuery.data.body_format} />
         ) : null}
       </Modal>
     </>

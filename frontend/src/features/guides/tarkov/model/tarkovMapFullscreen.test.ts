@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  fullscreenElementIncludesMap,
-  resolveMapOverlayContainer,
-} from "./tarkovMapFullscreen";
+import { fullscreenElementIncludesMap, resolveMapOverlayContainer } from "./tarkovMapFullscreen";
 
 describe("resolveMapOverlayContainer", () => {
   it("keeps overlays on the page until the map is fullscreen", () => {
@@ -20,9 +17,7 @@ describe("fullscreenElementIncludesMap", () => {
     expect(fullscreenElementIncludesMap(null, wrap as Element)).toBe(false);
     expect(fullscreenElementIncludesMap(workspace as Element, null)).toBe(false);
     expect(fullscreenElementIncludesMap(wrap as Element, wrap as Element)).toBe(true);
-    expect(
-      fullscreenElementIncludesMap(workspace as Element, wrap as Element),
-    ).toBe(true);
+    expect(fullscreenElementIncludesMap(workspace as Element, wrap as Element)).toBe(true);
     expect(
       fullscreenElementIncludesMap(
         { contains: () => false } as unknown as Element,

@@ -1,4 +1,7 @@
-import type { TarkovDevLabel, TarkovDevMapLayer } from "@/features/guides/tarkov/model/tarkovMapImages";
+import type {
+  TarkovDevLabel,
+  TarkovDevMapLayer,
+} from "@/features/guides/tarkov/model/tarkovMapImages";
 import { tarkovMapLabel } from "@/features/guides/tarkov/model/tarkovMapLabelsZh";
 import {
   overlayVisibleOnFloor,
@@ -54,13 +57,7 @@ export type TarkovMapPlaceEdit = {
   mode: TarkovMapPlaceEditMode;
   selectedId?: number | null;
   onPoint?: (pt: { x: number; z: number; floor: string }) => void;
-  onBox?: (box: {
-    x: number;
-    z: number;
-    x2: number;
-    z2: number;
-    floor: string;
-  }) => void;
+  onBox?: (box: { x: number; z: number; x2: number; z2: number; floor: string }) => void;
   onSelect?: (id: number) => void;
   onMove?: (id: number, at: { x: number; z: number }) => void;
 };
@@ -106,12 +103,7 @@ export function hasCustomMapPlaceLabels(
   return Boolean(dbPlaces && dbPlaces.length > 0);
 }
 
-export function placeBoxCenter(
-  x: number,
-  z: number,
-  x2: number,
-  z2: number,
-): [number, number] {
+export function placeBoxCenter(x: number, z: number, x2: number, z2: number): [number, number] {
   return [(x + x2) / 2, (z + z2) / 2];
 }
 
@@ -175,8 +167,7 @@ export function placeVisibleOnFloor(
   const span = placeHeightSpan(row);
   if (!span) return true;
   // tarkov.dev：bottom < 该层 height[1]。闭区间会让立交桥 2/3 层交界（34）的店名叠两层。
-  const query =
-    span.max > span.min ? { min: span.min + 1e-6, max: span.max } : span;
+  const query = span.max > span.min ? { min: span.min + 1e-6, max: span.max } : span;
   return overlayVisibleOnFloor(query, selected, bands, placeFloorAt(row));
 }
 

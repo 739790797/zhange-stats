@@ -84,10 +84,7 @@ def list_levels(
         _stored_map(db, user_id, game_mode=game_mode),
         stash_floor=floor,
     )
-    return [
-        {"station_id": ident, "level": level}
-        for ident, level in sorted(filled.items(), key=lambda item: item[0])
-    ]
+    return [{"station_id": ident, "level": level} for ident, level in sorted(filled.items(), key=lambda item: item[0])]
 
 
 def _persist(
@@ -136,10 +133,7 @@ def _persist(
     for ident, row in existing.items():
         if ident not in keep:
             db.delete(row)
-    return [
-        {"station_id": ident, "level": level}
-        for ident, level in sorted(filled.items(), key=lambda item: item[0])
-    ]
+    return [{"station_id": ident, "level": level} for ident, level in sorted(filled.items(), key=lambda item: item[0])]
 
 
 def set_level(
@@ -155,9 +149,7 @@ def set_level(
     stored = _stored_map(db, user.id, game_mode=game_mode)
     floor = _stash_floor(db, user.id, game_mode=game_mode)
     try:
-        filled = apply_level(
-            stations, stored, ident, level, stash_floor=floor
-        )
+        filled = apply_level(stations, stored, ident, level, stash_floor=floor)
     except ValueError as exc:
         raise TarkovHideoutLevelsError(str(exc)) from exc
     return _persist(db, user, stations, filled, game_mode=game_mode)

@@ -29,9 +29,7 @@ export function communityTagLabel(tag: string): string {
   return COMMUNITY_TAG_LABELS[tag] || tag;
 }
 
-export function communityTagsInList(
-  builds: TarkovWorkbenchCommunityBuild[] | undefined,
-): string[] {
+export function communityTagsInList(builds: TarkovWorkbenchCommunityBuild[] | undefined): string[] {
   const seen = new Set<string>();
   for (const row of builds || []) {
     for (const tag of row.tags || []) {

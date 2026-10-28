@@ -1,4 +1,5 @@
 """Shared helpers for profile / users / oauth routes."""
+
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
@@ -30,11 +31,7 @@ class BindError(HTTPException):
 def _frontend_from_state(state_data: dict | None, request: Request) -> str:
     """回调时按本次请求重算白名单：state 里记的地址不在其中就退回默认，绝不跳去发起方自报的站点。"""
     stored = str((state_data or {}).get("frontend") or "")
-    return (
-        allowed_frontend_base(stored, request)
-        or resolve_frontend_base(request)
-        or resolve_backend_base(request)
-    )
+    return allowed_frontend_base(stored, request) or resolve_frontend_base(request) or resolve_backend_base(request)
 
 
 def _set_qq_profile(
@@ -55,11 +52,7 @@ def _set_qq_profile(
         member.qq_avatar_url = None
         return None
 
-    conflict = (
-        db.query(Member)
-        .filter(Member.qq_openid == value, Member.id != member.id)
-        .first()
-    )
+    conflict = db.query(Member).filter(Member.qq_openid == value, Member.id != member.id).first()
     if conflict:
         raise BindError(400, "该 QQ 已绑定其他账号", reason="already_bound")
 
@@ -74,9 +67,7 @@ def _can_view_private_profile(member: Member, viewer: User | None) -> bool:
     """viewer 为 None 表示路由已按本人 / 管理员鉴权过。"""
     if viewer is None:
         return True
-    return _is_admin_user(viewer) or (
-        member.user_id is not None and member.user_id == viewer.id
-    )
+    return _is_admin_user(viewer) or (member.user_id is not None and member.user_id == viewer.id)
 
 
 def _profile_from_member(
@@ -90,11 +81,7 @@ def _profile_from_member(
     登录名、邮箱、QQ 资料、SteamID、手机号掩码、自动签到开关都不给旁人。
     """
     user = member.user
-    persona = (
-        steam_persona_name
-        if steam_persona_name is not None
-        else member.steam_persona_name
-    )
+    persona = steam_persona_name if steam_persona_name is not None else member.steam_persona_name
     skland = getattr(member, "skland_bind", None)
     taygedo = getattr(member, "taygedo_bind", None)
     exilium = getattr(member, "exilium_bind", None)
@@ -209,11 +196,7 @@ def _set_steam_id(db: Session, member: Member, steam_id: str | None) -> str | No
             reason="steam_private",
         )
 
-    taken = (
-        db.query(Member)
-        .filter(Member.steam_id == profile.steam_id, Member.id != member.id)
-        .first()
-    )
+    taken = db.query(Member).filter(Member.steam_id == profile.steam_id, Member.id != member.id).first()
     if taken:
         raise BindError(400, "该 Steam 账号已被其他成员绑定", reason="already_bound")
 
@@ -251,4 +234,3 @@ def _apply_profile_fields(
     if "steam_id" in data:
         steam_persona = _set_steam_id(db, member, data["steam_id"])
     return steam_persona
-

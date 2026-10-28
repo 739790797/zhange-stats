@@ -19,9 +19,7 @@ export function TaygedoAttendanceCalendarButton({
     <AttendanceCalendarButton
       queryKey={["taygedo-attendance-calendar", gameCode, roleUid]}
       enabled={Boolean(gameCode) && Boolean(roleUid)}
-      fetchCalendar={(force) =>
-        fetchTaygedoAttendanceCalendar(gameCode, roleUid, force)
-      }
+      fetchCalendar={(force) => fetchTaygedoAttendanceCalendar(gameCode, roleUid, force)}
       modalTitle={`签到日历${titleGame} · ${titleName}`}
       dayOrdinalHint="第 N 天 = 本月第 N 次签到，不是公历日期。"
     />

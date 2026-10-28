@@ -45,17 +45,11 @@ _LEGACY_EMPTY = (
 def drop_legacy_empty_categories(db: Session) -> None:
     """清掉开发种子留下的空分类（资讯 / 分享），有文章的不动。"""
     for slug, name in _LEGACY_EMPTY:
-        row = (
-            db.query(ArticleCategory)
-            .filter(ArticleCategory.slug == slug, ArticleCategory.name == name)
-            .first()
-        )
+        row = db.query(ArticleCategory).filter(ArticleCategory.slug == slug, ArticleCategory.name == name).first()
         if row is None:
             continue
         linked = (
-            db.query(article_category_links.c.article_id)
-            .filter(article_category_links.c.category_id == row.id)
-            .first()
+            db.query(article_category_links.c.article_id).filter(article_category_links.c.category_id == row.id).first()
         )
         if linked is not None:
             continue

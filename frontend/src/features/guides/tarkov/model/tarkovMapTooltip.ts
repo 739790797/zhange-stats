@@ -39,23 +39,16 @@ export function pickTooltipVerticalSide(input: {
   return above >= below ? "top" : "bottom";
 }
 
-export function tooltipOffsetForSide(
-  side: TarkovMapTooltipSide,
-  pad: number,
-): [number, number] {
+export function tooltipOffsetForSide(side: TarkovMapTooltipSide, pad: number): [number, number] {
   const y = Math.abs(pad) || 12;
   return side === "top" ? [0, -y] : [0, y];
 }
 
-export function oppositeTooltipSide(
-  side: TarkovMapTooltipSide,
-): TarkovMapTooltipSide {
+export function oppositeTooltipSide(side: TarkovMapTooltipSide): TarkovMapTooltipSide {
   return side === "top" ? "bottom" : "top";
 }
 
-export function tooltipSideFromClassName(
-  className: string,
-): TarkovMapTooltipSide | null {
+export function tooltipSideFromClassName(className: string): TarkovMapTooltipSide | null {
   if (/\bleaflet-tooltip-bottom\b/.test(className)) return "bottom";
   if (/\bleaflet-tooltip-top\b/.test(className)) return "top";
   return null;
@@ -79,10 +72,7 @@ export function lootDetailCardOverflowFlip(
   };
 }
 
-export function tooltipBoxesOverlap(
-  a: TarkovMapTooltipBox,
-  b: TarkovMapTooltipBox,
-): boolean {
+export function tooltipBoxesOverlap(a: TarkovMapTooltipBox, b: TarkovMapTooltipBox): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
@@ -100,9 +90,7 @@ export function spawnTooltipSideAfterLayout(input: {
   mapHeight: number;
   tooltipHeight: number;
 }): TarkovMapTooltipSide {
-  const quest = input.others.find(
-    (row) => row.isQuest && tooltipBoxesOverlap(input.self, row.box),
-  );
+  const quest = input.others.find((row) => row.isQuest && tooltipBoxesOverlap(input.self, row.box));
   if (!quest) return input.current;
   return pickTooltipVerticalSide({
     pointY: input.pointY,

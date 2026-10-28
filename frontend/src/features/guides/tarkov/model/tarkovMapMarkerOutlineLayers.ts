@@ -46,15 +46,10 @@ export function bindMarkerOutlineHover(
   );
 }
 
-export function setMarkerOutlineVisible(
-  polygon: L.Polygon | undefined,
-  on: boolean,
-) {
+export function setMarkerOutlineVisible(polygon: L.Polygon | undefined, on: boolean) {
   if (!polygon) return;
   const color = String(polygon.options.color || "#f4e6b3");
   polygon.setStyle(
-    on
-      ? markerOutlineShown(color)
-      : { ...MARKER_OUTLINE_HIDDEN, color, fillColor: color },
+    on ? markerOutlineShown(color) : { ...MARKER_OUTLINE_HIDDEN, color, fillColor: color },
   );
 }

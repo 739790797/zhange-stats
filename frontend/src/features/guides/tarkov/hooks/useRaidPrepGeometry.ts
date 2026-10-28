@@ -37,10 +37,7 @@ export function useRaidPrepGeometry(mapId: string, ids: readonly string[]) {
     staleTime: Infinity,
   });
   const cached = cacheQuery.data ?? EMPTY_GEOMETRY;
-  const missing = useMemo(
-    () => missingRaidPrepGeometryIds(cached, uniqueIds),
-    [cached, uniqueIds],
-  );
+  const missing = useMemo(() => missingRaidPrepGeometryIds(cached, uniqueIds), [cached, uniqueIds]);
   const fetchQuery = useQuery({
     queryKey: [...cacheKey, "fetch", missing.join(",")],
     queryFn: async () => {
@@ -49,10 +46,8 @@ export function useRaidPrepGeometry(mapId: string, ids: readonly string[]) {
         geometry: true,
         ids: missing,
       });
-      queryClient.setQueryData(
-        cacheKey,
-        (prev: Record<string, TarkovRaidPrepTask> | undefined) =>
-          mergeRaidPrepGeometryItems(prev, data.items),
+      queryClient.setQueryData(cacheKey, (prev: Record<string, TarkovRaidPrepTask> | undefined) =>
+        mergeRaidPrepGeometryItems(prev, data.items),
       );
       return data.items.length;
     },
@@ -69,9 +64,7 @@ export function useRaidPrepGeometry(mapId: string, ids: readonly string[]) {
     async (id: string) => {
       const taskId = (id || "").trim();
       if (!taskId || !mapId) return undefined;
-      const have = queryClient.getQueryData<Record<string, TarkovRaidPrepTask>>(
-        cacheKey,
-      );
+      const have = queryClient.getQueryData<Record<string, TarkovRaidPrepTask>>(cacheKey);
       if (have?.[taskId]) return have[taskId];
       const extra = await fetchTarkovRaidPrep({
         map: mapId,
@@ -80,10 +73,8 @@ export function useRaidPrepGeometry(mapId: string, ids: readonly string[]) {
       });
       const rich = extra.items.find((item) => item.id === taskId);
       if (!rich) return undefined;
-      queryClient.setQueryData(
-        cacheKey,
-        (prev: Record<string, TarkovRaidPrepTask> | undefined) =>
-          mergeRaidPrepGeometryItems(prev, [rich]),
+      queryClient.setQueryData(cacheKey, (prev: Record<string, TarkovRaidPrepTask> | undefined) =>
+        mergeRaidPrepGeometryItems(prev, [rich]),
       );
       return rich;
     },

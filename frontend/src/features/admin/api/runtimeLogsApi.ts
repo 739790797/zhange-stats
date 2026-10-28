@@ -31,8 +31,6 @@ export async function fetchRuntimeLogs(params: FetchRuntimeLogsParams = {}) {
 }
 
 export async function clearRuntimeLogs() {
-  const { data } = await client.post<RuntimeLogsClearResult>(
-    "/settings/runtime-logs/clear",
-  );
+  const { data } = await client.post<RuntimeLogsClearResult>("/settings/runtime-logs/clear");
   return data;
 }

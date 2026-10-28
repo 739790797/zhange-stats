@@ -178,10 +178,7 @@ def list_cleared(
         .order_by(TarkovUserTaskCleared.task_id.asc())
         .all()
     )
-    return [
-        {"task_id": str(row.task_id), "cleared_at": format_clock(row.cleared_at) or ""}
-        for row in rows
-    ]
+    return [{"task_id": str(row.task_id), "cleared_at": format_clock(row.cleared_at) or ""} for row in rows]
 
 
 def _mark_cleared(
@@ -320,9 +317,7 @@ def clear_progress(
     _wipe_ledger(db, user.id, mode)
     _drop_cleared(db, user.id, mode)
     pending = row.pending_clear_at
-    row.pending_clear_at = (
-        stamp if pending is None or to_naive(pending) < stamp else to_naive(pending)
-    )
+    row.pending_clear_at = stamp if pending is None or to_naive(pending) < stamp else to_naive(pending)
     row.epoch = int(row.epoch or 0) + 1
     row.updated_at = stamp
     db.flush()
@@ -513,11 +508,7 @@ def list_progress(
 ) -> tuple[list[str], list[str], list[str]]:
     done = list_task_ids(db, user_id, game_mode=game_mode)
     done_set = set(done)
-    failed = [
-        ident
-        for ident in list_failed_ids(db, user_id, game_mode=game_mode)
-        if ident not in done_set
-    ]
+    failed = [ident for ident in list_failed_ids(db, user_id, game_mode=game_mode) if ident not in done_set]
     failed_set = set(failed)
     started = [
         ident
@@ -567,10 +558,7 @@ def list_objective_dones(
         )
         .all()
     )
-    return [
-        {"task_id": str(row.task_id), "objective_id": str(row.objective_id)}
-        for row in rows
-    ]
+    return [{"task_id": str(row.task_id), "objective_id": str(row.objective_id)} for row in rows]
 
 
 def account_progress(
@@ -674,9 +662,7 @@ def add_done(
     _drop_failed(db, user.id, mode, {ident})
     _release_cleared(db, user.id, mode, {ident})
     db.flush()
-    fill_objectives_for_done_tasks(
-        db, user, [ident], game_mode=mode, now=now or now_naive()
-    )
+    fill_objectives_for_done_tasks(db, user, [ident], game_mode=mode, now=now or now_naive())
     return list_task_ids(db, user.id, game_mode=mode), added
 
 
@@ -703,12 +689,8 @@ def remove_done(
         )
         .one_or_none()
     )
-    started_rows = [
-        item for item in _started_rows(db, user.id, mode) if str(item.task_id) == ident
-    ]
-    failed_rows = [
-        item for item in _failed_rows(db, user.id, mode) if str(item.task_id) == ident
-    ]
+    started_rows = [item for item in _started_rows(db, user.id, mode) if str(item.task_id) == ident]
+    failed_rows = [item for item in _failed_rows(db, user.id, mode) if str(item.task_id) == ident]
     removed = False
     if row is not None:
         db.delete(row)
@@ -773,9 +755,7 @@ def merge_dones(
     _drop_failed(db, user.id, mode, have)
     _release_cleared(db, user.id, mode, set(added))
     db.flush()
-    fill_objectives_for_done_tasks(
-        db, user, added, game_mode=mode, now=stamp
-    )
+    fill_objectives_for_done_tasks(db, user, added, game_mode=mode, now=stamp)
     return list_task_ids(db, user.id, game_mode=mode)
 
 
@@ -826,9 +806,7 @@ def replace_dones(
         _mark_cleared(db, user.id, mode, removed, stamp)
     _release_cleared(db, user.id, mode, set(added))
     db.flush()
-    fill_objectives_for_done_tasks(
-        db, user, added, game_mode=mode, now=stamp
-    )
+    fill_objectives_for_done_tasks(db, user, added, game_mode=mode, now=stamp)
     return list_task_ids(db, user.id, game_mode=mode)
 
 
@@ -979,9 +957,7 @@ def _incoming_objective_pairs(items: list[Any] | None) -> list[tuple[str, str]]:
             continue
         try:
             task_id = normalize_task_id(str(task_raw) if task_raw is not None else "")
-            objective_id = normalize_task_id(
-                str(obj_raw) if obj_raw is not None else ""
-            )
+            objective_id = normalize_task_id(str(obj_raw) if obj_raw is not None else "")
         except TarkovTaskDonesError:
             continue
         key = (task_id, objective_id)
@@ -1024,10 +1000,7 @@ def merge_objective_dones(
     mode = _mode(game_mode)
     stamp = now or now_naive()
     incoming = _incoming_objective_pairs(items)
-    have = {
-        (row["task_id"], row["objective_id"])
-        for row in list_objective_dones(db, user.id, game_mode=mode)
-    }
+    have = {(row["task_id"], row["objective_id"]) for row in list_objective_dones(db, user.id, game_mode=mode)}
     for task_id, objective_id in incoming:
         if (task_id, objective_id) in have:
             continue
@@ -1148,16 +1121,10 @@ def fill_objectives_for_done_tasks(
     if not wanted:
         return list_objective_dones(db, user.id, game_mode=game_mode)
     catalog = catalog_objective_ids(db, wanted)
-    pairs = [
-        {"task_id": task_id, "objective_id": oid}
-        for task_id, oids in catalog.items()
-        for oid in oids
-    ]
+    pairs = [{"task_id": task_id, "objective_id": oid} for task_id, oids in catalog.items() for oid in oids]
     if not pairs:
         return list_objective_dones(db, user.id, game_mode=game_mode)
-    return merge_objective_dones(
-        db, user, pairs, game_mode=game_mode, now=now
-    )
+    return merge_objective_dones(db, user, pairs, game_mode=game_mode, now=now)
 
 
 def write_progress(
@@ -1174,17 +1141,13 @@ def write_progress(
     mark_cleared: bool = True,
 ) -> tuple[list[str], list[str], list[str]]:
     if replace:
-        replace_dones(
-            db, user, task_ids, game_mode=game_mode, now=now, mark_cleared=mark_cleared
-        )
+        replace_dones(db, user, task_ids, game_mode=game_mode, now=now, mark_cleared=mark_cleared)
         if started_ids is not None:
             replace_starteds(db, user, started_ids, game_mode=game_mode, now=now)
         if failed_ids is not None:
             replace_faileds(db, user, failed_ids, game_mode=game_mode, now=now)
         if objective_dones is not None:
-            replace_objective_dones(
-                db, user, objective_dones, game_mode=game_mode, now=now
-            )
+            replace_objective_dones(db, user, objective_dones, game_mode=game_mode, now=now)
             # 转生重置会交空列表清掉旧步骤；已完成任务仍按目录补齐，和标完成一致。
             if not _incoming_objective_pairs(objective_dones):
                 fill_objectives_for_done_tasks(
@@ -1201,7 +1164,5 @@ def write_progress(
         if failed_ids is not None:
             merge_faileds(db, user, failed_ids, game_mode=game_mode, now=now)
         if objective_dones is not None:
-            merge_objective_dones(
-                db, user, objective_dones, game_mode=game_mode, now=now
-            )
+            merge_objective_dones(db, user, objective_dones, game_mode=game_mode, now=now)
     return list_progress(db, user.id, game_mode=game_mode)

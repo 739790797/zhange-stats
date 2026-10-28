@@ -2,11 +2,7 @@
 
 import { handbookCategoryIconUrl, inventoryThumbUrl } from "./tarkovItemImages";
 import { TARKOV_HANDBOOK_ROOTS } from "./tarkovItemTypes";
-import {
-  tarkovLooseLootIconUrl,
-  uniqueKinds,
-  type TarkovMapKindFlags,
-} from "./tarkovMapMarkers";
+import { tarkovLooseLootIconUrl, uniqueKinds, type TarkovMapKindFlags } from "./tarkovMapMarkers";
 
 export const LOOT_LOOSE_OTHER_KIND = "5b47574386f77428ca22b2f4";
 
@@ -98,9 +94,7 @@ export function lootLooseKindLabel(kind: string): string {
 }
 
 export function lootLooseKindFromItem(item: TarkovMapLootLooseItemLike): string {
-  const ids = (item.handbook_ids || [])
-    .map((raw) => String(raw || "").trim())
-    .filter(Boolean);
+  const ids = (item.handbook_ids || []).map((raw) => String(raw || "").trim()).filter(Boolean);
   for (const id of ids) {
     if (HANDBOOK_CHILD_IDS.has(id)) return id;
   }
@@ -119,19 +113,14 @@ export function lootLooseKindsOfRow(row: TarkovMapLootLooseLike): string[] {
   return [...seen];
 }
 
-export function lootLooseKindsPresent(
-  rows: ReadonlyArray<TarkovMapLootLooseLike>,
-): string[] {
+export function lootLooseKindsPresent(rows: ReadonlyArray<TarkovMapLootLooseLike>): string[] {
   return uniqueKinds(
     rows.flatMap((row) => lootLooseKindsOfRow(row)),
     LOOT_LOOSE_KIND_ORDER,
   );
 }
 
-export function isLootLooseKindOn(
-  flags: TarkovMapKindFlags,
-  kind: string,
-): boolean {
+export function isLootLooseKindOn(flags: TarkovMapKindFlags, kind: string): boolean {
   return flags[kind] === true;
 }
 
@@ -165,9 +154,7 @@ function lootLooseItemIconSrc(item: TarkovMapLootLooseItemLike): string {
   return inventoryThumbUrl(item.icon_link, item.id) || tarkovLooseLootIconUrl();
 }
 
-function lootLooseItemTypesAttr(
-  types: readonly string[] | null | undefined,
-): string {
+function lootLooseItemTypesAttr(types: readonly string[] | null | undefined): string {
   return (types || [])
     .map((type) => String(type || "").trim())
     .filter(Boolean)
@@ -215,8 +202,6 @@ export function tarkovLootLooseTooltipHtml(
   items: ReadonlyArray<TarkovMapLootLooseItemLike>,
   classes: TarkovLootLooseTooltipClasses,
 ): string {
-  const chips = (items.length ? items : [{}]).map((item) =>
-    lootLooseItemChipHtml(item, classes),
-  );
+  const chips = (items.length ? items : [{}]).map((item) => lootLooseItemChipHtml(item, classes));
   return `<span class="${classes.tip}">${chips.join("")}</span>`;
 }

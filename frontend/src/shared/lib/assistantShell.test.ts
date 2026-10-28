@@ -101,9 +101,6 @@ describe("isAssistantEmbed / isAssistantBodyPane storage", () => {
       expect(shell.isAssistantEmbed()).toBe(true);
       expect(shell.isAssistantBodyPane()).toBe(true);
     }
-    expect(writes).toEqual([
-      ASSISTANT_EMBED_STORAGE_KEY,
-      ASSISTANT_PANE_STORAGE_KEY,
-    ]);
+    expect(writes).toEqual([ASSISTANT_EMBED_STORAGE_KEY, ASSISTANT_PANE_STORAGE_KEY]);
   });
 });

@@ -64,8 +64,7 @@ def test_parse_paper_same_line_tps():
 
 def test_parse_tick_query_ignores_target_rate():
     raw = (
-        "The game is running normally with a target rate of 20.0000 ticks per second.\n"
-        "Average time per tick: 12.5ms\n"
+        "The game is running normally with a target rate of 20.0000 ticks per second.\nAverage time per tick: 12.5ms\n"
     )
     parsed = parse_perf_text(raw)
     assert parsed["mspt"] == 12.5
@@ -149,9 +148,7 @@ class FakeRcon:
                     return
                 if ptype == TYPE_AUTH:
                     ok = body == self.password
-                    conn.sendall(
-                        pack_packet(req_id if ok else -1, TYPE_EXEC, "")
-                    )
+                    conn.sendall(pack_packet(req_id if ok else -1, TYPE_EXEC, ""))
                     continue
                 if ptype != TYPE_EXEC:
                     continue

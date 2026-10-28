@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useNavigate } from "react-router-dom";
-import { tarkovRaidRoomWsUrl, type TarkovRaidRoomDetail } from "@/features/guides/tarkov/api/guidesApi";
+import {
+  tarkovRaidRoomWsUrl,
+  type TarkovRaidRoomDetail,
+} from "@/features/guides/tarkov/api/guidesApi";
 import { isAssistantEmbed } from "@/shared/lib/assistantShell";
-import { TARKOV_HOME_PATH, TARKOV_RAID_PREP_PATH } from "@/features/guides/tarkov/model/tarkovHomeNav";
+import {
+  TARKOV_HOME_PATH,
+  TARKOV_RAID_PREP_PATH,
+} from "@/features/guides/tarkov/model/tarkovHomeNav";
 import {
   applyRoomWsEvent,
   colorForUserId,
@@ -40,9 +46,7 @@ type RaidRoomSocketPayload = RaidRoomWsEvent<TarkovRaidRoomDetail> & {
 };
 
 type RoomSetter = (
-  update: (
-    current: TarkovRaidRoomDetail | null,
-  ) => TarkovRaidRoomDetail | null,
+  update: (current: TarkovRaidRoomDetail | null) => TarkovRaidRoomDetail | null,
 ) => void;
 
 type UseRaidRoomSessionOptions = {
@@ -59,7 +63,6 @@ type UseRaidRoomSessionOptions = {
   /** 房主清板 / 换图后要丢掉本机还没提交的记号。 */
   clearPendingMarks: () => void;
 };
-
 
 /**
  * 房间 WebSocket 会话：鉴权、心跳、退避重连，以及各事件到本机状态的分发。
@@ -210,10 +213,7 @@ export function useRaidRoomSession({
         const cleared = String(payload.map_slug || "");
         if (cleared) {
           useRaidRoomLiveStore.getState().dropDraftsOnMap(cleared);
-          if (
-            mapIdRef.current &&
-            raidPrepMapsEquivalent(cleared, mapIdRef.current)
-          ) {
+          if (mapIdRef.current && raidPrepMapsEquivalent(cleared, mapIdRef.current)) {
             clearPendingMarksRef.current();
           }
         } else {
@@ -243,10 +243,7 @@ export function useRaidRoomSession({
       }
     }, RAID_ROOM_WS_PING_MS);
     const onVisible = () => {
-      if (
-        document.visibilityState === "visible" &&
-        wsRef.current?.readyState === WebSocket.OPEN
-      ) {
+      if (document.visibilityState === "visible" && wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ event: "ping" }));
       }
     };
@@ -266,13 +263,7 @@ export function useRaidRoomSession({
   /** 本机相位广播：同一相位（kind + 局号 + 时间戳 + 连接代次）只发一次。 */
   const sendLogPhase = (phase: RaidRoomLogPhaseInput) => {
     const ws = wsRef.current;
-    if (
-      !isMember ||
-      !phase ||
-      !wsLive ||
-      !ws ||
-      ws.readyState !== WebSocket.OPEN
-    ) {
+    if (!isMember || !phase || !wsLive || !ws || ws.readyState !== WebSocket.OPEN) {
       return;
     }
     const sig = raidRoomLogPhaseSig(phase, wsGen);

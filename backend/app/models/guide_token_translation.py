@@ -45,6 +45,4 @@ class GuideTokenTranslationSync(Base):
     source_manifest_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     snapshot_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     unit_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=now_naive
-    )
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now_naive)

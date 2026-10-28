@@ -7,8 +7,7 @@ export type RuntimeEnvUpdate = components["schemas"]["RuntimeEnvUpdate"];
 
 export type RuntimeConnTestResponse = components["schemas"]["RuntimeConnTestOut"];
 
-export type RuntimeDatabaseTestRequest =
-  components["schemas"]["RuntimeDatabaseTestIn"];
+export type RuntimeDatabaseTestRequest = components["schemas"]["RuntimeDatabaseTestIn"];
 
 export type RuntimeRedisTestRequest = components["schemas"]["RuntimeRedisTestIn"];
 

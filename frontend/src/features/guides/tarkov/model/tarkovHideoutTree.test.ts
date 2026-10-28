@@ -47,9 +47,7 @@ function catalog(): HideoutStationSpec[] {
       id: "solar",
       slug: "solar-power",
       name: "太阳能",
-      levels: [
-        { level: 1, station_requirements: [{ station_id: "gen", level: 2 }] },
-      ],
+      levels: [{ level: 1, station_requirements: [{ station_id: "gen", level: 2 }] }],
     },
   ];
 }
@@ -64,15 +62,9 @@ describe("tarkovHideoutTree", () => {
   });
 
   it("marks built / ready / locked from current level", () => {
-    expect(hideoutTreeNodeKind({ current: 2, level: 1, ready: false })).toBe(
-      "built",
-    );
-    expect(hideoutTreeNodeKind({ current: 1, level: 2, ready: true })).toBe(
-      "ready",
-    );
-    expect(hideoutTreeNodeKind({ current: 0, level: 2, ready: false })).toBe(
-      "locked",
-    );
+    expect(hideoutTreeNodeKind({ current: 2, level: 1, ready: false })).toBe("built");
+    expect(hideoutTreeNodeKind({ current: 1, level: 2, ready: true })).toBe("ready");
+    expect(hideoutTreeNodeKind({ current: 0, level: 2, ready: false })).toBe("locked");
   });
 
   it("layers nodes by longest station-requirement path", () => {
@@ -83,9 +75,7 @@ describe("tarkovHideoutTree", () => {
     expect(byKey.get("gen:1")?.layer).toBe(1);
     expect(byKey.get("gen:2")?.layer).toBe(2);
     expect(byKey.get("solar:1")?.layer).toBe(3);
-    expect(byKey.get("gen:1")?.traders.map((row) => row.slug)).toEqual([
-      "mechanic",
-    ]);
+    expect(byKey.get("gen:1")?.traders.map((row) => row.slug)).toEqual(["mechanic"]);
   });
 
   it("keeps same-station edges and cross-station edges without duplicates", () => {
@@ -107,11 +97,7 @@ describe("tarkovHideoutTree", () => {
     const gen = layout.nodes.find((node) => node.stationSlug === "generator");
     const solar = layout.nodes.find((node) => node.stationSlug === "solar-power");
     expect(gen?.col).toBe(solar?.col);
-    expect(layout.legend.map((row) => row.slug)).toEqual([
-      "security",
-      "generator",
-      "solar-power",
-    ]);
+    expect(layout.legend.map((row) => row.slug)).toEqual(["security", "generator", "solar-power"]);
   });
 
   it("skips missing station ids and empty catalogs", () => {
@@ -122,9 +108,7 @@ describe("tarkovHideoutTree", () => {
         id: "bench",
         slug: "workbench",
         name: "工作台",
-        levels: [
-          { level: 1, station_requirements: [{ station_id: "missing", level: 3 }] },
-        ],
+        levels: [{ level: 1, station_requirements: [{ station_id: "missing", level: 3 }] }],
       },
     ]);
     expect(layout.nodes).toHaveLength(1);
@@ -134,16 +118,10 @@ describe("tarkovHideoutTree", () => {
   });
 
   it("routes same-column edges vertically and others onto a shared bus", () => {
-    const vertical = hideoutTreeEdgePath(
-      { x: 10, y: 10, col: 1 },
-      { x: 10, y: 80, col: 1 },
-    );
+    const vertical = hideoutTreeEdgePath({ x: 10, y: 10, col: 1 }, { x: 10, y: 80, col: 1 });
     expect(vertical).toBe("M 74 64 L 74 80");
     const midY = 0 + HIDEOUT_TREE_NODE_H + Math.round(HIDEOUT_TREE_ROW_GAP / 2);
-    const bent = hideoutTreeEdgePath(
-      { x: 0, y: 0, col: 0 },
-      { x: 200, y: 100, col: 2 },
-    );
+    const bent = hideoutTreeEdgePath({ x: 0, y: 0, col: 0 }, { x: 200, y: 100, col: 2 });
     expect(bent).toBe(`M 64 54 L 64 ${midY} L 264 ${midY} L 264 100`);
   });
 
@@ -162,23 +140,17 @@ describe("tarkovHideoutTree", () => {
         id: "left",
         slug: "generator",
         name: "发电机",
-        levels: [
-          { level: 1, station_requirements: [{ station_id: "hub", level: 1 }] },
-        ],
+        levels: [{ level: 1, station_requirements: [{ station_id: "hub", level: 1 }] }],
       },
       {
         id: "right",
         slug: "workbench",
         name: "工作台",
-        levels: [
-          { level: 1, station_requirements: [{ station_id: "hub", level: 1 }] },
-        ],
+        levels: [{ level: 1, station_requirements: [{ station_id: "hub", level: 1 }] }],
       },
     ]);
     const bus = layout.wires.find(
-      (wire) =>
-        wire.edgeKeys.includes("hub:1>left:1") &&
-        wire.edgeKeys.includes("hub:1>right:1"),
+      (wire) => wire.edgeKeys.includes("hub:1>left:1") && wire.edgeKeys.includes("hub:1>right:1"),
     );
     expect(bus?.path).toMatch(/^M \d+ \d+ L \d+ \d+$/);
     const [fromX, busY, toX] = (bus?.path.match(/\d+/g) || []).map(Number);

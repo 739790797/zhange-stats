@@ -59,9 +59,7 @@ def test_failed_write_keeps_previous_file(tmp_path: Path, monkeypatch: pytest.Mo
     assert [p.name for p in dest.parent.iterdir()] == [".secret_key"]
 
 
-def test_generate_does_not_clobber_concurrent_writer(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_generate_does_not_clobber_concurrent_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = _install(tmp_path)
     dest = (install / "data" / "runtime" / ".secret_key").resolve()
     real_read = secret._read_secret_file
@@ -91,9 +89,7 @@ def test_empty_secret_file_is_regenerated(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not hasattr(os, "link"), reason="no hard links")
-def test_exclusive_falls_back_when_hard_links_unsupported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_exclusive_falls_back_when_hard_links_unsupported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def no_link(_src: object, _dst: object) -> None:
         raise PermissionError("hard links unsupported")
 
@@ -114,9 +110,7 @@ def _settings_env(monkeypatch: pytest.MonkeyPatch, install: Path) -> None:
     get_settings.cache_clear()
 
 
-def test_settings_create_secret_key_on_first_read_only(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_settings_create_secret_key_on_first_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = _install(tmp_path)
     _settings_env(monkeypatch, install)
     dest = install / "data" / "runtime" / ".secret_key"
@@ -141,9 +135,7 @@ def test_settings_create_secret_key_on_first_read_only(
     assert settings.SECRET_KEY == "assigned-in-test"
 
 
-def test_settings_env_secret_key_never_touches_disk(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_settings_env_secret_key_never_touches_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install = _install(tmp_path)
     _settings_env(monkeypatch, install)
     monkeypatch.setenv("SECRET_KEY", "env-secret-key-0123456789abcdef")
@@ -155,9 +147,7 @@ def test_settings_env_secret_key_never_touches_disk(
     assert not (install / "data").exists()
 
 
-def test_lifespan_resolves_secret_key_before_serving(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_lifespan_resolves_secret_key_before_serving(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core import config as config_mod
     from app.main import app, lifespan
 

@@ -1,10 +1,16 @@
 /** 个人中心任务勾选：按商人分组；完成/进行中本机缓存 + 账号进度账。 */
 
 import type { TarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
-import { notifyTarkovTaskProgress, sameIdLists } from "@/features/guides/tarkov/model/tarkovLiveWatch";
+import {
+  notifyTarkovTaskProgress,
+  sameIdLists,
+} from "@/features/guides/tarkov/model/tarkovLiveWatch";
 import { TARKOV_MAPS } from "@/features/guides/tarkov/model/tarkovHomeNav";
 import { compareBeijingClock, laterBeijingClock, nowBeijingStamp } from "@/shared/lib/time";
-import { applyMutexLedger, mutexIndexFromTasks } from "@/features/guides/tarkov/model/tarkovTaskMutex";
+import {
+  applyMutexLedger,
+  mutexIndexFromTasks,
+} from "@/features/guides/tarkov/model/tarkovTaskMutex";
 import {
   setTaskLineStatus,
   taskLineIndexFromTasks,
@@ -149,9 +155,7 @@ function asProfileId(value: unknown): string {
 function asStampMap(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const out: Record<string, string> = {};
-  for (const [rawId, rawAt] of Object.entries(
-    value as Record<string, unknown>,
-  )) {
+  for (const [rawId, rawAt] of Object.entries(value as Record<string, unknown>)) {
     const ident = rawId.trim().toLowerCase();
     const at = typeof rawAt === "string" ? rawAt.trim() : "";
     if (!ident || !at) continue;
@@ -208,9 +212,7 @@ export function sameObjectiveLists(
 ): boolean {
   if (left.length !== right.length) return false;
   const keys = (rows: readonly TaskObjectivePair[]) =>
-    [...rows]
-      .map((row) => `${row.task_id}\0${row.objective_id}`)
-      .sort();
+    [...rows].map((row) => `${row.task_id}\0${row.objective_id}`).sort();
   const a = keys(left);
   const b = keys(right);
   return a.every((key, index) => key === b[index]);
@@ -256,9 +258,7 @@ function asClock(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asClockMap(
-  value: unknown,
-): { pvp?: string; pve?: string } | undefined {
+function asClockMap(value: unknown): { pvp?: string; pve?: string } | undefined {
   if (!value || typeof value !== "object") return undefined;
   const row = value as { pvp?: unknown; pve?: unknown };
   const pvp = asClock(row.pvp);
@@ -271,14 +271,10 @@ function asClockMap(
 }
 
 function asEpoch(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
-    ? value
-    : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
-function asEpochMap(
-  value: unknown,
-): { pvp?: number; pve?: number } | undefined {
+function asEpochMap(value: unknown): { pvp?: number; pve?: number } | undefined {
   if (!value || typeof value !== "object") return undefined;
   const row = value as { pvp?: unknown; pve?: unknown };
   const pvp = asEpoch(row.pvp);
@@ -306,9 +302,7 @@ export function taskMatchesQuery(task: TaskListItem, q: string): boolean {
   return hay.includes(needle) || hay.replace(/ /g, "").includes(needle.replace(/ /g, ""));
 }
 
-export function resolveTaskMapId(
-  task: Pick<TaskListItem, "map_slug" | "map_name">,
-): string {
+export function resolveTaskMapId(task: Pick<TaskListItem, "map_slug" | "map_name">): string {
   const slug = (task.map_slug || "").trim();
   const name = (task.map_name || "").trim();
   if (!slug && !name) return "";
@@ -317,10 +311,7 @@ export function resolveTaskMapId(
   if (name) {
     const needle = name.toLowerCase();
     const option = raidPrepMapOptions().find(
-      (row) =>
-        row.label === name ||
-        row.english.toLowerCase() === needle ||
-        row.id === needle,
+      (row) => row.label === name || row.english.toLowerCase() === needle || row.id === needle,
     );
     if (option) return option.id;
     const home = TARKOV_MAPS.find(
@@ -417,7 +408,9 @@ export function collectClosedTaskIds(
 ): Set<string> {
   const byId = new Map<string, TaskListItem>();
   for (const item of items) {
-    const id = String(item.id || "").trim().toLowerCase();
+    const id = String(item.id || "")
+      .trim()
+      .toLowerCase();
     if (id) byId.set(id, item);
   }
   const closed = new Set<string>();
@@ -433,7 +426,9 @@ export function collectClosedTaskIds(
         continue;
       }
       for (const raw of item.prereq_ids || []) {
-        const pid = String(raw || "").trim().toLowerCase();
+        const pid = String(raw || "")
+          .trim()
+          .toLowerCase();
         if (pid && closed.has(pid)) {
           closed.add(id);
           grew = true;
@@ -443,7 +438,9 @@ export function collectClosedTaskIds(
       if (closed.has(id)) continue;
       let failLocked = false;
       for (const raw of item.fail_prereq_ids || []) {
-        const pid = String(raw || "").trim().toLowerCase();
+        const pid = String(raw || "")
+          .trim()
+          .toLowerCase();
         if (!pid) continue;
         if (done.has(pid) || (closed.has(pid) && !failed.has(pid))) {
           failLocked = true;
@@ -456,7 +453,9 @@ export function collectClosedTaskIds(
         continue;
       }
       for (const raw of item.fail_or_complete_ids || []) {
-        const pid = String(raw || "").trim().toLowerCase();
+        const pid = String(raw || "")
+          .trim()
+          .toLowerCase();
         if (!pid || done.has(pid) || failed.has(pid)) continue;
         if (closed.has(pid)) {
           closed.add(id);
@@ -499,21 +498,10 @@ export function summarizeTaskProgress(
   };
 }
 
-export const TASK_WRITABLE_STATUS_KINDS = [
-  "todo",
-  "active",
-  "done",
-  "failed",
-] as const;
+export const TASK_WRITABLE_STATUS_KINDS = ["todo", "active", "done", "failed"] as const;
 export type TaskWritableStatus = (typeof TASK_WRITABLE_STATUS_KINDS)[number];
 
-export const TASK_STATUS_KINDS = [
-  "todo",
-  "active",
-  "done",
-  "failed",
-  "unreachable",
-] as const;
+export const TASK_STATUS_KINDS = ["todo", "active", "done", "failed", "unreachable"] as const;
 export type TaskStatusKind = (typeof TASK_STATUS_KINDS)[number];
 
 export const TASK_STATUS_LABELS: Record<TaskStatusKind, string> = {
@@ -524,15 +512,8 @@ export const TASK_STATUS_LABELS: Record<TaskStatusKind, string> = {
   unreachable: "无法完成",
 };
 
-export function isWritableTaskStatus(
-  status: TaskStatusKind,
-): status is TaskWritableStatus {
-  return (
-    status === "todo" ||
-    status === "active" ||
-    status === "done" ||
-    status === "failed"
-  );
+export function isWritableTaskStatus(status: TaskStatusKind): status is TaskWritableStatus {
+  return status === "todo" || status === "active" || status === "done" || status === "failed";
 }
 
 /** 互斥失败 / 被挡住：由其它任务推出来，手改会立刻弹回。 */
@@ -547,7 +528,9 @@ export function isDerivedTaskStatus(
   const status = resolveTaskStatus(taskId, done, started, line, failed, closed);
   if (status === "unreachable") return true;
   if (status !== "failed") return false;
-  const ident = String(taskId || "").trim().toLowerCase();
+  const ident = String(taskId || "")
+    .trim()
+    .toLowerCase();
   return Boolean(ident) && !failed.has(ident);
 }
 
@@ -559,9 +542,7 @@ export function taskPlayerLevelLabel(level: number | null | undefined): string {
 export type TaskLoyaltyLevel = 1 | 2 | 3 | 4;
 
 /** 商人好感 1–3 为罗马数字，4 及以上为皇冠（与游戏商人页一致）。 */
-export function taskLoyaltyLevel(
-  level: number | null | undefined,
-): TaskLoyaltyLevel {
+export function taskLoyaltyLevel(level: number | null | undefined): TaskLoyaltyLevel {
   const n = Math.trunc(Number(level) || 0);
   if (n <= 1) return 1;
   if (n >= 4) return 4;
@@ -574,7 +555,9 @@ function lineIdHits(
 ): boolean {
   if (!ids?.length) return false;
   for (const raw of ids) {
-    const ident = String(raw || "").trim().toLowerCase();
+    const ident = String(raw || "")
+      .trim()
+      .toLowerCase();
     if (!ident) continue;
     for (const pool of pools) {
       if (pool.has(ident)) return true;
@@ -591,7 +574,9 @@ export function resolveTaskStatus(
   failed: ReadonlySet<string> = new Set(),
   closed?: ReadonlySet<string> | null,
 ): TaskStatusKind {
-  const ident = String(taskId || "").trim().toLowerCase();
+  const ident = String(taskId || "")
+    .trim()
+    .toLowerCase();
   if (ident && done.has(ident)) return "done";
   if (ident && failed.has(ident)) return "failed";
   if (lineIdHits(line?.mutex_ids, done)) return "failed";
@@ -613,15 +598,21 @@ export function taskIsAvailable(
   const status = resolveTaskStatus(task.id || "", done, started, task, failed, closed);
   if (status !== "todo") return false;
   for (const raw of task.prereq_ids || []) {
-    const id = String(raw || "").trim().toLowerCase();
+    const id = String(raw || "")
+      .trim()
+      .toLowerCase();
     if (id && !done.has(id)) return false;
   }
   for (const raw of task.fail_prereq_ids || []) {
-    const id = String(raw || "").trim().toLowerCase();
+    const id = String(raw || "")
+      .trim()
+      .toLowerCase();
     if (id && !failed.has(id)) return false;
   }
   for (const raw of task.fail_or_complete_ids || []) {
-    const id = String(raw || "").trim().toLowerCase();
+    const id = String(raw || "")
+      .trim()
+      .toLowerCase();
     if (id && !done.has(id) && !failed.has(id)) return false;
   }
   return true;
@@ -649,9 +640,7 @@ export function setTaskStatus(
   const ident = taskId.trim().toLowerCase();
   const done = new Set(asIdList(doneIds));
   const failed = new Set(asIdList(failedIds).filter((id) => !done.has(id)));
-  const started = new Set(
-    asIdList(startedIds).filter((id) => !done.has(id) && !failed.has(id)),
-  );
+  const started = new Set(asIdList(startedIds).filter((id) => !done.has(id) && !failed.has(id)));
   if (!ident) return { done: [...done], started: [...started], failed: [...failed] };
   done.delete(ident);
   started.delete(ident);
@@ -659,9 +648,7 @@ export function setTaskStatus(
   if (status === "done") done.add(ident);
   else if (status === "active") started.add(ident);
   else if (status === "failed") failed.add(ident);
-  const mutexById = mutexIndexFromTasks([
-    { id: ident, mutex_ids: mutexIds || [] },
-  ]);
+  const mutexById = mutexIndexFromTasks([{ id: ident, mutex_ids: mutexIds || [] }]);
   if (!mutexById.size) {
     return { done: [...done], started: [...started], failed: [...failed] };
   }
@@ -701,15 +688,7 @@ export function commitTaskStatus(
   if (status === "done" && fillObjectiveIds?.length) {
     objectives = mergeObjectivesForTask(objectives, taskId, fillObjectiveIds);
   }
-  saveTaskProgress(
-    mode,
-    next.done,
-    next.started,
-    false,
-    false,
-    objectives,
-    next.failed,
-  );
+  saveTaskProgress(mode, next.done, next.started, false, false, objectives, next.failed);
   notifyTarkovTaskProgress({
     mode,
     done: next.done,
@@ -729,12 +708,7 @@ export function commitTaskObjective(
   objectiveId: string,
   checked: boolean,
 ): TaskObjectivePair[] {
-  const next = setTaskObjective(
-    loadTaskObjectivePairs(mode),
-    taskId,
-    objectiveId,
-    checked,
-  );
+  const next = setTaskObjective(loadTaskObjectivePairs(mode), taskId, objectiveId, checked);
   saveTaskObjectivePairs(mode, next);
   notifyTarkovTaskProgress({
     mode,
@@ -791,9 +765,7 @@ export function groupTasksByTrader(
       const visible = all
         .filter((item) => taskMatchesQuery(item, q))
         .filter((item) => !map || taskHitsMap(item, map))
-        .sort((a, b) =>
-          (a.name || a.id).localeCompare(b.name || b.id, "zh-CN"),
-        );
+        .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id, "zh-CN"));
       const counts = summarizeTaskProgress(all, done);
       return {
         traderSlug: slug,
@@ -852,10 +824,7 @@ export function parseTaskFailedState(
 
 export function loadTaskDoneIds(mode: TarkovGameMode): string[] {
   try {
-    return parseTaskDonesState(
-      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
-      mode,
-    );
+    return parseTaskDonesState(localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY), mode);
   } catch {
     return [];
   }
@@ -863,10 +832,7 @@ export function loadTaskDoneIds(mode: TarkovGameMode): string[] {
 
 export function loadTaskStartedIds(mode: TarkovGameMode): string[] {
   try {
-    return parseTaskStartedState(
-      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
-      mode,
-    );
+    return parseTaskStartedState(localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY), mode);
   } catch {
     return [];
   }
@@ -874,10 +840,7 @@ export function loadTaskStartedIds(mode: TarkovGameMode): string[] {
 
 export function loadTaskFailedIds(mode: TarkovGameMode): string[] {
   try {
-    return parseTaskFailedState(
-      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
-      mode,
-    );
+    return parseTaskFailedState(localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY), mode);
   } catch {
     return [];
   }
@@ -885,17 +848,13 @@ export function loadTaskFailedIds(mode: TarkovGameMode): string[] {
 
 function readState(): TarkovTaskDonesState {
   try {
-    return parseTaskDonesStateRaw(
-      localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY),
-    );
+    return parseTaskDonesStateRaw(localStorage.getItem(TARKOV_TASK_DONES_STORAGE_KEY));
   } catch {
     return { v: 1 };
   }
 }
 
-export function parseTaskDonesStateRaw(
-  raw: string | null | undefined,
-): TarkovTaskDonesState {
+export function parseTaskDonesStateRaw(raw: string | null | undefined): TarkovTaskDonesState {
   try {
     if (!raw) return { v: 1 };
     const parsed = JSON.parse(raw) as Partial<TarkovTaskDonesState> | string[];
@@ -1003,11 +962,7 @@ export function importGuestTaskProgress(
   writeState(mergeGuestTaskProgress(readState(), parseTaskDonesStateRaw(raw), skipModes));
 }
 
-export function saveTaskDoneIds(
-  mode: TarkovGameMode,
-  ids: string[],
-  migrated = false,
-): void {
+export function saveTaskDoneIds(mode: TarkovGameMode, ids: string[], migrated = false): void {
   const state = readState();
   state[mode] = asIdList(ids);
   if (migrated) {
@@ -1085,9 +1040,7 @@ export function cleanTaskProgress(
   const doneSet = new Set(done);
   const failed = asIdList(failedIds).filter((id) => !doneSet.has(id));
   const failedSet = new Set(failed);
-  const started = asIdList(startedIds).filter(
-    (id) => !doneSet.has(id) && !failedSet.has(id),
-  );
+  const started = asIdList(startedIds).filter((id) => !doneSet.has(id) && !failedSet.has(id));
   return { done, started, failed };
 }
 
@@ -1353,10 +1306,7 @@ export function resetTabQuestEpochsForTests(): void {
  * 本机账已过期：账号在别处清空 / 转生重置过（reset_epoch 对不上），或本机从没和账号对过而账号已有边界。
  * 账号 epoch 为 0（从没清空过）时本机账照常与账号并集。
  */
-export function questLedgerIsStale(
-  localEpoch: number | undefined,
-  serverEpoch: number,
-): boolean {
+export function questLedgerIsStale(localEpoch: number | undefined, serverEpoch: number): boolean {
   if (serverEpoch <= 0) return localEpoch !== undefined && localEpoch !== serverEpoch;
   return localEpoch !== serverEpoch;
 }
@@ -1417,10 +1367,7 @@ export function clearQuestSyncFromLatest(mode: TarkovGameMode): void {
 }
 
 /** 去掉这些任务的「已清空」标记，让随后的日志重放能重新记上。 */
-export function releaseClearedTasks(
-  mode: TarkovGameMode,
-  ids: readonly string[],
-): void {
+export function releaseClearedTasks(mode: TarkovGameMode, ids: readonly string[]): void {
   const state = readState();
   const modeCleared = { ...(state.clearedDone?.[mode] || {}) };
   let changed = false;
@@ -1561,8 +1508,7 @@ export function resetTaskProgressForProfile(
   ]);
   for (const taskId of wiped) {
     const existing = modeCleared[taskId] || "";
-    modeCleared[taskId] =
-      existing && compareBeijingClock(existing, stamp) > 0 ? existing : stamp;
+    modeCleared[taskId] = existing && compareBeijingClock(existing, stamp) > 0 ? existing : stamp;
   }
   state[mode] = [];
   state.started = { ...state.started, [mode]: [] };
@@ -1675,16 +1621,9 @@ export function planAccountTaskHydrate(input: {
   const localDone = new Set(asIdList(input.localDone));
   const localStarted = new Set(asIdList(input.localStarted));
   const localFailed = new Set(asIdList(input.localFailed));
-  const done = cleared
-    ? merged.done.filter((id) => !cleared.has(id))
-    : merged.done;
+  const done = cleared ? merged.done.filter((id) => !cleared.has(id)) : merged.done;
   const cleaned = input.mutexById?.size
-    ? applyMutexLedger(
-        done,
-        merged.started,
-        merged.failed,
-        input.mutexById,
-      )
+    ? applyMutexLedger(done, merged.started, merged.failed, input.mutexById)
     : cleanTaskProgress(done, merged.started, merged.failed);
   const started = cleared
     ? cleaned.started.filter((id) => !cleared.has(id) || localStarted.has(id))

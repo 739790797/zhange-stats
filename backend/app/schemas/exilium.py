@@ -57,6 +57,7 @@ class ExiliumStatusOut(BaseModel):
     roles: list[ExiliumRoleOut] = Field(default_factory=list)
     today_results: list[CheckinResultItem] = Field(default_factory=list)
 
+
 class ExiliumExchangeItemOut(BaseModel):
     exchange_id: int
     item_name: str

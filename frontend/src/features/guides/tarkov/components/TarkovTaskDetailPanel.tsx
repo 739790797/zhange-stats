@@ -58,11 +58,7 @@ function hasRewardPayload(rewards: Rewards | undefined): boolean {
   );
 }
 
-function traderReqSubline(
-  row: TraderReq,
-  fallbackSlug: string,
-  fallbackName: string,
-): string {
+function traderReqSubline(row: TraderReq, fallbackSlug: string, fallbackName: string): string {
   const english = traderDisplayName(row.slug || fallbackSlug, row.name || fallbackName);
   const type = (row.requirement_type || "").trim();
   const sameTrader = (row.slug || fallbackSlug) === fallbackSlug;
@@ -100,10 +96,8 @@ function RelatedList({
   rows: TaskReq[];
   kind: "prereq" | "unlock";
 }) {
-  const statusLabel =
-    kind === "unlock" ? taskUnlockStatusLabel : taskRequirementStatusLabel;
-  const statusClass =
-    kind === "unlock" ? styles.relatedStatusNext : styles.relatedStatusNeed;
+  const statusLabel = kind === "unlock" ? taskUnlockStatusLabel : taskRequirementStatusLabel;
+  const statusClass = kind === "unlock" ? styles.relatedStatusNext : styles.relatedStatusNeed;
   return (
     <TarkovTaskDetailSection id={id} title={title} count={rows.length}>
       <div className={styles.relatedBox}>
@@ -120,9 +114,7 @@ function RelatedList({
                 <Link className={styles.relatedName} to={tarkovTaskHref(row.id)}>
                   {row.name || row.id}
                 </Link>
-                {trader ? (
-                  <span className={styles.relatedTrader}>· {trader}</span>
-                ) : null}
+                {trader ? <span className={styles.relatedTrader}>· {trader}</span> : null}
               </div>
               {status ? <span className={statusClass}>{status}</span> : null}
             </div>
@@ -225,13 +217,8 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
   if (!detail) return null;
 
   const image = (detail.task_image_link || "").trim();
-  const traderHref = detail.trader_slug
-    ? tarkovTraderHref(detail.trader_slug)
-    : "";
-  const traderEnglish = traderDisplayName(
-    detail.trader_slug || "",
-    detail.trader_name || "",
-  );
+  const traderHref = detail.trader_slug ? tarkovTraderHref(detail.trader_slug) : "";
+  const traderEnglish = traderDisplayName(detail.trader_slug || "", detail.trader_name || "");
   const mapMark = describeTaskMap(detail);
   const mapLink = mapMark ? tarkovMapHref(mapMark.id) : "";
   const delay = formatTaskDelay(
@@ -241,8 +228,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
   const delayValue = delay.replace(/^完成后等待\s*/, "");
   const prestige = detail.required_prestige;
   const prestigeLabel = prestige
-    ? prestige.name ||
-      (prestige.prestige_level ? `声望 ${prestige.prestige_level}` : "")
+    ? prestige.name || (prestige.prestige_level ? `声望 ${prestige.prestige_level}` : "")
     : "";
   const traderSub = traderReqSummary(
     detail.trader_slug || "",
@@ -254,20 +240,10 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
   const related = (
     <>
       {prereqs.length ? (
-        <RelatedList
-          id="task-prereqs"
-          title="前置任务"
-          rows={prereqs}
-          kind="prereq"
-        />
+        <RelatedList id="task-prereqs" title="前置任务" rows={prereqs} kind="prereq" />
       ) : null}
       {unlocks.length ? (
-        <RelatedList
-          id="task-unlocks"
-          title="后续任务"
-          rows={unlocks}
-          kind="unlock"
-        />
+        <RelatedList id="task-unlocks" title="后续任务" rows={unlocks} kind="unlock" />
       ) : null}
     </>
   );
@@ -297,18 +273,12 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
           guideUrl ? (
             <div className={styles.heroTop}>
               <div className={styles.headRow}>
-                {detail.kappa_required ? (
-                  <span className={styles.endgameChip}>Kappa</span>
-                ) : null}
+                {detail.kappa_required ? <span className={styles.endgameChip}>Kappa</span> : null}
                 {detail.lightkeeper_required ? (
                   <span className={styles.endgameChip}>Lightkeeper</span>
                 ) : null}
-                {detail.prestige_cycle ? (
-                  <span className={styles.endgameChip}>转生</span>
-                ) : null}
-                {detail.restartable ? (
-                  <span className={styles.progressBadge}>可重开</span>
-                ) : null}
+                {detail.prestige_cycle ? <span className={styles.endgameChip}>转生</span> : null}
+                {detail.restartable ? <span className={styles.progressBadge}>可重开</span> : null}
               </div>
               {detail.wiki_link || guideUrl ? (
                 <div className={styles.jumpLinks}>
@@ -324,12 +294,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                     </a>
                   ) : null}
                   {guideUrl ? (
-                    <a
-                      className={styles.wiki}
-                      href={guideUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a className={styles.wiki} href={guideUrl} target="_blank" rel="noreferrer">
                       eftarkov
                       <ExportOutlined />
                     </a>
@@ -342,9 +307,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
           <div className={styles.metaBar}>
             <span className={styles.metaItem}>
               <span className={styles.metaLabel}>PMC</span>
-              <span className={styles.metaAccent}>
-                {detail.min_player_level || "—"}
-              </span>
+              <span className={styles.metaAccent}>{detail.min_player_level || "—"}</span>
             </span>
             {delayValue ? (
               <>
@@ -364,11 +327,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                 </span>
                 <span className={styles.prestige}>
                   {prestige?.image_link ? (
-                    <img
-                      className={styles.prestigeIcon}
-                      src={prestige.image_link}
-                      alt=""
-                    />
+                    <img className={styles.prestigeIcon} src={prestige.image_link} alt="" />
                   ) : null}
                   需要{prestigeLabel}
                 </span>
@@ -391,11 +350,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
               <div className={styles.statValueRow}>
                 {detail.trader_slug ? (
                   <span className={styles.statAvatar}>
-                    <TarkovTraderThumb
-                      slug={detail.trader_slug}
-                      size={28}
-                      title={traderEnglish}
-                    />
+                    <TarkovTraderThumb slug={detail.trader_slug} size={28} title={traderEnglish} />
                   </span>
                 ) : null}
                 <div className={styles.statCopy}>
@@ -416,11 +371,7 @@ export function TarkovTaskDetailPanel({ taskId }: Props) {
                 <Link
                   className={styles.mapTile}
                   to={mapLink}
-                  title={
-                    mapMark.english
-                      ? `${mapMark.label}（${mapMark.english}）`
-                      : mapMark.label
-                  }
+                  title={mapMark.english ? `${mapMark.label}（${mapMark.english}）` : mapMark.label}
                 >
                   {mapMark.icon ? (
                     <svg

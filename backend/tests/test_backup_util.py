@@ -102,11 +102,17 @@ def test_resolve_db_follows_app_precedence(tmp_path: Path, monkeypatch: pytest.M
 
     monkeypatch.setenv("DATABASE_URL", "sqlite:////srv/zhange.sqlite")
     t = bu.resolve_db(cfg, root)
-    assert (t.engine, t.sqlite_path) == ("sqlite", Path("/srv/zhange.sqlite"))
+    expected_absolute_path = Path("/srv/zhange.sqlite")
+    if os.name == "nt":
+        expected_absolute_path = Path(Path.cwd().anchor) / "srv" / "zhange.sqlite"
+    assert (t.engine, t.sqlite_path) == ("sqlite", expected_absolute_path)
 
 
 def test_sqlite_url_paths(tmp_path: Path) -> None:
-    assert bu.sqlite_path_from_url("sqlite:////abs/z.db", tmp_path) == Path("/abs/z.db")
+    expected_absolute_path = Path("/abs/z.db")
+    if os.name == "nt":
+        expected_absolute_path = Path(Path.cwd().anchor) / "abs" / "z.db"
+    assert bu.sqlite_path_from_url("sqlite:////abs/z.db", tmp_path) == expected_absolute_path
     assert bu.sqlite_path_from_url("sqlite:///rel.db?x=1", tmp_path) == tmp_path / "backend" / "rel.db"
     assert bu.sqlite_path_from_url("sqlite://", tmp_path) is None
     assert bu.sqlite_path_from_url("sqlite:///:memory:", tmp_path) is None
@@ -149,8 +155,7 @@ def test_code_revisions_heads_handle_merges(tmp_path: Path) -> None:
 def test_dump_revisions(tmp_path: Path) -> None:
     dump = tmp_path / "zhange.sql"
     dump.write_bytes(
-        b"-- dump\nINSERT INTO `users` VALUES ('x');\n"
-        b"INSERT INTO `alembic_version` VALUES ('20261010_0119');\n"
+        b"-- dump\nINSERT INTO `users` VALUES ('x');\nINSERT INTO `alembic_version` VALUES ('20261010_0119');\n"
     )
     assert bu.dump_revisions(dump) == ["20261010_0119"]
     assert bu.dump_revisions(tmp_path / "missing.sql") == []
@@ -183,7 +188,8 @@ def test_sqlite_backup_is_consistent_and_skips_transient_files(tmp_path: Path) -
         live.close()
 
     assert rc == 0
-    assert stat.S_IMODE(archive.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(archive.stat().st_mode) == 0o600
     assert not archive.with_name(archive.name + ".part").exists()
     names = _names(archive)
     assert {
@@ -323,7 +329,8 @@ def test_unpack_without_tarfile_data_filter(tmp_path: Path, monkeypatch: pytest.
     dest = tmp_path / "d2"
     assert bu.main(["unpack", "--archive", str(ok), "--dest", str(dest)]) == 0
     assert (dest / "config" / "app.json").read_bytes() == b"{}"
-    assert stat.S_IMODE((dest / "config" / "app.json").stat().st_mode) & 0o7022 == 0
+    if os.name != "nt":
+        assert stat.S_IMODE((dest / "config" / "app.json").stat().st_mode) & 0o7022 == 0
     assert not (dest / "data" / "runtime" / "link").is_symlink()
 
 
@@ -351,9 +358,7 @@ def _fake_tool(bin_dir: Path, name: str, record: Path) -> None:
 
 
 @pytest.mark.skipif(os.name == "nt", reason="fake client is a POSIX executable script")
-def test_mysql_backup_and_import_pass_password_only_via_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_mysql_backup_and_import_pass_password_only_via_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     password = "p$(touch pwned)\"'`;x"
     url = "mysql+pymysql://zhange:p%24%28touch%20pwned%29%22%27%60%3Bx@127.0.0.1:3306/zhange_stats"
     root = _install(tmp_path, db={"engine": "mysql", "url": url})

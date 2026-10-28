@@ -10,9 +10,7 @@ from app.services.minecraft.pack import merge_properties, parse_properties
 
 PresetStatus = Literal["missing_files", "no_preset", "match", "mismatch"]
 
-PINNABLE_EXTS = frozenset(
-    {"properties", "cfg", "json", "yml", "yaml", "conf", "config"}
-)
+PINNABLE_EXTS = frozenset({"properties", "cfg", "json", "yml", "yaml", "conf", "config"})
 MAX_PINS = 200
 MAX_DIRS = 20
 MAX_KEY_LEN = 128
@@ -30,11 +28,7 @@ def is_pinnable_filename(name: str) -> bool:
 
 def safe_server_dir_path(raw: str, *, allow_root: bool = False) -> str:
     """服内目录路径；拒绝 ..。默认不允许选服根。"""
-    parts = [
-        part
-        for part in (raw or "").replace("\\", "/").strip().split("/")
-        if part and part != "."
-    ]
+    parts = [part for part in (raw or "").replace("\\", "/").strip().split("/") if part and part != "."]
     if any(part == ".." for part in parts):
         return ""
     if not parts:
@@ -121,22 +115,14 @@ def parse_scalar_keys(text: str, path: str) -> dict[str, str]:
     if kind == "json":
         return _parse_json_scalars(text)
     if kind == "properties":
-        return {
-            str(key): str(value)
-            for key, value in parse_properties(text).items()
-            if str(key)
-        }
+        return {str(key): str(value) for key, value in parse_properties(text).items() if str(key)}
     if kind == "kv":
         return _parse_kv_scalars(text)
     return {}
 
 
 def apply_scalar_pins(text: str, path: str, updates: dict[str, str]) -> str:
-    clean = {
-        str(key).strip(): str(value)
-        for key, value in (updates or {}).items()
-        if str(key).strip()
-    }
+    clean = {str(key).strip(): str(value) for key, value in (updates or {}).items() if str(key).strip()}
     if not clean:
         return text or ""
     kind = pin_format(path)
@@ -166,9 +152,7 @@ def read_saved_directories(blob: Any, tool_id: str) -> list[str]:
     return normalize_directories(entry.get("directories"))
 
 
-def write_saved_pins(
-    blob: Any, tool_id: str, pins: list[dict[str, str]]
-) -> dict[str, Any]:
+def write_saved_pins(blob: Any, tool_id: str, pins: list[dict[str, str]]) -> dict[str, Any]:
     return write_saved_entry(blob, tool_id, pins=pins)
 
 
@@ -185,18 +169,10 @@ def write_saved_entry(
             if str(key) == tool_id:
                 continue
             out[str(key)] = value
-    next_pins = (
-        normalize_pins(pins) if pins is not None else read_saved_pins(blob, tool_id)
-    )
-    next_dirs = (
-        normalize_directories(directories)
-        if directories is not None
-        else read_saved_directories(blob, tool_id)
-    )
+    next_pins = normalize_pins(pins) if pins is not None else read_saved_pins(blob, tool_id)
+    next_dirs = normalize_directories(directories) if directories is not None else read_saved_directories(blob, tool_id)
     if next_dirs:
-        next_pins = [
-            row for row in next_pins if path_is_within_any(row["file"], next_dirs)
-        ]
+        next_pins = [row for row in next_pins if path_is_within_any(row["file"], next_dirs)]
     elif directories is not None:
         next_pins = []
     entry: dict[str, Any] = {}

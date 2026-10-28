@@ -49,9 +49,7 @@ def _load_user(token: str) -> User:
 
 async def run_goon_session(client: WebSocket) -> None:
     try:
-        first = await asyncio.wait_for(
-            receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10
-        )
+        first = await asyncio.wait_for(receive_json_bounded(client, max_chars=MAX_FRAME_CHARS), timeout=10)
     except TimeoutError:
         await client.close(code=CLOSE_UNAUTHORIZED)
         return

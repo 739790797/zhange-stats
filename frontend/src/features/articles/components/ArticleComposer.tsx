@@ -1,27 +1,14 @@
 import { Extension } from "@tiptap/core";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import type { Editor } from "@tiptap/react";
-import {
-  EditorContent,
-  ReactRenderer,
-  useEditor,
-  useEditorState,
-} from "@tiptap/react";
+import { EditorContent, ReactRenderer, useEditor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
-import {
-  BoldOutlined,
-  ItalicOutlined,
-  LinkOutlined,
-  UnderlineOutlined,
-} from "@ant-design/icons";
+import { BoldOutlined, ItalicOutlined, LinkOutlined, UnderlineOutlined } from "@ant-design/icons";
 import { Button, Input, Popover, Space } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  articleToEditorHtml,
-  composerHtmlToBody,
-} from "@/features/articles/model/articleComposer";
+import { articleToEditorHtml, composerHtmlToBody } from "@/features/articles/model/articleComposer";
 import { bindArticleHotkeys } from "@/features/articles/model/articleHotkeys";
 import { isSafeArticleHref } from "@/features/articles/model/articleHtml";
 import {
@@ -100,13 +87,7 @@ function createSlashExtension(onPickImage: () => void) {
   });
 }
 
-function BubbleTools({
-  editor,
-  disabled,
-}: {
-  editor: Editor;
-  disabled?: boolean;
-}) {
+function BubbleTools({ editor, disabled }: { editor: Editor; disabled?: boolean }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [href, setHref] = useState("");
   const state = useEditorState({
@@ -126,11 +107,7 @@ function BubbleTools({
       return;
     }
     if (!isSafeArticleHref(next)) return;
-    editor
-      .chain()
-      .focus()
-      .setLink({ href: next, rel: "noopener noreferrer" })
-      .run();
+    editor.chain().focus().setLink({ href: next, rel: "noopener noreferrer" }).run();
     setLinkOpen(false);
   };
   return (
@@ -252,8 +229,7 @@ export function ArticleComposer({
       attributes: {
         class: styles.composerSurface,
       },
-      transformPastedHTML: (html) =>
-        (html || "").replace(/<input\b[^>]*>/gi, ""),
+      transformPastedHTML: (html) => (html || "").replace(/<input\b[^>]*>/gi, ""),
       handlePaste: (_view, event) => {
         const files = filesFromClipboard(event.clipboardData);
         if (!files.length) return false;
@@ -307,11 +283,7 @@ export function ArticleComposer({
         if (row.kind === "image") {
           current.chain().focus().insertArticleImage({ src: row.url }).run();
         } else {
-          current
-            .chain()
-            .focus()
-            .insertArticleAttachment({ href: row.url, title: row.name })
-            .run();
+          current.chain().focus().insertArticleAttachment({ href: row.url, title: row.name }).run();
         }
       }
     } finally {
@@ -375,7 +347,9 @@ export function ArticleComposer({
 
   return (
     <>
-      {toolbarHost ? createPortal(toolbar, toolbarHost) : (
+      {toolbarHost ? (
+        createPortal(toolbar, toolbarHost)
+      ) : (
         <div className={styles.formatbar}>{toolbar}</div>
       )}
       {editor && (

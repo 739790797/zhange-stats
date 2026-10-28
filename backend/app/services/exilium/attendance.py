@@ -29,6 +29,7 @@ from app.services.exilium.client import (
 
 logger = logging.getLogger(__name__)
 
+
 def ensure_session(creds: ExiliumCredentials) -> ExiliumCredentials:
     """探活；失败且存了口令摘要则重登。"""
     try:
@@ -55,12 +56,8 @@ def get_sign_in_status(creds: ExiliumCredentials) -> bool:
 
 def sign_in(creds: ExiliumCredentials) -> CheckinResult:
     body: dict[str, Any] = {}
-    data, full = _http_full(
-        "POST", "/community/task/sign_in", token=creds.token, body=body
-    )
-    upstream_req = format_upstream_request(
-        "POST", f"{API_BASE}/community/task/sign_in", body
-    )
+    data, full = _http_full("POST", "/community/task/sign_in", token=creds.token, body=body)
+    upstream_req = format_upstream_request("POST", f"{API_BASE}/community/task/sign_in", body)
     upstream_resp = format_upstream_response(full)
     item = str(data.get("get_item_name") or "").strip()
     count = data.get("get_item_count")
@@ -80,18 +77,14 @@ def sign_in(creds: ExiliumCredentials) -> CheckinResult:
             exp_i = int(exp)
         except (TypeError, ValueError):
             exp_i = 0
-        awards_items.append(
-            award_item(name="经验", count=exp_i, resource_type="exp")
-        )
+        awards_items.append(award_item(name="经验", count=exp_i, resource_type="exp"))
         parts.append(f"经验+{exp}")
     if score is not None:
         try:
             score_i = int(score)
         except (TypeError, ValueError):
             score_i = 0
-        awards_items.append(
-            award_item(name="积分", count=score_i, resource_type="score")
-        )
+        awards_items.append(award_item(name="积分", count=score_i, resource_type="score"))
         parts.append(f"积分+{score}")
     awards = "，".join(parts) if parts else None
     role_name = creds.nickname or mask_account(creds.account_name) or "社区账号"

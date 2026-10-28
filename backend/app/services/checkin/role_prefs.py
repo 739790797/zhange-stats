@@ -34,20 +34,12 @@ def _parse_role_item(item: RoleKey | dict[str, Any] | Any) -> RoleKey | None:
     elif isinstance(item, dict):
         gc, uid = role_key(
             str(item.get("game_code") or ""),
-            str(
-                item.get("role_uid")
-                or item.get("uid")
-                or ""
-            ),
+            str(item.get("role_uid") or item.get("uid") or ""),
         )
     else:
         gc, uid = role_key(
             str(getattr(item, "game_code", "") or ""),
-            str(
-                getattr(item, "role_uid", None)
-                or getattr(item, "uid", None)
-                or ""
-            ),
+            str(getattr(item, "role_uid", None) or getattr(item, "uid", None) or ""),
         )
     if not gc or not uid:
         return None
@@ -283,9 +275,7 @@ def retire_vanished_prefs(
     for row in vanished:
         db.delete(row)
     if vanished:
-        sync_bind_auto_checkin_from_prefs(
-            db, platform=platform, member_id=member_id, bind=bind
-        )
+        sync_bind_auto_checkin_from_prefs(db, platform=platform, member_id=member_id, bind=bind)
         db.commit()
     return len(vanished)
 
@@ -329,10 +319,7 @@ def attach_prefs_to_status_results(
 ) -> list[dict[str, Any]]:
     if not results:
         return results
-    roles = [
-        role_key(str(r.get("game_code") or ""), str(r.get("role_uid") or ""))
-        for r in results
-    ]
+    roles = [role_key(str(r.get("game_code") or ""), str(r.get("role_uid") or "")) for r in results]
     pref_map = ensure_prefs_for_roles(
         db,
         platform=platform,
@@ -368,9 +355,7 @@ def list_due_role_keys(
         q = q.filter(CheckinRolePref.member_id == int(member_id))
     grouped: dict[int, set[RoleKey]] = {}
     for row in q.all():
-        grouped.setdefault(int(row.member_id), set()).add(
-            role_key(row.game_code, row.role_uid)
-        )
+        grouped.setdefault(int(row.member_id), set()).add(role_key(row.game_code, row.role_uid))
     return grouped
 
 
@@ -416,9 +401,7 @@ def list_enabled_role_keys_for_member(
     member_id: int,
 ) -> set[RoleKey] | None:
     """该成员全部已加入且 enabled 角色；若尚无任何 pref 返回 None（走旧 bind 全量）。"""
-    return enabled_role_keys_by_member(
-        db, platform=platform, member_ids=[member_id]
-    ).get(int(member_id))
+    return enabled_role_keys_by_member(db, platform=platform, member_ids=[member_id]).get(int(member_id))
 
 
 def matches_role_filter(
@@ -457,9 +440,7 @@ def _action_outcomes_by_member(
     for row in rows:
         mid = int(row.member_id)
         if is_success_status(getattr(row, "status", None)):
-            success.setdefault(mid, set()).add(
-                role_key(row.game_code, row.role_uid)
-            )
+            success.setdefault(mid, set()).add(role_key(row.game_code, row.role_uid))
         else:
             failed_members.add(mid)
     return success, failed_members
@@ -490,15 +471,9 @@ def collect_checkin_job_targets(
     targets: dict[int, set[RoleKey] | None] = {}
 
     if member_id is not None and not due_only:
-        bind = (
-            db.query(bind_model)
-            .filter(bind_model.member_id == int(member_id))
-            .one_or_none()
-        )
+        bind = db.query(bind_model).filter(bind_model.member_id == int(member_id)).one_or_none()
         if bind is not None and bind.auto_checkin:
-            targets[bind.member_id] = list_enabled_role_keys_for_member(
-                db, platform=platform, member_id=bind.member_id
-            )
+            targets[bind.member_id] = list_enabled_role_keys_for_member(db, platform=platform, member_id=bind.member_id)
         return targets
 
     if due_only:
@@ -517,9 +492,7 @@ def collect_checkin_job_targets(
             CheckinRolePref.enabled.is_(True),
             CheckinRolePref.checkin_hour.isnot(None),
             CheckinRolePref.checkin_minute.isnot(None),
-            (CheckinRolePref.checkin_hour * 60 + CheckinRolePref.checkin_minute).in_(
-                window
-            ),
+            (CheckinRolePref.checkin_hour * 60 + CheckinRolePref.checkin_minute).in_(window),
         )
         if member_id is not None:
             pref_q = pref_q.filter(CheckinRolePref.member_id == int(member_id))
@@ -532,9 +505,7 @@ def collect_checkin_job_targets(
             )
             for mid, gc, uid, hour, minute in pref_q.all()
         ]
-        legacy_q = db.query(
-            bind_model.member_id, bind_model.checkin_hour, bind_model.checkin_minute
-        ).filter(
+        legacy_q = db.query(bind_model.member_id, bind_model.checkin_hour, bind_model.checkin_minute).filter(
             bind_model.auto_checkin.is_(True),
             (bind_model.checkin_hour * 60 + bind_model.checkin_minute).in_(window),
         )
@@ -547,9 +518,7 @@ def collect_checkin_job_targets(
                 for (mid,) in db.query(CheckinRolePref.member_id)
                 .filter(
                     CheckinRolePref.platform == platform,
-                    CheckinRolePref.member_id.in_(
-                        [int(row[0]) for row in legacy_rows]
-                    ),
+                    CheckinRolePref.member_id.in_([int(row[0]) for row in legacy_rows]),
                 )
                 .distinct()
             }
@@ -574,10 +543,7 @@ def collect_checkin_job_targets(
             kept: list[CheckinQueueItem] = []
             for item in items:
                 if item.role_key is None:
-                    if (
-                        item.member_id in success
-                        and item.member_id not in failed_members
-                    ):
+                    if item.member_id in success and item.member_id not in failed_members:
                         continue
                 elif item.role_key in success.get(item.member_id, set()):
                     continue
@@ -587,12 +553,7 @@ def collect_checkin_job_targets(
             items = filter_retry_ready(platform, items, now=t)
         return plan_checkin_queue(items, now=t)
 
-    auto_ids = [
-        int(mid)
-        for (mid,) in db.query(bind_model.member_id).filter(
-            bind_model.auto_checkin.is_(True)
-        )
-    ]
+    auto_ids = [int(mid) for (mid,) in db.query(bind_model.member_id).filter(bind_model.auto_checkin.is_(True))]
     return enabled_role_keys_by_member(db, platform=platform, member_ids=auto_ids)
 
 
@@ -615,9 +576,7 @@ def build_membership_tree_from_roles(
             channel_name = str(item.get("channel_name") or "")
         else:
             gc = str(getattr(item, "game_code", "") or "").strip()
-            uid = str(
-                getattr(item, "role_uid", None) or getattr(item, "uid", None) or ""
-            ).strip()
+            uid = str(getattr(item, "role_uid", None) or getattr(item, "uid", None) or "").strip()
             game_name = str(getattr(item, "game_name", None) or gc)
             role_name = str(getattr(item, "role_name", None) or uid)
             channel_name = str(getattr(item, "channel_name", None) or "")

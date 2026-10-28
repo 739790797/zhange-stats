@@ -191,9 +191,7 @@ APPLY_DOMAIN_IDS: tuple[str, ...] = (
 ProgressFn = Callable[[str, dict[str, Any]], None]
 
 _DONE_STATUSES = frozenset({"ok", "error", "skipped", "downloaded", "persisting"})
-_FLUSH_PHASES = frozenset(
-    {"start", "persist", "apply", "overlay", "done", "error"}
-)
+_FLUSH_PHASES = frozenset({"start", "persist", "apply", "overlay", "done", "error"})
 
 
 def format_full_sync_message(phase: str, **kwargs: Any) -> str:
@@ -217,9 +215,7 @@ def format_full_sync_message(phase: str, **kwargs: Any) -> str:
     return "正在全量更新…"
 
 
-def planned_full_sync_domains(
-    modes: Sequence[str], *, lang: str = "zh"
-) -> list[dict[str, Any]]:
+def planned_full_sync_domains(modes: Sequence[str], *, lang: str = "zh") -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for mode in modes:
         for _resource, _res_lang, domain_id in upstream_svc.site_dump_specs(lang=lang):
@@ -242,16 +238,12 @@ def _pending_row(domain_id: str, mode: str) -> dict[str, Any]:
     }
 
 
-def _progress_percent(
-    domains: Sequence[dict[str, Any]], *, byte_frac: float = 0.0
-) -> int:
+def _progress_percent(domains: Sequence[dict[str, Any]], *, byte_frac: float = 0.0) -> int:
     total = len(domains)
     if total <= 0:
         return 0
     done = sum(1 for row in domains if row.get("status") in _DONE_STATUSES)
-    running = any(
-        row.get("status") in {"downloading", "applying"} for row in domains
-    )
+    running = any(row.get("status") in {"downloading", "applying"} for row in domains)
     frac = max(0.0, min(1.0, byte_frac)) if running else 0.0
     return max(0, min(99, int(100 * (done + frac) / total)))
 
@@ -303,9 +295,7 @@ class _SyncProgress:
                 byte_frac = float(bytes_n) / float(total_bytes)
         except (TypeError, ValueError):
             byte_frac = 0.0
-        percent = 100 if phase == "done" else _progress_percent(
-            self.domains, byte_frac=byte_frac
-        )
+        percent = 100 if phase == "done" else _progress_percent(self.domains, byte_frac=byte_frac)
         stats: dict[str, Any] = {
             "phase": phase,
             "percent": percent,
@@ -324,9 +314,7 @@ def _download_overlay_once(
 ) -> tuple[dict[str, Any], str | None]:
     """overlay 与游戏模式无关：一轮全量同步里只下第一次，PVP / PVE 复用同一份。"""
     if "payload" not in cache:
-        cache["payload"], cache["upstream_at"] = overlay_svc.download_overlay(
-            on_bytes=on_bytes
-        )
+        cache["payload"], cache["upstream_at"] = overlay_svc.download_overlay(on_bytes=on_bytes)
     return cache["payload"], cache.get("upstream_at")
 
 
@@ -354,9 +342,7 @@ def _sync_current_mode(
         index = int(event.get("index") or 0)
         total = int(event.get("total") or dump_total)
         if error:
-            tracker.patch(
-                domain_id, status="error", ok=False, error=str(error)
-            )
+            tracker.patch(domain_id, status="error", ok=False, error=str(error))
         elif done:
             tracker.patch(domain_id, status="downloaded", ok=False, error=None)
             row = tracker._row(domain_id)
@@ -445,9 +431,7 @@ def _sync_current_mode(
         ]
 
     if site.unchanged:
-        upstream_svc.hydrate_unchanged_dump(
-            db, dump, site.unchanged, lang=lang
-        )
+        upstream_svc.hydrate_unchanged_dump(db, dump, site.unchanged, lang=lang)
 
     try:
         if tracker is not None:
@@ -473,9 +457,7 @@ def _sync_current_mode(
         result = overlay_svc.persist_overlay(db, payload, upstream_at=upstream_at)
         # overlay 源可能已经换地方 / 转私有：把这次用的 URL 与库里的年龄一并报出来。
         status = overlay_svc.overlay_status(db)
-        domains.append(
-            _domain_row("overlay", ok=True, result=result, extra={"overlay": status})
-        )
+        domains.append(_domain_row("overlay", ok=True, result=result, extra={"overlay": status}))
         if tracker is not None:
             tracker.patch(
                 "overlay",
@@ -541,18 +523,12 @@ def sync_all_from_upstream(
     overlay_cache: dict[str, Any] = {}
     for mode in modes:
         with game_mode_scope(mode):
-            domains.extend(
-                _sync_current_mode(
-                    db, lang=lang, tracker=tracker, overlay_cache=overlay_cache
-                )
-            )
+            domains.extend(_sync_current_mode(db, lang=lang, tracker=tracker, overlay_cache=overlay_cache))
 
     ok_count = sum(1 for row in domains if row["ok"])
     failed_count = len(domains) - ok_count
     if ok_count == 0:
-        detail = "；".join(
-            f"{row['id']}: {row.get('error') or '失败'}" for row in domains
-        )
+        detail = "；".join(f"{row['id']}: {row.get('error') or '失败'}" for row in domains)
         raise TarkovFullSyncError(f"全量同步失败：{detail}")
     tracker.emit("done")
     return {
@@ -730,9 +706,7 @@ def _run_full_sync(run_id: int) -> None:
         payload = {
             "ok_count": result.get("ok_count"),
             "failed_count": failed,
-            "domains": [
-                _domain_payload(row) for row in result.get("domains") or []
-            ],
+            "domains": [_domain_payload(row) for row in result.get("domains") or []],
         }
         _write_job_run(
             run_id,

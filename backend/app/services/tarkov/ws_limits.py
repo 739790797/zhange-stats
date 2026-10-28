@@ -34,9 +34,7 @@ async def receive_json_bounded(ws: WebSocket, *, max_chars: int) -> Any:
     return json.loads(text)
 
 
-async def send_json_timeout(
-    ws: WebSocket, payload: Any, *, timeout: float = SEND_TIMEOUT_SEC
-) -> bool:
+async def send_json_timeout(ws: WebSocket, payload: Any, *, timeout: float = SEND_TIMEOUT_SEC) -> bool:
     """发不出去或对端读得太慢都算失败，交给调用方摘掉这条连接。"""
     try:
         await asyncio.wait_for(ws.send_json(payload), timeout=timeout)

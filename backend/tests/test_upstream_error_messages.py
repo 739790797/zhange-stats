@@ -190,11 +190,7 @@ def test_steam_owned_games_skips_malformed_entries(monkeypatch) -> None:
         steam_adapter,
         monkeypatch,
         200,
-        json_body={
-            "response": {
-                "games": ["junk", {"appid": 570, "img_icon_url": "abc"}, {"appid": 10}]
-            }
-        },
+        json_body={"response": {"games": ["junk", {"appid": 570, "img_icon_url": "abc"}, {"appid": 10}]}},
     )
 
     icons = steam_adapter.SteamAdapter("key").fetch_owned_game_icons("76561198000000001")

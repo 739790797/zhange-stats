@@ -192,20 +192,14 @@ def _view(
     images = [str(item) for item in (details.get("docker_images") or []) if item]
     major = cmd.java_major_for_mc(str(detected.get("mc_version") or ""))
     mc_version = str(detected.get("mc_version") or "")
-    current_warning = (
-        cmd.java_warning(current_java_image, major)
-        if current_java_image and mc_version
-        else ""
-    )
+    current_warning = cmd.java_warning(current_java_image, major) if current_java_image and mc_version else ""
     edit_warning = ""
     if java_image and mc_version and java_image != current_java_image:
         edit_warning = cmd.java_warning(java_image, major, edited=True)
     kind = str((selected or {}).get("kind") or "")
     plugins_visible = kind in {"plugin", "hybrid"}
     synced = bool(complete and command and live == command)
-    ready = (
-        _observe_boot(power, command, live, wrote=wrote) if complete and synced else False
-    )
+    ready = _observe_boot(power, command, live, wrote=wrote) if complete and synced else False
     if not plugins_visible:
         ready = False
     message = write_message or ("" if complete else why)
@@ -337,9 +331,7 @@ def read_startup(
         memory_mb = 0
         server_image = ""
     try:
-        power = pelican.power_state_from_resources(
-            pelican.get_resources(base, token, uuid)
-        )
+        power = pelican.power_state_from_resources(pelican.get_resources(base, token, uuid))
     except pelican.PelicanError:
         power = "unknown"
     disk_args = _read_args_file(base, token, uuid)
@@ -375,12 +367,7 @@ def read_startup(
         current_launch = str(current_row["launch"])
     elif parsed["launch"] in {"jar", "args"}:
         current_launch = parsed["launch"]
-    if (
-        selected
-        and not selected.get("jar")
-        and selected.get("id") == "arclight"
-        and build_name
-    ):
+    if selected and not selected.get("jar") and selected.get("id") == "arclight" and build_name:
         from app.services.minecraft.core_builds import arclight_jar_name, is_build_name
 
         if is_build_name(build_name.strip()):

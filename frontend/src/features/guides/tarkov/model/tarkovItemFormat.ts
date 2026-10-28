@@ -4,10 +4,7 @@ import {
   formatArmorType,
   formatArmorZoneList,
 } from "@/features/guides/tarkov/model/tarkovArmorLabels";
-import {
-  resolveTraderSlug,
-  traderDisplayName,
-} from "@/features/guides/tarkov/model/tarkovHomeNav";
+import { resolveTraderSlug, traderDisplayName } from "@/features/guides/tarkov/model/tarkovHomeNav";
 import {
   handbookHrefFromCategoryId,
   isGenericItemCategoryId,
@@ -60,12 +57,7 @@ export type CatalogColumnId =
   | "stabDamage"
   | "price";
 
-const DEFAULT_COLUMNS: CatalogColumnId[] = [
-  "name",
-  "grid",
-  "weight",
-  "price",
-];
+const DEFAULT_COLUMNS: CatalogColumnId[] = ["name", "grid", "weight", "price"];
 
 /** 对齐 tarkov.dev 各分类 SmallItemTable 列。 */
 const COLUMN_PRESETS: Record<string, CatalogColumnId[]> = {
@@ -73,15 +65,7 @@ const COLUMN_PRESETS: Record<string, CatalogColumnId[]> = {
   containers: ["name", "grid", "slots", "weight", "slotRatio", "pricePerSlot", "price"],
   rigs: ["name", "slots", "weight", "ergoPenalty", "speedPenalty", "turnPenalty", "price"],
   armors: ["name", "class", "weight", "ergoPenalty", "speedPenalty", "turnPenalty", "price"],
-  helmets: [
-    "name",
-    "class",
-    "zones",
-    "ricochet",
-    "turnPenalty",
-    "blocksHeadset",
-    "price",
-  ],
+  helmets: ["name", "class", "zones", "ricochet", "turnPenalty", "blocksHeadset", "price"],
   glasses: ["name", "class", "blindness", "price"],
   headsets: ["name", "distance", "weight", "price"],
   grenades: ["name", "grenadeType", "fuse", "fragments", "radius", "price"],
@@ -341,10 +325,7 @@ export function catalogRowIsArmored(row: CatalogPriceRow): boolean {
   return cls != null && cls > 0;
 }
 
-export function matchRigKindFilter(
-  row: CatalogPriceRow,
-  kind: RigKindFilter,
-): boolean {
+export function matchRigKindFilter(row: CatalogPriceRow, kind: RigKindFilter): boolean {
   if (kind === "all") return true;
   const armored = catalogRowIsArmored(row);
   return kind === "armored" ? armored : !armored;
@@ -352,7 +333,12 @@ export function matchRigKindFilter(
 
 export function catalogSortValue(
   column: CatalogColumnId,
-  row: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
+  row: CatalogPriceRow & {
+    id?: string;
+    name?: string | null;
+    short_name?: string | null;
+    weight?: number | null;
+  },
 ): string | number | null {
   const props = propsOf(row);
   switch (column) {
@@ -378,8 +364,18 @@ export function catalogSortValue(
 }
 
 export function compareCatalogRows(
-  left: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
-  right: CatalogPriceRow & { id?: string; name?: string | null; short_name?: string | null; weight?: number | null },
+  left: CatalogPriceRow & {
+    id?: string;
+    name?: string | null;
+    short_name?: string | null;
+    weight?: number | null;
+  },
+  right: CatalogPriceRow & {
+    id?: string;
+    name?: string | null;
+    short_name?: string | null;
+    weight?: number | null;
+  },
   column: CatalogColumnId,
   order: "ascend" | "descend",
 ): number {
@@ -399,18 +395,13 @@ export function compareCatalogRows(
   return order === "descend" ? -cmp : cmp;
 }
 
-export function propsOf(
-  row: Pick<CatalogPriceRow, "properties">,
-): Record<string, unknown> {
+export function propsOf(row: Pick<CatalogPriceRow, "properties">): Record<string, unknown> {
   return row.properties && typeof row.properties === "object"
     ? (row.properties as Record<string, unknown>)
     : {};
 }
 
-export function numProp(
-  props: Record<string, unknown>,
-  ...keys: string[]
-): number | null {
+export function numProp(props: Record<string, unknown>, ...keys: string[]): number | null {
   for (const key of keys) {
     const n = Number(props[key]);
     if (Number.isFinite(n)) return n;
@@ -418,10 +409,7 @@ export function numProp(
   return null;
 }
 
-export function boolProp(
-  props: Record<string, unknown>,
-  ...keys: string[]
-): boolean | null {
+export function boolProp(props: Record<string, unknown>, ...keys: string[]): boolean | null {
   for (const key of keys) {
     const v = props[key];
     if (typeof v === "boolean") return v;
@@ -429,10 +417,7 @@ export function boolProp(
   return null;
 }
 
-export function strProp(
-  props: Record<string, unknown>,
-  ...keys: string[]
-): string {
+export function strProp(props: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
     const v = props[key];
     if (typeof v === "string" && v.trim()) return v.trim();
@@ -456,9 +441,7 @@ export function innerSlots(props: Record<string, unknown>): number | null {
   return total > 0 ? total : null;
 }
 
-export function itemGridSize(
-  row: Pick<CatalogPriceRow, "width" | "height">,
-): string {
+export function itemGridSize(row: Pick<CatalogPriceRow, "width" | "height">): string {
   if (row.width == null || row.height == null) return "—";
   return `${row.width}×${row.height}`;
 }
@@ -468,9 +451,7 @@ export function formatWeight(value: number | null | undefined): string {
   return `${Math.round(value * 1000) / 1000} kg`;
 }
 
-export function formatDurationSeconds(
-  value: number | null | undefined,
-): string {
+export function formatDurationSeconds(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value) || value <= 0) return "即时";
   const total = Math.round(value);
   const h = Math.floor(total / 3600);
@@ -519,9 +500,7 @@ function gridsFormat(value: unknown): string {
     const label = `${w}×${h}`;
     counts.set(label, (counts.get(label) || 0) + 1);
   }
-  return [...counts.entries()]
-    .map(([label, n]) => (n > 1 ? `${label} ×${n}` : label))
-    .join(", ");
+  return [...counts.entries()].map(([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(", ");
 }
 
 /** json.tarkov.dev / BSG 物品 id 多为 24 位 hex。 */
@@ -592,7 +571,14 @@ export function formatPropValue(key: string, value: unknown): string | null {
     if (typeof value === "string") return displayName(value) || null;
     return null;
   }
-  if (key === "categories" || key === "usedOnMaps" || key === "allowedAmmo" || key === "presets" || key === "conflictingItems" || key === "conflictingCategories") {
+  if (
+    key === "categories" ||
+    key === "usedOnMaps" ||
+    key === "allowedAmmo" ||
+    key === "presets" ||
+    key === "conflictingItems" ||
+    key === "conflictingCategories"
+  ) {
     const text = namedList(value);
     return text || null;
   }
@@ -637,9 +623,7 @@ export function formatPropValue(key: string, value: unknown): string | null {
             ? `${row.value > 0 ? "+" : ""}${row.value}${row.percent ? "%" : ""}`
             : "";
         const chance =
-          row.chance != null && row.chance !== 1
-            ? ` ${Math.round(row.chance * 100)}%`
-            : "";
+          row.chance != null && row.chance !== 1 ? ` ${Math.round(row.chance * 100)}%` : "";
         return amount || chance ? `${name}: ${amount}${chance}` : name;
       })
       .filter(Boolean)
@@ -649,9 +633,7 @@ export function formatPropValue(key: string, value: unknown): string | null {
   if (Array.isArray(value)) {
     if (!value.length) return null;
     if (value.every((x) => typeof x !== "object")) {
-      const parts = value
-        .map((entry) => displayName(String(entry)))
-        .filter(Boolean);
+      const parts = value.map((entry) => displayName(String(entry))).filter(Boolean);
       return parts.length ? parts.join(", ") : null;
     }
     return null;
@@ -677,11 +659,7 @@ export function formatPropertyList(
       key,
       label: PROP_LABELS[key] || key,
       value,
-      large:
-        key === "grids" ||
-        itemChips > 1 ||
-        value.length >= 40 ||
-        links.length > 4,
+      large: key === "grids" || itemChips > 1 || value.length >= 40 || links.length > 4,
       links: links.length ? links : undefined,
     });
   }
@@ -707,40 +685,26 @@ function markDefaultAmmoInAllowed(
     if (fallback && !links.some((link) => link.id === defaultId)) {
       links = [fallback, ...links];
     }
-    const marked = links.map((link) =>
-      link.id === defaultId ? { ...link, badge: "默认" } : link,
-    );
+    const marked = links.map((link) => (link.id === defaultId ? { ...link, badge: "默认" } : link));
     if (!marked.some((link) => link.badge)) return row;
     return {
       ...row,
-      links: [
-        ...marked.filter((link) => link.badge),
-        ...marked.filter((link) => !link.badge),
-      ],
+      links: [...marked.filter((link) => link.badge), ...marked.filter((link) => !link.badge)],
       note: DEFAULT_AMMO_HINT,
       large: true,
     };
   });
 }
 
-function itemRefLink(
-  value: unknown,
-  fallbackTypes?: string[],
-): FormattedPropLink | null {
+function itemRefLink(value: unknown, fallbackTypes?: string[]): FormattedPropLink | null {
   const row = asRecord(value);
   if (!row) return null;
   const id = String(row.id || "").trim();
   if (!id) return null;
-  const label =
-    displayName(String(row.name || "")) ||
-    displayName(String(row.shortName || ""));
+  const label = displayName(String(row.name || "")) || displayName(String(row.shortName || ""));
   if (!label) return null;
-  const types = Array.isArray(row.types)
-    ? row.types.map(String)
-    : fallbackTypes || [];
-  const icon = String(
-    row.iconLink || row.baseImageLink || row.icon_link || "",
-  ).trim();
+  const types = Array.isArray(row.types) ? row.types.map(String) : fallbackTypes || [];
+  const icon = String(row.iconLink || row.baseImageLink || row.icon_link || "").trim();
   return {
     label,
     href: itemHrefFromTypes(id, types),
@@ -798,9 +762,7 @@ function extractPropLinks(key: string, value: unknown): FormattedPropLink[] {
       const slug = String(row.normalizedName || row.id || "").trim();
       links.push({
         label,
-        href: slug
-          ? `/guides/tarkov/maps/${encodeURIComponent(slug)}`
-          : "/guides/tarkov/maps",
+        href: slug ? `/guides/tarkov/maps/${encodeURIComponent(slug)}` : "/guides/tarkov/maps",
       });
     }
     return links;
@@ -875,9 +837,7 @@ function vendorFromOffer(offer: Record<string, unknown>): {
   const vendor = asRecord(raw);
   if (vendor) {
     const ident = String(vendor.id || vendor._id || "").trim();
-    const named = String(
-      vendor.normalizedName || vendor.name || "",
-    ).trim();
+    const named = String(vendor.normalizedName || vendor.name || "").trim();
     const fromId = isBareTarkovId(ident) ? resolveTraderSlug(ident) : "";
     const key = fromId || resolveTraderSlug(named) || named || ident;
     const min = Number(vendor.minTraderLevel ?? vendor.min_trader_level);
@@ -915,9 +875,7 @@ export function parseVendorOffers(value: unknown): VendorOffer[] {
       price: Number.isFinite(price) ? price : null,
       currency: String(offer.currency || "RUB"),
       priceRub: Number.isFinite(priceRub) ? priceRub : null,
-      minLevel: Number.isFinite(rowLevel)
-        ? rowLevel
-        : vendor.minLevel ?? loyaltyLevel(offer),
+      minLevel: Number.isFinite(rowLevel) ? rowLevel : (vendor.minLevel ?? loyaltyLevel(offer)),
     });
   }
   return out;
@@ -964,19 +922,13 @@ function loyaltyLevel(offer: Record<string, unknown>): number | null {
 
 export function formatOfferPrice(offer: VendorOffer): string {
   if (offer.currency && offer.currency !== "RUB" && offer.price != null) {
-    const symbol =
-      offer.currency === "USD" ? "$" : offer.currency === "EUR" ? "€" : "";
+    const symbol = offer.currency === "USD" ? "$" : offer.currency === "EUR" ? "€" : "";
     return `${symbol}${offer.price.toLocaleString("zh-CN")}`;
   }
   return formatMoney(offer.priceRub ?? offer.price);
 }
 
-export type {
-  GridLayoutKind,
-  GridPocket,
-  GridOccupancy,
-  ItemGridLayout,
-} from "./tarkovItemGrids";
+export type { GridLayoutKind, GridPocket, GridOccupancy, ItemGridLayout } from "./tarkovItemGrids";
 export {
   composeGridOccupancy,
   extractGridPockets,
@@ -985,19 +937,12 @@ export {
   resolveItemGridLayout,
 } from "./tarkovItemGrids";
 
-export function extractContentLines(
-  properties: Record<string, unknown> | undefined,
-): string[] {
+export function extractContentLines(properties: Record<string, unknown> | undefined): string[] {
   const raw = properties?.content;
   if (!Array.isArray(raw)) return [];
   return raw
     .map((line) => String(line || "").trim())
-    .filter(
-      (line) =>
-        Boolean(line) &&
-        !isBareTarkovId(line) &&
-        !line.includes("_Note_Page"),
-    );
+    .filter((line) => Boolean(line) && !isBareTarkovId(line) && !line.includes("_Note_Page"));
 }
 
 export function itemHasFlea(item: Record<string, unknown> | undefined): boolean {

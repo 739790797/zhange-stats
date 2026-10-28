@@ -34,9 +34,7 @@ describe("parseTarkovScreenshotName", () => {
   });
 
   it("ignores lobby screenshots that only have raid time", () => {
-    expect(
-      parseTarkovScreenshotName("2026-08-30[21-35]_19.91 (0).png"),
-    ).toBeNull();
+    expect(parseTarkovScreenshotName("2026-08-30[21-35]_19.91 (0).png")).toBeNull();
   });
 
   it("returns null for unrelated names", () => {
@@ -51,10 +49,7 @@ describe("quaternionToYawDeg", () => {
   });
 
   it("matches TarkovMonitor euler Y for a 180 turn", () => {
-    expect(normalizeHeadingDeg(quaternionToYawDeg(0, 1, 0, 0))).toBeCloseTo(
-      180,
-      5,
-    );
+    expect(normalizeHeadingDeg(quaternionToYawDeg(0, 1, 0, 0))).toBeCloseTo(180, 5);
   });
 });
 
@@ -74,10 +69,7 @@ describe("gameYawToCssDeg", () => {
   });
 
   it("treats interchange the same as other 180 maps", () => {
-    expect(normalizeHeadingDeg(screenshotYawToMapDeg(0, 180))).toBeCloseTo(
-      180,
-      5,
-    );
+    expect(normalizeHeadingDeg(screenshotYawToMapDeg(0, 180))).toBeCloseTo(180, 5);
   });
 
   it("includes the 90/270 map flip that tarkov.dev adds", () => {

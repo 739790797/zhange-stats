@@ -116,9 +116,7 @@ export function BoxPanelChrome({
             <Typography.Title level={4} style={{ margin: 0 }}>
               {title}
             </Typography.Title>
-            {subtitle ? (
-              <Typography.Text type="secondary">{subtitle}</Typography.Text>
-            ) : null}
+            {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
           </div>
           {roles.length > 1 && onSelectUid ? (
             <Select

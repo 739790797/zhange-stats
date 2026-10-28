@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useMemo, type ReactNode } from "react";
-import { fetchMihoyoStatus, triggerMihoyoCheckin, updateMihoyoRolePref } from "@/features/platforms/mihoyo/api/mihoyoApi";
+import {
+  fetchMihoyoStatus,
+  triggerMihoyoCheckin,
+  updateMihoyoRolePref,
+} from "@/features/platforms/mihoyo/api/mihoyoApi";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
 import { MihoyoAttendanceCalendarButton } from "@/features/platforms/mihoyo/components/MihoyoAttendanceCalendar";
@@ -28,12 +32,9 @@ export default function MihoyoPage() {
     staleTime: LOCAL_QUERY_STALE_MS,
   });
 
-  const featuresReady =
-    featuresQuery.isSuccess && Boolean(featuresQuery.data);
-  const showCheckin =
-    featuresReady && isFeatureOn(featuresQuery.data, "mihoyo.checkin");
-  const showExchange =
-    featuresReady && isFeatureOn(featuresQuery.data, "mihoyo.exchange");
+  const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
+  const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "mihoyo.checkin");
+  const showExchange = featuresReady && isFeatureOn(featuresQuery.data, "mihoyo.exchange");
 
   const tabItems = useMemo(() => {
     const items: { key: TabKey; label: string; children: ReactNode }[] = [];
@@ -55,11 +56,7 @@ export default function MihoyoPage() {
             onSelectRoles={() => openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
-              if (
-                !gameCode ||
-                !row.role_uid ||
-                !hasMihoyoAttendanceCalendar(gameCode)
-              ) {
+              if (!gameCode || !row.role_uid || !hasMihoyoAttendanceCalendar(gameCode)) {
                 return null;
               }
               return (

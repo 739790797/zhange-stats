@@ -22,12 +22,7 @@ class _Resp:
 
 
 def test_http_last_modified_iso() -> None:
-    assert (
-        http_last_modified_iso(
-            {"Last-Modified": "Wed, 26 Aug 2026 09:01:54 GMT"}
-        )
-        == "2026-08-26T09:01:54+00:00"
-    )
+    assert http_last_modified_iso({"Last-Modified": "Wed, 26 Aug 2026 09:01:54 GMT"}) == "2026-08-26T09:01:54+00:00"
     assert http_last_modified_iso({}) is None
     assert http_last_modified_iso({"Last-Modified": "not-a-date"}) is None
 
@@ -106,9 +101,7 @@ def test_download_dump_passes_the_64mib_cap_to_http_download(monkeypatch) -> Non
         return 200, b'{"a":1}', {}
 
     monkeypatch.setattr("app.services.tarkov.http.http_download", fake_download)
-    raw, _stamp = download_dump(
-        "https://json.tarkov.dev/regular/maps", on_bytes=lambda _n, _t: None
-    )
+    raw, _stamp = download_dump("https://json.tarkov.dev/regular/maps", on_bytes=lambda _n, _t: None)
     assert raw == b'{"a":1}'
     assert seen["max_bytes"] == TARKOV_DUMP_MAX_BYTES
 

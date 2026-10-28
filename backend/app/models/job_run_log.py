@@ -12,9 +12,7 @@ class JobRunLog(Base):
     __table_args__ = (Index("ix_job_run_logs_run_id_id", "run_id", "id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[int] = mapped_column(
-        ForeignKey("job_runs.id", ondelete="CASCADE"), nullable=False
-    )
+    run_id: Mapped[int] = mapped_column(ForeignKey("job_runs.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=now_naive,

@@ -58,9 +58,7 @@ class SklandCheckinLog(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
-    )
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False)
     bind_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("skland_binds.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -89,11 +87,7 @@ class SklandAttendanceRaw(Base):
     """明日方舟签到 GET attendance 原始 JSON（按 uid 最新一份，跨日可读）。"""
 
     __tablename__ = "skland_attendance_raws"
-    __table_args__ = (
-        UniqueConstraint(
-            "member_id", "uid", name="uq_skland_attendance_raw_member_uid"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("member_id", "uid", name="uq_skland_attendance_raw_member_uid"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     member_id: Mapped[int] = mapped_column(

@@ -18,7 +18,10 @@ import {
 } from "@/features/guides/tarkov/model/tarkovAmmoFilterStorage";
 import { TarkovAmmoWikiTable } from "@/features/guides/tarkov/components/TarkovAmmoWikiTable";
 import { TarkovAmmoScatterChart } from "@/features/guides/tarkov/components/TarkovAmmoScatterChart";
-import { ammoScatterAxisMax, distinctCaliberColor } from "@/features/guides/tarkov/model/tarkovAmmoScatter";
+import {
+  ammoScatterAxisMax,
+  distinctCaliberColor,
+} from "@/features/guides/tarkov/model/tarkovAmmoScatter";
 import styles from "./TarkovAmmoScatterPanel.module.css";
 
 const EMPTY_ITEMS: TarkovAmmoItem[] = [];
@@ -51,10 +54,7 @@ export function TarkovAmmoScatterPanel() {
 
   const items = ammoQuery.data?.items ?? EMPTY_ITEMS;
   const allCalibers = useMemo(
-    () =>
-      Array.from(new Set(items.map((row) => row.caliber))).sort(
-        compareCaliberLabel,
-      ),
+    () => Array.from(new Set(items.map((row) => row.caliber))).sort(compareCaliberLabel),
     [items],
   );
 
@@ -71,10 +71,7 @@ export function TarkovAmmoScatterPanel() {
     setReady(true);
   }, [allCalibers, savedSelection]);
 
-  const selectedSet = useMemo(
-    () => new Set(selectedCalibers),
-    [selectedCalibers],
-  );
+  const selectedSet = useMemo(() => new Set(selectedCalibers), [selectedCalibers]);
 
   const persistSelection = (next: string[]) => {
     setSelectedCalibers(next);
@@ -93,9 +90,7 @@ export function TarkovAmmoScatterPanel() {
     const knownSet = new Set<string>(known);
     const extra = Array.from(byType.keys())
       .filter((t) => !knownSet.has(t))
-      .sort((a, b) =>
-        formatAmmoTypeLabel(a).localeCompare(formatAmmoTypeLabel(b), "zh"),
-      );
+      .sort((a, b) => formatAmmoTypeLabel(a).localeCompare(formatAmmoTypeLabel(b), "zh"));
     return [...known, ...extra].map((id) => ({
       id: id || "unknown",
       label: formatAmmoTypeLabel(id),
@@ -157,9 +152,7 @@ export function TarkovAmmoScatterPanel() {
       <div className={styles.filterPanel}>
         {typeRows.length ? (
           typeRows.map((row) => {
-            const selectedInRow = row.calibers.filter((c) =>
-              selectedSet.has(c),
-            ).length;
+            const selectedInRow = row.calibers.filter((c) => selectedSet.has(c)).length;
             const allOn = selectedInRow === row.calibers.length;
             return (
               <div key={row.id} className={styles.filterRow}>
@@ -167,8 +160,7 @@ export function TarkovAmmoScatterPanel() {
                 <div className={styles.filterChips}>
                   {row.calibers.map((caliber) => {
                     const checked = selectedSet.has(caliber);
-                    const color =
-                      caliberColors.get(caliber) || distinctCaliberColor(0);
+                    const color = caliberColors.get(caliber) || distinctCaliberColor(0);
                     const label = formatCaliberLabel(caliber);
                     return (
                       <Tag.CheckableTag

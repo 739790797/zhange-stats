@@ -15,20 +15,12 @@ class PlaySession(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    member_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False
-    )
+    member_id: Mapped[int] = mapped_column(Integer, ForeignKey("members.id", ondelete="CASCADE"), nullable=False)
     steam_app_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     game_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    ended_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True
-    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="steam")
 
     member = relationship("Member", back_populates="play_sessions")

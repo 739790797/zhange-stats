@@ -11,33 +11,22 @@ export type PelicanTestRequest = components["schemas"]["PelicanTestRequest"];
 
 export type PelicanTestResponse = components["schemas"]["PelicanTestResponse"];
 
-export type MinecraftRconTestRequest =
-  components["schemas"]["MinecraftRconTestRequest"];
+export type MinecraftRconTestRequest = components["schemas"]["MinecraftRconTestRequest"];
 
-export type MinecraftRconTestResponse =
-  components["schemas"]["MinecraftRconTestResponse"];
+export type MinecraftRconTestResponse = components["schemas"]["MinecraftRconTestResponse"];
 
 export async function fetchIntegrationsSettings() {
-  const { data } = await client.get<IntegrationsSettings>(
-    "/settings/integrations",
-  );
+  const { data } = await client.get<IntegrationsSettings>("/settings/integrations");
   return data;
 }
 
 export async function fetchIntegrationsStatus() {
-  const { data } = await client.get<IntegrationsStatus>(
-    "/settings/integrations/status",
-  );
+  const { data } = await client.get<IntegrationsStatus>("/settings/integrations/status");
   return data;
 }
 
-export async function updateIntegrationsSettings(
-  payload: IntegrationsUpdate,
-) {
-  const { data } = await client.put<IntegrationsSettings>(
-    "/settings/integrations",
-    payload,
-  );
+export async function updateIntegrationsSettings(payload: IntegrationsUpdate) {
+  const { data } = await client.put<IntegrationsSettings>("/settings/integrations", payload);
   return data;
 }
 
@@ -50,9 +39,7 @@ export async function testPelicanConnection(payload: PelicanTestRequest) {
   return data;
 }
 
-export async function testMinecraftRconConnection(
-  payload: MinecraftRconTestRequest,
-) {
+export async function testMinecraftRconConnection(payload: MinecraftRconTestRequest) {
   const { data } = await client.post<MinecraftRconTestResponse>(
     "/settings/integrations/minecraft-rcon-test",
     payload,

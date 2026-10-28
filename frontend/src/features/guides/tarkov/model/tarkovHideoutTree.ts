@@ -1,9 +1,6 @@
 /** 藏身处升级前置树：每座设施一列、每级一个节点，连线来自 station_requirements。 */
 
-import type {
-  HideoutStationSpec,
-  HideoutTraderReq,
-} from "./tarkovHideoutProgress";
+import type { HideoutStationSpec, HideoutTraderReq } from "./tarkovHideoutProgress";
 
 export const HIDEOUT_TREE_NODE_W = 128;
 export const HIDEOUT_TREE_NODE_H = 54;
@@ -114,10 +111,7 @@ export function hideoutTreeNodeKind(opts: {
   return "locked";
 }
 
-export function hideoutTreeBusY(
-  fromY: number,
-  nodeH = HIDEOUT_TREE_NODE_H,
-): number {
+export function hideoutTreeBusY(fromY: number, nodeH = HIDEOUT_TREE_NODE_H): number {
   return fromY + nodeH + Math.round(HIDEOUT_TREE_ROW_GAP / 2);
 }
 
@@ -169,13 +163,7 @@ function segsToPath(segs: Array<{ x1: number; y1: number; x2: number; y2: number
   return d;
 }
 
-function toRawSeg(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  edgeKey: string,
-): RawSeg | null {
+function toRawSeg(x1: number, y1: number, x2: number, y2: number, edgeKey: string): RawSeg | null {
   const ax = Math.round(x1);
   const ay = Math.round(y1);
   const bx = Math.round(x2);
@@ -294,19 +282,13 @@ export function hideoutTreeFocus(
   return { nodes, edges: focusEdges };
 }
 
-export function hideoutTreeActiveKey(
-  selectedKey?: string,
-  hoverKey?: string,
-): string {
+export function hideoutTreeActiveKey(selectedKey?: string, hoverKey?: string): string {
   const selected = (selectedKey || "").trim();
   if (selected) return selected;
   return (hoverKey || "").trim();
 }
 
-export function hideoutTreeClickedKey(
-  selectedKey: string | undefined,
-  clickedKey: string,
-): string {
+export function hideoutTreeClickedKey(selectedKey: string | undefined, clickedKey: string): string {
   const selected = (selectedKey || "").trim();
   const clicked = (clickedKey || "").trim();
   if (!clicked) return "";
@@ -352,11 +334,7 @@ function collectStations(stations: HideoutStationSpec[] | undefined): StationLev
   return out;
 }
 
-function addEdge(
-  incoming: Map<string, Set<string>>,
-  from: string,
-  to: string,
-) {
+function addEdge(incoming: Map<string, Set<string>>, from: string, to: string) {
   if (!from || !to || from === to) return;
   let bag = incoming.get(to);
   if (!bag) {
@@ -408,9 +386,7 @@ function packColumns(
     let placed = false;
     for (const index of tryCols) {
       const col = columns[index];
-      const clash = col.some(
-        (item) => !(range.min > item.max || range.max < item.min),
-      );
+      const clash = col.some((item) => !(range.min > item.max || range.max < item.min));
       if (clash) continue;
       col.push({ slug, ...range });
       colOf.set(slug, index);
@@ -503,8 +479,7 @@ export function buildHideoutTreeLayout(
 
   const layerMemo = new Map<string, number>();
   const visiting = new Set<string>();
-  const layerOf = (key: string) =>
-    longestLayer(key, incoming, layerMemo, visiting);
+  const layerOf = (key: string) => longestLayer(key, incoming, layerMemo, visiting);
 
   const slugRanges = new Map<string, { min: number; max: number }>();
   const identColKey = new Map<string, string>();
@@ -559,10 +534,7 @@ export function buildHideoutTreeLayout(
   for (const row of rows) {
     const col = colIndex.get(row.slug || row.ident) ?? 0;
     const specByLevel = new Map(
-      (row.station.levels || []).map((spec) => [
-        Math.trunc(Number(spec.level || 0)),
-        spec,
-      ]),
+      (row.station.levels || []).map((spec) => [Math.trunc(Number(spec.level || 0)), spec]),
     );
     for (const level of row.levels) {
       const key = hideoutTreeNodeKey(row.ident, level);
@@ -581,8 +553,8 @@ export function buildHideoutTreeLayout(
         col,
         x: HIDEOUT_TREE_PAD_X + col * (HIDEOUT_TREE_NODE_W + HIDEOUT_TREE_COL_GAP),
         y: HIDEOUT_TREE_PAD_Y + layer * (HIDEOUT_TREE_NODE_H + HIDEOUT_TREE_ROW_GAP),
-        traders: (spec?.trader_requirements || []).filter(
-          (req) => (req.slug || req.id || "").trim(),
+        traders: (spec?.trader_requirements || []).filter((req) =>
+          (req.slug || req.id || "").trim(),
         ),
       });
     }
@@ -631,9 +603,7 @@ export function buildHideoutTreeLayout(
     colCount * HIDEOUT_TREE_NODE_W +
     Math.max(0, colCount - 1) * HIDEOUT_TREE_COL_GAP;
   const height =
-    HIDEOUT_TREE_PAD_Y * 2 +
-    (maxLayer + 1) * HIDEOUT_TREE_NODE_H +
-    maxLayer * HIDEOUT_TREE_ROW_GAP;
+    HIDEOUT_TREE_PAD_Y * 2 + (maxLayer + 1) * HIDEOUT_TREE_NODE_H + maxLayer * HIDEOUT_TREE_ROW_GAP;
 
   return { nodes, edges, wires, legend, width, height };
 }

@@ -114,9 +114,7 @@ def parse_tags(raw: Any) -> list[str]:
 def author_name(row: dict[str, Any]) -> str:
     if row.get("is_admin_build"):
         return _clip(
-            row.get("author_display_name_zh")
-            or row.get("author_display_name")
-            or "Morph1ne",
+            row.get("author_display_name_zh") or row.get("author_display_name") or "Morph1ne",
             30,
         )
     return _clip(row.get("user_display_name") or "匿名", 30)

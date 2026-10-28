@@ -7,9 +7,7 @@ export function rumAtToMs(at: string): number {
   const text = String(at || "").trim();
   if (!text) return Number.NaN;
   const iso = text.includes("T") ? text : text.replace(" ", "T");
-  const parsed = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso)
-    ? Date.parse(iso)
-    : Date.parse(`${iso}+08:00`);
+  const parsed = /[zZ]|[+-]\d{2}:\d{2}$/.test(iso) ? Date.parse(iso) : Date.parse(`${iso}+08:00`);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
@@ -114,13 +112,9 @@ export function rumRowsForBiz(
   limit = RUM_BAR_LIMIT,
 ): RumSummaryRow[] {
   const list = rows || [];
-  const filtered =
-    !biz || biz === RUM_BIZ_ALL ? list : list.filter((row) => row.biz === biz);
+  const filtered = !biz || biz === RUM_BIZ_ALL ? list : list.filter((row) => row.biz === biz);
   return [...filtered]
-    .sort(
-      (a, b) =>
-        (b.p95_ms ?? 0) - (a.p95_ms ?? 0) || (b.count ?? 0) - (a.count ?? 0),
-    )
+    .sort((a, b) => (b.p95_ms ?? 0) - (a.p95_ms ?? 0) || (b.count ?? 0) - (a.count ?? 0))
     .slice(0, limit);
 }
 
@@ -138,10 +132,7 @@ export function rumBarPoints(
   return out;
 }
 
-export function rumBizBarPoints(
-  rows: RumBizSummary[] | undefined,
-  limit = 16,
-): RumBarPoint[] {
+export function rumBizBarPoints(rows: RumBizSummary[] | undefined, limit = 16): RumBarPoint[] {
   const out: RumBarPoint[] = [];
   for (const row of (rows || []).slice(0, limit)) {
     const label = `${row.label}（${row.count}）`;

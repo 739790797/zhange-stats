@@ -12,10 +12,7 @@ from app.services.checkin.common import CheckinResult
 
 
 def test_arknights_item_icon_url() -> None:
-    assert (
-        arknights_item_icon_url("DIAMOND_SHD")
-        == "/api/skland/arknights/assets/item/DIAMOND_SHD.png"
-    )
+    assert arknights_item_icon_url("DIAMOND_SHD") == "/api/skland/arknights/assets/item/DIAMOND_SHD.png"
     assert arknights_item_icon_url("") is None
     assert arknights_item_icon_url("../x") is None
     assert arknights_item_icon_url("a/b") is None
@@ -77,9 +74,7 @@ def test_arknights_awards_from_sign_response() -> None:
 
 
 def test_enrich_arknights_award_icons() -> None:
-    enriched = enrich_arknights_award_icons(
-        [{"name": "合成玉", "count": 80, "resource_type": "DIAMOND_SHD"}]
-    )
+    enriched = enrich_arknights_award_icons([{"name": "合成玉", "count": 80, "resource_type": "DIAMOND_SHD"}])
     assert enriched is not None
     assert enriched[0]["icon_url"].endswith("/item/DIAMOND_SHD.png")
 

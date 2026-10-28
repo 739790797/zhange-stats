@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   TARKOV_GAME_MODE_STORAGE_KEY,
   TarkovGameModeContext,
@@ -16,9 +10,7 @@ import {
 } from "@/features/guides/tarkov/model/tarkovGameMode";
 
 export function TarkovGameModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<TarkovGameMode>(() =>
-    getTarkovGameMode(),
-  );
+  const [mode, setModeState] = useState<TarkovGameMode>(() => getTarkovGameMode());
   const setMode = useCallback((next: TarkovGameMode) => {
     setModeState(persistTarkovGameMode(next));
   }, []);
@@ -45,9 +37,5 @@ export function TarkovGameModeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(() => ({ mode, setMode }), [mode, setMode]);
-  return (
-    <TarkovGameModeContext.Provider value={value}>
-      {children}
-    </TarkovGameModeContext.Provider>
-  );
+  return <TarkovGameModeContext.Provider value={value}>{children}</TarkovGameModeContext.Provider>;
 }

@@ -89,16 +89,12 @@ def _save_creds(bind: MihoyoBind, creds: MihoyoCredentials) -> None:
     bind.updated_at = now_naive()
 
 
-def _store_creds(
-    db: Session, bind: MihoyoBind, stored: StoredCreds[MihoyoCredentials]
-) -> None:
+def _store_creds(db: Session, bind: MihoyoBind, stored: StoredCreds[MihoyoCredentials]) -> None:
     """接口内 cookie_token 过期会原地换新（call_with_cookie_refresh），用完写回。"""
     store_creds_if_changed(db, bind, stored, extra=_creds_columns(stored.creds))
 
 
-def bind_member_with_creds(
-    db: Session, member: Member, creds: MihoyoCredentials
-) -> MihoyoBind:
+def bind_member_with_creds(db: Session, member: Member, creds: MihoyoCredentials) -> MihoyoBind:
     bind = get_bind_for_member(db, member.id)
     if bind is None:
         bind = MihoyoBind(member_id=member.id, credentials_enc="", auto_checkin=False)
@@ -110,9 +106,7 @@ def bind_member_with_creds(
     return bind
 
 
-def bind_member_with_sms(
-    db: Session, member: Member, phone: str, captcha: str
-) -> MihoyoBind:
+def bind_member_with_sms(db: Session, member: Member, phone: str, captcha: str) -> MihoyoBind:
     return bind_member_with_creds(db, member, login_with_sms(phone, captcha))
 
 
@@ -339,14 +333,10 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
     def get_bind(self, db: Session, member_id: int) -> MihoyoBind | None:
         return get_bind_for_member(db, member_id)
 
-    def load_session(
-        self, db: Session, bind: MihoyoBind
-    ) -> StoredCreds[MihoyoCredentials]:
+    def load_session(self, db: Session, bind: MihoyoBind) -> StoredCreds[MihoyoCredentials]:
         return _session_for_bind(db, bind)
 
-    def save_session(
-        self, db: Session, bind: MihoyoBind, session: StoredCreds[MihoyoCredentials]
-    ) -> None:
+    def save_session(self, db: Session, bind: MihoyoBind, session: StoredCreds[MihoyoCredentials]) -> None:
         _store_creds(db, bind, session)
 
     def query_today_all(
@@ -363,44 +353,28 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
         role_keys: set[RoleKey] | None,
     ) -> CheckinRunOutcome:
         _ = force
-        working, results = run_all_checkins(
-            session.creds, role_keys=role_keys, session_checked=True
-        )
+        working, results = run_all_checkins(session.creds, role_keys=role_keys, session_checked=True)
         return CheckinRunOutcome(session=session.with_creds(working), results=results)
 
-    def prepare_cached_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult] | None:
+    def prepare_cached_results(self, results: list[CheckinResult]) -> list[CheckinResult] | None:
         return sort_mihoyo_results(results)
 
-    def normalize_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult]:
+    def normalize_results(self, results: list[CheckinResult]) -> list[CheckinResult]:
         return sort_mihoyo_results(results)
 
     def friendly_error(self, message: str) -> str:
         return friendly_error_message(message)
 
     def enrich_summary(self, summary: str, results: list[CheckinResult]) -> str:
-        extra_parts = [
-            r.extra_text for r in results if r.extra_text and r.game_code == GAME_CODE
-        ]
+        extra_parts = [r.extra_text for r in results if r.extra_text and r.game_code == GAME_CODE]
         if not extra_parts:
             return summary
         return f"{summary}\n" + "\n".join(extra_parts)
 
-    def after_checkin(
-        self, db: Session, bind: MihoyoBind, results: list[CheckinResult]
-    ) -> None:
-        cal_uids = [
-            r.role_uid
-            for r in results
-            if r.game_code in CALENDAR_GAME_CODES and is_success_status(r.status)
-        ]
+    def after_checkin(self, db: Session, bind: MihoyoBind, results: list[CheckinResult]) -> None:
+        cal_uids = [r.role_uid for r in results if r.game_code in CALENDAR_GAME_CODES and is_success_status(r.status)]
         if cal_uids:
-            invalidate_mihoyo_attendance_raws(
-                db, bind.member_id, role_uids=cal_uids
-            )
+            invalidate_mihoyo_attendance_raws(db, bind.member_id, role_uids=cal_uids)
 
     def mark_as_skipped(
         self,
@@ -429,9 +403,7 @@ class MihoyoCheckinAdapter(CheckinAdapterBase):
 mihoyo_adapter = MihoyoCheckinAdapter()
 
 
-def query_today_for_bind(
-    db: Session, bind: MihoyoBind, *, force: bool = False
-) -> dict[str, Any]:
+def query_today_for_bind(db: Session, bind: MihoyoBind, *, force: bool = False) -> dict[str, Any]:
     return _orch_query_today(mihoyo_adapter, db, bind, force=force)
 
 
@@ -442,9 +414,7 @@ def run_checkin_for_bind(
     force: bool = False,
     role_keys: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    return _orch_run_checkin(
-        mihoyo_adapter, db, bind, force=force, role_keys=role_keys
-    )
+    return _orch_run_checkin(mihoyo_adapter, db, bind, force=force, role_keys=role_keys)
 
 
 def run_checkin_for_member(
@@ -468,9 +438,7 @@ def invalidate_mihoyo_attendance_raws(
     role_uids: list[str] | None = None,
 ) -> None:
     """签到成功后丢弃日历 raw，下次打开页回源。"""
-    q = db.query(MihoyoAttendanceRaw).filter(
-        MihoyoAttendanceRaw.member_id == member_id
-    )
+    q = db.query(MihoyoAttendanceRaw).filter(MihoyoAttendanceRaw.member_id == member_id)
     if game_code:
         q = q.filter(MihoyoAttendanceRaw.game_code == game_code)
     if role_uids:
@@ -478,9 +446,7 @@ def invalidate_mihoyo_attendance_raws(
     q.delete(synchronize_session=False)
 
 
-def _mihoyo_today_log_hint(
-    db: Session, *, member_id: int, game_code: str, role_uid: str
-) -> bool:
+def _mihoyo_today_log_hint(db: Session, *, member_id: int, game_code: str, role_uid: str) -> bool:
     from app.core.timeutil import today as beijing_today
 
     day = beijing_today()
@@ -534,11 +500,7 @@ def get_mihoyo_attendance_calendar_for_member(
         raise MihoyoApiError("未找到该游戏绑定角色")
 
     target_uid = str(role_uid or "").strip()
-    role = (
-        next((r for r in roles if r.role_uid == target_uid), None)
-        if target_uid
-        else roles[0]
-    )
+    role = next((r for r in roles if r.role_uid == target_uid), None) if target_uid else roles[0]
     if role is None:
         raise MihoyoApiError("角色不在当前米游社绑定列表中")
 
@@ -614,9 +576,7 @@ def get_mihoyo_attendance_calendar_for_member(
     if not isinstance(resp, dict):
         raise MihoyoApiError("签到日历数据格式异常，请刷新重试")
 
-    log_today = _mihoyo_today_log_hint(
-        db, member_id=member.id, game_code=game_code, role_uid=role.role_uid
-    )
+    log_today = _mihoyo_today_log_hint(db, member_id=member.id, game_code=game_code, role_uid=role.role_uid)
     parsed = parse_mihoyo_attendance_calendar(
         resp,
         fallback_has_today=True if log_today else None,

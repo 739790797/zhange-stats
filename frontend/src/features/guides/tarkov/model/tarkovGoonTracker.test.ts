@@ -24,11 +24,7 @@ describe("tarkovGoonTracker", () => {
 
   it("builds the map-row sighting hint", () => {
     const now = Date.parse("2026-09-01T08:00:00+08:00");
-    expect(goonSightingHint("2026-09-01T07:48:00+08:00", now)).toBe(
-      "三狗出没（12分钟前上报）",
-    );
-    expect(goonSightingHint("2026-09-01T00:00:10Z", now)).toBe(
-      "三狗出没（刚刚上报）",
-    );
+    expect(goonSightingHint("2026-09-01T07:48:00+08:00", now)).toBe("三狗出没（12分钟前上报）");
+    expect(goonSightingHint("2026-09-01T00:00:10Z", now)).toBe("三狗出没（刚刚上报）");
   });
 });

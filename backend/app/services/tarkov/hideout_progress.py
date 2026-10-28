@@ -171,15 +171,11 @@ def _cascade(
     while changed:
         changed = False
         for ident, station in by_id.items():
-            current = int(
-                levels.get(ident, default_level(station, stash_floor=stash_floor))
-            )
+            current = int(levels.get(ident, default_level(station, stash_floor=stash_floor)))
             low = default_level(station, stash_floor=stash_floor)
             while current > low:
                 spec = level_spec(station, current)
-                if spec is not None and station_prereqs_met(
-                    spec, levels, by_id, stash_floor=stash_floor
-                ):
+                if spec is not None and station_prereqs_met(spec, levels, by_id, stash_floor=stash_floor):
                     break
                 current -= 1
                 changed = True

@@ -40,14 +40,10 @@ export function hasArticleHotkeyMod(event: ArticleHotkeyEvent): boolean {
 }
 
 function keyName(event: ArticleHotkeyEvent): string {
-  return (event.key || "").length === 1
-    ? event.key.toLowerCase()
-    : (event.key || "").toLowerCase();
+  return (event.key || "").length === 1 ? event.key.toLowerCase() : (event.key || "").toLowerCase();
 }
 
-export function matchArticleHotkey(
-  event: ArticleHotkeyEvent,
-): ArticleHotkeyAction | null {
+export function matchArticleHotkey(event: ArticleHotkeyEvent): ArticleHotkeyAction | null {
   if (!hasArticleHotkeyMod(event)) return null;
   const key = keyName(event);
   const code = event.code || "";
@@ -98,10 +94,7 @@ export function isArticleHotkeyNativeTarget(target: EventTarget | null): boolean
   return target.isContentEditable;
 }
 
-export function runArticleHotkey(
-  editor: Editor,
-  action: ArticleHotkeyAction,
-): boolean {
+export function runArticleHotkey(editor: Editor, action: ArticleHotkeyAction): boolean {
   const chain = editor.chain().focus();
   if (action === "bold") return chain.toggleBold().run();
   if (action === "italic") return chain.toggleItalic().run();

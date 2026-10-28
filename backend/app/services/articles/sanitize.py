@@ -242,9 +242,7 @@ def _rewrite_open_tag(match: re.Match[str]) -> str:
         rgb = parse_css_color(_style_prop(style, "color") or _attr_value(attrs, "color"))
         color_key = classify_article_color(rgb) if rgb else ""
     if not mark_key:
-        bg = parse_css_color(
-            _style_prop(style, "background-color") or _style_prop(style, "background")
-        )
+        bg = parse_css_color(_style_prop(style, "background-color") or _style_prop(style, "background"))
         mark_key = classify_article_mark(bg) if bg else ""
     if tag.lower() == "mark" and not mark_key:
         mark_key = "yellow"

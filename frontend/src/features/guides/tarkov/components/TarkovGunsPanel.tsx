@@ -61,12 +61,8 @@ export function TarkovGunsPanel({
 }: Props = {}) {
   const gameMode = useTarkovGameMode();
   const [searchParams, setSearchParams] = useSearchParams();
-  const ammoFilterId = compact
-    ? null
-    : (searchParams.get("ammo") || "").trim() || null;
-  const caliberFilterParam = compact
-    ? null
-    : (searchParams.get("caliber") || "").trim() || null;
+  const ammoFilterId = compact ? null : (searchParams.get("ammo") || "").trim() || null;
+  const caliberFilterParam = compact ? null : (searchParams.get("caliber") || "").trim() || null;
 
   const gunsQuery = useQuery({
     queryKey: ["guides-tarkov-guns", gameMode],

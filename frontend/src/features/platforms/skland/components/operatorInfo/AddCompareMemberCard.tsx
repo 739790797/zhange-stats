@@ -43,10 +43,11 @@ export function AddCompareMemberCard({
         新增对比成员
       </Button>
       {disabled ? (
-        <Typography.Text type="secondary" style={{ display: "block", textAlign: "center", fontSize: 12 }}>
-          {candidates.length === 0
-            ? `暂无其他符合条件的${gameName}角色`
-            : "已达到同时对比人数上限"}
+        <Typography.Text
+          type="secondary"
+          style={{ display: "block", textAlign: "center", fontSize: 12 }}
+        >
+          {candidates.length === 0 ? `暂无其他符合条件的${gameName}角色` : "已达到同时对比人数上限"}
         </Typography.Text>
       ) : null}
       <Modal
@@ -78,9 +79,7 @@ export function AddCompareMemberCard({
             title: `${candidate.game_role_name || candidate.nickname} · ${candidate.nickname}`,
           }))}
           optionRender={(option) => {
-            const candidate = candidates.find(
-              (item) => item.member_id === option.value,
-            );
+            const candidate = candidates.find((item) => item.member_id === option.value);
             if (!candidate) return option.label;
             return (
               <Space size={8}>
@@ -91,8 +90,7 @@ export function AddCompareMemberCard({
                   <Typography.Text>
                     {candidate.game_role_name || candidate.nickname}
                   </Typography.Text>
-                  {candidate.game_role_name &&
-                  candidate.game_role_name !== candidate.nickname ? (
+                  {candidate.game_role_name && candidate.game_role_name !== candidate.nickname ? (
                     <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                       {candidate.nickname}
                     </Typography.Text>
@@ -102,11 +100,9 @@ export function AddCompareMemberCard({
             );
           }}
         />
-        <Typography.Text
-          type="secondary"
-          style={{ display: "block", marginTop: 10, fontSize: 12 }}
-        >
-          可选站内已绑定森空岛且有{gameName}角色的用户。其他成员展示最近的本地快照，不会使用对方凭证回源。
+        <Typography.Text type="secondary" style={{ display: "block", marginTop: 10, fontSize: 12 }}>
+          可选站内已绑定森空岛且有{gameName}
+          角色的用户。其他成员展示最近的本地快照，不会使用对方凭证回源。
         </Typography.Text>
       </Modal>
     </>

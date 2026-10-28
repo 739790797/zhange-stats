@@ -40,11 +40,7 @@ export function TarkovTradersHubPanel() {
   return (
     <div className={styles.grid}>
       {rows.map((item) => (
-        <Link
-          key={item.id}
-          to={tarkovTraderHref(item.slug)}
-          className={styles.card}
-        >
+        <Link key={item.id} to={tarkovTraderHref(item.slug)} className={styles.card}>
           <img
             className={styles.avatar}
             src={item.portrait_link || item.image_link}

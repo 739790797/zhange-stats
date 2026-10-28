@@ -1,16 +1,6 @@
 import { SettingOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Form,
-  Input,
-  Modal,
-  Result,
-  Select,
-  Spin,
-  Tooltip,
-  message,
-} from "antd";
+import { Button, Form, Input, Modal, Result, Select, Spin, Tooltip, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -236,10 +226,7 @@ export default function TavernEditPage() {
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (
-        !articleDraftIsDirty(
-          articleDraftSnapshot(form.getFieldsValue(true)),
-          savedSnap.current,
-        )
+        !articleDraftIsDirty(articleDraftSnapshot(form.getFieldsValue(true)), savedSnap.current)
       ) {
         return;
       }
@@ -365,9 +352,7 @@ export default function TavernEditPage() {
         <Result
           status="403"
           title="没有发文权限"
-          extra={
-            <Button onClick={() => navigate(TAVERN_PATH)}>返回酒馆</Button>
-          }
+          extra={<Button onClick={() => navigate(TAVERN_PATH)}>返回酒馆</Button>}
         />
       </div>
     );
@@ -379,9 +364,7 @@ export default function TavernEditPage() {
       layout="vertical"
       className={styles.page}
       onFinish={() => undefined}
-      initialValues={
-        isNew || !initial ? EMPTY_ARTICLE_FORM : articleEditorFormValues(initial)
-      }
+      initialValues={isNew || !initial ? EMPTY_ARTICLE_FORM : articleEditorFormValues(initial)}
     >
       <Form.Item name="slug" hidden>
         <Input />
@@ -393,26 +376,24 @@ export default function TavernEditPage() {
         <Input />
       </Form.Item>
       <div className={styles.stickyStack}>
-      <header className={styles.topbar}>
-        <Link className={styles.crumb} to={TAVERN_PATH}>
-          战鸽酒馆
-        </Link>
-        <span className={styles.crumbNow}>
-          {isNew ? "写文章" : "编辑"}
-        </span>
-        <div className={styles.topbarActions}>
+        <header className={styles.topbar}>
+          <Link className={styles.crumb} to={TAVERN_PATH}>
+            战鸽酒馆
+          </Link>
+          <span className={styles.crumbNow}>{isNew ? "写文章" : "编辑"}</span>
+          <div className={styles.topbarActions}>
             <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
               设置
             </Button>
             <Tooltip title="保存（Ctrl+S）">
-            <Button
-              loading={saveMut.isPending && !silentSaving}
-              onClick={() => {
-                void persist("draft").catch(() => undefined);
-              }}
-            >
-              保存
-            </Button>
+              <Button
+                loading={saveMut.isPending && !silentSaving}
+                onClick={() => {
+                  void persist("draft").catch(() => undefined);
+                }}
+              >
+                保存
+              </Button>
             </Tooltip>
             <Button
               type="primary"
@@ -424,90 +405,82 @@ export default function TavernEditPage() {
               发布
             </Button>
           </div>
-      </header>
-      <div className={styles.belowBar}>
-        {saveHint ? <p className={styles.saveHint}>{saveHint}</p> : null}
-        <div className={styles.formatbar} ref={setToolbarHost} />
-      </div>
+        </header>
+        <div className={styles.belowBar}>
+          {saveHint ? <p className={styles.saveHint}>{saveHint}</p> : null}
+          <div className={styles.formatbar} ref={setToolbarHost} />
+        </div>
       </div>
 
-          <div className={`${styles.sheet} ${styles.sheetAttached}`}>
-            <Form.Item
-              name="title"
-              className={styles.titleItem}
-              rules={[{ required: true, message: "请填写标题" }]}
-            >
-              <Input
-                className={styles.titleInput}
-                bordered={false}
-                maxLength={200}
-                placeholder="请输入标题"
-              />
-            </Form.Item>
-            <Form.Item name="body_format" hidden>
-              <Input />
-            </Form.Item>
-            <Form.Item name="body" className={styles.bodyItem}>
-              <ArticleComposer
-                key={isNew ? "new" : String(id)}
-                format={bodyFormat === "markdown" ? "markdown" : "html"}
-                disabled={uploading}
-                uploadFiles={uploadImages}
-                toolbarHost={toolbarHost}
-                onSave={() => {
-                  void persistRef.current("draft").catch(() => undefined);
-                }}
-              />
-            </Form.Item>
-          </div>
+      <div className={`${styles.sheet} ${styles.sheetAttached}`}>
+        <Form.Item
+          name="title"
+          className={styles.titleItem}
+          rules={[{ required: true, message: "请填写标题" }]}
+        >
+          <Input
+            className={styles.titleInput}
+            bordered={false}
+            maxLength={200}
+            placeholder="请输入标题"
+          />
+        </Form.Item>
+        <Form.Item name="body_format" hidden>
+          <Input />
+        </Form.Item>
+        <Form.Item name="body" className={styles.bodyItem}>
+          <ArticleComposer
+            key={isNew ? "new" : String(id)}
+            format={bodyFormat === "markdown" ? "markdown" : "html"}
+            disabled={uploading}
+            uploadFiles={uploadImages}
+            toolbarHost={toolbarHost}
+            onSave={() => {
+              void persistRef.current("draft").catch(() => undefined);
+            }}
+          />
+        </Form.Item>
+      </div>
 
-          <Modal
-            title="设置"
-            open={settingsOpen}
-            onCancel={() => setSettingsOpen(false)}
-            onOk={() =>
-              form.validateFields(["category_ids"]).then(() => {
-                setSettingsOpen(false);
-              })
-            }
-            okText="完成"
-            cancelText="关闭"
-            width="min(560px, calc(100vw - 24px))"
-            destroyOnClose={false}
+      <Modal
+        title="设置"
+        open={settingsOpen}
+        onCancel={() => setSettingsOpen(false)}
+        onOk={() =>
+          form.validateFields(["category_ids"]).then(() => {
+            setSettingsOpen(false);
+          })
+        }
+        okText="完成"
+        cancelText="关闭"
+        width="min(560px, calc(100vw - 24px))"
+        destroyOnClose={false}
+      >
+        <div className={styles.settingsForm}>
+          <Form.Item
+            name="category_ids"
+            label="分类"
+            layout="vertical"
+            colon={false}
+            rules={[
+              { required: true, message: "请选择分类" },
+              { type: "array", min: 1, message: "请选择分类" },
+            ]}
           >
-            <div className={styles.settingsForm}>
-              <Form.Item
-                name="category_ids"
-                label="分类"
-                layout="vertical"
-                colon={false}
-                rules={[
-                  { required: true, message: "请选择分类" },
-                  { type: "array", min: 1, message: "请选择分类" },
-                ]}
-              >
-                <Select
-                  mode="multiple"
-                  placeholder="选择分类"
-                  options={selectableArticleCategories(
-                    catsQuery.data || [],
-                    canAdmin,
-                  ).map((c) => ({
-                    value: c.id,
-                    label: articleCategoryOptionLabel(c),
-                  }))}
-                />
-              </Form.Item>
-              <Form.Item
-                name="summary"
-                label="摘要"
-                layout="vertical"
-                colon={false}
-              >
-                <Input.TextArea rows={3} maxLength={512} />
-              </Form.Item>
-            </div>
-          </Modal>
+            <Select
+              mode="multiple"
+              placeholder="选择分类"
+              options={selectableArticleCategories(catsQuery.data || [], canAdmin).map((c) => ({
+                value: c.id,
+                label: articleCategoryOptionLabel(c),
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="summary" label="摘要" layout="vertical" colon={false}>
+            <Input.TextArea rows={3} maxLength={512} />
+          </Form.Item>
+        </div>
+      </Modal>
     </Form>
   );
 }

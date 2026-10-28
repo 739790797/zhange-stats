@@ -62,10 +62,7 @@ export function TarkovWorkbenchGunsmithPanel({
                   ? "（工作台暂不按折叠对照）"
                   : "";
             return (
-              <li
-                key={key}
-                data-ok={live ? (unmet ? "false" : "true") : "note"}
-              >
+              <li key={key} data-ok={live ? (unmet ? "false" : "true") : "note"}>
                 {live ? mark(!unmet) : "·"} {formatGunsmithConstraint(key, Number(value))}
                 {hint}
               </li>

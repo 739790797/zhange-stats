@@ -45,12 +45,7 @@ def _raise(status: int, message: str) -> None:
 
 
 def is_listed_author(db: Session, user_id: int) -> bool:
-    return (
-        db.query(ArticleAuthor.user_id)
-        .filter(ArticleAuthor.user_id == user_id)
-        .first()
-        is not None
-    )
+    return db.query(ArticleAuthor.user_id).filter(ArticleAuthor.user_id == user_id).first() is not None
 
 
 def can_write(db: Session, user: User) -> bool:
@@ -93,11 +88,7 @@ def _version_payload(row: Article) -> dict[str, str | None]:
 
 
 def _prune_versions(db: Session, article_id: int) -> None:
-    newest = (
-        db.query(func.max(ArticleVersion.version_no))
-        .filter(ArticleVersion.article_id == article_id)
-        .scalar()
-    )
+    newest = db.query(func.max(ArticleVersion.version_no)).filter(ArticleVersion.article_id == article_id).scalar()
     if newest is None or newest <= MAX_VERSIONS:
         return
     # 版本号按篇连续递增（只从最旧端裁剪），保留最近 MAX_VERSIONS 个号即保留最近 MAX_VERSIONS 版。
@@ -258,9 +249,7 @@ def article_to_list_item(row: Article, *, comment_count: int = 0) -> dict:
 
 
 def article_to_detail(db: Session, row: Article) -> dict:
-    item = article_to_list_item(
-        row, comment_count=_comment_counts(db, [row.id]).get(row.id, 0)
-    )
+    item = article_to_list_item(row, comment_count=_comment_counts(db, [row.id]).get(row.id, 0))
     item["body"] = row.body or ""
     item["body_format"] = row.body_format
     item["updated_at"] = row.updated_at
@@ -281,10 +270,7 @@ def _comment_counts(db: Session, article_ids: list[int]) -> dict[int, int]:
 
 def _items_with_counts(db: Session, rows: list[Article]) -> list[dict]:
     counts = _comment_counts(db, [row.id for row in rows])
-    return [
-        article_to_list_item(row, comment_count=counts.get(row.id, 0))
-        for row in rows
-    ]
+    return [article_to_list_item(row, comment_count=counts.get(row.id, 0)) for row in rows]
 
 
 def _page_out(
@@ -338,9 +324,7 @@ def list_published(
         _raise(400, "排序无效")
     query = db.query(Article).filter(Article.status == STATUS_PUBLISHED)
     if category:
-        query = query.filter(
-            Article.categories.any(ArticleCategory.slug == category)
-        )
+        query = query.filter(Article.categories.any(ArticleCategory.slug == category))
     if tag:
         query = query.filter(Article.tags.any(ArticleTag.slug == tag))
     needle = (q or "").strip()[:MAX_SEARCH_Q]
@@ -414,11 +398,7 @@ def list_admin(
 
 
 def get_published_by_slug(db: Session, slug: str) -> Article:
-    row = (
-        _article_query(db)
-        .filter(Article.slug == slug, Article.status == STATUS_PUBLISHED)
-        .first()
-    )
+    row = _article_query(db).filter(Article.slug == slug, Article.status == STATUS_PUBLISHED).first()
     if row is None:
         _raise(404, "文章不存在")
     return row
@@ -703,11 +683,7 @@ def restore_version(
 
 
 def list_authors(db: Session) -> list[dict]:
-    rows = (
-        db.query(ArticleAuthor)
-        .options(joinedload(ArticleAuthor.user).joinedload(User.member))
-        .all()
-    )
+    rows = db.query(ArticleAuthor).options(joinedload(ArticleAuthor.user).joinedload(User.member)).all()
     rows.sort(key=lambda r: (r.user.display_name if r.user else "", r.user_id))
     return [_author_payload(r.user) | {"user_id": r.user_id} for r in rows]
 
@@ -739,11 +715,7 @@ def set_authors(db: Session, user_ids: list[int]) -> list[dict]:
 
 
 def list_categories(db: Session) -> list[dict]:
-    rows = (
-        db.query(ArticleCategory)
-        .order_by(ArticleCategory.sort_order.asc(), ArticleCategory.id.asc())
-        .all()
-    )
+    rows = db.query(ArticleCategory).order_by(ArticleCategory.sort_order.asc(), ArticleCategory.id.asc()).all()
     return [category_to_out(r) for r in rows]
 
 

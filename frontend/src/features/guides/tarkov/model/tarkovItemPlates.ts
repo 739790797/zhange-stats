@@ -9,10 +9,7 @@ import {
   formatArmorType,
   formatArmorZoneList,
 } from "@/features/guides/tarkov/model/tarkovArmorLabels";
-import {
-  itemDetailHref,
-  itemSlugFromTypes,
-} from "@/features/guides/tarkov/model/tarkovItemTypes";
+import { itemDetailHref, itemSlugFromTypes } from "@/features/guides/tarkov/model/tarkovItemTypes";
 
 export type PlatePresetKind = "default" | "stripped";
 
@@ -71,21 +68,21 @@ function isGunTypes(types: string[]): boolean {
 }
 
 /** 枪预设要留独立页（机匣 wiki）；胸挂 / 护甲预设折回本体。 */
-export function isCollapsedItemPreset(
-  types: string[],
-  baseTypes: string[],
-): boolean {
+export function isCollapsedItemPreset(types: string[], baseTypes: string[]): boolean {
   if (!types.includes("preset")) return false;
   if (isGunTypes(types) || isGunTypes(baseTypes)) return false;
   return true;
 }
 
 export function collapsedPresetHref(
-  detail: {
-    id?: string;
-    item?: unknown;
-    properties?: unknown;
-  } | null | undefined,
+  detail:
+    | {
+        id?: string;
+        item?: unknown;
+        properties?: unknown;
+      }
+    | null
+    | undefined,
 ): string | null {
   if (!detail) return null;
   const item = asRecord(detail.item);
@@ -100,10 +97,7 @@ export function collapsedPresetHref(
   return itemDetailHref(itemSlugFromTypes(baseTypes), baseId);
 }
 
-export function presetKindFromName(
-  name: string,
-  isDefault?: boolean,
-): PlatePresetKind | null {
+export function presetKindFromName(name: string, isDefault?: boolean): PlatePresetKind | null {
   if (isDefault) return "default";
   const text = name.trim().toLowerCase();
   if (!text) return null;
@@ -146,8 +140,7 @@ function collectPresetMarks(
     const row = asRecord(entry);
     if (!row) continue;
     const id = extractRefItemId(row);
-    const name =
-      displayName(row.name) || displayName(row.shortName) || id;
+    const name = displayName(row.name) || displayName(row.shortName) || id;
     const kind = presetKindFromName(name, row.default === true);
     if (!kind) continue;
     const key = `${kind}:${id || name}`;
@@ -179,10 +172,7 @@ function plateArmorType(value: unknown): string {
   return formatArmorType(value);
 }
 
-function plateFilterValue(
-  row: PlateTableRow,
-  key: PlateFilterKey,
-): string {
+function plateFilterValue(row: PlateTableRow, key: PlateFilterKey): string {
   const raw = row[key];
   if (raw == null || raw === "") return "";
   return String(raw);
@@ -236,19 +226,14 @@ export function extractPlateTableRows(
     const rec = asRecord(slot);
     if (!rec || !Array.isArray(rec.allowedPlates)) return;
     const zones = formatArmorZoneList(rec.zones);
-    const slotName =
-      formatArmorSlotLabel(String(rec.name || "").trim()) ||
-      zones ||
-      "插板槽";
+    const slotName = formatArmorSlotLabel(String(rec.name || "").trim()) || zones || "插板槽";
     rec.allowedPlates.forEach((plate, plateIndex) => {
       const row = asRecord(plate);
       if (!row) return;
       const id = String(row.id || "").trim();
-      const name =
-        displayName(row.name) || displayName(row.shortName);
+      const name = displayName(row.name) || displayName(row.shortName);
       if (!id || !name) return;
-      const durability =
-        finiteNumber(row.durability) ?? finiteNumber(row.maxDurability);
+      const durability = finiteNumber(row.durability) ?? finiteNumber(row.maxDurability);
       const badges: PlatePresetKind[] = [];
       for (const mark of marks) {
         if (mark.plateIds.has(id) && !badges.includes(mark.kind)) {

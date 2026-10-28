@@ -71,18 +71,14 @@ def test_write_database_url_keeps_extra_keys(tmp_path: Path) -> None:
     assert data["_version"] == 1
 
 
-def test_read_configured_database_url_prefers_process_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_read_configured_database_url_prefers_process_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     m = _load()
     monkeypatch.setenv("DATABASE_URL", "mysql+pymysql://from-env@127.0.0.1:3306/e")
     m.write_database_url(tmp_path, "mysql+pymysql://from-file@127.0.0.1:3306/f")
     assert "from-env@" in m.read_configured_database_url(tmp_path)
 
 
-def test_read_configured_database_url_falls_back_to_dotenv(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_read_configured_database_url_falls_back_to_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     m = _load()
     monkeypatch.delenv("DATABASE_URL", raising=False)
     (tmp_path / ".env").write_text(

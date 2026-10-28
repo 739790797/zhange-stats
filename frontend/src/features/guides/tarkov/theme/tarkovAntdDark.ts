@@ -1,55 +1,57 @@
 import { theme, type ThemeConfig } from "antd";
+import { TARKOV_TOKENS } from "@zhange-base/src/tokens.js";
+
+const { color, font, antd } = TARKOV_TOKENS;
 
 /** 塔科夫攻略暗色主题。由 `TarkovThemed` / GuideShell 套一层，详情页不要再包。 */
 export const TARKOV_ANTD_DARK: ThemeConfig = {
   algorithm: theme.darkAlgorithm,
   token: {
-    colorPrimary: "#c8932a",
-    colorLink: "#c8932a",
-    colorInfo: "#c8932a",
-    colorBgBase: "#161710",
-    colorBgContainer: "#22241a",
-    colorBgElevated: "#2b2d22",
-    colorBorder: "#3a3d30",
-    colorBorderSecondary: "#3a3d30",
-    colorText: "#eee9d6",
-    colorTextSecondary: "#b0ae9a",
-    colorTextTertiary: "#8a8878",
-    borderRadius: 2,
-    fontFamily:
-      '"IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif',
+    colorPrimary: color.accent,
+    colorLink: color.accent,
+    colorInfo: color.accent,
+    colorBgBase: color.bg,
+    colorBgContainer: color.panel,
+    colorBgElevated: color.panelHover,
+    colorBorder: color.border,
+    colorBorderSecondary: color.border,
+    colorText: color.text,
+    colorTextSecondary: color.textMuted,
+    colorTextTertiary: color.textTertiary,
+    borderRadius: antd.borderRadius,
+    fontFamily: font.sans,
   },
   components: {
     Table: {
-      headerBg: "#1c1e16",
-      headerColor: "#c8c4a8",
-      rowHoverBg: "#2b2d22",
-      borderColor: "#3a3d30",
-      headerSplitColor: "#3a3d30",
-      headerSortHoverBg: "#2b2d22",
-      headerSortActiveBg: "#2b2d22",
-      bodySortBg: "#1c1e16",
-      fixedHeaderSortActiveBg: "#2b2d22",
+      headerBg: color.surfaceStrong,
+      headerColor: color.textWarm,
+      rowHoverBg: color.panelHover,
+      borderColor: color.border,
+      headerSplitColor: color.border,
+      headerSortHoverBg: color.panelHover,
+      headerSortActiveBg: color.panelHover,
+      bodySortBg: color.surfaceStrong,
+      fixedHeaderSortActiveBg: color.panelHover,
     },
     Card: {
-      colorBgContainer: "#22241a",
-      colorBorderSecondary: "#3a3d30",
+      colorBgContainer: color.panel,
+      colorBorderSecondary: color.border,
     },
     Input: {
-      colorBgContainer: "#1a1b14",
-      activeBorderColor: "#c8932a",
+      colorBgContainer: color.control,
+      activeBorderColor: color.accent,
     },
     Tag: {
-      defaultBg: "#1c1e16",
-      defaultColor: "#c8c4a8",
+      defaultBg: color.surfaceStrong,
+      defaultColor: color.textWarm,
     },
     Descriptions: {
-      labelBg: "#1c1e16",
+      labelBg: color.surfaceStrong,
     },
     Button: {
-      defaultBg: "#22241a",
-      defaultBorderColor: "#3a3d30",
-      defaultColor: "#c8c4a8",
+      defaultBg: color.panel,
+      defaultBorderColor: color.border,
+      defaultColor: color.textWarm,
     },
   },
 };

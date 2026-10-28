@@ -1,10 +1,13 @@
 /** Steam 时间轴空态 / 隐私提示（展示层）。 */
 
-export type SteamVisibilityHintInput = {
-  hint?: string | null;
-  steam_bound?: boolean;
-  visible_member_count?: number;
-} | null | undefined;
+export type SteamVisibilityHintInput =
+  | {
+      hint?: string | null;
+      steam_bound?: boolean;
+      visible_member_count?: number;
+    }
+  | null
+  | undefined;
 
 export function steamTimelineEmptyText(input: {
   rowCount: number;

@@ -52,13 +52,7 @@ function currentArgsText(data: MinecraftStartup) {
   return data.current_user_jvm_args || data.current_jvm_args || "";
 }
 
-function Cell({
-  caption,
-  children,
-}: {
-  caption: string;
-  children: ReactNode;
-}) {
+function Cell({ caption, children }: { caption: string; children: ReactNode }) {
   return (
     <div className={caption === "当前" ? styles.current : styles.edit}>
       <Typography.Text type="secondary" className={styles.caption}>
@@ -118,9 +112,7 @@ export function MinecraftStartupPanel() {
   const data = query.data;
 
   if (query.isError) {
-    return (
-      <Alert type="error" showIcon message={apiError(query.error, "无法读取启动项")} />
-    );
+    return <Alert type="error" showIcon message={apiError(query.error, "无法读取启动项")} />;
   }
   if (!data || !draft) {
     return <Typography.Text type="secondary">正在读取启动项…</Typography.Text>;
@@ -144,10 +136,7 @@ export function MinecraftStartupPanel() {
         build_channel: "",
         build_name: "",
         jvm_args:
-          heapFlagsFromText(draft.user_jvm_args) ||
-          draft.jvm_args ||
-          data.suggested_heap ||
-          "",
+          heapFlagsFromText(draft.user_jvm_args) || draft.jvm_args || data.suggested_heap || "",
       });
       return;
     }
@@ -173,8 +162,7 @@ export function MinecraftStartupPanel() {
   const aligned = Boolean(preview && preview === (data.current_command || ""));
   const storedArgs = currentArgsText(data);
   const currentArgsFromFile =
-    data.current_launch === "args" ||
-    (!data.current_launch && Boolean(data.current_user_jvm_args));
+    data.current_launch === "args" || (!data.current_launch && Boolean(data.current_user_jvm_args));
 
   return (
     <Card size="small" title="启动">
@@ -263,9 +251,7 @@ export function MinecraftStartupPanel() {
 
           <Typography.Text className={styles.label}>Java 镜像</Typography.Text>
           <Cell caption="当前">
-            <div className={styles.currentLine}>
-              {imageText(data.current_java_image || "")}
-            </div>
+            <div className={styles.currentLine}>{imageText(data.current_java_image || "")}</div>
             {data.current_java_warning ? (
               <Typography.Paragraph type="warning" style={{ margin: "8px 0 0" }}>
                 {data.current_java_warning}
@@ -350,9 +336,7 @@ export function MinecraftStartupPanel() {
             </div>
             {apply.isError ? (
               <div>
-                <Typography.Text type="danger">
-                  {apiError(apply.error, "应用失败")}
-                </Typography.Text>
+                <Typography.Text type="danger">{apiError(apply.error, "应用失败")}</Typography.Text>
               </div>
             ) : null}
           </Cell>

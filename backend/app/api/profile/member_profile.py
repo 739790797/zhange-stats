@@ -18,6 +18,7 @@ from app.api.profile.helpers import (
 
 router = APIRouter(tags=["profile"])
 
+
 @router.get("/members/{member_id}/profile", response_model=MemberProfileOut)
 def get_member_profile(
     member_id: int,
@@ -50,12 +51,7 @@ def update_member_profile(
     _: User = Depends(require_admin),
 ) -> MemberProfileOut:
     """管理员代编辑成员个人中心（测试绑定等）。"""
-    member = (
-        db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id == member_id)
-        .first()
-    )
+    member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="成员不存在")
     if not member.user:
@@ -65,11 +61,5 @@ def update_member_profile(
     steam_persona = _apply_profile_fields(db, member.user, member, data)
     db.commit()
     db.refresh(member)
-    member = (
-        db.query(Member)
-        .options(joinedload(Member.user))
-        .filter(Member.id == member.id)
-        .first()
-    )
+    member = db.query(Member).options(joinedload(Member.user)).filter(Member.id == member.id).first()
     return _profile_from_member(member, steam_persona)
-

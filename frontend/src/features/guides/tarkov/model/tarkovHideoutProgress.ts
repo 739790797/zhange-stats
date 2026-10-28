@@ -148,8 +148,7 @@ export function stationPrereqsMet(
     const otherId = (req.station_id || "").trim();
     if (!otherId) continue;
     const need = Number(req.level || 0);
-    const have =
-      levels[otherId] ?? hideoutDefaultLevel(byId.get(otherId), stashFloor);
+    const have = levels[otherId] ?? hideoutDefaultLevel(byId.get(otherId), stashFloor);
     if (have < need) return false;
   }
   return true;
@@ -269,8 +268,7 @@ export function stationReqMet(
 ): boolean {
   const otherId = (req.station_id || "").trim();
   const need = Number(req.level || 0);
-  const have =
-    levels[otherId] ?? hideoutDefaultLevel(byId.get(otherId), stashFloor);
+  const have = levels[otherId] ?? hideoutDefaultLevel(byId.get(otherId), stashFloor);
   return have >= need;
 }
 
@@ -282,9 +280,7 @@ export function traderReqMet(
   const ident = (req.id || "").trim();
   const slug = (req.slug || "").trim().toLowerCase();
   const need = Number(req.level || 0);
-  const have =
-    (ident ? traderLevels[ident] : undefined) ??
-    (slug ? traderLevels[slug] : undefined);
+  const have = (ident ? traderLevels[ident] : undefined) ?? (slug ? traderLevels[slug] : undefined);
   if (have == null) return null;
   return have >= need;
 }
@@ -306,11 +302,7 @@ const UNLOCK_TYPES = new Set([
   "UnlockWeaponRepair",
   "UnlockWeaponModification",
 ]);
-const COUNT_TYPES = new Set([
-  "StashSize",
-  "AdditionalSlots",
-  "MaximumEnergyReserve",
-]);
+const COUNT_TYPES = new Set(["StashSize", "AdditionalSlots", "MaximumEnergyReserve"]);
 
 export function formatHideoutBonusValue(type: string, value: number): string {
   if (UNLOCK_TYPES.has(type)) return "解锁";
@@ -323,10 +315,7 @@ export function formatHideoutBonusValue(type: string, value: number): string {
   return `${pct > 0 ? "+" : ""}${pct}%`;
 }
 
-export function formatHideoutBonusCell(
-  type: string,
-  value: number | null | undefined,
-): string {
+export function formatHideoutBonusCell(type: string, value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return formatHideoutBonusValue(type, value);
 }
@@ -375,9 +364,10 @@ function hideoutBonusLevels(station: HideoutStationSpec | undefined): number[] {
  * 设施各等级效果表：行是加成（类型+技能），列是等级。
  * dump 只在声明该加成的等级上给值；未再声明的更高等级沿用上次（达到该级时仍有效）。
  */
-export function buildHideoutBonusTable(
-  station: HideoutStationSpec | undefined,
-): { levels: number[]; rows: HideoutBonusTableRow[] } {
+export function buildHideoutBonusTable(station: HideoutStationSpec | undefined): {
+  levels: number[];
+  rows: HideoutBonusTableRow[];
+} {
   const levels = hideoutBonusLevels(station);
   const byLevel = new Map<number, HideoutBonus[]>();
   for (const spec of station?.levels || []) {
@@ -497,19 +487,14 @@ export function formatHideoutUpgradeStation(ref: HideoutUpgradeStationRef): stri
 }
 
 /** 计算器用图鉴下限：仓库从 1 级起，其它设施从 0。不看版本/当前进度。 */
-export function hideoutCatalogMinLevel(
-  station: HideoutStationSpec | undefined,
-): number {
+export function hideoutCatalogMinLevel(station: HideoutStationSpec | undefined): number {
   if ((station?.slug || "").trim().toLowerCase() === TARKOV_HIDEOUT_STASH_SLUG) {
     return 1;
   }
   return 0;
 }
 
-function clampHideoutCatalogLevel(
-  station: HideoutStationSpec | undefined,
-  raw: unknown,
-): number {
+function clampHideoutCatalogLevel(station: HideoutStationSpec | undefined, raw: unknown): number {
   const low = hideoutCatalogMinLevel(station);
   const high = Math.max(hideoutMaxLevel(station), low);
   const value = Number(raw);
@@ -517,9 +502,7 @@ function clampHideoutCatalogLevel(
   return Math.min(Math.max(Math.trunc(value), low), high);
 }
 
-export function hideoutLevelChoices(
-  station: HideoutStationSpec | undefined,
-): number[] {
+export function hideoutLevelChoices(station: HideoutStationSpec | undefined): number[] {
   const low = hideoutCatalogMinLevel(station);
   const high = Math.max(hideoutMaxLevel(station), low);
   const out: number[] = [];
@@ -538,9 +521,10 @@ export function clampHideoutUpgradeRange(
   };
 }
 
-export function defaultHideoutCalcRange(
-  station: HideoutStationSpec | undefined,
-): { from: number; to: number } {
+export function defaultHideoutCalcRange(station: HideoutStationSpec | undefined): {
+  from: number;
+  to: number;
+} {
   const low = hideoutCatalogMinLevel(station);
   const high = Math.max(hideoutMaxLevel(station), low);
   if (high > low) return { from: low, to: low + 1 };
@@ -687,14 +671,12 @@ export function aggregateHideoutUpgradeRanges(
 /** json.tarkov.dev 卢布物品 id，与 dump 里建造费条目一致。 */
 export const TARKOV_ROUBLE_ITEM_ID = "5449016a4bdc2d6f028b456f";
 
-export function isHideoutMoneyItem(
-  item: Pick<HideoutItemReq, "id" | "types">,
-): boolean {
+export function isHideoutMoneyItem(item: Pick<HideoutItemReq, "id" | "types">): boolean {
   const ident = (item.id || "").trim();
   if (
-    ident === TARKOV_ROUBLE_ITEM_ID
-    || ident === "5696686a4bdc2da3298b456a"
-    || ident === "569668774bdc2da2298b4568"
+    ident === TARKOV_ROUBLE_ITEM_ID ||
+    ident === "5696686a4bdc2da3298b456a" ||
+    ident === "569668774bdc2da2298b4568"
   ) {
     return true;
   }
@@ -712,9 +694,7 @@ export function hideoutItemNeedsFleaBuy(
 /**
  * 材料清单：dump 里的建造费货币置顶。跳蚤估价不是进游戏点升级要交的钱，不并进卢布。
  */
-export function hideoutUpgradeMaterialItems<T extends HideoutItemReq>(
-  items: T[] | undefined,
-): T[] {
+export function hideoutUpgradeMaterialItems<T extends HideoutItemReq>(items: T[] | undefined): T[] {
   const rows = items || [];
   if (!rows.length) return [];
   const money: T[] = [];
@@ -727,9 +707,7 @@ export function hideoutUpgradeMaterialItems<T extends HideoutItemReq>(
 }
 
 /** 物资跳蚤买入合计，不含建造费货币和战局内材料。 */
-export function hideoutUpgradeFleaCost(
-  items: HideoutItemReq[] | undefined,
-): number | null {
+export function hideoutUpgradeFleaCost(items: HideoutItemReq[] | undefined): number | null {
   const goods = (items || []).filter(hideoutItemNeedsFleaBuy);
   return guideItemFleaCost(goods as TarkovGuideItemRef[]);
 }

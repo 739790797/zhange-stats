@@ -1,15 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Col,
-  Progress,
-  Row,
-  Space,
-  Statistic,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Col, Progress, Row, Space, Statistic, Tag, Typography, message } from "antd";
 import { fetchWwBox } from "@/features/platforms/kujiequ/api/kujiequApi";
 import type { WwBoxItem } from "@/features/platforms/kujiequ/api/types";
 import { BoxPanelChrome } from "@/features/platforms/shared/components/BoxPanelChrome";
@@ -131,87 +122,81 @@ export function WwBoxPanel({ enabled }: Props) {
       syncedAt={box?.synced_at}
     >
       {!box ? null : (
-      <>
-      <Row gutter={[12, 12]}>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock title="活跃天数" value={box.active_days} />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock title="解锁角色" value={box.role_num} />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock
-            title="成就"
-            value={box.achievement_count}
-            suffix={box.achievement_star ? `星 ${box.achievement_star}` : undefined}
-          />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock
-            title="结晶波片"
-            value={`${box.energy}/${box.max_energy || "—"}`}
-          />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock
-            title={box.store_energy_title || "结晶单质"}
-            value={`${box.store_energy}/${box.store_energy_limit || "—"}`}
-            iconUrl={box.store_energy_icon_url}
-          />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock
-            title="活跃度"
-            value={`${box.liveness}/${box.liveness_max || "—"}`}
-          />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock title="小型信标" value={box.small_count} />
-        </Col>
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock title="中型信标" value={box.big_count} />
-        </Col>
-        {box.sound_box > 0 ? (
-          <Col xs={12} sm={8} md={6}>
-            <StatBlock title="声匣" value={box.sound_box} />
-          </Col>
-        ) : null}
-        <Col xs={12} sm={8} md={6}>
-          <StatBlock
-            title={box.weekly_inst_title || "战歌重奏"}
-            value={`${box.weekly_inst_count}/${box.weekly_inst_limit || "—"}`}
-            iconUrl={box.weekly_inst_icon_url}
-          />
-        </Col>
-        {(box.rouge_title || box.rouge_score > 0) && (
-          <Col xs={12} sm={8} md={6}>
-            <StatBlock
-              title={box.rouge_title || "肉鸽"}
-              value={`${box.rouge_score}/${box.rouge_score_limit || "—"}`}
-              iconUrl={box.rouge_icon_url}
-            />
-          </Col>
-        )}
-      </Row>
+        <>
+          <Row gutter={[12, 12]}>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="活跃天数" value={box.active_days} />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="解锁角色" value={box.role_num} />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock
+                title="成就"
+                value={box.achievement_count}
+                suffix={box.achievement_star ? `星 ${box.achievement_star}` : undefined}
+              />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="结晶波片" value={`${box.energy}/${box.max_energy || "—"}`} />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock
+                title={box.store_energy_title || "结晶单质"}
+                value={`${box.store_energy}/${box.store_energy_limit || "—"}`}
+                iconUrl={box.store_energy_icon_url}
+              />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="活跃度" value={`${box.liveness}/${box.liveness_max || "—"}`} />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="小型信标" value={box.small_count} />
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock title="中型信标" value={box.big_count} />
+            </Col>
+            {box.sound_box > 0 ? (
+              <Col xs={12} sm={8} md={6}>
+                <StatBlock title="声匣" value={box.sound_box} />
+              </Col>
+            ) : null}
+            <Col xs={12} sm={8} md={6}>
+              <StatBlock
+                title={box.weekly_inst_title || "战歌重奏"}
+                value={`${box.weekly_inst_count}/${box.weekly_inst_limit || "—"}`}
+                iconUrl={box.weekly_inst_icon_url}
+              />
+            </Col>
+            {(box.rouge_title || box.rouge_score > 0) && (
+              <Col xs={12} sm={8} md={6}>
+                <StatBlock
+                  title={box.rouge_title || "肉鸽"}
+                  value={`${box.rouge_score}/${box.rouge_score_limit || "—"}`}
+                  iconUrl={box.rouge_icon_url}
+                />
+              </Col>
+            )}
+          </Row>
 
-      {(box.calabash_max > 0 || box.calabash_level > 0) && (
-        <div style={{ marginTop: 20 }}>
-          <Typography.Text strong>
-            数据坞 Lv.{box.calabash_level}
-            {box.calabash_cost > 0 ? ` · COST ${box.calabash_cost}` : ""}
-          </Typography.Text>
-          <div style={{ marginTop: 8, maxWidth: 420 }}>
-            <Progress
-              percent={calabashPct}
-              format={() => `${box.calabash_unlock}/${box.calabash_max}`}
-            />
-          </div>
-        </div>
-      )}
+          {(box.calabash_max > 0 || box.calabash_level > 0) && (
+            <div style={{ marginTop: 20 }}>
+              <Typography.Text strong>
+                数据坞 Lv.{box.calabash_level}
+                {box.calabash_cost > 0 ? ` · COST ${box.calabash_cost}` : ""}
+              </Typography.Text>
+              <div style={{ marginTop: 8, maxWidth: 420 }}>
+                <Progress
+                  percent={calabashPct}
+                  format={() => `${box.calabash_unlock}/${box.calabash_max}`}
+                />
+              </div>
+            </div>
+          )}
 
-      <ItemChips items={box.treasure_boxes || []} title="奇藏箱" />
-      <ItemChips items={box.phantom_boxes || []} title="潮汐之遗" />
-      </>
+          <ItemChips items={box.treasure_boxes || []} title="奇藏箱" />
+          <ItemChips items={box.phantom_boxes || []} title="潮汐之遗" />
+        </>
       )}
     </BoxPanelChrome>
   );

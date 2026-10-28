@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, useMemo, type ReactNode } from "react";
-import { fetchKujiequStatus, triggerKujiequCheckin, updateKujiequRolePref } from "@/features/platforms/kujiequ/api/kujiequApi";
+import {
+  fetchKujiequStatus,
+  triggerKujiequCheckin,
+  updateKujiequRolePref,
+} from "@/features/platforms/kujiequ/api/kujiequApi";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
 import { KujiequAttendanceCalendarButton } from "@/features/platforms/kujiequ/components/KujiequAttendanceCalendar";
@@ -42,14 +46,10 @@ export default function KujiequPage() {
     staleTime: 30_000,
   });
 
-  const featuresReady =
-    featuresQuery.isSuccess && Boolean(featuresQuery.data);
-  const showCheckin =
-    featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.checkin");
-  const showExchange =
-    featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.exchange");
-  const showWw =
-    featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.ww");
+  const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
+  const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.checkin");
+  const showExchange = featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.exchange");
+  const showWw = featuresReady && isFeatureOn(featuresQuery.data, "kujiequ.ww");
 
   const tabItems = useMemo(() => {
     const items: { key: TabKey; label: string; children: ReactNode }[] = [];
@@ -70,11 +70,7 @@ export default function KujiequPage() {
             onSelectRoles={() => openPicker()}
             renderResultExtra={(row) => {
               const gameCode = row.game_code;
-              if (
-                !gameCode ||
-                !row.role_uid ||
-                !hasKujiequAttendanceCalendar(gameCode)
-              ) {
+              if (!gameCode || !row.role_uid || !hasKujiequAttendanceCalendar(gameCode)) {
                 return null;
               }
               return (
@@ -103,9 +99,7 @@ export default function KujiequPage() {
         label: "鸣潮",
         children: (
           <WwBoxPanel
-            enabled={Boolean(
-              statusQuery.data?.bound && statusQuery.data?.token_ok !== false,
-            )}
+            enabled={Boolean(statusQuery.data?.bound && statusQuery.data?.token_ok !== false)}
           />
         ),
       });

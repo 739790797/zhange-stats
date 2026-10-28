@@ -37,26 +37,32 @@ export type BossSpawnGroup = {
 };
 
 export type BossSpawnGroupInput = {
-  maps?: {
-    slug?: string | null;
-    name?: string | null;
-    spawn_chance?: string | null;
-  }[] | null;
-  spawn_locations?: {
-    map?: string | null;
-    map_slug?: string | null;
-    name?: string | null;
-    chance?: number | null;
-    positions?: { x?: number | null; y?: number | null; z?: number | null }[] | null;
-  }[] | null;
-  escorts?: {
-    slug?: string | null;
-    name?: string | null;
-    count?: number | null;
-    chance?: number | null;
-    map?: string | null;
-    map_slug?: string | null;
-  }[] | null;
+  maps?:
+    | {
+        slug?: string | null;
+        name?: string | null;
+        spawn_chance?: string | null;
+      }[]
+    | null;
+  spawn_locations?:
+    | {
+        map?: string | null;
+        map_slug?: string | null;
+        name?: string | null;
+        chance?: number | null;
+        positions?: { x?: number | null; y?: number | null; z?: number | null }[] | null;
+      }[]
+    | null;
+  escorts?:
+    | {
+        slug?: string | null;
+        name?: string | null;
+        count?: number | null;
+        chance?: number | null;
+        map?: string | null;
+        map_slug?: string | null;
+      }[]
+    | null;
 };
 
 function mapKey(slug?: string | null, name?: string | null): string {
@@ -113,9 +119,7 @@ export function escortChipLabel(row: BossSpawnEscortChip): string {
   return [name, qty].filter(Boolean).join(" ") + escortChanceSuffix(row.chance);
 }
 
-export function escortQtyLabel(
-  row: Pick<BossSpawnEscortChip, "count" | "chance">,
-): string {
+export function escortQtyLabel(row: Pick<BossSpawnEscortChip, "count" | "chance">): string {
   const qty = row.count > 0 ? `×${row.count}` : "";
   return `${qty}${escortChanceSuffix(row.chance)}`;
 }
@@ -289,27 +293,33 @@ export function locationChipLabel(
 }
 
 export type BossSpawnGroupApi = {
-  maps?: {
-    id?: string | null;
-    slug?: string | null;
-    name?: string | null;
-    spawn_chance?: string | null;
-  }[] | null;
+  maps?:
+    | {
+        id?: string | null;
+        slug?: string | null;
+        name?: string | null;
+        spawn_chance?: string | null;
+      }[]
+    | null;
   shared_spawn_chance?: string | null;
   land_label?: string | null;
-  locations?: {
-    map?: string | null;
-    map_slug?: string | null;
-    name?: string | null;
-    chance?: number | null;
-    positions?: { x?: number | null; y?: number | null; z?: number | null }[] | null;
-  }[] | null;
-  escorts?: {
-    slug?: string | null;
-    name?: string | null;
-    count?: number | null;
-    chance?: number | null;
-  }[] | null;
+  locations?:
+    | {
+        map?: string | null;
+        map_slug?: string | null;
+        name?: string | null;
+        chance?: number | null;
+        positions?: { x?: number | null; y?: number | null; z?: number | null }[] | null;
+      }[]
+    | null;
+  escorts?:
+    | {
+        slug?: string | null;
+        name?: string | null;
+        count?: number | null;
+        chance?: number | null;
+      }[]
+    | null;
   show_location_chance?: boolean | null;
 };
 

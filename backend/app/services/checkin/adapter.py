@@ -59,21 +59,15 @@ class CheckinPlatformAdapter(Protocol):
     ) -> CheckinRunOutcome:
         """含 probe-before-post / 每日任务等平台策略。"""
 
-    def after_checkin(
-        self, db: Session, bind: Any, results: list[CheckinResult]
-    ) -> None:
+    def after_checkin(self, db: Session, bind: Any, results: list[CheckinResult]) -> None:
         """签到动作后副作用（invalidate raw 等）；默认 no-op。"""
 
     def friendly_error(self, message: str) -> str: ...
 
-    def prepare_cached_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult] | None:
+    def prepare_cached_results(self, results: list[CheckinResult]) -> list[CheckinResult] | None:
         """今日 logs 命中时加工；返回 None 表示放弃缓存、强制回源。"""
 
-    def normalize_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult]:
+    def normalize_results(self, results: list[CheckinResult]) -> list[CheckinResult]:
         """落库前后排序/本地化等。"""
 
     def enrich_summary(self, summary: str, results: list[CheckinResult]) -> str: ...
@@ -91,9 +85,7 @@ class CheckinPlatformAdapter(Protocol):
     def reraise_api_error(self, exc: Exception) -> None:
         """换上友好文案后原样 raise（子类型与 code / data 都保留）。"""
 
-    def renew_session_after_auth_error(
-        self, db: Session, bind: Any, exc: Exception
-    ) -> bool:
+    def renew_session_after_auth_error(self, db: Session, bind: Any, exc: Exception) -> bool:
         """上游鉴权失败：作废缓存凭证并返回 True 时，编排层重新 load_session 再试一次。"""
 
 
@@ -107,19 +99,13 @@ class CheckinAdapterBase:
     def save_session(self, db: Session, bind: Any, session: Any) -> None:
         return None
 
-    def after_checkin(
-        self, db: Session, bind: Any, results: list[CheckinResult]
-    ) -> None:
+    def after_checkin(self, db: Session, bind: Any, results: list[CheckinResult]) -> None:
         return None
 
-    def prepare_cached_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult] | None:
+    def prepare_cached_results(self, results: list[CheckinResult]) -> list[CheckinResult] | None:
         return results
 
-    def normalize_results(
-        self, results: list[CheckinResult]
-    ) -> list[CheckinResult]:
+    def normalize_results(self, results: list[CheckinResult]) -> list[CheckinResult]:
         return results
 
     def enrich_summary(self, summary: str, results: list[CheckinResult]) -> str:
@@ -135,9 +121,7 @@ class CheckinAdapterBase:
     ) -> bool:
         return False
 
-    def renew_session_after_auth_error(
-        self, db: Session, bind: Any, exc: Exception
-    ) -> bool:
+    def renew_session_after_auth_error(self, db: Session, bind: Any, exc: Exception) -> bool:
         return False
 
     def reraise_api_error(self, exc: Exception) -> None:

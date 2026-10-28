@@ -52,9 +52,7 @@ export function TarkovMapDetailPanel({ slug }: Props) {
     if (autoMapSigRef.current === sig) return;
     autoMapSigRef.current = sig;
     navigate(followHref);
-    message.info(
-      `已按游戏日志切换到${logMapLabel(lastLogPhase?.mapId || lastLogMapId)}`,
-    );
+    message.info(`已按游戏日志切换到${logMapLabel(lastLogPhase?.mapId || lastLogMapId)}`);
   }, [
     followHref,
     lastLogMapId,
@@ -94,18 +92,10 @@ export function TarkovMapDetailPanel({ slug }: Props) {
   const detail = detailQuery.data;
   if (!detail) return null;
 
-  return (
-    <TarkovMapDetailReady slug={slug} detail={detail} />
-  );
+  return <TarkovMapDetailReady slug={slug} detail={detail} />;
 }
 
-function TarkovMapDetailReady({
-  slug,
-  detail,
-}: {
-  slug: string;
-  detail: TarkovMapDetail;
-}) {
+function TarkovMapDetailReady({ slug, detail }: { slug: string; detail: TarkovMapDetail }) {
   const [searchParams] = useSearchParams();
   const maintain = parseTarkovMaintainMode(searchParams.get("maintain"));
   const isAdmin = isAdminUser(useAuthStore((s) => s.user));
@@ -122,11 +112,7 @@ function TarkovMapDetailReady({
 
   return (
     <div className={`${styles.stack} ${styles.stackFill}`}>
-      {showPlaceEditor && editor.bar ? (
-        <div className={styles.editBar}>
-          {editor.bar}
-        </div>
-      ) : null}
+      {showPlaceEditor && editor.bar ? <div className={styles.editBar}>{editor.bar}</div> : null}
       <div className={styles.mapSlot}>
         <Suspense fallback={<PanelFallback tip="加载地图…" />}>
           <TarkovMapViewer
@@ -146,9 +132,7 @@ function TarkovMapDetailReady({
           <div className={styles.section}>地图变体</div>
           <div className={styles.variants}>
             <Link
-              className={`${styles.variant} ${
-                !detail.parent_slug ? styles.variantOn : ""
-              }`}
+              className={`${styles.variant} ${!detail.parent_slug ? styles.variantOn : ""}`}
               to={variantHref(detail.parent_slug || detail.slug)}
             >
               常规
@@ -156,9 +140,7 @@ function TarkovMapDetailReady({
             {detail.variants.map((row) => (
               <Link
                 key={row.slug}
-                className={`${styles.variant} ${
-                  row.slug === detail.slug ? styles.variantOn : ""
-                }`}
+                className={`${styles.variant} ${row.slug === detail.slug ? styles.variantOn : ""}`}
                 to={variantHref(row.slug)}
               >
                 {row.name || row.slug}
@@ -169,11 +151,7 @@ function TarkovMapDetailReady({
         </div>
       ) : null}
 
-      <TarkovDataFreshness
-        source={detail.source}
-        syncedAt={detail.synced_at}
-        note={detail.note}
-      />
+      <TarkovDataFreshness source={detail.source} syncedAt={detail.synced_at} note={detail.note} />
     </div>
   );
 }

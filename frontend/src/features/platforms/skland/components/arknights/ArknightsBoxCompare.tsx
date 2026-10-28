@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Card, Empty, Space, Tag, Typography } from "antd";
-import { fetchArknightsBoxCompare, fetchArknightsCompareCandidates } from "@/features/platforms/skland/api/sklandApi";
-import type { ArknightsCompareRow, ArknightsOwnedChar, ArknightsOperator } from "@/features/platforms/skland/api/types";
+import {
+  fetchArknightsBoxCompare,
+  fetchArknightsCompareCandidates,
+} from "@/features/platforms/skland/api/sklandApi";
+import type {
+  ArknightsCompareRow,
+  ArknightsOwnedChar,
+  ArknightsOperator,
+} from "@/features/platforms/skland/api/types";
 import { apiError } from "@/shared/api/apiError";
 import { COMPARE_MAX } from "./constants";
-import {
-  loadRoleUidByMember,
-  saveRoleUidByMember,
-} from "./roleUidStorage";
+import { loadRoleUidByMember, saveRoleUidByMember } from "./roleUidStorage";
 import { OperatorInfoCompareTemplate } from "@/features/platforms/skland/components/operatorInfo/OperatorInfoCompareTemplate";
 import { OwnedCard } from "./OwnedCard";
 import { MissingCard } from "./MissingCard";
@@ -21,9 +25,8 @@ import { AddCompareMemberCard } from "@/features/platforms/skland/components/ope
 export function ArknightsBoxCompare() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialized, setInitialized] = useState(false);
-  const [roleUidByMember, setRoleUidByMember] = useState<
-    Record<number, string>
-  >(loadRoleUidByMember);
+  const [roleUidByMember, setRoleUidByMember] =
+    useState<Record<number, string>>(loadRoleUidByMember);
 
   const updateRoleUid = (memberId: number, uid: string) => {
     setRoleUidByMember((prev) => {
@@ -58,9 +61,7 @@ export function ArknightsBoxCompare() {
 
   const addableCandidates = useMemo(
     () =>
-      (candidatesQuery.data || []).filter(
-        (candidate) => !compareIds.includes(candidate.member_id),
-      ),
+      (candidatesQuery.data || []).filter((candidate) => !compareIds.includes(candidate.member_id)),
     [candidatesQuery.data, compareIds],
   );
 
@@ -137,9 +138,7 @@ export function ArknightsBoxCompare() {
   const memberActions = (
     <AddCompareMemberCard
       gameName="明日方舟"
-      disabled={
-        compareIds.length >= COMPARE_MAX || addableCandidates.length === 0
-      }
+      disabled={compareIds.length >= COMPARE_MAX || addableCandidates.length === 0}
       loading={candidatesQuery.isLoading}
       candidates={addableCandidates}
       onAdd={addMember}
@@ -168,11 +167,7 @@ export function ArknightsBoxCompare() {
       ) : compareQuery.isLoading ? (
         <Card loading />
       ) : compareQuery.data ? (
-        <OperatorInfoCompareTemplate<
-          ArknightsOperator,
-          ArknightsOwnedChar,
-          ArknightsCompareRow
-        >
+        <OperatorInfoCompareTemplate<ArknightsOperator, ArknightsOwnedChar, ArknightsCompareRow>
           gameName="明日方舟"
           operators={compareQuery.data.catalog ?? []}
           rows={displayRows}

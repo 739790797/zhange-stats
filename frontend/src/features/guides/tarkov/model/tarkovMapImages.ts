@@ -103,16 +103,11 @@ export function findMapGroup(slug: string): TarkovDevMapGroup | undefined {
   return MAP_GROUPS.find(
     (group) =>
       group.normalizedName === key ||
-      group.maps.some(
-        (layer) => layer.key === key || layer.altMaps?.includes(key),
-      ),
+      group.maps.some((layer) => layer.key === key || layer.altMaps?.includes(key)),
   );
 }
 
-function withGroupName(
-  layer: TarkovDevMapLayer,
-  group: TarkovDevMapGroup,
-): TarkovDevMapLayer {
+function withGroupName(layer: TarkovDevMapLayer, group: TarkovDevMapGroup): TarkovDevMapLayer {
   return { ...layer, normalizedName: group.normalizedName };
 }
 
@@ -131,8 +126,7 @@ export function findInteractiveMap(
     if (!group) continue;
     const exact = group.maps.find(
       (layer) =>
-        layer.projection === "interactive" &&
-        (layer.key === key || layer.altMaps?.includes(key)),
+        layer.projection === "interactive" && (layer.key === key || layer.altMaps?.includes(key)),
     );
     if (exact) return withGroupName(exact, group);
     const any = group.maps.find((layer) => layer.projection === "interactive");

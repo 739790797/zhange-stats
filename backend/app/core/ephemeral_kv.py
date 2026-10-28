@@ -85,9 +85,7 @@ def ephemeral_delete(key: str) -> None:
             r.delete(key)
             clear_log_until_change("ephemeral_kv.delete")
         except Exception as exc:  # noqa: BLE001
-            log_until_change(
-                logger, "ephemeral_kv.delete", "ephemeral_kv delete Redis failed (%s)", exc
-            )
+            log_until_change(logger, "ephemeral_kv.delete", "ephemeral_kv delete Redis failed (%s)", exc)
     with _lock:
         _memory.pop(key, None)
 

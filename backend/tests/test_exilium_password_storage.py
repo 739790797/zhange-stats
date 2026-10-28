@@ -47,9 +47,7 @@ def login_calls(monkeypatch) -> list[dict]:
 
 @pytest.fixture
 def db():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, autoflush=False)()
     session.add(Member(id=1, nickname="m1"))
@@ -104,9 +102,7 @@ def test_expired_token_relogs_with_the_saved_digest(monkeypatch) -> None:
     monkeypatch.setattr(attendance, "enrich_user_info", expired)
     monkeypatch.setattr(attendance, "login_with_password", relogin)
 
-    out = attendance.ensure_session(
-        ExiliumCredentials(token="stale", account_name=ACCOUNT, password_md5=DIGEST)
-    )
+    out = attendance.ensure_session(ExiliumCredentials(token="stale", account_name=ACCOUNT, password_md5=DIGEST))
 
     assert out.token == "fresh"
     assert seen == [((ACCOUNT,), {"password_md5": DIGEST})]
@@ -152,9 +148,7 @@ def test_legacy_plaintext_blob_is_rewritten_on_next_use(db, monkeypatch, caplog)
 
 def test_legacy_rewrite_yields_to_a_concurrent_rebind(db) -> None:
     legacy = {"token": "t0", "account_name": ACCOUNT, "password": PASSWORD}
-    bind = ExiliumBind(
-        member_id=1, credentials_enc=encrypt_secret(json.dumps(legacy)), auto_checkin=False
-    )
+    bind = ExiliumBind(member_id=1, credentials_enc=encrypt_secret(json.dumps(legacy)), auto_checkin=False)
     db.add(bind)
     db.commit()
     db.refresh(bind)

@@ -23,9 +23,7 @@ def test_sync_job_categories_are_declared() -> None:
 
 
 def test_versioned_stats_only_publish_measured_percentages() -> None:
-    unknown = versioned_job_stats(
-        "tarkov_full_sync", status="running", stats={"phase": "download", "percent": 45}
-    )
+    unknown = versioned_job_stats("tarkov_full_sync", status="running", stats={"phase": "download", "percent": 45})
     assert unknown is not None
     assert unknown["schema_version"] == 1
     assert unknown["category"] == "data_pipeline"

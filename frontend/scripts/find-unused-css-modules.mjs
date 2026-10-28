@@ -122,7 +122,12 @@ function collectUsage(code, id) {
       const expr = code.slice(open + 1, close).trim();
       const literal = /^(["'])([^"'\\]*)\1$/.exec(expr) ?? /^`([^`$]*)`$/.exec(expr);
       if (literal) usage.names.add(literal[2] ?? literal[1]);
-      else if (/^`[^`]*`$/.test(expr)) usage.patterns.push({ re: templatePattern(expr.slice(1, -1)), line: lineOf(code, m.index), expr });
+      else if (/^`[^`]*`$/.test(expr))
+        usage.patterns.push({
+          re: templatePattern(expr.slice(1, -1)),
+          line: lineOf(code, m.index),
+          expr,
+        });
       else usage.dynamic.push({ line: lineOf(code, m.index), expr });
       continue;
     }
@@ -130,7 +135,10 @@ function collectUsage(code, id) {
     if (before === "import ") continue;
     // 同名的 JSX 属性 / 对象键（如 antd 的 styles={{...}}）不是模块对象。
     if (/^\s*(?:=(?!=)|:)/.test(rest)) continue;
-    usage.escapes.push({ line: lineOf(code, m.index), snippet: code.slice(m.index, m.index + 60).split("\n")[0] });
+    usage.escapes.push({
+      line: lineOf(code, m.index),
+      snippet: code.slice(m.index, m.index + 60).split("\n")[0],
+    });
   }
   return usage;
 }
@@ -152,7 +160,9 @@ for (const file of files.filter((f) => /\.(tsx?|jsx?|mts)$/.test(f))) {
   const code = readFileSync(file, "utf8");
   for (const m of code.matchAll(importRe)) {
     const spec = m[2];
-    const target = spec.startsWith("@/") ? join(srcRoot, spec.slice(2)) : resolve(dirname(file), spec);
+    const target = spec.startsWith("@/")
+      ? join(srcRoot, spec.slice(2))
+      : resolve(dirname(file), spec);
     const mod = modules.get(target);
     if (!mod) continue;
     mod.importers.push({ file, id: m[1], code, usage: collectUsage(code, m[1]) });
@@ -183,18 +193,22 @@ for (const [file, mod] of [...modules].sort(([a], [b]) => a.localeCompare(b))) {
       const literals = stringLiterals(imp.code);
       for (const name of mod.classes.keys()) if (literals.has(name)) viaLiteral.add(name);
     }
-    for (const d of imp.usage.dynamic) notes.push(`  dynamic ${where}:${d.line} ${imp.id}[${d.expr}]`);
+    for (const d of imp.usage.dynamic)
+      notes.push(`  dynamic ${where}:${d.line} ${imp.id}[${d.expr}]`);
     for (const e of imp.usage.escapes) notes.push(`  escapes ${where}:${e.line} ${e.snippet}`);
   }
   const unused = [...mod.classes].filter(([name]) => !used.has(name) && !viaLiteral.has(name));
-  const literalOnly = [...mod.classes.keys()].filter((name) => !used.has(name) && viaLiteral.has(name));
+  const literalOnly = [...mod.classes.keys()].filter(
+    (name) => !used.has(name) && viaLiteral.has(name),
+  );
   unusedTotal += unused.length;
   if (!mod.importers.length) notes.unshift("  (no importers)");
   if (unused.length || (verbose && (notes.length || literalOnly.length))) {
     rows.push(`${rel}: ${unused.length}/${mod.classes.size} unused`);
     for (const [name, line] of unused) rows.push(`  .${name} (line ${line})`);
     if (verbose) {
-      if (literalOnly.length) rows.push(`  kept via string literal in importer: ${literalOnly.join(", ")}`);
+      if (literalOnly.length)
+        rows.push(`  kept via string literal in importer: ${literalOnly.join(", ")}`);
       rows.push(...notes);
     }
   }
@@ -202,5 +216,7 @@ for (const [file, mod] of [...modules].sort(([a], [b]) => a.localeCompare(b))) {
 
 if (missing.length) rows.push("referenced but not defined:", ...missing.map((m) => `  ${m}`));
 console.log(rows.join("\n"));
-console.log(`\n${modules.size} modules, ${classTotal} classes, ${unusedTotal} unused, ${missing.length} undefined references`);
+console.log(
+  `\n${modules.size} modules, ${classTotal} classes, ${unusedTotal} unused, ${missing.length} undefined references`,
+);
 process.exitCode = unusedTotal || missing.length ? 1 : 0;

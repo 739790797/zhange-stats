@@ -16,8 +16,7 @@ export type ArticleVersionListItem = components["schemas"]["ArticleVersionListIt
 export type ArticleVersionDetail = components["schemas"]["ArticleVersionDetailOut"];
 export type ArticleAuthorsPutIn = components["schemas"]["ArticleAuthorsPutIn"];
 export type ArticleAssetOut = components["schemas"]["ArticleAssetOut"];
-export type ArticleMathRecognizeOut =
-  components["schemas"]["ArticleMathRecognizeOut"];
+export type ArticleMathRecognizeOut = components["schemas"]["ArticleMathRecognizeOut"];
 
 export async function fetchArticles(params?: {
   page?: number;
@@ -41,9 +40,7 @@ export async function fetchAdminArticles(params?: {
 }
 
 export async function fetchArticle(slug: string) {
-  const { data } = await client.get<ArticleDetail>(
-    `/articles/${encodeURIComponent(slug)}`,
-  );
+  const { data } = await client.get<ArticleDetail>(`/articles/${encodeURIComponent(slug)}`);
   return data;
 }
 
@@ -54,10 +51,7 @@ export async function fetchArticleComments(slug: string) {
   return data;
 }
 
-export async function createArticleComment(
-  slug: string,
-  body: ArticleCommentCreateIn,
-) {
+export async function createArticleComment(slug: string, body: ArticleCommentCreateIn) {
   const { data } = await client.post<ArticleComment>(
     `/articles/${encodeURIComponent(slug)}/comments`,
     body,
@@ -66,9 +60,7 @@ export async function createArticleComment(
 }
 
 export async function deleteArticleComment(slug: string, commentId: number) {
-  await client.delete(
-    `/articles/${encodeURIComponent(slug)}/comments/${commentId}`,
-  );
+  await client.delete(`/articles/${encodeURIComponent(slug)}/comments/${commentId}`);
 }
 
 export async function fetchArticleCategories() {
@@ -87,10 +79,7 @@ export async function fetchAdminArticle(articleId: number) {
 }
 
 export async function patchArticle(articleId: number, body: ArticlePatchIn) {
-  const { data } = await client.patch<ArticleDetail>(
-    `/articles/id/${articleId}`,
-    body,
-  );
+  const { data } = await client.patch<ArticleDetail>(`/articles/id/${articleId}`, body);
   return data;
 }
 
@@ -110,30 +99,19 @@ export async function uploadArticleAsset(file: File) {
 export async function recognizeArticleMath(file: File) {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await client.post<ArticleMathRecognizeOut>(
-    "/articles/math/recognize",
-    form,
-    { timeout: 120000 },
-  );
+  const { data } = await client.post<ArticleMathRecognizeOut>("/articles/math/recognize", form, {
+    timeout: 120000,
+  });
   return data;
 }
 
 export async function createArticleCategory(body: ArticleCategoryWriteIn) {
-  const { data } = await client.post<ArticleCategory>(
-    "/articles/categories",
-    body,
-  );
+  const { data } = await client.post<ArticleCategory>("/articles/categories", body);
   return data;
 }
 
-export async function patchArticleCategory(
-  categoryId: number,
-  body: ArticleCategoryWriteIn,
-) {
-  const { data } = await client.patch<ArticleCategory>(
-    `/articles/categories/${categoryId}`,
-    body,
-  );
+export async function patchArticleCategory(categoryId: number, body: ArticleCategoryWriteIn) {
+  const { data } = await client.patch<ArticleCategory>(`/articles/categories/${categoryId}`, body);
   return data;
 }
 
@@ -166,9 +144,7 @@ export async function putArticleAuthors(body: ArticleAuthorsPutIn) {
 }
 
 export async function fetchArticleVersions(articleId: number) {
-  const { data } = await client.get<ArticleVersionListItem[]>(
-    `/articles/id/${articleId}/versions`,
-  );
+  const { data } = await client.get<ArticleVersionListItem[]>(`/articles/id/${articleId}/versions`);
   return data;
 }
 
@@ -179,10 +155,7 @@ export async function fetchArticleVersion(articleId: number, versionId: number) 
   return data;
 }
 
-export async function restoreArticleVersion(
-  articleId: number,
-  versionId: number,
-) {
+export async function restoreArticleVersion(articleId: number, versionId: number) {
   const { data } = await client.post<ArticleDetail>(
     `/articles/id/${articleId}/versions/${versionId}/restore`,
   );

@@ -39,9 +39,7 @@ def env(monkeypatch):
     monkeypatch.setenv("REDIS_URL", "")
     monkeypatch.setenv("ALLOW_EMAIL_CODE_LOG", "false")
     get_settings.cache_clear()
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(bind=engine)
 

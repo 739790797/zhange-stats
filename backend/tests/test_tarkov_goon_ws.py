@@ -40,9 +40,7 @@ def _client() -> TestClient:
 def test_goons_ws_rejects_cross_site_origin(monkeypatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(goon_ws_svc, "_load_user", lambda token: calls.append(token))
-    with _client().websocket_connect(
-        "/goons/ws", headers={"origin": "https://evil.example"}
-    ) as ws:
+    with _client().websocket_connect("/goons/ws", headers={"origin": "https://evil.example"}) as ws:
         with pytest.raises(WebSocketDisconnect) as caught:
             ws.receive_json()
     assert caught.value.code == 4403

@@ -70,9 +70,7 @@ def _batch_rebuilds_without_autoincrement(source: str, tables: set[str]) -> list
         func = node.func
         name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
         first = node.args[0]
-        if name != "batch_alter_table" or not (
-            isinstance(first, ast.Constant) and first.value in tables
-        ):
+        if name != "batch_alter_table" or not (isinstance(first, ast.Constant) and first.value in tables):
             continue
         kwargs = next((kw.value for kw in node.keywords if kw.arg == "table_kwargs"), None)
         if kwargs is None or "sqlite_autoincrement" not in ast.unparse(kwargs):

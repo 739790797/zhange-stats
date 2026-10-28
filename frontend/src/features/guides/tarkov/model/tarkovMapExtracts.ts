@@ -42,9 +42,7 @@ export const TARKOV_EXTRACT_KIND_LABELS: Record<TarkovExtractKind, string> = {
 
 export type TarkovExtractKindFlags = Record<TarkovExtractKind, boolean>;
 
-export function defaultExtractKindFlags(
-  on = true,
-): TarkovExtractKindFlags {
+export function defaultExtractKindFlags(on = true): TarkovExtractKindFlags {
   return {
     pmc: on,
     scav: on,

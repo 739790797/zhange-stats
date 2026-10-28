@@ -101,14 +101,8 @@ def _cell_awards(
         if items:
             return items
 
-    rid = (
-        cell.get("resourceId")
-        or cell.get("awardId")
-        or cell.get("id")
-    )
-    parsed = award_from_resource(
-        resource_map, rid, cell.get("count"), with_icon=True
-    )
+    rid = cell.get("resourceId") or cell.get("awardId") or cell.get("id")
+    parsed = award_from_resource(resource_map, rid, cell.get("count"), with_icon=True)
     if parsed:
         # 格子上可能自带 type
         if not parsed.get("resource_type") and cell.get("type"):
@@ -171,14 +165,10 @@ def _calendar_progress_reliable(cells: list[Any], records: list[Any]) -> bool:
     """
     if any(isinstance(rec, dict) for rec in records):
         return True
-    return any(
-        isinstance(cell, dict) and cell.get("done") is True for cell in cells
-    )
+    return any(isinstance(cell, dict) and cell.get("done") is True for cell in cells)
 
 
-def apply_claimed_days(
-    days_out: list[dict[str, Any]], claimed_days: int
-) -> list[dict[str, Any]]:
+def apply_claimed_days(days_out: list[dict[str, Any]], claimed_days: int) -> list[dict[str, Any]]:
     """按已签天数点亮前 N 格（保留 awards）。"""
     n = max(0, int(claimed_days))
     for d in days_out:
@@ -212,11 +202,7 @@ def infer_claimed_day_from_awards(
     target = _award_fingerprint(awards or [])
     if not target:
         return None
-    hits = [
-        int(d["day"])
-        for d in days_out
-        if _award_fingerprint(d.get("awards") or []) == target
-    ]
+    hits = [int(d["day"]) for d in days_out if _award_fingerprint(d.get("awards") or []) == target]
     if len(hits) != 1:
         return None
     return hits[0]
@@ -276,10 +262,7 @@ def parse_arknights_attendance_calendar(
     from app.core.timeutil import ensure, today as beijing_today
 
     day = ensure(now).date() if now is not None else beijing_today()
-    has_today = any(
-        isinstance(rec, dict) and ts_is_beijing_day(rec.get("ts"), day)
-        for rec in records
-    )
+    has_today = any(isinstance(rec, dict) and ts_is_beijing_day(rec.get("ts"), day) for rec in records)
 
     days_out: list[dict[str, Any]] = []
     for idx, cell in enumerate(cells):

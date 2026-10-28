@@ -263,11 +263,7 @@ def project_trader(
         "image_link": str(raw.get("imageLink") or ""),
         "portrait_link": trader_portrait_url(slug),
         "wiki_link": TRADER_WIKI.get(slug)
-        or (
-            f"https://escapefromtarkov.fandom.com/wiki/{english.replace(' ', '_')}"
-            if english
-            else ""
-        ),
+        or (f"https://escapefromtarkov.fandom.com/wiki/{english.replace(' ', '_')}" if english else ""),
         "reset_time": str(raw.get("resetTime") or ""),
         "currency": currency_name,
         "levels": levels,
@@ -516,4 +512,3 @@ def get_trader_detail(
         "synced_at": synced_at,
         "note": note,
     }
-
