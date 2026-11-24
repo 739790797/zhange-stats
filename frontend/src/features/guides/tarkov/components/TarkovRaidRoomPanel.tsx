@@ -33,7 +33,6 @@ import {
   type TarkovRaidRoomDetail,
 } from "@/features/guides/tarkov/api/guidesApi";
 import { apiError } from "@/shared/api/apiError";
-import { isAssistantEmbed } from "@/shared/lib/assistantShell";
 import {
   parseTarkovGameMode,
   useTarkovGameMode,
@@ -118,7 +117,6 @@ import {
   claimTaskIdsForUser,
   overlayRaidRoomLocalPhase,
   raidRoomPickDockMapId,
-  raidRoomSocketClient,
   raidRoomViewerMapSlug,
   readRaidRoomViewMap,
   writeRaidRoomViewMap,
@@ -768,11 +766,7 @@ export function TarkovRaidRoomPanel({ publicId }: { publicId: string }) {
       return {
         ...row,
         online: Boolean(row.online || wsLive),
-        clients: mergeLocalPresenceClient(
-          row.clients,
-          wsLive,
-          raidRoomSocketClient(isAssistantEmbed()),
-        ),
+        clients: mergeLocalPresenceClient(row.clients, wsLive, "web"),
       };
     });
   }, [members, me?.id, room?.members, wsLive]);

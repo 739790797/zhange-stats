@@ -11,7 +11,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@zhange-base/*": ["vendor/zhange-base/design-system/*"]
+      "@design-system/*": ["design-system/*"]
     },
 
     /* Bundler mode */

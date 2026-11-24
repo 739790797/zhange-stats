@@ -1,0 +1,55 @@
+/* Generated from tokens/tarkov.json. Do not edit directly. */
+.zhange-theme-tarkov {
+  color-scheme: dark;
+  --zhange-color-bg: #161710;
+  --zhange-color-panel: #22241a;
+  --zhange-color-panel-hover: #2b2d22;
+  --zhange-color-control: #1a1b14;
+  --zhange-color-surface-strong: #1c1e16;
+  --zhange-color-border: #3a3d30;
+  --zhange-color-accent: #c8932a;
+  --zhange-color-accent-hover: #e0b45a;
+  --zhange-color-accent-rgb: 200, 147, 42;
+  --zhange-color-accent-soft: rgba(200, 147, 42, 0.14);
+  --zhange-color-accent-soft-hover: rgba(200, 147, 42, 0.18);
+  --zhange-color-accent-soft-subtle: rgba(200, 147, 42, 0.12);
+  --zhange-color-accent-dim: rgba(200, 147, 42, 0.55);
+  --zhange-color-positive: #7ab648;
+  --zhange-color-text: #eee9d6;
+  --zhange-color-text-warm: #c8c4a8;
+  --zhange-color-text-muted: #b0ae9a;
+  --zhange-color-text-subtle: #7a7868;
+  --zhange-color-text-tertiary: #8a8878;
+  --zhange-color-danger: #ffb4a8;
+  --zhange-font-sans: "IBM Plex Sans", "Noto Sans SC Variable", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+  --zhange-font-mono: "IBM Plex Mono", "Noto Sans SC Variable", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Cascadia Mono", "Consolas", monospace;
+  --zhange-font-display: "IBM Plex Sans", "Noto Sans SC Variable", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --zhange-font-accent: "Rajdhani", "IBM Plex Sans", "Noto Sans SC Variable", "Microsoft YaHei", sans-serif;
+  --zhange-space-1: 0.25rem;
+  --zhange-space-2: 0.5rem;
+  --zhange-space-3: 0.75rem;
+  --zhange-space-4: 1rem;
+  --zhange-space-6: 1.5rem;
+  --zhange-space-8: 2rem;
+  --zhange-radius-sm: 4px;
+  --zhange-radius-md: 8px;
+  --zhange-radius-lg: 12px;
+  --zhange-border-width: 1px;
+  --zhange-motion-fast: 120ms;
+  --zhange-motion-normal: 200ms;
+  --zhange-focus-ring: 0 0 0 2px rgba(200, 147, 42, 0.42);
+
+  /* Compatibility aliases for legacy Tarkov app styles. */
+  --hb-bg: var(--zhange-color-bg);
+  --hb-panel: var(--zhange-color-panel);
+  --hb-panel-hover: var(--zhange-color-panel-hover);
+  --hb-border: var(--zhange-color-border);
+  --hb-orange: var(--zhange-color-accent);
+  --hb-orange-dim: var(--zhange-color-accent-dim);
+  --hb-green: var(--zhange-color-positive);
+  --hb-text: var(--zhange-color-text);
+  --hb-muted: var(--zhange-color-text-muted);
+  --hb-mono: var(--zhange-font-mono);
+  --hb-sans: var(--zhange-font-sans);
+  --hb-display: var(--zhange-font-display);
+}

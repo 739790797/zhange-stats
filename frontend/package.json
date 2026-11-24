@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "format": "prettier --write .. --ignore-path ../.prettierignore",
     "format:check": "prettier --check .. --ignore-path ../.prettierignore",
+    "tokens:check": "node design-system/scripts/generate-tokens.mjs --check",
     "lint": "oxlint",
     "test": "vitest run",
     "preview": "vite preview",

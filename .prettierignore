@@ -7,6 +7,9 @@ backend/.venv/
 backend/.pytest_cache/
 backend/.ruff_cache/
 frontend/.vite/
+frontend/design-system/src/tokens.css
+frontend/design-system/src/tokens.js
+frontend/design-system/src/tokens.d.ts
 data/
 config/
 frontend/src/shared/api/generated/

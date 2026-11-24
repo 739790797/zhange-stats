@@ -21,7 +21,7 @@ zhange-stats/
     models/                 # TexTeller（公式识别）
     repos/ run/ cache/ backups/ mariadb/ tmp/
   scripts/config.example/   # 站点配置模板（_version；启动/脚本补键）
-  frontend/vendor/zhange-base/ # App 与 Stats 共用设计系统子模块
+  frontend/design-system/   # 塔科夫主题、令牌生成器和字体许可证
   frontend/src/
     app/                    # 启动、路由组合、全局壳与应用级样式
     features/               # 按业务所有权分组；platforms/ 与 guides/ 再按域分包

@@ -49,7 +49,6 @@ const AdminHubLayout = lazyWithReload(() =>
 );
 const SetupPage = lazyWithReload(() => import("@/features/auth/pages/SetupPage"));
 const LoginPage = lazyWithReload(() => import("@/features/auth/pages/LoginPage"));
-const AppHomePage = lazyWithReload(() => import("@/features/home/pages/AppHomePage"));
 const LegalTermsPage = lazyWithReload(() => import("@/features/legal/pages/LegalTermsPage"));
 const LegalPrivacyPage = lazyWithReload(() => import("@/features/legal/pages/LegalPrivacyPage"));
 const RegisterPage = lazyWithReload(() => import("@/features/auth/pages/RegisterPage"));
@@ -375,7 +374,7 @@ export default function App() {
                 }
               >
                 <Route path="/" element={<HomeRedirect />} />
-                <Route path="/app" element={<AppHomePage />} />
+                <Route path="/app" element={<HomeRedirect />} />
                 <Route
                   path="/tavern"
                   element={

@@ -221,11 +221,6 @@ export const STROKE_MIN_DIST = 1.6;
 
 export type RaidRoomClientKind = "web" | "desktop";
 
-/** 战鸽助手嵌入算桌面端，浏览器算网页。 */
-export function raidRoomSocketClient(assistantEmbed: boolean): RaidRoomClientKind {
-  return assistantEmbed ? "desktop" : "web";
-}
-
 /** 本机这条连接还活着时，把本端补进名单；服务端已经记过同一端则不重复加。 */
 export function mergeLocalPresenceClient(
   clients: readonly string[] | null | undefined,

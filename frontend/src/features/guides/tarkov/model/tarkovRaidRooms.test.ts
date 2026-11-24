@@ -34,7 +34,6 @@ import {
   formatRaidRoomMemberChipLine,
   formatRaidRoomOnlineLabel,
   mergeLocalPresenceClient,
-  raidRoomSocketClient,
   raidRoomMemberRegionLabel,
   isNewerRoomSnapshot,
   raidRoomSlotPublicId,
@@ -233,8 +232,6 @@ describe("raid room helpers", () => {
     expect(formatRaidRoomOnlineLabel(true, ["desktop"])).toBe("在线·桌面");
     expect(formatRaidRoomOnlineLabel(true, ["desktop", "web"])).toBe("在线·多端");
     expect(formatRaidRoomOnlineLabel(true, ["web", "web"])).toBe("在线·多端");
-    expect(raidRoomSocketClient(false)).toBe("web");
-    expect(raidRoomSocketClient(true)).toBe("desktop");
     expect(mergeLocalPresenceClient(["desktop"], true, "web")).toEqual(["desktop", "web"]);
     expect(mergeLocalPresenceClient(["web", "web"], true, "web")).toEqual(["web", "web"]);
     expect(mergeLocalPresenceClient(["nope"], false, "desktop")).toEqual([]);

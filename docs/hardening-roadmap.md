@@ -93,7 +93,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 ### 1.3 字体不再走 Google
 
-现状：[`frontend/index.html`](../frontend/index.html) 已不加载 Google Fonts；主应用使用系统黑体（`antdAppTheme`）。塔科夫主题从 `frontend/vendor/zhange-base/design-system/` 加载共享令牌、IBM Plex / Rajdhani 与 Noto Sans SC Variable 字体，字体许可保存在 base 仓库。
+现状：[`frontend/index.html`](../frontend/index.html) 已不加载 Google Fonts；主应用使用系统黑体（`antdAppTheme`）。塔科夫主题从 [`frontend/design-system/`](../frontend/design-system/README.md) 加载设计令牌、IBM Plex / Rajdhani 与 Noto Sans SC Variable 字体，字体许可证保存在同一目录内。
 
 已落实：
 
@@ -251,7 +251,7 @@ form-action 'self';
 2. 前端去掉 zustand 对 JWT 的 persist；axios **不再**塞 `Authorization`（依赖 Cookie）。
 3. CSRF：同站 Lax 对「简单 GET」够用；所有 **状态改变** 的 POST/PATCH/DELETE 要求自定义头（如 `X-CSRF-Token`）或 Double Submit Cookie。从后端发 CSRF cookie（可读）+ 头校验。
 4. 登出：清 Cookie。
-5. 文档：CORS 收紧为生产站 origin（今日正则含 localhost/Tauri，生产应用 `CORS_ORIGIN_REGEX` 覆盖）。
+5. 文档：生产默认不启用开发用的 localhost 正则；确需跨源时用 `CORS_ORIGIN_REGEX` 显式配置。
 
 验收：
 

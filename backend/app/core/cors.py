@@ -1,13 +1,9 @@
-"""浏览器 CORS：本地 Vite + Tauri 2 默认源。"""
+"""浏览器 CORS：本地 Vite 默认源。"""
 
 from __future__ import annotations
 
 # 本地 Vite 任意端口；可用 CORS_ORIGIN_REGEX 整段覆盖。生产同域一般不必 CORS。
-DEFAULT_CORS_ORIGIN_REGEX = (
-    r"(https?://(localhost|127\.0\.0\.1)(:\d+)?|"
-    r"https?://tauri\.localhost|"
-    r"tauri://localhost)"
-)
+DEFAULT_CORS_ORIGIN_REGEX = r"https?://(?:localhost|127\.0\.0\.1)(?::\d+)?"
 
 
 def resolve_cors_origin_regex(

@@ -22,7 +22,6 @@ import {
   LEGAL_TERMS_PATH,
   TARKOV_PUBLIC_DISCLAIMER,
 } from "@/features/legal/model/legalDocs";
-import { isAssistantSearchPane } from "@/shared/lib/assistantShell";
 import { TarkovHomeToolRail } from "@/features/guides/tarkov/components/TarkovHomeToolRail";
 import {
   TarkovRaidPrepEntryModal,
@@ -208,7 +207,6 @@ export function TarkovHomeView() {
   };
 
   const waiting = searching && searchQuery.isLoading && !searchQuery.data;
-  const searchOnly = isAssistantSearchPane();
 
   const openEntry = (step: RaidPrepEntryStep) => {
     setEntryStep(step);
@@ -240,7 +238,7 @@ export function TarkovHomeView() {
   );
 
   const hero = (
-    <section className={`${styles.hero}${searchOnly && !searching ? ` ${styles.heroOnly}` : ""}`}>
+    <section className={styles.hero}>
       <div className={styles.heroInner}>
         <h1 className={styles.title}>逃离塔科夫</h1>
         <p className={styles.subtitle}>ESCAPE FROM TARKOV · 中文攻略站</p>
@@ -261,23 +259,12 @@ export function TarkovHomeView() {
             aria-label="全站搜索攻略"
             autoComplete="off"
             enterKeyHint="search"
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- 只在助手搜索窗格里聚焦：那个窗格只有这一个搜索框
-            autoFocus={searchOnly}
           />
           <kbd className={styles.kbd}>Enter</kbd>
         </form>
       </div>
     </section>
   );
-
-  if (searchOnly) {
-    return (
-      <div className={styles.searchOnly}>
-        {hero}
-        {searching ? <div className={styles.searchResults}>{results}</div> : null}
-      </div>
-    );
-  }
 
   return (
     <>

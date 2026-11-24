@@ -75,11 +75,9 @@
 - 塔科夫工作台预览以 dump 枪图为底板，按槽位选择配件；缺少整枪坐标不意味着可把出图服务改成数据权威。image-gen 代理默认关闭，只有显式配置 `TARKOV_WORKBENCH_IMAGE_GEN=true` 才可启用。社区配装只 GET EFTForge 公开列表并投影为 dump 可装部件；不代投票/评论、不热链社区图片、不把其作为图鉴源，除短时 KV 外不持久化。枪匠约束来自 tasks dump 的 `buildWeapon`/`buildAttributes`，不 vendor 社区 JSON；工作台测试不得访问真实上游。
 - 终末地干员信息和“烟火生缘”客栈准备求解使用本地 EndfieldData；客栈不要求森空岛绑定或养成盒凭证，厨师从 `InnCharTable` 过滤，菜单缺口明确展示。没有来源的公式或信息不估算、不编造。
 
-## 战鸽助手边界
+## 塔科夫本地文件边界
 
-- 桌面助手 WebView 使用站点同源地址；嵌入态按嵌入标记隐藏站点侧栏，浏览器直接打开不隐藏。生产登录不能依赖 iframe、开发 localhost 或 Tauri 自定义源的跨站 Cookie；QQ/Steam 回跳仍落在站点地址。
-- 游戏目录截图/日志通过本地文件桥读取；解析留在站点现有逻辑。战局使用既有摘要 API，房间定位只传既定数字坐标，截图只读文件名，不上传原图；不得新增接收原始日志或定位原图的接口。
-- 助手不得重写截图文件名/坐标和日志解析。Cookie、CSRF、CORS 等权威安全细节见 [`security.md`](security.md)。
+- 截图与游戏日志通过浏览器授权的目录句柄读取，解析在前端进行。战局使用现有摘要 API，房间定位只传既定数字坐标；不上传日志原文或截图。权限与数据处理细节见 [`security.md`](security.md)「塔科夫图鉴与工具」。
 
 ## 测试与成对更新
 
@@ -87,7 +85,7 @@
 - 测试聚焦用户可观察行为与领域不变量；一个用例只负责一个主要失败原因。对等价输入使用参数化，对不同契约拆开测试；断言具体项目异常，不用宽泛 `Exception`，不测试某个内部函数或属性“不存在”。
 - 异步收发和重试测试必须有界，避免无期限等待循环。测试数据与临时路径使用 fixture 管理，安全权限断言区分操作系统能力，不依赖文本模式写入产生的换行字节。
 - 测试套件变大时，按公开行为、模块 owner 或生命周期拆分文件，保留各自有意义的边界场景；不设行数门槛，不复制同一规则的跨层断言，不为 getter、常量或 mock 调用次数补测试。
-- 格式统一使用根目录 EditorConfig 与 Prettier；Python 使用 Ruff formatter 和 linter。前端生成的 OpenAPI 契约、子模块、运行时数据与构建产物不手工格式化。
+- 格式统一使用根目录 EditorConfig 与 Prettier；Python 使用 Ruff formatter 和 linter。生成的 OpenAPI 契约、设计令牌、运行时数据与构建产物不手工格式化。
 - 不为整页组件随意引入 jsdom 测试；不使用真实 MySQL、同步 `TestClient` lifespan 或真实上游网络来验证普通单测。根据项目 fixture 隔离依赖，跨层只测各层差异。
 - 签到渠道、Adapter、`force`、路径/密钥、日志抑制、外部数据回退等行为变化先找相邻回归测试并补差量；不要为了新平台复制已有公共行为的空壳测试。
 - 必须同步的产物：API schema 变化生成 OpenAPI；表结构变更增加 migration 并更新 `docs/database.md`；配置模板字段变更递增 `_version` 并跑配置同步测试；附件走 `user_files` 并保持 API `serial` 契约；生产行为变化复核 [`security.md`](security.md)/[`deploy.md`](deploy.md)；日志变更对照 [`logging.md`](logging.md)。

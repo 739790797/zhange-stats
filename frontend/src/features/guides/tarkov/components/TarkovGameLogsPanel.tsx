@@ -1,7 +1,5 @@
 import { Alert, Button, Input, InputNumber, Spin, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasAssistantTarkovFiles } from "@/features/guides/tarkov/model/assistantHostFiles";
-import { isAssistantEmbed } from "@/shared/lib/assistantShell";
 import {
   displayPathForResolved,
   isFileSystemAccessSupported,
@@ -54,11 +52,7 @@ function friendlyError(error: unknown, fallback: string): string {
 
 export function TarkovGameLogsPanel() {
   const supported = isFileSystemAccessSupported();
-  const assistantEmbed = isAssistantEmbed();
-  const assistantBound = hasAssistantTarkovFiles();
-  const pathInputTitle = assistantBound
-    ? "路径由战鸽助手提供"
-    : "浏览器选目录拿不到盘符，可在此补全完整路径";
+  const pathInputTitle = "浏览器选目录拿不到盘符，可在此补全完整路径";
   const handleRef = useRef<ReadableDir | null>(null);
   const shotRef = useRef<ReadableDir | null>(null);
   const [perm, setPerm] = useState<Perm>("unknown");
@@ -281,10 +275,6 @@ export function TarkovGameLogsPanel() {
       setAction("");
     }
   };
-
-  if (assistantEmbed && !assistantBound) {
-    return <Alert type="warning" showIcon message="战鸽助手还没有绑定截图和日志目录" />;
-  }
 
   if (!supported) {
     return (

@@ -7,7 +7,6 @@ import { useTarkovDocumentTitle } from "@/features/guides/tarkov/model/tarkovDoc
 import {
   TARKOV_ADMIN_NAV,
   TARKOV_HOME_PATH,
-  TARKOV_ME_PATH,
   TARKOV_TOP_NAV,
   buildTarkovBossNavGroups,
   isTarkovAdminPath,
@@ -17,7 +16,6 @@ import {
   tarkovPageTitle,
   type TarkovNavStatus,
 } from "@/features/guides/tarkov/model/tarkovHomeNav";
-import { isAssistantBodyPane, isAssistantSearchPane } from "@/shared/lib/assistantShell";
 import { focusWithoutVisibleRing } from "@/shared/lib/focusRouteTarget";
 import { isAdminUser } from "@/features/auth/model/isAdminUser";
 import { useAuthStore } from "@/features/auth/model/authStore";
@@ -209,16 +207,11 @@ export function TarkovGuideShell({ children }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [pathname]);
-  const meBody = isAssistantBodyPane() && pathname.replace(/\/$/, "") === TARKOV_ME_PATH;
-  const searchPane =
-    isAssistantSearchPane() &&
-    (pathname === TARKOV_HOME_PATH || pathname === `${TARKOV_HOME_PATH}/`);
   const bossesQuery = useQuery({
     queryKey: ["guides-tarkov-bosses", gameMode],
     queryFn: fetchTarkovBosses,
     staleTime: 5 * 60_000,
     retry: 1,
-    enabled: !meBody && !searchPane,
   });
   const navItems = useMemo(() => {
     const groups = buildTarkovBossNavGroups(bossesQuery.data?.items);
@@ -235,146 +228,144 @@ export function TarkovGuideShell({ children }: Props) {
             <a className={styles.skipLink} href="#tarkov-main">
               跳到正文
             </a>
-            {meBody || searchPane ? null : (
-              <header className={styles.topbar}>
-                <div className={styles.topbarInner}>
-                  <div className={styles.topLeft}>
-                    <Link to={TARKOV_HOME_PATH} className={styles.brand} aria-label="逃离塔科夫">
-                      <TarkovGameLogo />
-                    </Link>
-                    <TarkovRaidRoomHeaderLink />
-                    <TarkovLiveWatchStatus />
-                  </div>
-                  <nav className={styles.nav} aria-label="攻略栏目">
-                    {navItems.map((item) => {
-                      const extraHrefs = (item.groups ?? []).flatMap((g) =>
-                        g.items.map((link) => link.href),
-                      );
-                      const active =
-                        item.id === "maps" && maintainMode
-                          ? false
-                          : isTarkovTopNavActive(item.href, pathname, extraHrefs);
-                      const bossMenu = item.id === "bosses";
-                      return (
-                        <div key={item.id} className={styles.navItem}>
-                          <Link
-                            to={item.href}
-                            className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
-                            aria-current={active ? "page" : undefined}
-                            aria-haspopup={item.groups ? "menu" : undefined}
-                          >
-                            {item.label}
-                            {item.groups ? <NavCaret /> : null}
-                          </Link>
-                          {item.groups ? (
-                            <div className={styles.dropdown} role="menu">
-                              {item.groups.map((group) => (
-                                <div
-                                  key={group.id}
-                                  className={`${styles.dropCol} ${
-                                    bossMenu ? styles.dropColBosses : ""
-                                  }`}
-                                >
-                                  <p className={styles.dropHead}>{group.label}</p>
-                                  {group.items.map((link) =>
-                                    link.status === "soon" ? (
-                                      <span
-                                        key={link.id}
-                                        className={`${styles.dropLink} ${styles.dropLinkSoon}`}
-                                        aria-disabled="true"
-                                      >
-                                        {link.label}
-                                        <TarkovSoonMark status={link.status} />
-                                      </span>
-                                    ) : (
-                                      <Link
-                                        key={link.id}
-                                        to={link.href}
-                                        className={styles.dropLink}
-                                        role="menuitem"
-                                      >
-                                        {link.label}
-                                      </Link>
-                                    ),
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                    {isAdmin ? (
-                      <div className={styles.navItem}>
+            <header className={styles.topbar}>
+              <div className={styles.topbarInner}>
+                <div className={styles.topLeft}>
+                  <Link to={TARKOV_HOME_PATH} className={styles.brand} aria-label="逃离塔科夫">
+                    <TarkovGameLogo />
+                  </Link>
+                  <TarkovRaidRoomHeaderLink />
+                  <TarkovLiveWatchStatus />
+                </div>
+                <nav className={styles.nav} aria-label="攻略栏目">
+                  {navItems.map((item) => {
+                    const extraHrefs = (item.groups ?? []).flatMap((g) =>
+                      g.items.map((link) => link.href),
+                    );
+                    const active =
+                      item.id === "maps" && maintainMode
+                        ? false
+                        : isTarkovTopNavActive(item.href, pathname, extraHrefs);
+                    const bossMenu = item.id === "bosses";
+                    return (
+                      <div key={item.id} className={styles.navItem}>
                         <Link
-                          to={TARKOV_ADMIN_NAV.href}
-                          className={`${styles.navLink} ${adminActive ? styles.navLinkActive : ""}`}
-                          aria-current={adminActive ? "page" : undefined}
-                          aria-haspopup="menu"
+                          to={item.href}
+                          className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
+                          aria-current={active ? "page" : undefined}
+                          aria-haspopup={item.groups ? "menu" : undefined}
                         >
-                          {TARKOV_ADMIN_NAV.label}
-                          <NavCaret />
+                          {item.label}
+                          {item.groups ? <NavCaret /> : null}
                         </Link>
-                        <div className={styles.dropdown} role="menu">
-                          {(TARKOV_ADMIN_NAV.groups ?? []).map((group) => (
-                            <div key={group.id} className={styles.dropCol}>
-                              <p className={styles.dropHead}>{group.label}</p>
-                              {group.items.map((link) => (
-                                <Link
-                                  key={link.id}
-                                  to={link.href}
-                                  className={styles.dropLink}
-                                  role="menuitem"
-                                >
-                                  {link.label}
-                                </Link>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
+                        {item.groups ? (
+                          <div className={styles.dropdown} role="menu">
+                            {item.groups.map((group) => (
+                              <div
+                                key={group.id}
+                                className={`${styles.dropCol} ${
+                                  bossMenu ? styles.dropColBosses : ""
+                                }`}
+                              >
+                                <p className={styles.dropHead}>{group.label}</p>
+                                {group.items.map((link) =>
+                                  link.status === "soon" ? (
+                                    <span
+                                      key={link.id}
+                                      className={`${styles.dropLink} ${styles.dropLinkSoon}`}
+                                      aria-disabled="true"
+                                    >
+                                      {link.label}
+                                      <TarkovSoonMark status={link.status} />
+                                    </span>
+                                  ) : (
+                                    <Link
+                                      key={link.id}
+                                      to={link.href}
+                                      className={styles.dropLink}
+                                      role="menuitem"
+                                    >
+                                      {link.label}
+                                    </Link>
+                                  ),
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </nav>
-                  <div className={styles.topRight}>
-                    <TarkovGameModeSwitch />
-                    <form
-                      className={styles.topSearch}
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const next = draft.trim();
-                        navigate(
-                          next
-                            ? `${TARKOV_HOME_PATH}?q=${encodeURIComponent(next)}`
-                            : TARKOV_HOME_PATH,
-                        );
-                      }}
-                    >
-                      <input
-                        ref={searchRef}
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        placeholder="搜索…"
-                        aria-label="全站搜索攻略"
-                        autoComplete="off"
-                        enterKeyHint="search"
-                      />
-                      <kbd className={styles.topKbd}>/</kbd>
-                    </form>
-                    <div className={styles.tracker}>
-                      <TarkovMeHeaderLink />
+                    );
+                  })}
+                  {isAdmin ? (
+                    <div className={styles.navItem}>
+                      <Link
+                        to={TARKOV_ADMIN_NAV.href}
+                        className={`${styles.navLink} ${adminActive ? styles.navLinkActive : ""}`}
+                        aria-current={adminActive ? "page" : undefined}
+                        aria-haspopup="menu"
+                      >
+                        {TARKOV_ADMIN_NAV.label}
+                        <NavCaret />
+                      </Link>
+                      <div className={styles.dropdown} role="menu">
+                        {(TARKOV_ADMIN_NAV.groups ?? []).map((group) => (
+                          <div key={group.id} className={styles.dropCol}>
+                            <p className={styles.dropHead}>{group.label}</p>
+                            {group.items.map((link) => (
+                              <Link
+                                key={link.id}
+                                to={link.href}
+                                className={styles.dropLink}
+                                role="menuitem"
+                              >
+                                {link.label}
+                              </Link>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  ) : null}
+                </nav>
+                <div className={styles.topRight}>
+                  <TarkovGameModeSwitch />
+                  <form
+                    className={styles.topSearch}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const next = draft.trim();
+                      navigate(
+                        next
+                          ? `${TARKOV_HOME_PATH}?q=${encodeURIComponent(next)}`
+                          : TARKOV_HOME_PATH,
+                      );
+                    }}
+                  >
+                    <input
+                      ref={searchRef}
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="搜索…"
+                      aria-label="全站搜索攻略"
+                      autoComplete="off"
+                      enterKeyHint="search"
+                    />
+                    <kbd className={styles.topKbd}>/</kbd>
+                  </form>
+                  <div className={styles.tracker}>
+                    <TarkovMeHeaderLink />
                   </div>
                 </div>
-              </header>
-            )}
+              </div>
+            </header>
             <main
               ref={bodyRef}
               id="tarkov-main"
               tabIndex={-1}
-              className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}${searchPane ? ` ${styles.bodySearch}` : ""}`}
+              className={`${styles.body}${fills ? ` ${styles.bodyFill}` : ""}`}
             >
               <div className={styles.bodyPage}>{children}</div>
-              {fills || meBody || searchPane ? null : <IcpBeianFooter variant="tarkov" />}
+              {fills ? null : <IcpBeianFooter variant="tarkov" />}
             </main>
           </div>
         </TarkovGoonTrackerProvider>

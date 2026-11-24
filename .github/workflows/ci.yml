@@ -28,7 +28,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
 
       - name: Setup Node
@@ -42,6 +41,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run tokens:check
           npm run format:check
           npm run lint
           npm run test
@@ -250,7 +250,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
 
       # tag 已存在（含上次发到一半）一律跳过：Release 资产不可变，改 VERSION 才发新版
@@ -291,7 +290,7 @@ jobs:
         run: |
           VERSION="${{ steps.meta.outputs.version }}"
           mkdir -p frontend/dist/licenses/fonts
-          cp frontend/vendor/zhange-base/design-system/licenses/fonts/*.txt \
+          cp frontend/design-system/licenses/fonts/*.txt \
             frontend/dist/licenses/fonts/
           tar -C frontend/dist -czf "zhange-stats-${VERSION}-static.tar.gz" .
           for license in IBM-Plex-OFL.txt Noto-Sans-SC-OFL.txt Rajdhani-OFL.txt; do
@@ -299,16 +298,10 @@ jobs:
               | grep -Fx "./licenses/fonts/${license}" > /dev/null
           done
           source_root="zhange-stats-${VERSION}"
-          source_stage="$(mktemp -d)"
-          mkdir -p "${source_stage}/${source_root}/frontend/vendor/zhange-base"
-          git archive --format=tar "${GITHUB_SHA}" \
-            | tar -xf - -C "${source_stage}/${source_root}"
-          git -C frontend/vendor/zhange-base archive --format=tar HEAD \
-            | tar -xf - -C "${source_stage}/${source_root}/frontend/vendor/zhange-base"
-          tar -C "${source_stage}" -czf \
-            "zhange-stats-${VERSION}-source.tar.gz" "${source_root}"
+          git archive --format=tar.gz --prefix="${source_root}/" \
+            -o "zhange-stats-${VERSION}-source.tar.gz" "${GITHUB_SHA}"
           tar -tzf "zhange-stats-${VERSION}-source.tar.gz" \
-            | grep -Fx "${source_root}/frontend/vendor/zhange-base/design-system/src/index.css" \
+            | grep -Fx "${source_root}/frontend/design-system/src/index.css" \
             > /dev/null
           sha256sum "zhange-stats-${VERSION}-static.tar.gz" "zhange-stats-${VERSION}-source.tar.gz" > SHA256SUMS
           cat SHA256SUMS

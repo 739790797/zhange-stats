@@ -1138,7 +1138,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
           }
         }
         const mode = gameModeRef.current;
-        // 边界以账号为准：登出、换浏览器、战鸽助手读到的都是同一份
+        // 边界以账号为准：重新登录或换浏览器仍读取同一份
         const boundary = await loadQuestBoundary(mode);
         if (!boundary) {
           return { ok: false, hint: "读不到账号上的任务进度，这次没有同步。请检查网络后再试。" };

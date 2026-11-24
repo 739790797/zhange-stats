@@ -97,8 +97,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\update.ps1 -St
 
 推送到 `main` 时，CI 先跑 `frontend-quality`、`backend-tests`（ruff + pytest）、`backend-migrate-mariadb`（MariaDB 上空库迁移两遍、`alembic check`、迁移测试）、`openapi-drift`；全部通过后才按根目录 `VERSION` 发 Release（tag `v{VERSION}`，建在本次提交上），上传三个资产：
 
-- `zhange-stats-{VERSION}-static.tar.gz`：预构建前端
-- `zhange-stats-{VERSION}-source.tar.gz`：`git archive` 源码包，单一顶层目录 `zhange-stats-{VERSION}/`
+- `zhange-stats-{VERSION}-static.tar.gz`：预构建前端，含 `licenses/fonts/` 下的字体许可证
+- `zhange-stats-{VERSION}-source.tar.gz`：`git archive` 源码包，单一顶层目录 `zhange-stats-{VERSION}/`，含构建所需的设计系统源码
 - `SHA256SUMS`：上面两个文件的 sha256，更新器与资产 digest 交叉核对
 
 Release 发出后不再改动：tag `v{VERSION}` 已存在时（包括上次发到一半），`publish-release` 只留一条 notice「bump VERSION to release」然后跳过，不覆盖、不补传资产。

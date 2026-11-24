@@ -13,7 +13,7 @@
 
 需要 Python 3.11+、Node 22.12+（Vitest 5 / Vite 8）。**不必预先安装数据库**：`install` / `run` 只装 Python/前端依赖。首次打开站点进入 **安装向导**，可选本机 SQLite（`data/runtime/zhange.sqlite`）或填写外部 MySQL/MariaDB 连接串。本机 MariaDB 若仍需要，可手工跑 `scripts/common/provision_mariadb.py`。
 
-前端共用设计系统由 `frontend/vendor/zhange-base` 子模块提供。新克隆仓库时使用 `git clone --recurse-submodules`；已有克隆则先在仓库根运行 `git submodule update --init --recursive`，再执行前端 `npm ci`。
+前端设计系统在本仓库的 [`frontend/design-system/`](../frontend/design-system/README.md)；普通 `git clone` 后即可安装依赖并构建，不需要初始化子模块。改动视觉令牌后用生成器更新产物，CI 运行 `npm run tokens:check` 检查一致性。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\win\install.ps1
@@ -68,8 +68,8 @@ CLI 和定时任务共用任务实现、运行记录与执行锁；日志会同�
 - 塔科夫枪械工作台中间用 dump 枪图做底板，在图上点槽位换配件。第三方出图默认关闭。枪匠求解读本站 tasks dump 的 `buildWeapon`，在本站做约束满足，不打 EFTForge。
 - 塔科夫 `/guides/tarkov` 不包 `PrivateRoute`：图鉴、枪匠求解、大厅预览未登录可读；个人中心与开房在壳内登录。用户等待在 **管理 → 运行维护 → 用户等待**。
 - 启动时：已选库则自动 `alembic upgrade`（SQLite 首次为 `create_all` + stamp）；改表：`alembic revision --autogenerate -m "..."`（见 [`backend/alembic/README.md`](../backend/alembic/README.md)），并同步 [`database.md`](database.md)
-- 战鸽助手（zhange-app）用 WebView 打开站点同源地址，首页是 `/app`（先确认登录，未登录去登录页）。嵌入侧栏、截图/日志读盘与会话边界见 [`security.md`](security.md)「战鸽助手」。Steam 日时间轴昵称链到 Steam 社区资料，不再有单独的成员游玩页。
-- 站点配置字段见 [`scripts/config.example/`](../scripts/config.example/)。`install` / `run` / `restart` / `update` 与启动会按文件 `_version` 把模板里的新键补进 `config/`，不覆盖已有值。Steam/QQ 回调与 CORS 默认按访问 Host 自动推断；本地 Vite 与战鸽助手（Tauri `https://tauri.localhost`）走默认正则，可在「运行环境」覆盖 `CORS_ORIGINS` / `CORS_ORIGIN_REGEX`。QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `data/runtime/`、`data/uploads/`）。Hugging Face / pip 等第三方缓存启动时 pin 到 `data/cache`，tempfile 与备份暂存在 `data/tmp`。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 在运行环境配置
+- Steam 日时间轴昵称链到 Steam 社区资料，不再有单独的成员游玩页。
+- 站点配置字段见 [`scripts/config.example/`](../scripts/config.example/)。`install` / `run` / `restart` / `update` 与启动会按文件 `_version` 把模板里的新键补进 `config/`，不覆盖已有值。Steam/QQ 回调默认按访问 Host 推断；本地 Vite 走默认 CORS 正则，可在「运行环境」覆盖 `CORS_ORIGINS` / `CORS_ORIGIN_REGEX`。QQ 互联后台登记的回调须与「实际打开站点的地址」一致（集成密钥页可复制）。密钥与头像目录由程序默认创建（本地安装根 `data/runtime/`、`data/uploads/`）。Hugging Face / pip 等第三方缓存启动时 pin 到 `data/cache`，tempfile 与备份暂存在 `data/tmp`。上游 HTTP 走进程级 `httpx` 连接池；可选 `REDIS_URL` 在运行环境配置
 - Linux 本机同一套六件套：`scripts/linux/install.sh`（装系统包与 systemd 需 root）、`run.sh`、`restart.sh`、`update.sh`、`backup.sh`、`restore.sh`。已有 systemd unit 时 `run`/`restart`/`update` 后的重启走 `systemctl`；否则起 `:6130` 后端与 `:6131` Vite。以 root 跑且服务用户（`ZHANGE_USER`，默认 `zhange`）存在时，venv / pip / npm / 更新器改由该用户执行，脚本退出时把安装树属主修回去；系统 Python 低于 3.11 时用 `ZHANGE_PYTHON=python3.11` 指定。本机 MariaDB 改为手工 `scripts/common/provision_mariadb.py`。
 - 平台可用性：管理员在 **管理 → 任务管理 → 任务配置** 按平台 / 游戏 / 任务级联开关
 - 磁盘占用：管理员在 **管理 → 运行维护 → 文件管理** 查看运行时 / 模型 / 缓存 / 依赖占用，并在安装根内增删改查（密钥、备份与 MariaDB 数据目录除外）
@@ -77,7 +77,7 @@ CLI 和定时任务共用任务实现、运行记录与执行锁；日志会同�
 
 本地假 Steam 数据见 [`backend/local_dev/README.md`](../backend/local_dev/README.md)。
 
-格式检查由 CI 执行：前端从 `frontend/` 运行 `npm run format:check`，Ruff 从 `backend/` 运行 `python -m ruff format --check app tests ../scripts`。应用 `npm run format` 或 `python -m ruff format app tests ../scripts` 前确认 `.prettierignore` / Ruff 排除规则没有包含生成契约、子模块、运行时数据或构建产物。
+格式检查由 CI 执行：前端从 `frontend/` 运行 `npm run format:check`，Ruff 从 `backend/` 运行 `python -m ruff format --check app tests ../scripts`。生成契约、生成的设计令牌、运行时数据和构建产物不手工格式化。
 
 ## 工程
 

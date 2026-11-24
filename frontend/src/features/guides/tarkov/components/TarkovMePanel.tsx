@@ -8,7 +8,6 @@ import { TarkovHideoutPanel } from "@/features/guides/tarkov/components/TarkovHi
 import { TarkovKeyPacksPanel } from "@/features/guides/tarkov/components/TarkovKeyPacksPanel";
 import { TarkovProfilePanel } from "@/features/guides/tarkov/components/TarkovProfilePanel";
 import { TarkovTaskManagerPanel } from "@/features/guides/tarkov/components/TarkovTaskManagerPanel";
-import { isAssistantBodyPane } from "@/shared/lib/assistantShell";
 import { useTarkovGameMode } from "@/features/guides/tarkov/model/tarkovGameMode";
 import {
   resolveTarkovMeTab,
@@ -36,7 +35,6 @@ export function TarkovMePanel() {
   const loggedIn = Boolean(useAuthStore((s) => s.user));
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveTarkovMeTab(searchParams.get("tab"));
-  const bodyPane = isAssistantBodyPane();
   const profileQuery = useQuery({
     queryKey: ["guides-tarkov-profile", gameMode],
     queryFn: fetchTarkovProfile,
@@ -77,22 +75,20 @@ export function TarkovMePanel() {
 
   return (
     <div className={`${styles.stack}${tab === "collection" ? ` ${styles.stackFill}` : ""}`}>
-      {bodyPane ? null : (
-        <div className={`${trade.chipBar} ${styles.tabs}`} role="tablist" aria-label="个人中心栏目">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === item.id}
-              className={`${trade.chipBtn} ${trade.chipAll}${tab === item.id ? ` ${trade.chipOn}` : ""}`}
-              onClick={() => setTab(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className={`${trade.chipBar} ${styles.tabs}`} role="tablist" aria-label="个人中心栏目">
+        {TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            className={`${trade.chipBtn} ${trade.chipAll}${tab === item.id ? ` ${trade.chipOn}` : ""}`}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       {tab === "profile" ? <TarkovProfilePanel /> : null}
       {tab === "tasks" ? <TarkovTaskManagerPanel /> : null}
       {tab === "keys" ? <TarkovKeyPacksPanel /> : null}

@@ -4,7 +4,6 @@ import {
   tarkovRaidRoomWsUrl,
   type TarkovRaidRoomDetail,
 } from "@/features/guides/tarkov/api/guidesApi";
-import { isAssistantEmbed } from "@/shared/lib/assistantShell";
 import {
   TARKOV_HOME_PATH,
   TARKOV_RAID_PREP_PATH,
@@ -19,7 +18,6 @@ import {
   playerFixIsFresh,
   RAID_ROOM_WS_PING_MS,
   raidRoomLogPhaseSig,
-  raidRoomSocketClient,
   raidRoomWsCloseReason,
   raidRoomWsRetryDelayMs,
   type RaidRoomLogPhase,
@@ -122,7 +120,7 @@ export function useRaidRoomSession({
         ws?.send(
           JSON.stringify({
             event: "auth",
-            client: raidRoomSocketClient(isAssistantEmbed()),
+            client: "web",
           }),
         );
       };

@@ -2,7 +2,7 @@
  * 任务账的日志回放边界：清空进度或玩家选定转生起点之后，从哪一刻起回放游戏日志。
  *
  * 边界的权威在账号（`GET …/task-dones` 的 reset_at / pending_clear_at / reset_profile_id / reset_epoch）。
- * 本机 localStorage 只做缓存与访客兜底，登出、换浏览器、战鸽助手都读同一份服务端边界。
+ * 本机 localStorage 只做缓存与访客兜底，重新登录或换浏览器都读同一份服务端边界。
  *
  * 游戏日志里没有转生事件。`SelectProfile` 的 ProfileId 只说明这次启动选的是哪个角色，
  * 转生不会另写一个 ProfileId。新起点只能由玩家在同步日历里对某一局点「转生归档」。

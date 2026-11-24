@@ -17,7 +17,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles/index.css";
 import "@/shared/lib/time";
-import { rememberAssistantEmbed } from "@/shared/lib/assistantShell";
 import { startOverlayScrollbars } from "@/app/lib/overlayScrollbar";
 import { startRum } from "@/app/telemetry/rumCollect";
 import {
@@ -113,7 +112,6 @@ const appTree = queryPersister ? (
   </QueryClientProvider>
 );
 
-rememberAssistantEmbed();
 startOverlayScrollbars();
 startRum();
 createRoot(document.getElementById("root")!).render(<StrictMode>{appTree}</StrictMode>);

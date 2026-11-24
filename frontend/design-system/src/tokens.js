@@ -1,0 +1,55 @@
+/* Generated from tokens/tarkov.json. Do not edit directly. */
+export const TARKOV_TOKENS = {
+  "color": {
+    "bg": "#161710",
+    "panel": "#22241a",
+    "panelHover": "#2b2d22",
+    "control": "#1a1b14",
+    "surfaceStrong": "#1c1e16",
+    "border": "#3a3d30",
+    "accent": "#c8932a",
+    "accentHover": "#e0b45a",
+    "accentRgb": "200, 147, 42",
+    "accentSoft": "rgba(200, 147, 42, 0.14)",
+    "accentSoftHover": "rgba(200, 147, 42, 0.18)",
+    "accentSoftSubtle": "rgba(200, 147, 42, 0.12)",
+    "accentDim": "rgba(200, 147, 42, 0.55)",
+    "positive": "#7ab648",
+    "text": "#eee9d6",
+    "textWarm": "#c8c4a8",
+    "textMuted": "#b0ae9a",
+    "textSubtle": "#7a7868",
+    "textTertiary": "#8a8878",
+    "danger": "#ffb4a8"
+  },
+  "font": {
+    "sans": "\"IBM Plex Sans\", \"Noto Sans SC Variable\", \"Noto Sans SC\", \"Microsoft YaHei\", \"PingFang SC\", \"Segoe UI\", sans-serif",
+    "mono": "\"IBM Plex Mono\", \"Noto Sans SC Variable\", \"Noto Sans SC\", \"Microsoft YaHei\", \"PingFang SC\", \"Cascadia Mono\", \"Consolas\", monospace",
+    "display": "\"IBM Plex Sans\", \"Noto Sans SC Variable\", \"Noto Sans SC\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif",
+    "accent": "\"Rajdhani\", \"IBM Plex Sans\", \"Noto Sans SC Variable\", \"Microsoft YaHei\", sans-serif"
+  },
+  "space": {
+    "1": "0.25rem",
+    "2": "0.5rem",
+    "3": "0.75rem",
+    "4": "1rem",
+    "6": "1.5rem",
+    "8": "2rem"
+  },
+  "radius": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px"
+  },
+  "border": {
+    "width": "1px"
+  },
+  "motion": {
+    "fast": "120ms",
+    "normal": "200ms"
+  },
+  "focusRing": "0 0 0 2px rgba(200, 147, 42, 0.42)",
+  "antd": {
+    "borderRadius": 2
+  }
+};

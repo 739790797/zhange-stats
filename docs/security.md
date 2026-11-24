@@ -33,21 +33,7 @@
 - 口令：直接用 `bcrypt` 库（不经 passlib），只取前 72 字节，与旧 passlib 哈希互认。注册 / 改密 / 重置 / 管理员设口令都按原样存（不去首尾空白），不能含空字符。旧版改密 / 重置会去掉首尾空白再存，所以登录与「当前密码」先按原样比，不中再试去空白后的值
 - 设口令时（注册、改密、找回重置、绑定邮箱顺带设的口令、管理员建号 / 改口令、安装向导）超过 72 字节（UTF-8，字母数字符号各 1 字节、汉字约 3 字节）直接 400「密码过长：最多 72 字节…」，不静默截断。接口层另有长度上限：口令输入 256 字符、登录账号 128 字符；注册 / 找回 / 绑定邮箱的口令校验排在核销验证码之前，口令不合格不浪费验证码。`ALLOW_ENV_ADMIN_SEED` 播种时 `ADMIN_PASSWORD` 先去首尾空白再校验、再存，`.env` 里常带的尾随换行不会变成登录框打不出来的口令
 - 显示名不收 `<` `>`（安装向导、个人资料、管理员建号 / 改资料回 400「显示名不能包含 < 或 >」）；QQ 昵称写库前去掉这两个字符。显示名会进 Leaflet tooltip 等按 innerHTML 渲染的地方，前端转义之外后端再挡一层。存量显示名不自动改
-- 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用默认 localhost/Tauri 正则
-
-## 战鸽助手
-
-Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。站点响应带 `X-Frame-Options: DENY` 与 CSP `frame-ancestors 'none'`，不能用 iframe 嵌进来。开发环境 CORS 正则里的 `https://tauri.localhost` 只给本机联调；生产不要把壳源跨站打 API 当成登录方案（Cookie 为 `SameSite=Lax`，前端请求相对路径 `/api`，生产默认不放行该正则）。会话仍是 HttpOnly Cookie + CSRF。QQ / Steam 回跳必须落在站点地址。
-
-助手自带侧栏时，站点在嵌入标记下不画 `AppLayout` 的「战鸽数据」侧栏；浏览器直接打开不变。塔科夫页内栏目顶栏仍由页面负责。个人中心要嵌成子页时，嵌入之外再标 `pane: "body"`（或 `?pane=body`）：`/guides/tarkov/me?tab=collection&embed=assistant&pane=body` 只画该 tab 主体（收集格子、任务列表等），不画顶栏、面包屑和 tab 条。综合查询用 `?pane=search`：`/guides/tarkov?embed=assistant&pane=search` 只画搜索框，不画顶栏、目录和页脚；搜到结果后仍列出结果。`pane=search` 只认当前地址。没有嵌入标记时 `pane` 不生效。
-
-截图目录与游戏日志的读盘交给助手：列目录、读日志文本、读最新截图的文件名与时间、按页面「多于 N 张删旧图」删除、目录一变就通知页面。文件名里的坐标、日志解析、任务回放留在站点前端。战局只提交现有摘要接口，房间定位只广播数字。截图本身不上传。
-
-助手在页面脚本前设置 `window.zhangeAssistant`，或让地址带 `?embed=assistant`（站点记入 `sessionStorage`，站内跳转仍算嵌入）。联机房间 WebSocket 鉴权在嵌入时带 `client=desktop`，浏览器为 `web`。`embed: true` 时不画网页侧栏。`pane: "body"` 或 `?pane=body` 记入同一会话，只在已嵌入时让个人中心当前 tab 去掉外壳。`?pane=search` 不记入会话，只让当前首页去掉外壳，只留搜索框。`tarkovFiles.screenshots` / `logs` 提供 `path`、`list(relativeDir?)`、截图 `readBytes`、日志 `readText`、截图 `remove`、`watch`。相对路径用 `/`，`list` 只回当前层名字。`rebindScreenshots` / `rebindLogs` 可选，供页面「更换」。截图识别已下线，站点不再调用助手的 `pickImage()`；旧版助手仍注入它也无害。
-
-助手首页是 `/app`。打开时请求 `/auth/me`：401 去登录页；没有状态码或其它 4xx/5xx 留在页上重试，不当成未登录。页内卡片仍是演示。
-
-改这些行为时对照 [`engineering-guidelines.md`](engineering-guidelines.md)「战鸽助手边界」。
+- 生产 CORS：同域部署一般不必放行；若跨源，用 `CORS_ORIGIN_REGEX` 收紧，不要沿用开发用 localhost 正则
 
 - 管理员登录即可改配置、系统更新、删用户；**不再**要求邮箱步进验证码。管理员会话被盗即等于能改配置。继续靠 HttpOnly Cookie、CSRF、生产 `Secure`、短 JWT。注册 / 绑定邮箱 / 找回 / 注销账号的**用户侧**验证码保留。生产仍禁止 `ALLOW_EMAIL_CODE_LOG`。用户侧验证码是 6 位数字，有效期取「邮箱设置」但最长 30 分钟（设置接口只收 1–30，`config/email.json` 里写得更大也按 30 分钟算，邮件里写的就是封顶后的值）；同一码输错 5 次即作废，须重新获取（重发会清零计数，`register_challenges.attempts`）。发码与校验的次数见下方「账号相关限流」
 - 邮箱是否注册不外泄：注册发码 / 重发 / 找回发码 / 绑定邮箱发码先判断邮件发不发得出去（发不出去对任何地址都同样 503），再查库。已注册邮箱申请注册、没有可找回账号的邮箱申请找回、已被别的账号占用的邮箱申请绑定，照样记一条验证码，只是收到的是不带验证码的提醒信；接口响应（状态码、文案、`delivery`）与正常邮箱逐字相同，`delivery` 不再出现 `skipped`。注册 / 验证邮箱 / 重置 / 绑定邮箱先核销验证码再看账号：码不对一律「验证码错误」，「邮箱已被注册」「重置失败，请检查邮箱与验证码」「该邮箱已被其他账号使用」只有拿到码的人才看得到；验证邮箱遇到没有账号的邮箱回通用错误，并把码留给注册用。登录与关联已有账号在账号不存在时也对固定的哑哈希跑一次 bcrypt，耗时与输错口令一样
@@ -89,6 +75,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 公开页 `/guides/tarkov`（未登录可看首页、物品/弹药/地图/商人/BOSS、任务目录与详情、搜索、藏身处目录百科、钥匙分类百科、工作台读枪/算属性/枪匠求解/社区方案、三狗状态、联机大厅列表与房间预览）。个人中心六个 Tab、出图代理、创建/加入房间与房间 WS 须登录；页内用登录卡，不整站踢去 `/login`。Minecraft 仍须登录。
 
+- **本地文件**：浏览器仅通过用户授权的目录句柄读取游戏日志、截图文件名与元数据；删除旧截图须有写权限并开启清理。原始日志与截图留在本机，站点仅接收解析后的状态与战局摘要，房间定位只发送所需的坐标信息。
 - **读权限**：图鉴 GET、搜索、工作台 `allowed-items` / `calculate` / `community-builds` / `gunsmith-solve`、三狗 GET、大厅列表与房间预览不要求登录 Cookie / Bearer。仍 `require_feature("guides.tarkov")`。非成员（含未登录）`GET` 房间只回预览，不含棋盘/人员。图鉴 GET 合了 overlay 的栏目（物品目录 / 任务 / 商人 / 钥匙分类 / 3×4 收集）ETag 都带上 overlay 版本，否则只更新 overlay 时浏览器会一直吃旧 304
 - **写权限**：资料 / 藏身处等级 / 钥匙拥有 / 3×4 / 任务进度（完成、进行中、失败、小步骤） / 日志摘要 / 云端 raid-prep state / 地图筛选喜好、`build-image`、创建加入房间须登录
 - **限流**（`platform_limiter`；生产靠 `REDIS_URL`）：搜索 40/IP/分钟；工作台 allowed/calculate 60/IP/分钟；community-builds 30/IP/10 分钟；gunsmith-tasks 30/IP/分钟；gunsmith-solve 20/IP/分钟；出图 40/IP/10 分钟、20/账号/10 分钟；三狗 40/IP/分钟；大厅列表 40/IP/分钟（登录用户另计账号）。个人中心写接口按账号另计：任务账 / 钥匙 / 收集勾选 / 藏身处各 120/60 秒，raid-prep state 120/60 秒，藏身处等级 60/60 秒，资料 / 地图筛选 / 3×4 摆放各 30/60 秒；钥匙与收集的「并入账号」各 20/600 秒，日志摘要 30/600 秒
@@ -101,7 +88,7 @@ Windows 桌面端 zhange-app 用系统 WebView 打开**本站同源地址**。�
 
 公开页 `/legal/terms`、`/legal/privacy`（未登录可看；文案在 `frontend/src/features/legal/model/legalDocs.ts`）。邮箱注册须勾选同意；登录 / QQ 登录旁注明即表示同意。页脚备案号由运营者配置（管理端「安全设置」），留空不展示。
 
-- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。房间级 `map_slug` 恒为空。预览不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠、各人查看图；**公开大厅列表**按设计带 `host_user_id` 与在座成员的 `user_id`（都是公开房里已对外的信息），另有在座昵称、每人当前地图和相位（战局 / 匹配用进程内日志相位里的图，否则用查看图；不入库）。房间 WebSocket 须已入座。在线标记带端类型：浏览器报 `web`，战鸽助手嵌入报 `desktop`；同一账号任一端连着即在线。端类型不进大厅列表。访客不能占座
+- **读权限**：未登录可看大厅列表。未入座（含未登录）`GET /api/guides/tarkov/raid-rooms/{id}` 只回预览：标题、`game_mode`、是否上大厅、人数、`max_members`、是否要密码、`created_at`、`is_host`（`is_member=false`）。房间级 `map_slug` 恒为空。预览不含人员名单、房主 user_id、认领、标点、钥匙、目标完成、进度重叠、各人查看图；**公开大厅列表**按设计带 `host_user_id` 与在座成员的 `user_id`（都是公开房里已对外的信息），另有在座昵称、每人当前地图和相位（战局 / 匹配用进程内日志相位里的图，否则用查看图；不入库）。房间 WebSocket 须已入座。网页报 `web`；协议仍兼容既有的 `desktop` 标记。同一账号有任一连接即在线。端类型不进大厅列表。访客不能占座
 - **写权限**：认领 / 标点等须在座；密码只在 **join** 时校验（口令哈希在事务外先比对，不占房间锁）。公开或私密在创建时确定，之后不能改。私密房可不设密码，设了须 4–32 个字符（否则 400）。房间写事务按**房间**串行到提交为止（不同房间互不阻塞）；撞唯一键（并发占座、重复声明）整笔重跑一次，仍冲突回 409「房间状态刚变过，请刷新后重试」。写操作顺手刷新该成员 `last_seen_at`：只走 HTTP 的成员不会因为不发心跳而被收座位
 
 - **MariaDB 1020 与心跳**：MariaDB ≥ 11.6.2 默认 `innodb_snapshot_isolation=ON`，事务**读过**的行若被别的事务改过，本事务再写该行会抛 1020 `ER_CHECKREAD`，且**整笔事务回滚**。房间写事务与 WS 心跳都改成员的 `last_seen_at`，因此心跳也进房间锁（不再锁外直写），并按 `last_seen_at` 的落库间隔节流（45 秒，远小于 2 分钟空闲回收窗口），避免心跳频率撞上写事务。`run_in_room_tx` 另把 1020 视同死锁：整笔重跑一次（只认错误号 1020，其余 `OperationalError` 照旧上抛），不再冒成 500 让前端显示「服务暂时不可用」

@@ -45,7 +45,6 @@ import { RouteErrorBoundary } from "@/app/router/RouteErrorBoundary";
 import { CompleteProfileModal } from "@/features/profile/components/CompleteProfileModal";
 import { PlatformIcon } from "@/features/platforms/shared/components/PlatformIcon";
 import { adminContentShell } from "@/features/admin/model/adminContentShell";
-import { isAssistantEmbed } from "@/shared/lib/assistantShell";
 import { BRAND_NAVY } from "@/shared/styles/tokens";
 import {
   ADMIN_HUBS,
@@ -147,7 +146,6 @@ export function AppLayout() {
   const [siderCollapsed, setSiderCollapsed] = useState(loadAppSiderCollapsed);
   const screens = Grid.useBreakpoint();
   const isMobile = screens.md === false;
-  const assistantEmbed = isAssistantEmbed();
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const isFullBleedGuide = isTarkovGuide;
   const contentShell = adminContentShell(location.pathname);
@@ -632,7 +630,7 @@ export function AppLayout() {
           跳到正文
         </a>
       )}
-      {assistantEmbed ? null : isMobile ? (
+      {isMobile ? (
         <Drawer
           placement="left"
           open={drawerOpen}
@@ -670,7 +668,7 @@ export function AppLayout() {
           background: isTarkovGuide ? "#161710" : undefined,
         }}
       >
-        {isMobile && !assistantEmbed ? (
+        {isMobile ? (
           <Header
             style={{
               background: BRAND_NAVY,
@@ -713,7 +711,7 @@ export function AppLayout() {
           tabIndex={isFullBleedGuide ? undefined : -1}
           className={[
             isFullBleedGuide ? "app-main-canvas" : "app-main-scroll",
-            !assistantEmbed && !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
+            !isMobile && siderCollapsed ? "app-main--sider-collapsed" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -775,7 +773,7 @@ export function AppLayout() {
           {isFullBleedGuide ? null : <IcpBeianFooter />}
         </Content>
       </Layout>
-      {assistantEmbed || isMobile || !siderCollapsed ? null : (
+      {isMobile || !siderCollapsed ? null : (
         <div className="app-sider-edge-slot">
           <Tooltip title="展开侧栏" placement="right">
             <Button

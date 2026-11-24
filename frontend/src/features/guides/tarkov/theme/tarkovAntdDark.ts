@@ -1,5 +1,5 @@
 import { theme, type ThemeConfig } from "antd";
-import { TARKOV_TOKENS } from "@zhange-base/src/tokens.js";
+import { TARKOV_TOKENS } from "@design-system/src/tokens.js";
 
 const { color, font, antd } = TARKOV_TOKENS;
 

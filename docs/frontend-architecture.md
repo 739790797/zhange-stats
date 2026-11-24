@@ -72,7 +72,7 @@ shared ──禁止──> features/* 或 app/*
 
 - `authStore` 属于 `features/auth/model/`；资料补全和角色成员选择属于 `features/profile/`。
 - Arknights、Endfield、operator info 与 Skland API 同属 `features/platforms/skland/`。
-- Tarkov 的页面、组件、逻辑、地图 JSON、API 客户端和字体均归 `features/guides/tarkov/`。
+- Tarkov 的页面、组件、逻辑、地图 JSON 和 API 客户端归 `features/guides/tarkov/`；主题令牌、字体入口和基础样式由 [`frontend/design-system/`](../frontend/design-system/README.md) 提供。
 - 通用 HTTP transport 与 CSRF 基础工具位于 `shared/api/`；请求层不直接导入 auth、platform 或 guide feature。应用启动时由 app 装配各 owner 的拦截器/请求集成，保持既有行为。
 - `features/site/` 拥有公开站点设置展示与 ICP 备案链接；管理端设置通过该 owner 的 API 复用，不复制客户端。
 

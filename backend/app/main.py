@@ -322,7 +322,7 @@ _cors_kwargs: dict = {
 if _cors_origins:
     _cors_kwargs["allow_origins"] = _cors_origins
 else:
-    # 本地 Vite（任意端口）+ Tauri 2 壳源；生产同域默认不放行 localhost 正则
+    # 本地 Vite（任意端口）；生产同域默认不放行 localhost 正则
     _cors_regex = resolve_cors_origin_regex(
         settings.CORS_ORIGIN_REGEX,
         production=settings.is_production,

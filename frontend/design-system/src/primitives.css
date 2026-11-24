@@ -1,0 +1,52 @@
+.zhange-button {
+  font-family: var(--zhange-font-sans);
+  font-synthesis: none;
+  transition:
+    color var(--zhange-motion-fast) ease,
+    background-color var(--zhange-motion-fast) ease,
+    border-color var(--zhange-motion-fast) ease;
+}
+
+.zhange-button:focus-visible {
+  outline: 2px solid var(--zhange-color-accent);
+  outline-offset: 2px;
+  box-shadow: var(--zhange-focus-ring);
+}
+
+.zhange-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.zhange-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  border: var(--zhange-border-width) solid var(--zhange-color-border);
+  background: var(--zhange-color-control);
+}
+
+.zhange-segmented-control > .zhange-button {
+  height: var(--zhange-segmented-height, 32px);
+  padding: var(--zhange-segmented-padding, 0 11px);
+  border: 0;
+  background: transparent;
+  color: var(--zhange-color-text-subtle);
+  font-size: var(--zhange-segmented-font-size, 12px);
+  font-weight: 700;
+  letter-spacing: var(--zhange-segmented-letter-spacing, 0.1em);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.zhange-segmented-control > .zhange-button + .zhange-button {
+  border-left: var(--zhange-border-width) solid var(--zhange-color-border);
+}
+
+.zhange-segmented-control > .zhange-button:hover {
+  color: var(--zhange-color-text);
+}
+
+.zhange-segmented-control > .zhange-button[aria-pressed="true"] {
+  color: var(--zhange-color-accent);
+  background: var(--zhange-color-accent-soft);
+}
