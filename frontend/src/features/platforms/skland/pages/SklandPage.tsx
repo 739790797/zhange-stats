@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { lazy, useMemo, type ReactNode } from "react";
+import { lazy, useMemo } from "react";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
 import {
   fetchSklandStatus,
@@ -9,7 +9,10 @@ import {
 import { ArknightsAttendanceCalendarButton } from "@/features/platforms/skland/components/arknights/ArknightsAttendanceCalendar";
 import { EndfieldAttendanceCalendarButton } from "@/features/platforms/skland/components/endfield/EndfieldAttendanceCalendar";
 import { CheckinPageTemplate } from "@/features/daily/components/CheckinPageTemplate";
-import { PlatformFeatureTabsPage } from "@/features/platforms/shared/components/PlatformFeatureTabsPage";
+import {
+  PlatformFeatureTabsPage,
+  type PlatformFeatureTabItem,
+} from "@/features/platforms/shared/components/PlatformFeatureTabsPage";
 import { SklandBindPanel } from "@/features/platforms/skland/components/skland/SklandBindPanel";
 import { useRoleMembershipPicker } from "@/features/profile/hooks/useRoleMembershipPicker";
 import { isFeatureOn } from "@/features/platforms/shared/model/platformFeatures";
@@ -26,8 +29,6 @@ const EndfieldBoxPanel = lazy(() =>
     default: m.EndfieldBoxPanel,
   })),
 );
-
-type TabKey = "checkin" | "arknights" | "endfield";
 
 export default function SklandPage() {
   // 角色树挂在页面级：绑定成功后会卸载 BindPanel，弹窗不能跟它一起卸掉
@@ -50,10 +51,12 @@ export default function SklandPage() {
   const featuresReady = featuresQuery.isSuccess && Boolean(featuresQuery.data);
   const showCheckin = featuresReady && isFeatureOn(featuresQuery.data, "skland.checkin");
   const showArknights = featuresReady && isFeatureOn(featuresQuery.data, "skland.arknights");
+  const showStronghold =
+    showArknights && isFeatureOn(featuresQuery.data, "skland.arknights.stronghold");
   const showEndfield = featuresReady && isFeatureOn(featuresQuery.data, "skland.endfield");
 
   const tabItems = useMemo(() => {
-    const items: { key: TabKey; label: string; children: ReactNode }[] = [];
+    const items: PlatformFeatureTabItem[] = [];
     if (showCheckin) {
       items.push({
         key: "checkin",
@@ -99,9 +102,12 @@ export default function SklandPage() {
       items.push({
         key: "arknights",
         label: "明日方舟",
-        children: (
+        renderPage: ({ bound, bindFallback }) => (
           <ArknightsTabPanel
-            rogueEnabled={Boolean(statusQuery.data?.bound && statusQuery.data?.token_ok !== false)}
+            bound={bound}
+            bindFallback={bindFallback}
+            strongholdEnabled={showStronghold}
+            roles={statusQuery.data?.roles}
           />
         ),
       });
@@ -118,7 +124,7 @@ export default function SklandPage() {
       });
     }
     return items;
-  }, [showArknights, showCheckin, showEndfield, statusQuery.data, openPicker]);
+  }, [showArknights, showCheckin, showEndfield, showStronghold, statusQuery.data, openPicker]);
 
   return (
     <PlatformFeatureTabsPage

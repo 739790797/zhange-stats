@@ -15,7 +15,7 @@ cffi==2.1.1
 click==8.5.0
 colorama==0.4.6
 cryptography==50.0.2
-dnspython==2.9.0
+dnspython==2.9.2
 email-validator==2.3.0
 fastapi==0.143.0
 filelock==4.2.4
@@ -37,7 +37,7 @@ nh3==0.3.7
 numpy==2.4.6; python_version < "3.12"
 numpy==2.5.2; python_version >= "3.12"
 onnxruntime==1.31.0
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
 packaging==26.3
 patchright==1.62.3
 pillow==13.0.0

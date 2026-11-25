@@ -17,8 +17,13 @@ import { SKLAND_APP_LOGOUT_HINT } from "@/features/platforms/skland/model/skland
 export type PlatformFeatureTabItem = {
   key: string;
   label: string;
-  children: ReactNode;
-};
+} & (
+  | { children: ReactNode; renderPage?: never }
+  | {
+      children?: never;
+      renderPage: (state: { bound: boolean; bindFallback: ReactNode }) => ReactNode;
+    }
+);
 
 export type PlatformFeatureTabsPageProps = {
   title: string;
@@ -82,42 +87,60 @@ export function PlatformFeatureTabsPage({
   const tokenBroken = isBindTokenBroken(statusQuery.data);
   const needsBind = (!bound || tokenBroken) && !isInitialQueryPending(statusQuery);
 
+  const bindFallback = (
+    <MotionIn>
+      <div
+        style={{
+          maxWidth: 560,
+          margin: "0 auto",
+          padding: "8px 0 48px",
+        }}
+      >
+        <Alert
+          type={tokenBroken ? "warning" : "info"}
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            tokenBroken ? `${bindName}凭证可能已失效` : unboundMessage || `尚未绑定${bindName}`
+          }
+          description={
+            tokenBroken
+              ? [
+                  bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。",
+                  bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+              : bindName === "森空岛"
+                ? SKLAND_APP_LOGOUT_HINT
+                : undefined
+          }
+        />
+        <Card>{bindPanel}</Card>
+      </div>
+    </MotionIn>
+  );
+
+  if (featuresReady && activeItem?.renderPage) {
+    return (
+      <>
+        <Suspense key={activeItem.key} fallback={<PanelFallback />}>
+          {activeItem.renderPage({
+            bound: bound && !tokenBroken,
+            bindFallback: needsBind ? bindFallback : <PanelFallback />,
+          })}
+        </Suspense>
+        {rolePickerModal}
+      </>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title={pageTitle} />
+      {!activeItem?.renderPage ? <PageHeader title={pageTitle} /> : null}
 
       {needsBind ? (
-        <MotionIn>
-          <div
-            style={{
-              maxWidth: 560,
-              margin: "0 auto",
-              padding: "8px 0 48px",
-            }}
-          >
-            <Alert
-              type={tokenBroken ? "warning" : "info"}
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={
-                tokenBroken ? `${bindName}凭证可能已失效` : unboundMessage || `尚未绑定${bindName}`
-              }
-              description={
-                tokenBroken
-                  ? [
-                      bindTokenErrorMessage(statusQuery.data) || "请重新绑定后再试。",
-                      bindName === "森空岛" ? SKLAND_APP_LOGOUT_HINT : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  : bindName === "森空岛"
-                    ? SKLAND_APP_LOGOUT_HINT
-                    : undefined
-              }
-            />
-            <Card>{bindPanel}</Card>
-          </div>
-        </MotionIn>
+        bindFallback
       ) : !featuresReady ? (
         <div style={{ textAlign: "center", padding: 48 }}>
           <Spin />

@@ -8,6 +8,8 @@ import json
 import logging
 import time
 import urllib.parse
+from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -23,7 +25,6 @@ CRED_URL = "https://zonai.skland.com/api/v1/user/auth/generate_cred_by_code"
 BINDING_URL = "https://zonai.skland.com/api/v1/game/player/binding"
 PLAYER_INFO_URL = "https://zonai.skland.com/api/v1/game/player/info"
 TEENAGER_URL = "https://zonai.skland.com/api/v1/user/teenager"
-ARKNIGHTS_ROGUE_URL = "https://zonai.skland.com/api/v1/game/arknights/rogue"
 ARKNIGHTS_ATTENDANCE_URL = "https://zonai.skland.com/api/v1/game/attendance"
 CHAR_AVATAR_CDN = f"{ASSET_URL_PREFIX}/avatar"
 PROFESSION_CN = {
@@ -98,11 +99,17 @@ GAME_META = {
 }
 
 
+background_request_gate: ContextVar[Callable[[], None] | None] = ContextVar(
+    "skland_background_request_gate", default=None
+)
+
+
 class SklandApiError(Exception):
-    def __init__(self, message: str, *, code: int | None = None):
+    def __init__(self, message: str, *, code: int | None = None, retry_after: str | None = None):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.retry_after = retry_after
 
 
 @dataclass
@@ -286,7 +293,14 @@ def _http_json(
         data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         req_headers.setdefault("Content-Type", "application/json")
     try:
+        gate = background_request_gate.get()
+        if gate is not None:
+            gate()
         resp = http_request(method, url, headers=req_headers, content=data, timeout=timeout)
+        if gate is not None and resp.status_code in (401, 403, 429):
+            raise SklandApiError(
+                "森空岛后台请求受限", code=resp.status_code, retry_after=resp.headers.get("Retry-After")
+            )
         raw = resp.content
         status = resp.status_code
     except HttpRequestError as exc:

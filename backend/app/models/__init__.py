@@ -3,6 +3,19 @@ from app.models.job_run_log import JobRunLog
 from app.models.member import Member
 from app.models.arknights import ArknightsBoxSnapshot, ArknightsCatalogMeta, ArknightsOperator
 from app.models.arknights_rogue import ArknightsRogueRaw
+from app.models.arknights_stronghold import (
+    StrongholdActivity,
+    StrongholdMatch,
+    StrongholdMatchAlias,
+    StrongholdParticipant,
+    StrongholdRecord,
+    StrongholdRecordAlias,
+    StrongholdRecordBond,
+    StrongholdRole,
+    StrongholdSyncControl,
+    StrongholdSyncTarget,
+    StrongholdVersion,
+)
 from app.models.endfield import EndfieldAttendanceRaw, EndfieldBoxRaw
 from app.models.exastris import ExastrisBoxRaw
 from app.models.game_schedule import GameScheduleRaw
@@ -108,6 +121,17 @@ __all__ = [
     "ArknightsCatalogMeta",
     "ArknightsBoxSnapshot",
     "ArknightsRogueRaw",
+    "StrongholdMatch",
+    "StrongholdMatchAlias",
+    "StrongholdParticipant",
+    "StrongholdRecord",
+    "StrongholdRecordBond",
+    "StrongholdActivity",
+    "StrongholdRecordAlias",
+    "StrongholdSyncControl",
+    "StrongholdSyncTarget",
+    "StrongholdVersion",
+    "StrongholdRole",
     "EndfieldBoxRaw",
     "EndfieldAttendanceRaw",
     "ExastrisBoxRaw",

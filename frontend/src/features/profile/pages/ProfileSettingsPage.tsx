@@ -14,6 +14,7 @@ import {
   uploadMyAvatar,
 } from "@/features/profile/api/usersApi";
 import { fetchPlatformFeaturesEffective } from "@/features/platforms/shared/api/platformFeaturesApi";
+import { strongholdQueryKey } from "@/features/platforms/skland/api/strongholdApi";
 import { unbindSkland } from "@/features/platforms/skland/api/sklandApi";
 import { unbindTaygedo } from "@/features/platforms/taygedo/api/taygedoApi";
 import { unbindExilium } from "@/features/platforms/exilium/api/exiliumApi";
@@ -143,6 +144,7 @@ export default function ProfileSettingsPage() {
     mutationFn: unbindSkland,
     onSuccess: () => {
       message.success("已解除森空岛绑定");
+      void queryClient.invalidateQueries({ queryKey: strongholdQueryKey });
       invalidateProfile();
       queryClient.invalidateQueries({ queryKey: ["skland-status"] });
       queryClient.invalidateQueries({ queryKey: ["skland-logs"] });

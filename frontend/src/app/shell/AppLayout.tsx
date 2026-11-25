@@ -148,7 +148,6 @@ export function AppLayout() {
   const isMobile = screens.md === false;
   const isTarkovGuide = location.pathname.startsWith("/guides/tarkov");
   const isFullBleedGuide = isTarkovGuide;
-  const contentShell = adminContentShell(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
 
   const featuresQuery = useQuery({
@@ -455,6 +454,12 @@ export function AppLayout() {
   const avatarUrl = profileQuery.data?.avatar_url || user?.avatar_url || undefined;
   const roleLabel = isAdmin ? "管理员" : null;
 
+  const isArknightsPage =
+    loggedIn &&
+    featuresQuery.isSuccess &&
+    selected === platformFeatureMenuKey("/skland", "arknights") &&
+    isFeatureOn(features, "skland.arknights");
+  const contentShell = isArknightsPage ? "flush" : adminContentShell(location.pathname);
   const homeHref = TAVERN_PATH;
   const pageGutter = contentShell === "flush" ? 0 : isMobile ? 12 : 24;
 

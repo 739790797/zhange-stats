@@ -1,0 +1,20 @@
+.timeline {
+  scrollbar-color: #81868c var(--ark-paper);
+}
+
+.timeline:focus-visible,
+.timeline a:focus-visible {
+  outline: 2px solid var(--ark-signal);
+  outline-offset: -2px;
+}
+
+.permanentGrid,
+.permanentList {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.permanentGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+}

@@ -257,6 +257,7 @@ def fetch_member_owned_chars(
             "uid": box.uid,
             "role_name": role.role_name,
             "channel_name": role.channel_name,
+            "channel_master_id": getattr(role, "channel_master_id", None),
             "owned": _owned_map_from_box(box),
             "char_count": box.char_count,
             "player_name": box.name,
@@ -266,6 +267,7 @@ def fetch_member_owned_chars(
                     "uid": r.uid,
                     "role_name": r.role_name,
                     "channel_name": r.channel_name,
+                    "channel_master_id": getattr(r, "channel_master_id", None),
                 }
                 for r in roles
             ],

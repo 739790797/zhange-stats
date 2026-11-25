@@ -53,6 +53,7 @@ type DraftJobs = Record<
   string,
   {
     interval_minutes?: number;
+    active_interval_minutes?: number;
     timeout_minutes?: number;
     hour?: number;
     minute?: number;
@@ -89,6 +90,7 @@ function collectJobs(nodes: PlatformFeatureNode[], out: DraftJobs = {}) {
     if (node.job_id && node.schedule) {
       out[node.job_id] = {
         interval_minutes: node.interval_minutes ?? undefined,
+        active_interval_minutes: node.active_interval_minutes ?? undefined,
         timeout_minutes: node.timeout_minutes ?? undefined,
         hour: node.hour ?? undefined,
         minute: node.minute ?? undefined,
@@ -218,21 +220,48 @@ function FeatureRow({
         <Space wrap size={12}>
           {node.schedule === "interval" && node.job_id ? (
             <>
-              <Typography.Text type="secondary">每</Typography.Text>
+              <Typography.Text type="secondary">
+                {node.active_interval_minutes != null ? "普通每" : "每"}
+              </Typography.Text>
               <InputNumber
-                min={1}
+                aria-label={
+                  node.active_interval_minutes != null ? "普通同步间隔（分钟）" : "轮询间隔（分钟）"
+                }
+                min={node.active_interval_minutes != null ? 5 : 1}
                 max={1440}
                 style={{ width: 72 }}
                 disabled={!canEdit || !enabled}
-                value={jobDraft?.interval_minutes ?? 3}
+                value={
+                  jobDraft?.interval_minutes ?? (node.active_interval_minutes != null ? 30 : 3)
+                }
                 onChange={(v) =>
                   onJobPatch(node.job_id!, {
                     ...jobDraft,
-                    interval_minutes: Number(v) || 1,
+                    interval_minutes: v ?? (node.active_interval_minutes != null ? 30 : 1),
                   })
                 }
               />
               <Typography.Text type="secondary">分钟</Typography.Text>
+              {node.active_interval_minutes != null ? (
+                <>
+                  <Typography.Text type="secondary">活跃每</Typography.Text>
+                  <InputNumber
+                    aria-label="活跃同步间隔（分钟）"
+                    min={5}
+                    max={jobDraft?.interval_minutes ?? 1440}
+                    style={{ width: 72 }}
+                    disabled={!canEdit || !enabled}
+                    value={jobDraft?.active_interval_minutes ?? 10}
+                    onChange={(v) =>
+                      onJobPatch(node.job_id!, {
+                        ...jobDraft,
+                        active_interval_minutes: v ?? undefined,
+                      })
+                    }
+                  />
+                  <Typography.Text type="secondary">分钟</Typography.Text>
+                </>
+              ) : null}
             </>
           ) : null}
           {node.schedule === "cron" && node.job_id ? (

@@ -93,7 +93,6 @@ zhange-stats/
 | `skland_calendar.py`       | `skland.calendar`              |
 | `skland_qr.py`             | `skland.qr`                    |
 | `skland_awards.py`         | `skland.awards`                |
-| `skland_rogue.py`          | `skland.rogue`                 |
 | `skland_session_cache.py`  | `skland.session_cache`         |
 | `endfield_calendar.py`     | `skland.endfield_calendar`     |
 | `arknights_box_compare.py` | `skland.arknights_box_compare` |

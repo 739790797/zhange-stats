@@ -26,7 +26,7 @@ def test_job_run_log_migration_and_model_match_on_sqlite(tmp_path: Path, monkeyp
                 ("20261015_0126",),
             )
 
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "20261020_0127")
 
         inspector = sa.inspect(engine)
         assert "job_run_logs" in inspector.get_table_names()
@@ -42,7 +42,7 @@ def test_job_run_log_migration_and_model_match_on_sqlite(tmp_path: Path, monkeyp
 
         command.downgrade(cfg, "20261015_0126")
         assert "job_run_logs" not in sa.inspect(engine).get_table_names()
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "20261020_0127")
         assert "job_run_logs" in sa.inspect(engine).get_table_names()
     finally:
         engine.dispose()

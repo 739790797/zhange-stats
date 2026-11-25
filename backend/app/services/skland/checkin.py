@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.biz_logging import clear_log_until_change, log_until_change
@@ -90,9 +91,14 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
     # 换票前先清缓存，避免旧 cred 与并发 status 交错
     invalidate_skland_session(member.id)
     session = login_with_token(token)
-    list_roles(session)
+    roles = list_roles(session)
 
-    bind = get_bind_for_member(db, member.id)
+    bind = db.scalar(
+        select(SklandBind)
+        .where(SklandBind.member_id == member.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if bind is None:
         bind = SklandBind(
             member_id=member.id,
@@ -102,7 +108,10 @@ def bind_skland(db: Session, member: Member, raw_token: str) -> SklandBind:
         db.add(bind)
     else:
         bind.token_enc = encrypt_secret(token)
+    from app.services.skland.stronghold_sync import register_binding_roles
+
     bind.updated_at = now_naive()
+    register_binding_roles(db, bind, roles)
     db.commit()
     db.refresh(bind)
     put_cached_skland_session(member.id, token, session)
@@ -573,122 +582,6 @@ def get_endfield_box_for_member(
         raise SklandApiError("终末地养成数据格式异常，请刷新重试")
 
     box = parse_endfield_box(raw_obj, role=role)
-    return box, role, roles, row.synced_at, stale
-
-
-def get_arknights_rogue_for_member(
-    db: Session,
-    member: Member,
-    uid: str | None = None,
-    *,
-    topic_id: str | None = None,
-    force: bool = False,
-):
-    """读库二次加工方舟肉鸽；无记录或 force 时回源落库。"""
-    import json
-
-    from app.services.skland.rogue import (
-        DEFAULT_TOPIC_ID,
-        fetch_arknights_rogue,
-        normalize_topic_id,
-        parse_arknights_rogue,
-    )
-    from app.services.skland.session_cache import put_cached_skland_session
-
-    bind = get_bind_for_member(db, member.id)
-    if bind is None:
-        raise SklandApiError("尚未绑定森空岛")
-    _ensure_session = _lazy_session(db, bind)
-
-    roles: list[SklandRole] | None = None
-    if not force:
-        from app.services.box_role_cache import skland_arknights_roles_from_raws
-
-        roles = skland_arknights_roles_from_raws(db, member.id)
-    if roles is None:
-        roles = [r for r in list_roles(_ensure_session()) if r.game_code == GAME_ARKNIGHTS]
-    if not roles:
-        raise SklandApiError("未找到明日方舟绑定角色")
-    target_uid = str(uid or "").strip()
-    role = None
-    if target_uid:
-        role = next((r for r in roles if r.uid == target_uid), None)
-    else:
-        role = roles[0]
-    if role is None:
-        raise SklandApiError("UID 不在当前明日方舟绑定列表中")
-
-    topic = normalize_topic_id(topic_id) if topic_id else DEFAULT_TOPIC_ID
-    row = (
-        db.query(ArknightsRogueRaw)
-        .filter(
-            ArknightsRogueRaw.member_id == member.id,
-            ArknightsRogueRaw.uid == str(role.uid),
-            ArknightsRogueRaw.topic_id == topic,
-        )
-        .one_or_none()
-    )
-    stale = False
-    if force or row is None:
-        log_key = f"skland-arknights-rogue:{member.id}:{role.uid}:{topic}"
-        try:
-            sess = _ensure_session()
-            raw = fetch_arknights_rogue(sess, uid=str(role.uid), topic_id=topic)
-            # user_id 可能在本次拉取中补齐，写回会话缓存
-            token = decrypt_secret(bind.token_enc)
-            if token and sess.user_id:
-                put_cached_skland_session(member.id, token, sess)
-            raw_json = json.dumps(raw, ensure_ascii=False)
-            from app.services.raw_payload_monitor import note_raw_payload
-
-            note_raw_payload(
-                "arknights_rogue_raw",
-                raw_json,
-                member_id=member.id,
-                uid=role.uid,
-                topic_id=topic,
-            )
-            now = now_naive()
-            if row is None:
-                row = ArknightsRogueRaw(
-                    member_id=member.id,
-                    uid=str(role.uid),
-                    topic_id=topic,
-                    raw_json=raw_json,
-                    synced_at=now,
-                )
-                db.add(row)
-            else:
-                row.raw_json = raw_json
-                row.synced_at = now
-            db.commit()
-            db.refresh(row)
-            clear_log_until_change(log_key)
-        except SklandApiError as exc:
-            if row is None:
-                raise
-            stale = True
-            log_until_change(
-                logger,
-                log_key,
-                "arknights rogue refresh failed member_id=%s uid=%s topic=%s, serving stored raw: %s",
-                member.id,
-                role.uid,
-                topic,
-                exc.message,
-            )
-
-    try:
-        raw_obj = json.loads(row.raw_json)
-    except json.JSONDecodeError as exc:
-        raise SklandApiError("肉鸽数据损坏，请刷新重试") from exc
-    if not isinstance(raw_obj, dict):
-        raise SklandApiError("肉鸽数据格式异常，请刷新重试")
-
-    for r in roles:
-        if r.channel_name:
-            r.channel_name = localize_arknights_channel_name(r.channel_name)
-    box = parse_arknights_rogue(raw_obj, topic_id=topic)
     return box, role, roles, row.synced_at, stale
 
 

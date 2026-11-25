@@ -69,6 +69,14 @@ FEATURE_TREE: list[dict[str, Any]] = [
                 "kind": "game",
                 "children": [
                     {
+                        "id": "skland.arknights.stronghold",
+                        "name": "卫戍协议",
+                        "job_id": "arknights_stronghold_sync",
+                        "schedule": "interval",
+                        "kind": "feature",
+                        "default_enabled": False,
+                    },
+                    {
                         "id": "skland.arknights.repo_sync",
                         "name": "外部仓库更新",
                         "kind": "job",
@@ -375,7 +383,7 @@ _RETIRED_ROR2_FEATURE_FLAGS = frozenset(
 
 
 def default_features() -> dict[str, bool]:
-    return {fid: True for fid in _ALL_FEATURE_IDS}
+    return {str(node["id"]): bool(node.get("default_enabled", True)) for node, _ in _iter_nodes()}
 
 
 def _canonical_feature_id(feature_id: str) -> str:
@@ -537,6 +545,7 @@ def build_feature_tree(db: Session) -> list[dict[str, Any]]:
             if job_id:
                 job_cfg = sched.get(str(job_id)) or {}
                 item["interval_minutes"] = job_cfg.get("interval_minutes")
+                item["active_interval_minutes"] = job_cfg.get("active_interval_minutes")
                 item["hour"] = job_cfg.get("hour")
                 item["minute"] = job_cfg.get("minute")
                 if str(job_id) in UPSTREAM_REPO_JOB_IDS:

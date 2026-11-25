@@ -1729,26 +1729,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skland/arknights/rogue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Skland Arknights Rogue
-         * @description 明日方舟肉鸽战绩：默认读库；force 或首次回源落库。
-         */
-        get: operations["skland_arknights_rogue_api_skland_arknights_rogue_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/skland/arknights/catalog": {
         parameters: {
             query?: never;
@@ -1983,6 +1963,108 @@ export interface paths {
          * @description 明日方舟 / 终末地活动日历（game-schedule 上游）；默认读缓存，force 回源。
          */
         get: operations["skland_game_events_api_skland_game_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/community": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold Community */
+        get: operations["stronghold_community_api_skland_arknights_stronghold_community_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/assets/{digest}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold Asset */
+        get: operations["stronghold_asset_api_skland_arknights_stronghold_assets__digest__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold Own Matches */
+        get: operations["stronghold_own_matches_api_skland_arknights_stronghold_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stronghold Sync */
+        post: operations["stronghold_sync_api_skland_arknights_stronghold_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/reports/{match_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold Report */
+        get: operations["stronghold_report_api_skland_arknights_stronghold_reports__match_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skland/arknights/stronghold/views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold View */
+        get: operations["stronghold_view_api_skland_arknights_stronghold_views__view_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5681,208 +5763,6 @@ export interface components {
             /** Equips */
             equips?: components["schemas"]["ArknightsCharEquipOut"][];
         };
-        /** ArknightsRogueCharOut */
-        ArknightsRogueCharOut: {
-            /** Char Id */
-            char_id: string;
-            /** Name */
-            name: string;
-            /**
-             * Rarity
-             * @default 0
-             */
-            rarity: number;
-            /**
-             * Level
-             * @default 0
-             */
-            level: number;
-            /**
-             * Evolve Phase
-             * @default 0
-             */
-            evolve_phase: number;
-            /**
-             * Profession
-             * @default
-             */
-            profession: string;
-        };
-        /** ArknightsRogueOut */
-        ArknightsRogueOut: {
-            /** Uid */
-            uid: string;
-            /** Role Name */
-            role_name: string;
-            /** Channel Name */
-            channel_name: string;
-            /** Topic Id */
-            topic_id: string;
-            /** Topic Name */
-            topic_name: string;
-            /** Topics */
-            topics?: components["schemas"]["ArknightsRogueTopicOut"][];
-            overview: components["schemas"]["ArknightsRogueOverviewOut"];
-            /** Records */
-            records?: components["schemas"]["ArknightsRogueRecordOut"][];
-            /** Favour Records */
-            favour_records?: components["schemas"]["ArknightsRogueRecordOut"][];
-            /** Roles */
-            roles?: components["schemas"]["SklandRoleOut"][];
-            /** Synced At */
-            synced_at?: string | null;
-            /**
-             * Stale
-             * @default false
-             */
-            stale: boolean;
-        };
-        /** ArknightsRogueOverviewOut */
-        ArknightsRogueOverviewOut: {
-            /**
-             * Mode
-             * @default
-             */
-            mode: string;
-            /**
-             * Mode Grade
-             * @default 0
-             */
-            mode_grade: number;
-            /**
-             * Score
-             * @default 0
-             */
-            score: number;
-            /**
-             * Bp Level
-             * @default 0
-             */
-            bp_level: number;
-            /**
-             * Medal Current
-             * @default 0
-             */
-            medal_current: number;
-            /**
-             * Medal Count
-             * @default 0
-             */
-            medal_count: number;
-            /**
-             * Clear Difficulty
-             * @default
-             */
-            clear_difficulty: string;
-            /**
-             * Clear Grade
-             * @default 0
-             */
-            clear_grade: number;
-            /**
-             * Invest
-             * @default 0
-             */
-            invest: number;
-            /**
-             * Relic
-             * @default 0
-             */
-            relic: number;
-            /**
-             * Game Count
-             * @default 0
-             */
-            game_count: number;
-        };
-        /** ArknightsRogueRecordOut */
-        ArknightsRogueRecordOut: {
-            /** Record Id */
-            record_id: string;
-            /**
-             * Mode
-             * @default
-             */
-            mode: string;
-            /**
-             * Mode Grade
-             * @default 0
-             */
-            mode_grade: number;
-            /**
-             * Success
-             * @default false
-             */
-            success: boolean;
-            /**
-             * Score
-             * @default 0
-             */
-            score: number;
-            /**
-             * Ending Text
-             * @default
-             */
-            ending_text: string;
-            /**
-             * Start Ts
-             * @default
-             */
-            start_ts: string;
-            /**
-             * End Ts
-             * @default
-             */
-            end_ts: string;
-            /**
-             * Zone Count
-             * @default 0
-             */
-            zone_count: number;
-            /**
-             * Node Count
-             * @default 0
-             */
-            node_count: number;
-            /**
-             * Relic Count
-             * @default 0
-             */
-            relic_count: number;
-            /**
-             * Band Name
-             * @default
-             */
-            band_name: string;
-            /**
-             * Last Stage
-             * @default
-             */
-            last_stage: string;
-            /**
-             * Is Collect
-             * @default false
-             */
-            is_collect: boolean;
-            /** Squad */
-            squad?: components["schemas"]["ArknightsRogueCharOut"][];
-            /** Tags */
-            tags?: string[];
-        };
-        /** ArknightsRogueTopicOut */
-        ArknightsRogueTopicOut: {
-            /** Topic Id */
-            topic_id: string;
-            /** Name */
-            name: string;
-            /**
-             * Selected
-             * @default false
-             */
-            selected: boolean;
-            /** Pic */
-            pic?: string | null;
-        };
         /** ArticleAssetOut */
         ArticleAssetOut: {
             /** Url */
@@ -8147,6 +8027,8 @@ export interface components {
             enabled?: boolean | null;
             /** Interval Minutes */
             interval_minutes?: number | null;
+            /** Active Interval Minutes */
+            active_interval_minutes?: number | null;
             /** Timeout Minutes */
             timeout_minutes?: number | null;
             /** Hour */
@@ -10890,6 +10772,8 @@ export interface components {
         PlatformFeatureJobUpdate: {
             /** Interval Minutes */
             interval_minutes?: number | null;
+            /** Active Interval Minutes */
+            active_interval_minutes?: number | null;
             /** Timeout Minutes */
             timeout_minutes?: number | null;
             /** Hour */
@@ -10925,6 +10809,8 @@ export interface components {
             schedule?: string | null;
             /** Interval Minutes */
             interval_minutes?: number | null;
+            /** Active Interval Minutes */
+            active_interval_minutes?: number | null;
             /** Timeout Minutes */
             timeout_minutes?: number | null;
             /** Hour */
@@ -11469,6 +11355,8 @@ export interface components {
             config_enabled?: boolean | null;
             /** Interval Minutes */
             interval_minutes?: number | null;
+            /** Active Interval Minutes */
+            active_interval_minutes?: number | null;
             /** Timeout Minutes */
             timeout_minutes?: number | null;
             /** Hour */
@@ -11709,6 +11597,8 @@ export interface components {
             role_name: string;
             /** Channel Name */
             channel_name: string;
+            /** Channel Master Id */
+            channel_master_id?: string | null;
         };
         /** SklandStatusOut */
         SklandStatusOut: {
@@ -12054,6 +11944,520 @@ export interface components {
             visible_member_count: number;
             /** Hint */
             hint?: string | null;
+        };
+        /** StrongholdBattleData */
+        StrongholdBattleData: {
+            /** Started At */
+            started_at?: string | null;
+            /** Team Completed */
+            team_completed?: boolean | null;
+            /** Strategy Icon Url */
+            strategy_icon_url?: string | null;
+            /** Strategy Description */
+            strategy_description?: string | null;
+            /** Trophy Before */
+            trophy_before?: number | null;
+            /** Trophy After */
+            trophy_after?: number | null;
+            /** Coin Cost */
+            coin_cost?: number | null;
+            /** Sync Count */
+            sync_count?: number | null;
+            /** Kill Count */
+            kill_count?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Bosses */
+            bosses?: components["schemas"]["StrongholdBossOut"][] | null;
+        };
+        /** StrongholdBondOperatorOut */
+        StrongholdBondOperatorOut: {
+            /** Id */
+            id: string;
+            /** Char Id */
+            char_id: string;
+            /** Name */
+            name?: string | null;
+            /** Tier */
+            tier?: number | null;
+        };
+        /** StrongholdBondOut */
+        StrongholdBondOut: {
+            /** Bond Id */
+            bond_id: string;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Active */
+            active?: boolean | null;
+            /** Layer */
+            layer?: number | null;
+            /** Layer Scope */
+            layer_scope?: ("role" | "team" | "unknown") | null;
+            /** Is Core */
+            is_core?: boolean | null;
+            /** Activation Count */
+            activation_count?: number | null;
+            /** Activation Rule */
+            activation_rule?: ("at_least" | "at_most" | "golden") | null;
+            /** Operators */
+            operators?: components["schemas"]["StrongholdBondOperatorOut"][] | null;
+            /** Show Operators */
+            show_operators?: boolean | null;
+        };
+        /** StrongholdBossOut */
+        StrongholdBossOut: {
+            /** Id */
+            id: string;
+            /** Enemy Id */
+            enemy_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Hidden */
+            hidden?: boolean | null;
+            /** Killed */
+            killed?: boolean | null;
+        };
+        /** StrongholdCommunityOut */
+        StrongholdCommunityOut: {
+            /** Matches */
+            matches: components["schemas"]["StrongholdMatchOut"][];
+            /** Total */
+            total: number;
+            /** Scopes */
+            scopes: components["schemas"]["StrongholdScopeOut"][];
+            /** Versions */
+            versions: components["schemas"]["StrongholdVersionOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /** Ranking */
+            ranking: components["schemas"]["StrongholdRankOut"][];
+            /** Filtered Role Names */
+            filtered_role_names?: string[];
+            /** Popular Bonds */
+            popular_bonds: components["schemas"]["StrongholdPopularBondOut"][];
+            /** Layers */
+            layers: components["schemas"]["StrongholdLayerOut"][];
+            coverage: components["schemas"]["StrongholdCoverageOut"];
+        };
+        /** StrongholdCoverageOut */
+        StrongholdCoverageOut: {
+            /** Records */
+            records: number;
+            /** Roles With Bonds */
+            roles_with_bonds: number;
+            /** Roles With Layers */
+            roles_with_layers: number;
+            /** Matches */
+            matches: number;
+            /**
+             * Records With Unknown Layers
+             * @description Views with a numeric layer value of unspecified scope.
+             */
+            records_with_unknown_layers: number;
+            /**
+             * Roles With Conflicting Layers
+             * @default 0
+             */
+            roles_with_conflicting_layers: number;
+        };
+        /** StrongholdEquipmentOut */
+        StrongholdEquipmentOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name?: string | null;
+            /** Tier */
+            tier?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+        };
+        /** StrongholdLayerMemberOut */
+        StrongholdLayerMemberOut: {
+            member: components["schemas"]["StrongholdMemberOut"];
+            /**
+             * Layers
+             * @description Sum of layer values recorded in this member's role views.
+             */
+            layers: number;
+        };
+        /** StrongholdLayerOut */
+        StrongholdLayerOut: {
+            /** Bond Id */
+            bond_id: string;
+            /** Name */
+            name: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Version Label */
+            version_label?: string | null;
+            /**
+             * Layers
+             * @description Sum of recorded role-view values, not the team's actual layer total.
+             */
+            layers: number;
+            /** Contributors */
+            contributors: components["schemas"]["StrongholdLayerMemberOut"][];
+            /** Unattributed Layers */
+            unattributed_layers: number;
+            /**
+             * Team Layers
+             * @description Separate sum of explicitly reported team values.
+             */
+            team_layers?: number | null;
+        };
+        /** StrongholdMatchOut */
+        StrongholdMatchOut: {
+            /** Season Id */
+            season_id: string;
+            /** Season Label */
+            season_label: string;
+            /** Difficulty Id */
+            difficulty_id: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Mode Type */
+            mode_type?: ("single" | "multi" | "local") | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Success */
+            success: boolean | null;
+            version?: components["schemas"]["StrongholdVersionOut"] | null;
+            /** Participants */
+            participants: components["schemas"]["StrongholdMemberOut"][];
+            /** Views */
+            views?: components["schemas"]["StrongholdRecordDetailOut"][];
+            /** My Record Id */
+            my_record_id?: string | null;
+        };
+        /** StrongholdMemberOut */
+        StrongholdMemberOut: {
+            /** Id */
+            id: number;
+            /** Nickname */
+            nickname: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Role Names */
+            role_names?: string[];
+        };
+        /** StrongholdOperatorEffectOut */
+        StrongholdOperatorEffectOut: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /**
+             * Config Level
+             * @description Same-version chess configuration, not a live measurement.
+             */
+            config_level?: number | null;
+            /**
+             * Reference Level
+             * @description Level of the reference description.
+             */
+            reference_level?: number | null;
+        };
+        /** StrongholdOperatorOut */
+        StrongholdOperatorOut: {
+            /** Id */
+            id: string;
+            /**
+             * Normal Chess Id
+             * @description Normal chess ID in this battle's game version.
+             */
+            normal_chess_id?: string | null;
+            /**
+             * Is Elite
+             * @description Stronghold golden state, independent of evolve phase.
+             */
+            is_elite?: boolean | null;
+            /** Char Id */
+            char_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Level */
+            level?: number | null;
+            /** Phase */
+            phase?: number | null;
+            /** Tier */
+            tier?: number | null;
+            /** Skill Id */
+            skill_id?: string | null;
+            /** Module Id */
+            module_id?: string | null;
+            skill?: components["schemas"]["StrongholdOperatorEffectOut"] | null;
+            module?: components["schemas"]["StrongholdOperatorEffectOut"] | null;
+            /** Profession */
+            profession?: string | null;
+            /** Merge Level */
+            merge_level?: number | null;
+            /** Equipment */
+            equipment?: components["schemas"]["StrongholdEquipmentOut"][] | null;
+            /** Traits */
+            traits?: components["schemas"]["StrongholdTraitOut"][] | null;
+        };
+        /** StrongholdOwnOut */
+        StrongholdOwnOut: {
+            /** Records */
+            records: components["schemas"]["StrongholdRecordOut"][];
+            /** Total */
+            total: number;
+            /** Scopes */
+            scopes: components["schemas"]["StrongholdScopeOut"][];
+            /** Versions */
+            versions: components["schemas"]["StrongholdVersionOut"][];
+            /** Roles */
+            roles: components["schemas"]["StrongholdRoleOut"][];
+            /** Sync Available */
+            sync_available: boolean;
+            /** Sync Status */
+            sync_status: components["schemas"]["StrongholdSyncStatus"][];
+            /** Wins */
+            wins: number;
+            /** Known Results */
+            known_results: number;
+            /** Scoped Total */
+            scoped_total: number;
+        };
+        /** StrongholdPopularBondOut */
+        StrongholdPopularBondOut: {
+            /** Bond Id */
+            bond_id: string;
+            /** Name */
+            name: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Version Label */
+            version_label?: string | null;
+            /** Matches */
+            matches: number;
+        };
+        /** StrongholdRankOut */
+        StrongholdRankOut: {
+            /** Rank */
+            rank: number;
+            member: components["schemas"]["StrongholdMemberOut"];
+            /** Wins */
+            wins: number;
+            /** Rounds */
+            rounds: number | null;
+        };
+        /** StrongholdRecordDetailOut */
+        StrongholdRecordDetailOut: {
+            /** Season Id */
+            season_id: string;
+            /** Season Label */
+            season_label: string;
+            /** Difficulty Id */
+            difficulty_id: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Mode Type */
+            mode_type?: ("single" | "multi" | "local") | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Id */
+            id: string;
+            /** Match Id */
+            match_id: string;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Completed */
+            completed: boolean | null;
+            /** Pass Round */
+            pass_round: number | null;
+            /** Strategy Id */
+            strategy_id: string | null;
+            /** Strategy Name */
+            strategy_name: string | null;
+            /** Strategy Icon Url */
+            strategy_icon_url?: string | null;
+            /** Strategy Description */
+            strategy_description?: string | null;
+            /** Roster */
+            roster: components["schemas"]["StrongholdOperatorOut"][] | null;
+            /** Bonds */
+            bonds: components["schemas"]["StrongholdBondOut"][] | null;
+            battle: components["schemas"]["StrongholdBattleData"];
+            author?: components["schemas"]["StrongholdMemberOut"] | null;
+            /** Role Name */
+            role_name?: string | null;
+            /**
+             * Player Group Id
+             * @description Opaque player key scoped to this match.
+             */
+            player_group_id?: string | null;
+            /**
+             * Is Own
+             * @default false
+             */
+            is_own: boolean;
+            /**
+             * Own Role Id
+             * @description Local role ID, only for the viewer's own record.
+             */
+            own_role_id?: number | null;
+            /** Strategy Promoter */
+            strategy_promoter?: string | null;
+            /** Strategy Initial Hp */
+            strategy_initial_hp?: number | null;
+            version?: components["schemas"]["StrongholdVersionOut"] | null;
+        };
+        /** StrongholdRecordOut */
+        StrongholdRecordOut: {
+            /** Season Id */
+            season_id: string;
+            /** Season Label */
+            season_label: string;
+            /** Difficulty Id */
+            difficulty_id: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Mode Type */
+            mode_type?: ("single" | "multi" | "local") | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Id */
+            id: string;
+            /** Match Id */
+            match_id: string;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Completed */
+            completed: boolean | null;
+            /** Pass Round */
+            pass_round: number | null;
+            /** Strategy Id */
+            strategy_id: string | null;
+            /** Strategy Name */
+            strategy_name: string | null;
+            /** Strategy Icon Url */
+            strategy_icon_url?: string | null;
+            /** Strategy Description */
+            strategy_description?: string | null;
+        };
+        /** StrongholdRoleOut */
+        StrongholdRoleOut: {
+            /** Id */
+            id: number;
+            /** Uid */
+            uid: string;
+            /**
+             * Channel Id
+             * @enum {string}
+             */
+            channel_id: "1" | "2";
+            /** Role Name */
+            role_name: string;
+            /**
+             * Synced At
+             * Format: date-time
+             */
+            synced_at: string;
+        };
+        /** StrongholdScopeOut */
+        StrongholdScopeOut: {
+            /** Season Id */
+            season_id: string;
+            /** Season Label */
+            season_label: string;
+            /** Difficulty Id */
+            difficulty_id: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Mode Type */
+            mode_type?: ("single" | "multi" | "local") | null;
+            /** Version Key */
+            version_key?: string | null;
+        };
+        /** StrongholdSyncIn */
+        StrongholdSyncIn: {
+            /** Uid */
+            uid: string;
+            /**
+             * Channel Id
+             * @enum {string}
+             */
+            channel_id: "1" | "2";
+        };
+        /** StrongholdSyncStatus */
+        StrongholdSyncStatus: {
+            /** Channel Id */
+            channel_id?: ("1" | "2") | null;
+            /** Uid */
+            uid?: string | null;
+            /** Role Name */
+            role_name?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "syncing" | "idle" | "retrying" | "reauth" | "discovering";
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Next Sync At */
+            next_sync_at?: string | null;
+        };
+        /** StrongholdTraitOut */
+        StrongholdTraitOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+        };
+        /** StrongholdVersionOut */
+        StrongholdVersionOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Banner Url */
+            banner_url?: string | null;
+            /** Emblem Url */
+            emblem_url?: string | null;
+            /** Last Played Date */
+            last_played_date?: string | null;
         };
         /** TarkovAmmoCatalogOut */
         TarkovAmmoCatalogOut: {
@@ -21057,40 +21461,6 @@ export interface operations {
             };
         };
     };
-    skland_arknights_rogue_api_skland_arknights_rogue_get: {
-        parameters: {
-            query?: {
-                uid?: string | null;
-                /** @description 主题 id（rogue_1…）或中文名；默认界园 */
-                topic_id?: string | null;
-                force?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArknightsRogueOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     skland_arknights_catalog_api_skland_arknights_catalog_get: {
         parameters: {
             query?: never;
@@ -21410,6 +21780,208 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GameScheduleCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_community_api_skland_arknights_stronghold_community_get: {
+        parameters: {
+            query?: {
+                season?: string | null;
+                difficulty?: string | null;
+                mode?: ("single" | "multi" | "local") | null;
+                version?: string | null;
+                date?: string | null;
+                member?: number | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdCommunityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_asset_api_skland_arknights_stronghold_assets__digest__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_own_matches_api_skland_arknights_stronghold_me_get: {
+        parameters: {
+            query?: {
+                season?: string | null;
+                difficulty?: string | null;
+                mode?: ("single" | "multi" | "local") | null;
+                version?: string | null;
+                result?: ("complete" | "interrupted" | "unknown") | null;
+                role_id?: number | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdOwnOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_sync_api_skland_arknights_stronghold_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StrongholdSyncIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdSyncStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_report_api_skland_arknights_stronghold_reports__match_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdMatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_view_api_skland_arknights_stronghold_views__view_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdRecordDetailOut"];
                 };
             };
             /** @description Validation Error */

@@ -65,6 +65,7 @@ def _status_out(db: Session, member: Member, *, include_roles: bool, force: bool
             uid=r.uid,  # type: ignore[attr-defined]
             role_name=r.role_name,  # type: ignore[attr-defined]
             channel_name=r.channel_name,  # type: ignore[attr-defined]
+            channel_master_id=getattr(r, "channel_master_id", None),
         )
 
     return build_checkin_status(

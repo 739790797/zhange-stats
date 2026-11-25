@@ -41,8 +41,8 @@
 - 新签到页/内容使用 `CheckinPageTemplate`；兑换页使用 `ExchangePageTemplate` + `ExchangeGoodsCard`；平台页使用 `PlatformFeatureTabsPage`；签到日历用 `AttendanceCalendarButton`；盒子/raw 面板先用 `BoxPanelChrome`；扫码绑定优先 `useQrBindSession`（表单按现有模板）；认证未登录页用 `AuthGuestShell`；管理子页放入 `AdminHubLayout`，不要再往侧栏堆叶子菜单。
 - `PlatformFeatureTabsPage` 保持 `destroyInactiveTabPane`；平台子面板按现有模式 lazy。多角色对比板等例外先参照同域已存在实现，不为了套外壳改变其数据语义。
 - 兑换相关页签与任务配置统一称“兑换”，面板标题用“兑换商城”；货币名只在余额/消耗文案中出现。
-- 签到 status 前端必须显式把 `force: true | false` 放进 query，不可用 `...(force ? { force: true } : {})` 省略；`fetch*Status` 默认 `force=true` 对齐用户展示路径。调度读取 logs 通常走 service 层；如走 HTTP，显式传 `force=false`。盒子、日历、rogue 等 raw 接口通常默认 `force=false`，调用方显式传值以避免依赖默认。
-- 站点统一 Ant Design 5 与 `antdAppTheme`；塔科夫暗色主题只在 `TarkovGuideShell` 的一层 `TarkovThemed` 中启用，详情页不再套第二层。不要引入第二套 UI 库、给主色写死 `#1a2332` 或把塔科夫专属主题扩散到主应用。
+- 签到 status 前端必须显式把 `force: true | false` 放进 query，不可用 `...(force ? { force: true } : {})` 省略；`fetch*Status` 默认 `force=true` 对齐用户展示路径。调度读取 logs 通常走 service 层；如走 HTTP，显式传 `force=false`。盒子、日历等 raw 接口通常默认 `force=false`，调用方显式传值以避免依赖默认。
+- 站点统一 Ant Design 5 与 `antdAppTheme`；塔科夫暗色主题只在 `TarkovGuideShell` 的一层 `TarkovThemed` 中启用，详情页不再套第二层。明日方舟战术主题只在 `ArknightsTabPanel` 内应用。不要引入第二套 UI 库、给主色写死 `#1a2332` 或把塔科夫专属主题扩散到主应用。
 - 动效沿用项目 CSS（`app-motion-page` / `app-motion-in`）、Ant Design 内建动画与 `MotionIn`；尊重系统减少动态效果设置，不另引入 AutoAnimate/Motion 等动画库。
 - 主要 CTA 使用 `type="primary"`，一个操作区保持一致尺寸；次要/取消/刷新用默认按钮，表格行/工具条用小号 link 或默认按钮，图标按钮用小号 text；破坏性操作须 `danger` 并二次确认。不要显式写默认 `size="middle"`、同一操作区混用 large/small，或用业务页原生 `<button>` 冒充主操作。
 - 主内容区维持键盘可达的跳转链接、明确 `main`/导航标签和换页后的焦点行为；标题与页面切换使用项目现有文档标题、回顶和错误边界能力。新增焦点交互不可只支持鼠标。

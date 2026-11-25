@@ -46,7 +46,7 @@ def pre_translation_cache_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def test_upgrade_adds_translation_cache_and_raw_fingerprint(pre_translation_cache_db) -> None:
     config = _alembic_config()
-    command.upgrade(config, "head")
+    command.upgrade(config, _REVISION)
 
     inspector = sa.inspect(pre_translation_cache_db)
     tables = set(inspector.get_table_names())
@@ -88,8 +88,8 @@ def test_upgrade_adds_translation_cache_and_raw_fingerprint(pre_translation_cach
     assert raw.content_fingerprint is None  # Existing content is hashed lazily on next Wiki sync.
     assert revision == _REVISION
 
-    # A second run at head is a no-op and does not modify the cached Wiki document.
-    command.upgrade(config, "head")
+    # A second run to this revision is a no-op and does not modify the cached Wiki document.
+    command.upgrade(config, _REVISION)
     with pre_translation_cache_db.connect() as connection:
         assert (
             connection.exec_driver_sql("SELECT raw_body FROM guide_raws WHERE game = 'demo'").scalar_one() == "raw body"

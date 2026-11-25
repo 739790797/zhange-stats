@@ -149,6 +149,9 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
         if kind == "interval":
             default = 3 if job_id == "steam_presence" else 1
             interval_out = int(job_cfg.get("interval_minutes") or default)
+            if (active_interval := job_cfg.get("active_interval_minutes")) is not None:
+                trigger_type = "interval"
+                schedule = f"按角色同步 · 普通 {interval_out} 分钟 / 活跃 {active_interval} 分钟"
         elif kind == "cron":
             hour_out = int(job_cfg.get("hour", 0))
             minute_out = int(job_cfg.get("minute", 0))
@@ -170,6 +173,7 @@ def _build_jobs_response(db: Session) -> ScheduledJobsOut:
                 next_run_at=next_run_at,
                 config_enabled=enabled,
                 interval_minutes=interval_out,
+                active_interval_minutes=job_cfg.get("active_interval_minutes"),
                 timeout_minutes=timeout_out,
                 hour=hour_out,
                 minute=minute_out,

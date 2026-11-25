@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -14,12 +15,14 @@ from app.services.upstream_repos import (
 )
 
 SCHEDULER_CONFIG_KEY = "scheduler_jobs"
+STRONGHOLD_SYNC_JOB_ID = "arknights_stronghold_sync"
 
 JOB_IDS = (
     "steam_presence",
     # "minecraft_presence",
     "skland_checkin",
     "arknights_box_sync",
+    STRONGHOLD_SYNC_JOB_ID,
     "arknights_catalog_sync",
     "game_schedule_arknights_sync",
     "game_schedule_endfield_sync",
@@ -36,7 +39,7 @@ JOB_IDS = (
 UPSTREAM_REPO_JOB_IDS = tuple(REPO_SYNC_JOB_IDS.values())
 _RETIRED_ROR2_SCHEDULER_KEYS = frozenset({"ror2_wiki_sync", "ror2_weblate_sync", "ror2_lang_sync"})
 
-INTERVAL_JOB_IDS = frozenset({"steam_presence"})
+INTERVAL_JOB_IDS = frozenset({"steam_presence", STRONGHOLD_SYNC_JOB_ID})
 
 
 def _clamp_hour(value: Any) -> int:
@@ -72,6 +75,12 @@ def _code_defaults() -> dict[str, dict[str, Any]]:
         "steam_presence": {"enabled": True, "interval_minutes": 3},
         # "minecraft_presence": {"enabled": True, "interval_minutes": 1},
         "skland_checkin": {"enabled": True, "hour": 0, "minute": 1},
+        STRONGHOLD_SYNC_JOB_ID: {
+            "enabled": True,
+            "interval_minutes": 30,
+            "active_interval_minutes": 10,
+            "activity_ids": [],
+        },
         "arknights_box_sync": {"enabled": True, "hour": 0, "minute": 20},
         "arknights_catalog_sync": {"enabled": True, "hour": 4, "minute": 0},
         "game_schedule_arknights_sync": {"enabled": True, "hour": 5, "minute": 0},
@@ -106,7 +115,22 @@ def _normalize_job(job_id: str, raw: dict[str, Any], fallback: dict[str, Any]) -
     out: dict[str, Any] = {
         "enabled": bool(raw.get("enabled", fallback.get("enabled", False))),
     }
-    if job_id in INTERVAL_JOB_IDS:
+    if job_id == STRONGHOLD_SYNC_JOB_ID:
+        interval = _clamp_interval(raw.get("interval_minutes", fallback.get("interval_minutes")), 30)
+        out["interval_minutes"] = min(1440, max(5, interval))
+        active = _clamp_interval(raw.get("active_interval_minutes", fallback.get("active_interval_minutes")), 10)
+        out["active_interval_minutes"] = min(out["interval_minutes"], max(5, active))
+        ids = raw.get("activity_ids", fallback.get("activity_ids", []))
+        out["activity_ids"] = (
+            list(
+                dict.fromkeys(
+                    uid for uid in ids if isinstance(uid, str) and re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,63}", uid)
+                )
+            )[:8]
+            if isinstance(ids, list)
+            else []
+        )
+    elif job_id in INTERVAL_JOB_IDS:
         default = 3 if job_id == "steam_presence" else 1
         out["interval_minutes"] = _clamp_interval(
             raw.get("interval_minutes", fallback.get("interval_minutes", default)),

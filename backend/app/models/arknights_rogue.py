@@ -1,4 +1,4 @@
-"""明日方舟集成战略（肉鸽）原始响应落库。"""
+"""退役的明日方舟集成战略缓存。"""
 
 from datetime import datetime
 
@@ -11,7 +11,7 @@ from app.core.timeutil import now_naive
 
 
 class ArknightsRogueRaw(Base):
-    """方舟肉鸽 GET /game/arknights/rogue 原始 JSON（按 uid+主题 最新一份）。"""
+    """保留既有数据供签到与干员对比读取历史角色 UID。"""
 
     __tablename__ = "arknights_rogue_raws"
     __table_args__ = (

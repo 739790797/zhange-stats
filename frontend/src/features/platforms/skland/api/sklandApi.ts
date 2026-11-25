@@ -4,7 +4,6 @@ import type {
   ArknightsAttendanceCalendar,
   ArknightsBoxCompare,
   ArknightsCompareCandidate,
-  ArknightsRogue,
   EndfieldBox,
   EndfieldBoxCompare,
   EndfieldAttendanceCalendar,
@@ -125,18 +124,6 @@ export async function fetchArknightsAttendanceCalendar(uid?: string, force = fal
 export async function fetchSklandGameEvents(game: "arknights" | "endfield", force = false) {
   const { data } = await client.get<GameScheduleCalendar>("/skland/game-events", {
     params: { game, force },
-    timeout: 60000,
-  });
-  return data;
-}
-
-export async function fetchArknightsRogue(uid?: string, topicId?: string, force = false) {
-  const { data } = await client.get<ArknightsRogue>("/skland/arknights/rogue", {
-    params: {
-      ...(uid ? { uid } : {}),
-      ...(topicId ? { topic_id: topicId } : {}),
-      force,
-    },
     timeout: 60000,
   });
   return data;

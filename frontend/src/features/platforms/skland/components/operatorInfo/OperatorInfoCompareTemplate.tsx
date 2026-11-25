@@ -50,6 +50,7 @@ type Props<
   catalogVersion?: string | null;
   cardRows?: 1 | 2;
   memberActions?: ReactNode;
+  variant?: "arknights";
   renderMemberLabel: (row: TRow) => ReactNode;
   renderCard: (operator: TOperator, progress: TProgress | undefined, row: TRow) => ReactNode;
   renderDetails: (operator: TOperator, progress: TProgress | undefined, row: TRow) => ReactNode;
@@ -71,6 +72,7 @@ export function OperatorInfoCompareTemplate<
   catalogVersion,
   cardRows = 2,
   memberActions,
+  variant,
   renderMemberLabel,
   renderCard,
   renderDetails,
@@ -154,6 +156,10 @@ export function OperatorInfoCompareTemplate<
       </Typography.Text>
       {orderedOperators.length ? (
         <div
+          className={variant ? "operator-compare-scroll" : undefined}
+          role={variant ? "region" : undefined}
+          aria-label={variant ? "干员练度对比" : undefined}
+          tabIndex={variant ? 0 : undefined}
           style={{
             overflowX: "auto",
             overflowY: "hidden",
@@ -166,6 +172,7 @@ export function OperatorInfoCompareTemplate<
           {rows.map((row, rowIndex) => (
             <div
               key={row.member_id}
+              className={variant ? "operator-compare-line" : undefined}
               style={{
                 display: "flex",
                 alignItems: "stretch",

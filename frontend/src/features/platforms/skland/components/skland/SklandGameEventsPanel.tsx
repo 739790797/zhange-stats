@@ -9,7 +9,9 @@ import type {
   GameScheduleEvent,
 } from "@/features/platforms/skland/api/types";
 import { apiError } from "@/shared/api/apiError";
-import { nowBeijing, parseBeijing } from "@/shared/lib/time";
+import { formatBeijing, nowBeijing, parseBeijing } from "@/shared/lib/time";
+
+import tactical from "./ArknightsEventTimeline.module.css";
 
 type GameTab = "arknights" | "endfield";
 
@@ -98,7 +100,7 @@ function buildRange(events: GameScheduleEvent[]): {
   return { rangeStart: min, dayCount };
 }
 
-function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
+function EventTimeline({ events, arknights }: { events: GameScheduleEvent[]; arknights: boolean }) {
   const { rangeStart, dayCount } = useMemo(() => buildRange(events), [events]);
   const laidOut = useMemo(
     () => layoutEvents(events, rangeStart, dayCount),
@@ -118,12 +120,16 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
 
   return (
     <div
+      className={arknights ? tactical.timeline : undefined}
+      role={arknights ? "region" : undefined}
+      aria-label={arknights ? "活动时间轴" : undefined}
+      tabIndex={arknights ? 0 : undefined}
       style={{
         overflowX: "auto",
         overflowY: "hidden",
-        border: "1px solid rgba(0,0,0,0.06)",
-        borderRadius: 8,
-        background: "#fafafa",
+        border: arknights ? "1px solid var(--ark-line)" : "1px solid rgba(0,0,0,0.06)",
+        borderRadius: arknights ? 0 : 8,
+        background: arknights ? "var(--ark-panel)" : "#fafafa",
       }}
     >
       <div style={{ minWidth: trackWidth }}>
@@ -133,10 +139,10 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
             position: "sticky",
             top: 0,
             zIndex: 2,
-            background: "#f5f5f5",
+            background: arknights ? "var(--ark-ink)" : "#f5f5f5",
             borderBottom: "1px solid rgba(0,0,0,0.08)",
             height: HEADER_HEIGHT,
-            width: trackWidth,
+            width: arknights ? "100%" : trackWidth,
           }}
         >
           <div style={{ position: "relative", width: trackWidth, height: HEADER_HEIGHT }}>
@@ -158,9 +164,20 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                     justifyContent: "center",
                     fontSize: 11,
                     lineHeight: 1.15,
-                    color: isToday ? "#1677ff" : "rgba(0,0,0,0.55)",
+                    color: arknights
+                      ? isToday
+                        ? "#fff"
+                        : "#d7d8d9"
+                      : isToday
+                        ? "#1677ff"
+                        : "rgba(0,0,0,0.55)",
                     fontWeight: isToday || isMonthStart ? 600 : 400,
-                    background: isToday ? "rgba(22,119,255,0.08)" : undefined,
+                    background: isToday
+                      ? arknights
+                        ? "var(--ark-signal)"
+                        : "rgba(22,119,255,0.08)"
+                      : undefined,
+                    fontFamily: arknights ? "var(--ark-mono)" : undefined,
                   }}
                 >
                   {isMonthStart ? <span style={{ fontSize: 10 }}>{d.format("M月")}</span> : null}
@@ -190,8 +207,11 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
             top: BAR_PAD_Y,
             height: ROW_HEIGHT - BAR_PAD_Y * 2,
             width,
-            borderRadius: 6,
-            background: color,
+            borderRadius: arknights ? 0 : 6,
+            background: arknights ? (event.status === "upcoming" ? "#535d69" : "#27313b") : color,
+            borderLeft: arknights
+              ? `3px solid ${event.status === "upcoming" ? "#a8afb6" : "var(--ark-signal)"}`
+              : undefined,
             boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)",
             // 不用 overflow:hidden：否则 sticky 无法相对外层横向滚动容器生效
             minWidth: 4,
@@ -220,10 +240,10 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                   style={{
                     height: BAR_IMG_H,
                     width: "auto",
-                    maxWidth: 220,
+                    maxWidth: arknights ? "clamp(72px, 13vw, 180px)" : 220,
                     objectFit: "contain",
                     objectPosition: "left center",
-                    borderRadius: 4,
+                    borderRadius: arknights ? 0 : 4,
                     flexShrink: 0,
                     display: "block",
                   }}
@@ -253,7 +273,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
               key={event.id}
               style={{
                 position: "relative",
-                width: trackWidth,
+                width: arknights ? "100%" : trackWidth,
                 height: ROW_HEIGHT,
                 borderBottom: "1px solid rgba(0,0,0,0.04)",
                 background: "#fff",
@@ -269,7 +289,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
                     top: 0,
                     bottom: 0,
                     width: 1,
-                    background: "rgba(22,119,255,0.45)",
+                    background: arknights ? "var(--ark-signal)" : "rgba(22,119,255,0.45)",
                     pointerEvents: "none",
                     zIndex: 0,
                   }}
@@ -299,7 +319,7 @@ function EventTimeline({ events }: { events: GameScheduleEvent[] }) {
   );
 }
 
-function GameEventsTimeline({ game }: { game: GameTab }) {
+function GameEventsTimeline({ game, arknights = false }: { game: GameTab; arknights?: boolean }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -335,6 +355,7 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 8,
+          gap: arknights ? 8 : undefined,
         }}
       >
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -342,10 +363,13 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
             ? `进行中 ${data.ongoing_count} · 未开始 ${data.upcoming_count}` +
               (data.permanent_count ? ` · 常驻 ${data.permanent_count}` : "")
             : "加载中…"}
-          {data?.synced_at ? ` · 同步 ${data.synced_at}` : ""}
+          {data?.synced_at
+            ? ` · 同步 ${arknights ? formatBeijing(data.synced_at, "MM.DD HH:mm") : data.synced_at}`
+            : ""}
         </Typography.Text>
         <Button
           size="small"
+          aria-label={arknights ? "刷新活动日历" : undefined}
           icon={<ReloadOutlined />}
           loading={refreshing}
           onClick={() => void onRefresh()}
@@ -378,14 +402,14 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
         <Empty description="暂无进行中或即将开始的限时活动" />
       ) : null}
       {!query.isLoading && !query.isError && events.length > 0 ? (
-        <EventTimeline events={events} />
+        <EventTimeline events={events} arknights={arknights} />
       ) : null}
       {!query.isLoading && !query.isError && permanentEvents.length > 0 ? (
         <div style={{ marginTop: 16 }}>
           <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
             常驻活动
           </Typography.Text>
-          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+          <div className={arknights ? tactical.permanentGrid : tactical.permanentList}>
             {permanentEvents.map((event) => {
               const body = (
                 <div
@@ -395,7 +419,8 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
                     alignItems: "center",
                     padding: "8px 10px",
                     border: "1px solid rgba(0,0,0,0.06)",
-                    borderRadius: 8,
+                    borderRadius: arknights ? 0 : 8,
+                    borderLeft: arknights ? "3px solid var(--ark-line)" : undefined,
                     background: "#fff",
                   }}
                 >
@@ -427,7 +452,10 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
                       {event.title}
                     </Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {event.start_time} 起
+                      {arknights
+                        ? formatBeijing(event.start_time, "YYYY.MM.DD HH:mm")
+                        : event.start_time}{" "}
+                      起
                     </Typography.Text>
                   </div>
                 </div>
@@ -446,7 +474,7 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
                 <div key={event.id}>{body}</div>
               );
             })}
-          </Space>
+          </div>
         </div>
       ) : null}
       <Typography.Paragraph
@@ -481,7 +509,8 @@ function GameEventsTimeline({ game }: { game: GameTab }) {
 }
 
 /** 森空岛各游戏 Tab：单游戏活动时间轴（game-schedule）。 */
-export function SklandGameEventsPanel({ game }: { game: GameTab }) {
+export function SklandGameEventsPanel({ game, variant }: { game: GameTab; variant?: "arknights" }) {
+  if (variant === "arknights") return <GameEventsTimeline game={game} arknights />;
   return (
     <Card title="活动日历">
       <GameEventsTimeline game={game} />

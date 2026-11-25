@@ -1,0 +1,139 @@
+{
+  "history": {
+    "records": [
+      {
+        "id": "12345-1795435200-match-a",
+        "activityId": "act3autochess",
+        "versionId": "version-a",
+        "gameStartTs": "1795435200",
+        "gameEndTs": "1795437000",
+        "modeType": "SINGLE",
+        "modeDifficulty": "ABYSS",
+        "mode": "终极模拟",
+        "completeState": 0,
+        "teamComplete": 1,
+        "passRound": 0,
+        "bandId": "strategy_a",
+        "chessSquad": [
+          {
+            "chessId": "chess_a",
+            "charId": "char_002_amiya",
+            "equips": [
+              {
+                "equipId": "item_training"
+              }
+            ],
+            "mergeLevel": 2,
+            "skillId": "skcom_charge_1",
+            "moduleId": "uniequip_002_amiya"
+          }
+        ],
+        "bondInfo": [
+          {
+            "bondId": "bond_a",
+            "activate": 1,
+            "layer": 0
+          },
+          {
+            "bondId": "bond_b",
+            "activate": 0
+          }
+        ],
+        "acBossInfo": [
+          {
+            "bossId": "boss_training",
+            "isKilled": 1,
+            "isHidden": 0
+          }
+        ],
+        "title": "title_training"
+      },
+      {
+        "id": "12345-1795435200-match-b",
+        "activityId": "act3autochess",
+        "versionId": "version-a",
+        "gameEndTs": "1795437000",
+        "modeType": "MULTI",
+        "modeDifficulty": "ABYSS",
+        "mode": "终极模拟",
+        "teamComplete": 1,
+        "chessSquad": [],
+        "bondInfo": [
+          {
+            "bondId": "bond_a",
+            "activate": 1,
+            "layer": 20
+          }
+        ],
+        "sceneId": "scene_sample",
+        "gameStartTs": "1795435200",
+        "trophyBefore": 643,
+        "trophyAfter": 651,
+        "coinCost": 164,
+        "syncCnt": 4,
+        "killCnt": 280
+      }
+    ]
+  },
+  "resources": [
+    {
+      "versionInfo": {
+        "versionId": "version-a",
+        "seasonName": "测试赛季"
+      },
+      "bandInfo": {
+        "strategy_a": {
+          "name": "二重奏",
+          "icon": "https://web.hycdn.cn/arknights/game/assets/auto_chess/band_icon/band_demo.png"
+        }
+      },
+      "bondInfo": {
+        "bond_a": {
+          "name": "聚合",
+          "icon": "https://web.hycdn.cn/arknights/game/assets/auto_chess/bond_icon/bond_demo.png"
+        },
+        "bond_b": {
+          "name": "灵巧",
+          "icon": "https://invalid.example/bond_b.png"
+        }
+      },
+      "chessInfo": {
+        "chess_a": {
+          "charId": "char_002_amiya",
+          "charName": "阿米娅",
+          "charLevel": 55,
+          "evolvePhase": 1,
+          "chessLevel": 3,
+          "charProfession": "CASTER",
+          "garrisonIds": [
+            "trait_test"
+          ]
+        }
+      },
+      "equipInfo": {
+        "item_training": {
+          "name": "测试道具",
+          "icon": "https://web.hycdn.cn/arknights/game/assets/auto_chess/equip_icon/equip_demo.png",
+          "itemLevel": 2
+        }
+      },
+      "garrisonInfo": {
+        "trait_test": {
+          "eventTypeDesc": "测试特性",
+          "description": "受到<@ac.attr>一点</>伤害",
+          "eventTypeSmallIcon": "https://web.hycdn.cn/arknights/game/assets/auto_chess/trait_icon/trait_demo.png"
+        }
+      },
+      "bossInfo": {
+        "boss_training": {
+          "enemyId": "enemy_1234_test"
+        }
+      },
+      "titleInfo": {
+        "title_training": {
+          "name": "测试称号"
+        }
+      }
+    }
+  ]
+}

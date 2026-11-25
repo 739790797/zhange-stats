@@ -26,6 +26,7 @@ export function RowLabel({
   const gameId = selectedRole?.role_name || row.role_name || null;
   return (
     <div
+      className="operator-compare-member"
       style={{
         width: LABEL_W,
         flex: "0 0 auto",

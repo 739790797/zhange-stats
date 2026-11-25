@@ -5089,92 +5089,6 @@
         }
       }
     },
-    "/api/skland/arknights/rogue": {
-      "get": {
-        "tags": [
-          "skland",
-          "skland"
-        ],
-        "summary": "Skland Arknights Rogue",
-        "description": "明日方舟肉鸽战绩：默认读库；force 或首次回源落库。",
-        "operationId": "skland_arknights_rogue_api_skland_arknights_rogue_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 32
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Uid"
-            }
-          },
-          {
-            "name": "topic_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 32
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "主题 id（rogue_1…）或中文名；默认界园",
-              "title": "Topic Id"
-            },
-            "description": "主题 id（rogue_1…）或中文名；默认界园"
-          },
-          {
-            "name": "force",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Force"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArknightsRogueOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/skland/arknights/catalog": {
       "get": {
         "tags": [
@@ -5772,6 +5686,531 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GameScheduleCalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/community": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold Community",
+        "operationId": "stronghold_community_api_skland_arknights_stronghold_community_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "single",
+                    "multi",
+                    "local"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "name": "member",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2147483647,
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Member"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483647,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 40,
+              "minimum": 1,
+              "default": 12,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdCommunityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/assets/{digest}": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold Asset",
+        "operationId": "stronghold_asset_api_skland_arknights_stronghold_assets__digest__get",
+        "parameters": [
+          {
+            "name": "digest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "title": "Digest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/me": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold Own Matches",
+        "operationId": "stronghold_own_matches_api_skland_arknights_stronghold_me_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "single",
+                    "multi",
+                    "local"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "complete",
+                    "interrupted",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2147483647,
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483647,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 40,
+              "minimum": 1,
+              "default": 12,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdOwnOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/sync": {
+      "post": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold Sync",
+        "operationId": "stronghold_sync_api_skland_arknights_stronghold_sync_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StrongholdSyncIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdSyncStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/skland/arknights/stronghold/reports/{match_id}": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold Report",
+        "operationId": "stronghold_report_api_skland_arknights_stronghold_reports__match_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdMatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/views/{view_id}": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold View",
+        "operationId": "stronghold_view_api_skland_arknights_stronghold_views__view_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "view_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "View Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdRecordDetailOut"
                 }
               }
             }
@@ -18598,312 +19037,6 @@
         "type": "object",
         "title": "ArknightsOwnedCharOut"
       },
-      "ArknightsRogueCharOut": {
-        "properties": {
-          "char_id": {
-            "type": "string",
-            "title": "Char Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "rarity": {
-            "type": "integer",
-            "title": "Rarity",
-            "default": 0
-          },
-          "level": {
-            "type": "integer",
-            "title": "Level",
-            "default": 0
-          },
-          "evolve_phase": {
-            "type": "integer",
-            "title": "Evolve Phase",
-            "default": 0
-          },
-          "profession": {
-            "type": "string",
-            "title": "Profession",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "char_id",
-          "name"
-        ],
-        "title": "ArknightsRogueCharOut"
-      },
-      "ArknightsRogueOut": {
-        "properties": {
-          "uid": {
-            "type": "string",
-            "title": "Uid"
-          },
-          "role_name": {
-            "type": "string",
-            "title": "Role Name"
-          },
-          "channel_name": {
-            "type": "string",
-            "title": "Channel Name"
-          },
-          "topic_id": {
-            "type": "string",
-            "title": "Topic Id"
-          },
-          "topic_name": {
-            "type": "string",
-            "title": "Topic Name"
-          },
-          "topics": {
-            "items": {
-              "$ref": "#/components/schemas/ArknightsRogueTopicOut"
-            },
-            "type": "array",
-            "title": "Topics"
-          },
-          "overview": {
-            "$ref": "#/components/schemas/ArknightsRogueOverviewOut"
-          },
-          "records": {
-            "items": {
-              "$ref": "#/components/schemas/ArknightsRogueRecordOut"
-            },
-            "type": "array",
-            "title": "Records"
-          },
-          "favour_records": {
-            "items": {
-              "$ref": "#/components/schemas/ArknightsRogueRecordOut"
-            },
-            "type": "array",
-            "title": "Favour Records"
-          },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/SklandRoleOut"
-            },
-            "type": "array",
-            "title": "Roles"
-          },
-          "synced_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synced At"
-          },
-          "stale": {
-            "type": "boolean",
-            "title": "Stale",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "uid",
-          "role_name",
-          "channel_name",
-          "topic_id",
-          "topic_name",
-          "overview"
-        ],
-        "title": "ArknightsRogueOut"
-      },
-      "ArknightsRogueOverviewOut": {
-        "properties": {
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": ""
-          },
-          "mode_grade": {
-            "type": "integer",
-            "title": "Mode Grade",
-            "default": 0
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score",
-            "default": 0
-          },
-          "bp_level": {
-            "type": "integer",
-            "title": "Bp Level",
-            "default": 0
-          },
-          "medal_current": {
-            "type": "integer",
-            "title": "Medal Current",
-            "default": 0
-          },
-          "medal_count": {
-            "type": "integer",
-            "title": "Medal Count",
-            "default": 0
-          },
-          "clear_difficulty": {
-            "type": "string",
-            "title": "Clear Difficulty",
-            "default": ""
-          },
-          "clear_grade": {
-            "type": "integer",
-            "title": "Clear Grade",
-            "default": 0
-          },
-          "invest": {
-            "type": "integer",
-            "title": "Invest",
-            "default": 0
-          },
-          "relic": {
-            "type": "integer",
-            "title": "Relic",
-            "default": 0
-          },
-          "game_count": {
-            "type": "integer",
-            "title": "Game Count",
-            "default": 0
-          }
-        },
-        "type": "object",
-        "title": "ArknightsRogueOverviewOut"
-      },
-      "ArknightsRogueRecordOut": {
-        "properties": {
-          "record_id": {
-            "type": "string",
-            "title": "Record Id"
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": ""
-          },
-          "mode_grade": {
-            "type": "integer",
-            "title": "Mode Grade",
-            "default": 0
-          },
-          "success": {
-            "type": "boolean",
-            "title": "Success",
-            "default": false
-          },
-          "score": {
-            "type": "integer",
-            "title": "Score",
-            "default": 0
-          },
-          "ending_text": {
-            "type": "string",
-            "title": "Ending Text",
-            "default": ""
-          },
-          "start_ts": {
-            "type": "string",
-            "title": "Start Ts",
-            "default": ""
-          },
-          "end_ts": {
-            "type": "string",
-            "title": "End Ts",
-            "default": ""
-          },
-          "zone_count": {
-            "type": "integer",
-            "title": "Zone Count",
-            "default": 0
-          },
-          "node_count": {
-            "type": "integer",
-            "title": "Node Count",
-            "default": 0
-          },
-          "relic_count": {
-            "type": "integer",
-            "title": "Relic Count",
-            "default": 0
-          },
-          "band_name": {
-            "type": "string",
-            "title": "Band Name",
-            "default": ""
-          },
-          "last_stage": {
-            "type": "string",
-            "title": "Last Stage",
-            "default": ""
-          },
-          "is_collect": {
-            "type": "boolean",
-            "title": "Is Collect",
-            "default": false
-          },
-          "squad": {
-            "items": {
-              "$ref": "#/components/schemas/ArknightsRogueCharOut"
-            },
-            "type": "array",
-            "title": "Squad"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags"
-          }
-        },
-        "type": "object",
-        "required": [
-          "record_id"
-        ],
-        "title": "ArknightsRogueRecordOut"
-      },
-      "ArknightsRogueTopicOut": {
-        "properties": {
-          "topic_id": {
-            "type": "string",
-            "title": "Topic Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "selected": {
-            "type": "boolean",
-            "title": "Selected",
-            "default": false
-          },
-          "pic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pic"
-          }
-        },
-        "type": "object",
-        "required": [
-          "topic_id",
-          "name"
-        ],
-        "title": "ArknightsRogueTopicOut"
-      },
       "ArticleAssetOut": {
         "properties": {
           "url": {
@@ -23936,6 +24069,19 @@
               }
             ],
             "title": "Interval Minutes"
+          },
+          "active_interval_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Interval Minutes"
           },
           "timeout_minutes": {
             "anyOf": [
@@ -29255,6 +29401,19 @@
             ],
             "title": "Interval Minutes"
           },
+          "active_interval_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Interval Minutes"
+          },
           "timeout_minutes": {
             "anyOf": [
               {
@@ -29362,6 +29521,17 @@
               }
             ],
             "title": "Interval Minutes"
+          },
+          "active_interval_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Interval Minutes"
           },
           "timeout_minutes": {
             "anyOf": [
@@ -30714,6 +30884,17 @@
             ],
             "title": "Interval Minutes"
           },
+          "active_interval_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Interval Minutes"
+          },
           "timeout_minutes": {
             "anyOf": [
               {
@@ -31243,6 +31424,17 @@
           "channel_name": {
             "type": "string",
             "title": "Channel Name"
+          },
+          "channel_master_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Master Id"
           }
         },
         "type": "object",
@@ -32355,6 +32547,1951 @@
           "steam_bound"
         ],
         "title": "SteamVisibilityMeta"
+      },
+      "StrongholdBattleData": {
+        "properties": {
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "team_completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Completed"
+          },
+          "strategy_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Icon Url"
+          },
+          "strategy_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Description"
+          },
+          "trophy_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trophy Before"
+          },
+          "trophy_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trophy After"
+          },
+          "coin_cost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coin Cost"
+          },
+          "sync_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Count"
+          },
+          "kill_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kill Count"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "bosses": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdBossOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bosses"
+          }
+        },
+        "type": "object",
+        "title": "StrongholdBattleData"
+      },
+      "StrongholdBondOperatorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "char_id": {
+            "type": "string",
+            "title": "Char Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "char_id"
+        ],
+        "title": "StrongholdBondOperatorOut"
+      },
+      "StrongholdBondOut": {
+        "properties": {
+          "bond_id": {
+            "type": "string",
+            "title": "Bond Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "layer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer"
+          },
+          "layer_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "role",
+                  "team",
+                  "unknown"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer Scope"
+          },
+          "is_core": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Core"
+          },
+          "activation_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activation Count"
+          },
+          "activation_rule": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "at_least",
+                  "at_most",
+                  "golden"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activation Rule"
+          },
+          "operators": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdBondOperatorOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operators"
+          },
+          "show_operators": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Operators"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bond_id"
+        ],
+        "title": "StrongholdBondOut"
+      },
+      "StrongholdBossOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "enemy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enemy Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "hidden": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden"
+          },
+          "killed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Killed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "StrongholdBossOut"
+      },
+      "StrongholdCommunityOut": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdMatchOut"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdScopeOut"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdVersionOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "ranking": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdRankOut"
+            },
+            "type": "array",
+            "title": "Ranking"
+          },
+          "filtered_role_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Filtered Role Names"
+          },
+          "popular_bonds": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdPopularBondOut"
+            },
+            "type": "array",
+            "title": "Popular Bonds"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdLayerOut"
+            },
+            "type": "array",
+            "title": "Layers"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/StrongholdCoverageOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches",
+          "total",
+          "scopes",
+          "versions",
+          "date",
+          "today",
+          "ranking",
+          "popular_bonds",
+          "layers",
+          "coverage"
+        ],
+        "title": "StrongholdCommunityOut"
+      },
+      "StrongholdCoverageOut": {
+        "properties": {
+          "records": {
+            "type": "integer",
+            "title": "Records"
+          },
+          "roles_with_bonds": {
+            "type": "integer",
+            "title": "Roles With Bonds"
+          },
+          "roles_with_layers": {
+            "type": "integer",
+            "title": "Roles With Layers"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "records_with_unknown_layers": {
+            "type": "integer",
+            "title": "Records With Unknown Layers",
+            "description": "Views with a numeric layer value of unspecified scope."
+          },
+          "roles_with_conflicting_layers": {
+            "type": "integer",
+            "title": "Roles With Conflicting Layers",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "roles_with_bonds",
+          "roles_with_layers",
+          "matches",
+          "records_with_unknown_layers"
+        ],
+        "title": "StrongholdCoverageOut"
+      },
+      "StrongholdEquipmentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "StrongholdEquipmentOut"
+      },
+      "StrongholdLayerMemberOut": {
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/StrongholdMemberOut"
+          },
+          "layers": {
+            "type": "integer",
+            "title": "Layers",
+            "description": "Sum of layer values recorded in this member's role views."
+          }
+        },
+        "type": "object",
+        "required": [
+          "member",
+          "layers"
+        ],
+        "title": "StrongholdLayerMemberOut"
+      },
+      "StrongholdLayerOut": {
+        "properties": {
+          "bond_id": {
+            "type": "string",
+            "title": "Bond Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "layers": {
+            "type": "integer",
+            "title": "Layers",
+            "description": "Sum of recorded role-view values, not the team's actual layer total."
+          },
+          "contributors": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdLayerMemberOut"
+            },
+            "type": "array",
+            "title": "Contributors"
+          },
+          "unattributed_layers": {
+            "type": "integer",
+            "title": "Unattributed Layers"
+          },
+          "team_layers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Layers",
+            "description": "Separate sum of explicitly reported team values."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bond_id",
+          "name",
+          "layers",
+          "contributors",
+          "unattributed_layers"
+        ],
+        "title": "StrongholdLayerOut"
+      },
+      "StrongholdMatchOut": {
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "title": "Season Id"
+          },
+          "season_label": {
+            "type": "string",
+            "title": "Season Label"
+          },
+          "difficulty_id": {
+            "type": "string",
+            "title": "Difficulty Id"
+          },
+          "difficulty_label": {
+            "type": "string",
+            "title": "Difficulty Label"
+          },
+          "mode_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "multi",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode Type"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdVersionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdMemberOut"
+            },
+            "type": "array",
+            "title": "Participants"
+          },
+          "views": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdRecordDetailOut"
+            },
+            "type": "array",
+            "title": "Views"
+          },
+          "my_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Record Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season_id",
+          "season_label",
+          "difficulty_id",
+          "difficulty_label",
+          "id",
+          "ended_at",
+          "success",
+          "participants"
+        ],
+        "title": "StrongholdMatchOut"
+      },
+      "StrongholdMemberOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "nickname": {
+            "type": "string",
+            "title": "Nickname"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "role_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Role Names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nickname"
+        ],
+        "title": "StrongholdMemberOut"
+      },
+      "StrongholdOperatorEffectOut": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "config_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Level",
+            "description": "Same-version chess configuration, not a live measurement."
+          },
+          "reference_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Level",
+            "description": "Level of the reference description."
+          }
+        },
+        "type": "object",
+        "title": "StrongholdOperatorEffectOut"
+      },
+      "StrongholdOperatorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "normal_chess_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normal Chess Id",
+            "description": "Normal chess ID in this battle's game version."
+          },
+          "is_elite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Elite",
+            "description": "Stronghold golden state, independent of evolve phase."
+          },
+          "char_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Char Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "module_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Module Id"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdOperatorEffectOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "module": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdOperatorEffectOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profession": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profession"
+          },
+          "merge_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Level"
+          },
+          "equipment": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdEquipmentOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equipment"
+          },
+          "traits": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdTraitOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Traits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "StrongholdOperatorOut"
+      },
+      "StrongholdOwnOut": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdRecordOut"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdScopeOut"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdVersionOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdRoleOut"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "sync_available": {
+            "type": "boolean",
+            "title": "Sync Available"
+          },
+          "sync_status": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdSyncStatus"
+            },
+            "type": "array",
+            "title": "Sync Status"
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins"
+          },
+          "known_results": {
+            "type": "integer",
+            "title": "Known Results"
+          },
+          "scoped_total": {
+            "type": "integer",
+            "title": "Scoped Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "total",
+          "scopes",
+          "versions",
+          "roles",
+          "sync_available",
+          "sync_status",
+          "wins",
+          "known_results",
+          "scoped_total"
+        ],
+        "title": "StrongholdOwnOut"
+      },
+      "StrongholdPopularBondOut": {
+        "properties": {
+          "bond_id": {
+            "type": "string",
+            "title": "Bond Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bond_id",
+          "name",
+          "matches"
+        ],
+        "title": "StrongholdPopularBondOut"
+      },
+      "StrongholdRankOut": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "member": {
+            "$ref": "#/components/schemas/StrongholdMemberOut"
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins"
+          },
+          "rounds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rounds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "member",
+          "wins",
+          "rounds"
+        ],
+        "title": "StrongholdRankOut"
+      },
+      "StrongholdRecordDetailOut": {
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "title": "Season Id"
+          },
+          "season_label": {
+            "type": "string",
+            "title": "Season Label"
+          },
+          "difficulty_id": {
+            "type": "string",
+            "title": "Difficulty Id"
+          },
+          "difficulty_label": {
+            "type": "string",
+            "title": "Difficulty Label"
+          },
+          "mode_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "multi",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode Type"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "match_id": {
+            "type": "string",
+            "title": "Match Id"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
+          },
+          "pass_round": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Round"
+          },
+          "strategy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Id"
+          },
+          "strategy_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Name"
+          },
+          "strategy_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Icon Url"
+          },
+          "strategy_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Description"
+          },
+          "roster": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdOperatorOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roster"
+          },
+          "bonds": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdBondOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonds"
+          },
+          "battle": {
+            "$ref": "#/components/schemas/StrongholdBattleData"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdMemberOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
+          },
+          "player_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Group Id",
+            "description": "Opaque player key scoped to this match."
+          },
+          "is_own": {
+            "type": "boolean",
+            "title": "Is Own",
+            "default": false
+          },
+          "own_role_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Role Id",
+            "description": "Local role ID, only for the viewer's own record."
+          },
+          "strategy_promoter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Promoter"
+          },
+          "strategy_initial_hp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Initial Hp"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdVersionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "season_id",
+          "season_label",
+          "difficulty_id",
+          "difficulty_label",
+          "id",
+          "match_id",
+          "ended_at",
+          "completed",
+          "pass_round",
+          "strategy_id",
+          "strategy_name",
+          "roster",
+          "bonds",
+          "battle"
+        ],
+        "title": "StrongholdRecordDetailOut"
+      },
+      "StrongholdRecordOut": {
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "title": "Season Id"
+          },
+          "season_label": {
+            "type": "string",
+            "title": "Season Label"
+          },
+          "difficulty_id": {
+            "type": "string",
+            "title": "Difficulty Id"
+          },
+          "difficulty_label": {
+            "type": "string",
+            "title": "Difficulty Label"
+          },
+          "mode_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "multi",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode Type"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "match_id": {
+            "type": "string",
+            "title": "Match Id"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
+          },
+          "pass_round": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Round"
+          },
+          "strategy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Id"
+          },
+          "strategy_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Name"
+          },
+          "strategy_icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Icon Url"
+          },
+          "strategy_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season_id",
+          "season_label",
+          "difficulty_id",
+          "difficulty_label",
+          "id",
+          "match_id",
+          "ended_at",
+          "completed",
+          "pass_round",
+          "strategy_id",
+          "strategy_name"
+        ],
+        "title": "StrongholdRecordOut"
+      },
+      "StrongholdRoleOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          },
+          "channel_id": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2"
+            ],
+            "title": "Channel Id"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "synced_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Synced At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "uid",
+          "channel_id",
+          "role_name",
+          "synced_at"
+        ],
+        "title": "StrongholdRoleOut"
+      },
+      "StrongholdScopeOut": {
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "title": "Season Id"
+          },
+          "season_label": {
+            "type": "string",
+            "title": "Season Label"
+          },
+          "difficulty_id": {
+            "type": "string",
+            "title": "Difficulty Id"
+          },
+          "difficulty_label": {
+            "type": "string",
+            "title": "Difficulty Label"
+          },
+          "mode_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "multi",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode Type"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season_id",
+          "season_label",
+          "difficulty_id",
+          "difficulty_label"
+        ],
+        "title": "StrongholdScopeOut"
+      },
+      "StrongholdSyncIn": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "pattern": "^[0-9]{1,32}$",
+            "title": "Uid"
+          },
+          "channel_id": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2"
+            ],
+            "title": "Channel Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid",
+          "channel_id"
+        ],
+        "title": "StrongholdSyncIn"
+      },
+      "StrongholdSyncStatus": {
+        "properties": {
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "1",
+                  "2"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uid"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "syncing",
+              "idle",
+              "retrying",
+              "reauth",
+              "discovering"
+            ],
+            "title": "State"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "next_sync_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Sync At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "StrongholdSyncStatus"
+      },
+      "StrongholdTraitOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "StrongholdTraitOut"
+      },
+      "StrongholdVersionOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "banner_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Banner Url"
+          },
+          "emblem_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emblem Url"
+          },
+          "last_played_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Played Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "StrongholdVersionOut"
       },
       "TarkovAmmoCatalogOut": {
         "properties": {

@@ -18,6 +18,9 @@ from app.models.member import Member
 # NOT NULL timestamps the services always fill in themselves.
 _APP_SET = frozenset(
     {
+        "arknights_stronghold_matches.ended_at",
+        "arknights_stronghold_records.ended_at",
+        "arknights_stronghold_roles.synced_at",
         "minecraft_perf_rollups.bucket_at",
         "minecraft_perf_samples.sampled_at",
         "minecraft_presence_segments.last_seen_at",

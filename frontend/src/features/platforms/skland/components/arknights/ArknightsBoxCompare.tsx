@@ -18,6 +18,7 @@ import { OwnedCard } from "./OwnedCard";
 import { MissingCard } from "./MissingCard";
 import { OwnedDetailTooltip } from "./OwnedDetailTooltip";
 import { RowLabel } from "./RowLabel";
+import styles from "./Arknights.module.css";
 import { computeRarityProgress } from "./progress";
 import { AddCompareMemberCard } from "@/features/platforms/skland/components/operatorInfo/AddCompareMemberCard";
 
@@ -146,7 +147,7 @@ export function ArknightsBoxCompare() {
   );
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <Space className={styles.compare} direction="vertical" size={16} style={{ width: "100%" }}>
       {candidatesQuery.isError ? (
         <Alert
           type="error"
@@ -169,6 +170,7 @@ export function ArknightsBoxCompare() {
       ) : compareQuery.data ? (
         <OperatorInfoCompareTemplate<ArknightsOperator, ArknightsOwnedChar, ArknightsCompareRow>
           gameName="明日方舟"
+          variant="arknights"
           operators={compareQuery.data.catalog ?? []}
           rows={displayRows}
           selfId={selfId}

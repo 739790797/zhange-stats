@@ -23,6 +23,7 @@
 | 安全、鉴权、Cookie/CSRF、文件管理、上传、限流与权限 | [`security.md`](security.md)                                                                         |
 | 运行日志级别、禁刷规则、日志管道                    | [`logging.md`](logging.md)                                                                           |
 | 目录结构与代码分包                                  | [`directory-layout.md`](directory-layout.md)、[`frontend-architecture.md`](frontend-architecture.md) |
+| 明日方舟卫戍协议战报、日报与官方数据适配            | [`arknights-stronghold.md`](arknights-stronghold.md)                                                 |
 | 硬化路线历史与落地记录                              | [`hardening-roadmap.md`](hardening-roadmap.md)                                                       |
 | 运行时数据目录、上游资源仓同步、备份范围            | [`data/README.md`](../data/README.md)                                                                |
 

@@ -14,6 +14,7 @@ import app.models  # noqa: F401
 from app.core.database import Base
 from app.core.ephemeral_kv import reset_ephemeral_kv_for_tests
 from app.core.timeutil import now as now_beijing
+from app.models.arknights_stronghold import StrongholdRole
 from app.models.checkin_role_pref import CheckinRolePref
 from app.models.member import Member
 from app.models.play_session import PlaySession
@@ -22,8 +23,8 @@ from app.services.checkin import binding
 from app.services.checkin.attempts import load_attempts, record_checkin_attempt
 from app.services.checkin.registry import get_checkin_adapters
 
-# 挂在成员上、但不是签到平台数据的表（Steam 游玩统计）
-_NOT_PLATFORM_DATA = {PlaySession, PresenceSegment}
+# 成员长期历史随成员生命周期保留，平台凭据变动不清理。
+_MEMBER_HISTORY = {PlaySession, PresenceSegment, StrongholdRole}
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +105,8 @@ def test_every_member_scoped_platform_table_is_cleaned_by_exactly_one_adapter() 
 
     scoped = _member_scoped_models()
     assert set(owners) <= scoped
-    handled = set(owners) | _NOT_PLATFORM_DATA | {CheckinRolePref}
+    assert not set(owners) & _MEMBER_HISTORY
+    handled = set(owners) | _MEMBER_HISTORY | {CheckinRolePref}
     for adapter in adapters:
         handled |= {adapter.bind_model, adapter.log_model}
     # 新的按成员 raw 表要挂到对应 adapter.member_raw_models，否则解绑 / 换号后还会展示旧账号

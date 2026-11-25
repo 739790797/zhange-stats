@@ -71,7 +71,7 @@ shared ──禁止──> features/* 或 app/*
 ## 本项目边界示例
 
 - `authStore` 属于 `features/auth/model/`；资料补全和角色成员选择属于 `features/profile/`。
-- Arknights、Endfield、operator info 与 Skland API 同属 `features/platforms/skland/`。
+- Arknights、Endfield、operator info 与 Skland API 同属 `features/platforms/skland/`。明日方舟的战术主题以 `ArknightsTabPanel` 为边界。卫戍协议用 `pane=protocol`，`view=mine` 打开自己的战报，`report` 指向单局战报，`member` 按社区成员筛选。
 - Tarkov 的页面、组件、逻辑、地图 JSON 和 API 客户端归 `features/guides/tarkov/`；主题令牌、字体入口和基础样式由 [`frontend/design-system/`](../frontend/design-system/README.md) 提供。
 - 通用 HTTP transport 与 CSRF 基础工具位于 `shared/api/`；请求层不直接导入 auth、platform 或 guide feature。应用启动时由 app 装配各 owner 的拦截器/请求集成，保持既有行为。
 - `features/site/` 拥有公开站点设置展示与 ICP 备案链接；管理端设置通过该 owner 的 API 复用，不复制客户端。

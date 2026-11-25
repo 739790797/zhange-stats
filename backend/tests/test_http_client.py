@@ -1,5 +1,6 @@
 import gzip
-import time
+from collections.abc import Callable
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -23,16 +24,16 @@ MIB = 1024 * 1024
 class _Chunks(httpx.SyncByteStream):
     """逐块吐 body，记下读到第几块、有没有被关（验证超限时立刻断开）。"""
 
-    def __init__(self, chunks: list[bytes], *, delay: float = 0.0) -> None:
+    def __init__(self, chunks: list[bytes], *, on_chunk: Callable[[], None] | None = None) -> None:
         self._chunks = chunks
-        self._delay = delay
+        self._on_chunk = on_chunk
         self.pulled = 0
         self.closed = False
 
     def __iter__(self):
         for chunk in self._chunks:
-            if self._delay:
-                time.sleep(self._delay)
+            if self._on_chunk is not None:
+                self._on_chunk()
             self.pulled += 1
             yield chunk
 
@@ -60,6 +61,18 @@ def serve(monkeypatch: pytest.MonkeyPatch):
     yield install
     for client in clients:
         client.close()
+
+
+@pytest.fixture
+def advance_clock(monkeypatch: pytest.MonkeyPatch):
+    now = 0.0
+
+    def advance(seconds: float) -> None:
+        nonlocal now
+        now += seconds
+
+    monkeypatch.setattr(http_client, "time", SimpleNamespace(monotonic=lambda: now))
+    return advance
 
 
 def _redirect(location: str, status: int = 302) -> httpx.Response:
@@ -254,21 +267,21 @@ def test_default_cap_is_8_mib_and_can_be_lifted(serve) -> None:
     assert len(http_request("GET", "https://example.test/items.json").content) == 8 * MIB
 
 
-def test_slow_drip_body_hits_the_overall_deadline(serve) -> None:
-    stream = _Chunks([b"x"] * 50, delay=0.02)
+def test_slow_drip_body_hits_the_overall_deadline(serve, advance_clock) -> None:
+    stream = _Chunks([b"x"] * 50, on_chunk=lambda: advance_clock(2))
     serve(lambda _req: httpx.Response(200, stream=stream))
     with pytest.raises(HttpRequestError, match="请求超时"):
-        http_request("GET", "https://example.test/drip", deadline=0.05)
-    assert stream.pulled <= 3
+        http_request("GET", "https://example.test/drip", deadline=5)
+    assert stream.pulled == 3
     assert stream.closed
 
 
-def test_deadline_covers_redirect_hops(serve) -> None:
+def test_deadline_covers_redirect_hops(serve, advance_clock) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
-        time.sleep(0.03)
+        advance_clock(3)
         return _redirect(f"{req.url.path}x")
 
     seen = serve(handler)
     with pytest.raises(HttpRequestError, match="请求超时"):
-        http_request("GET", "https://example.test/a", deadline=0.05)
-    assert len(seen) <= 2
+        http_request("GET", "https://example.test/a", deadline=5)
+    assert [request.url.path for request in seen] == ["/a", "/ax"]

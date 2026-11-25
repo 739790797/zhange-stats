@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { strongholdQueryKey } from "@/features/platforms/skland/api/strongholdApi";
 import {
   fetchRoleMembershipTree,
   replaceRoleMemberships,
@@ -33,6 +34,9 @@ export function useRoleMembershipPicker(platform: CheckinPlatformKey) {
   const saveMemberships = useCallback(
     async (roles: Array<{ game_code: string; role_uid: string; included: boolean }>) => {
       await replaceRoleMemberships(platform, roles);
+      if (platform === "skland") {
+        await queryClient.invalidateQueries({ queryKey: [...strongholdQueryKey, "own"] });
+      }
       await queryClient.invalidateQueries({
         queryKey: STATUS_QUERY_KEY[platform],
       });

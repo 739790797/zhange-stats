@@ -33,9 +33,10 @@ from app.services.job_runner import scheduled_sync_job
 
 # from app.services.minecraft.presence import poll_job_wrapper as minecraft_presence_job
 from app.services.platform_features import JOB_FEATURE_IDS, is_feature_enabled
-from app.services.scheduler_config import JOB_IDS, load_scheduler_config
+from app.services.scheduler_config import JOB_IDS, STRONGHOLD_SYNC_JOB_ID, load_scheduler_config
 from app.services.steam.poller import poll_job_wrapper
 from app.services.articles.texteller import model_sync_job as texteller_model_sync_job
+from app.services.skland.stronghold_sync import stronghold_sync_job_wrapper
 from app.services.upstream_repos import (
     REPO_ARKNIGHTS,
     REPO_ENDFIELD,
@@ -110,6 +111,8 @@ def resolve_job_callable(
         raise RuntimeError("该任务所属功能未启用")
     if job_id == "steam_presence":
         return wrap_scheduled_job(job_id, poll_job_wrapper)
+    if job_id == STRONGHOLD_SYNC_JOB_ID:
+        return wrap_scheduled_job(job_id, stronghold_sync_job_wrapper)
     # if job_id == "minecraft_presence":
     #     return wrap_scheduled_job(job_id, minecraft_presence_job)
     if job_id in CHECKIN_MANUAL_HANDLERS:
@@ -199,6 +202,18 @@ def register_scheduler_jobs(
                 "interval",
                 minutes=interval,
                 **steam_job,
+            )
+            started = True
+
+        if _job_feature_allowed(db, STRONGHOLD_SYNC_JOB_ID):
+            scheduler.add_job(
+                wrap_scheduled_job(STRONGHOLD_SYNC_JOB_ID, stronghold_sync_job_wrapper, quiet=True),
+                "interval",
+                minutes=1,
+                id=STRONGHOLD_SYNC_JOB_ID,
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
             )
             started = True
 

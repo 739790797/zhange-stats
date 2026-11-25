@@ -8,6 +8,7 @@ import {
   sendSklandSms,
   startSklandQrBind,
 } from "@/features/platforms/skland/api/sklandApi";
+import { strongholdQueryKey } from "@/features/platforms/skland/api/strongholdApi";
 import type { SklandStatus } from "@/features/platforms/skland/api/types";
 import { PhoneAuthBindTemplate } from "@/features/auth/components/PhoneAuthBindTemplate";
 import { preferredPhoneAuthMode, type PhoneAuthMode } from "@/features/auth/model/phoneAuth";
@@ -46,7 +47,10 @@ export function SklandBindPanel({
     } else {
       message.success(msg);
     }
-    await queryClient.invalidateQueries({ queryKey: ["profile-me"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["profile-me"] }),
+      queryClient.invalidateQueries({ queryKey: strongholdQueryKey }),
+    ]);
     onSuccess?.();
     if (openRolePickerOnBind && next?.bound && next.token_ok !== false) {
       openPicker();

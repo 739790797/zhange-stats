@@ -15,10 +15,6 @@ export type EndfieldCompareRow = components["schemas"]["EndfieldCompareRowOut"];
 
 export type EndfieldOperator = components["schemas"]["EndfieldOperatorOut"];
 
-export type ArknightsRogue = components["schemas"]["ArknightsRogueOut"];
-
-export type ArknightsRogueRecord = components["schemas"]["ArknightsRogueRecordOut"];
-
 export type ArknightsBoxCompare = components["schemas"]["ArknightsBoxCompareOut"];
 
 export type ArknightsAttendanceCalendar = components["schemas"]["ArknightsAttendanceCalendarOut"];

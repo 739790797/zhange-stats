@@ -1,4 +1,4 @@
-"""SQLite: create_all databases never hand a deleted users / members / articles id out again."""
+"""SQLite: create_all databases never reuse IDs referenced by routes or caches."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 import app.models  # noqa: F401
 from app.core.database import Base, _build_engine
 from app.core.migrate import _BACKEND_ROOT
+from app.core.timeutil import now_naive
+from app.models.arknights_stronghold import StrongholdRole
 from app.models.articles import Article
 from app.models.member import Member
 from app.models.user import User
@@ -22,6 +24,9 @@ _FACTORIES = {
     "users": lambda n: User(username=f"u{n}", display_name=f"U{n}", password_hash="x"),
     "members": lambda n: Member(nickname=f"m{n}"),
     "articles": lambda n: Article(slug=f"a{n}", title=f"A{n}"),
+    "arknights_stronghold_roles": lambda n: StrongholdRole(
+        member_id=1, channel_id="1", uid=str(n), role_name=f"r{n}", synced_at=now_naive()
+    ),
 }
 
 
@@ -47,6 +52,9 @@ def test_deleted_highest_id_is_not_handed_out_again(tmp_path: Path, table: str) 
 
         make = _FACTORIES[table]
         with Session(engine) as db:
+            if table == "arknights_stronghold_roles":
+                db.add(Member(id=1, nickname="owner"))
+                db.flush()
             kept, deleted = make(1), make(2)
             db.add_all([kept, deleted])
             db.commit()

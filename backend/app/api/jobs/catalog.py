@@ -30,6 +30,13 @@ JOB_CATALOG: list[dict[str, Any]] = [
         "platform": "skland",
     },
     {
+        "id": "arknights_stronghold_sync",
+        "name": "卫戍协议战绩同步",
+        "description": "按角色增量保存森空岛卫戍战绩并更新版本资源",
+        "kind": "interval",
+        "platform": "skland",
+    },
+    {
         "id": "arknights_box_sync",
         "sync_category": SYNC_JOB_CATEGORIES["arknights_box_sync"],
         "name": "干员练度更新",
