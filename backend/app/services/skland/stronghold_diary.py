@@ -5,6 +5,8 @@ from collections.abc import Iterable
 
 from app.schemas.stronghold import (
     StrongholdCoverageOut,
+    StrongholdDiaryBondOut,
+    StrongholdDiaryStrategyOut,
     StrongholdLayerMemberOut,
     StrongholdLayerOut,
     StrongholdMemberOut,
@@ -18,17 +20,21 @@ def aggregate_diary(
     views: Iterable,
     bonds: Iterable,
     match_count: int,
-    bond_display,
+    display_entry,
+    catalog_bonds: set[tuple[str, str, str]],
     selected_member: int | None,
     names: dict[RoleKey, str | None],
 ):
     members: dict[int, StrongholdMemberOut] = {}
     role_names = defaultdict(set)
-    winning_names = defaultdict(set)
+    member_names = defaultdict(set)
+    member_matches = defaultdict(set)
     selected_names = set()
     owners = defaultdict(set)
     roles_with_bonds = set()
     wins = defaultdict(dict)
+    strategy_views = defaultdict(set)
+    strategy_fallbacks = defaultdict(dict)
     for row in views:
         identity = (row.match_id, row.channel_id, row.uid)
         members.setdefault(
@@ -40,36 +46,56 @@ def aggregate_diary(
             ),
         )
         owners[identity].add(row.member_id)
+        member_matches[row.member_id].add(row.match_id)
         name = names.get((row.member_id, row.channel_id, row.uid))
         if name:
             role_names[identity].add(name)
+            member_names[row.member_id].add(name)
             if row.member_id == selected_member:
                 selected_names.add(name)
         if row.bonds_known:
             roles_with_bonds.add(identity)
+        if row.strategy_id:
+            strategy = (row.season_id, row.version_id, row.strategy_id)
+            strategy_views[identity].add(strategy)
+            fallback = strategy_fallbacks[strategy]
+            for field in ("name", "icon_url", "description"):
+                if value := getattr(row, f"strategy_{field}"):
+                    fallback[field] = min(fallback.get(field, value), value)
         if row.complete_state is True:
-            if name:
-                winning_names[row.member_id].add(name)
             previous = wins[row.member_id].get(row.match_id)
             if previous is None or (row.pass_round is not None and row.pass_round > previous):
                 wins[row.member_id][row.match_id] = row.pass_round
 
-    rank_data = [
-        (member_id, len(rounds), sum(rounds.values()) if None not in rounds.values() else None)
-        for member_id, rounds in wins.items()
-    ]
-    rank_data.sort(key=lambda row: (-row[1], row[2] is None, -(row[2] or 0), row[0]))
-    ranking = [
-        StrongholdRankOut(
-            rank=index,
-            member=members[member_id].model_copy(update={"role_names": sorted(winning_names[member_id])}),
-            wins=count,
-            rounds=rounds,
+    ranked_members = sorted(member_matches, key=lambda member_id: (-len(member_matches[member_id]), member_id))
+    ranking = []
+    for index, member_id in enumerate(ranked_members[:3], 1):
+        rounds = wins.get(member_id, {})
+        ranking.append(
+            StrongholdRankOut(
+                rank=index,
+                member=members[member_id].model_copy(update={"role_names": sorted(member_names[member_id])}),
+                matches=len(member_matches[member_id]),
+                wins=len(rounds),
+                rounds=sum(rounds.values()) if rounds and None not in rounds.values() else None,
+            )
         )
-        for index, (member_id, count, rounds) in enumerate(rank_data[:3], 1)
+
+    def order(entry):
+        return entry[0], entry[1] or "", entry[2]
+
+    # As with layers, duplicate snapshots of one role in the same match do not add counts.
+    strategy_counts = Counter(next(iter(ids)) for ids in strategy_views.values() if len(ids) == 1)
+    strategies = [
+        StrongholdDiaryStrategyOut(
+            strategy_id=strategy[-1],
+            count=strategy_counts[strategy],
+            **{**strategy_fallbacks[strategy], **display_entry(strategy, "strategy")},
+        )
+        for strategy in sorted(strategy_counts, key=lambda item: (-strategy_counts[item], order(item)))
     ]
 
-    names = {}
+    bond_names = {}
     icons = {}
     uses = defaultdict(set)
     role_layers = defaultdict(set)
@@ -78,7 +104,7 @@ def aggregate_diary(
     for row in bonds:
         bond = (row.season_id, row.version_id, row.bond_id)
         if row.name:
-            names[bond] = min(names.get(bond, row.name), row.name)
+            bond_names[bond] = min(bond_names.get(bond, row.name), row.name)
         if row.icon_url:
             icons[bond] = min(icons.get(bond, row.icon_url), row.icon_url)
         if row.active is not True:
@@ -96,10 +122,12 @@ def aggregate_diary(
                 unknown_layers.add(role)
 
     def display(bond):
-        return {"bond_id": bond[-1], "name": names.get(bond), "icon_url": icons.get(bond), **bond_display(bond)}
-
-    def order(bond):
-        return bond[0], bond[1] or "", bond[2]
+        return {
+            "bond_id": bond[-1],
+            "name": bond_names.get(bond),
+            "icon_url": icons.get(bond),
+            **display_entry(bond, "bond"),
+        }
 
     most_used = max(map(len, uses.values()), default=0)
     popular = [
@@ -151,11 +179,21 @@ def aggregate_diary(
         )
         for bond_id in sorted(layers.keys() | team_totals.keys(), key=lambda bond: (-layers[bond], order(bond)))
     ]
-    return (
-        ranking,
-        popular,
-        layer_stats,
-        StrongholdCoverageOut(
+    covenants = [
+        StrongholdDiaryBondOut(
+            **display(bond),
+            matches=len(uses.get(bond, ())),
+            layers=layers.get(bond) if bond in uses else 0,
+        )
+        for bond in sorted(catalog_bonds | uses.keys(), key=lambda bond: (-layers[bond], order(bond)))
+    ]
+    return {
+        "ranking": ranking,
+        "popular_bonds": popular,
+        "layers": layer_stats,
+        "strategies": strategies,
+        "covenants": covenants,
+        "coverage": StrongholdCoverageOut(
             records=len(owners),
             roles_with_bonds=len(roles_with_bonds),
             roles_with_layers=len(roles_with_layers),
@@ -163,5 +201,5 @@ def aggregate_diary(
             records_with_unknown_layers=len(unknown_layers),
             roles_with_conflicting_layers=len(conflicting_roles),
         ),
-        sorted(selected_names),
-    )
+        "filtered_role_names": sorted(selected_names),
+    }

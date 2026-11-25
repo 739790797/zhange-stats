@@ -1,4 +1,5 @@
-.shell {
+.shell,
+.portalTheme {
   --ark-ink: #17191c;
   --ark-paper: #f3f2ed;
   --ark-panel: #fff;
@@ -7,28 +8,34 @@
   --ark-signal: #b8461b;
   --ark-mono: "IBM Plex Mono", Consolas, monospace;
   --ark-gutter: clamp(12px, 2.6vw, 34px);
-  flex: 1 0 auto;
-  min-width: 0;
-  background: var(--ark-paper);
   color: var(--ark-ink);
   font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
 }
 
-.hero {
+.shell {
+  container: arknights / inline-size;
+  flex: 1 0 auto;
+  min-width: 0;
+  background: var(--ark-paper);
+}
+
+.topBar {
   isolation: isolate;
   position: relative;
-  display: flex;
-  align-items: end;
-  min-height: clamp(126px, 15vw, 204px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 50px;
   overflow: hidden;
-  padding: 23px var(--ark-gutter) 23px;
+  padding-inline: var(--ark-gutter);
   border-bottom: 4px solid var(--ark-signal);
   background: var(--ark-ink);
   color: var(--ark-panel);
 }
 
-.hero::before {
+.topBar::before {
   position: absolute;
   z-index: -1;
   inset: 0;
@@ -41,51 +48,16 @@
   content: "";
 }
 
-.heroTitle {
-  z-index: 1;
-}
-
-.heroLabel {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0 0 9px;
-  color: #d7d8d9;
-  font: 600 12px/1 var(--ark-mono);
-  letter-spacing: 0.26em;
-}
-
-.heroLabel::before {
-  width: 18px;
-  height: 5px;
-  background: #ef7d50;
-  content: "";
-}
-
-.hero h1 {
+.topBar h1 {
   margin: 0;
   color: inherit;
-  font-size: clamp(39px, 6.55vw, 88px);
-  font-weight: 900;
-  letter-spacing: 0.045em;
-  line-height: 1.02;
-}
-
-.shell[data-pane="protocol"] .hero {
-  min-height: 0;
-  padding-block: 11px;
-}
-
-.shell[data-pane="protocol"] .heroLabel {
-  display: none;
-}
-
-.shell[data-pane="protocol"] .hero h1 {
   font-size: 24px;
-  letter-spacing: 0;
+  font-weight: 900;
+  line-height: 1.02;
+  white-space: nowrap;
 }
 
-.heroPattern {
+.barPattern {
   position: absolute;
   z-index: -1;
   inset: 0 2% 0 auto;
@@ -106,7 +78,7 @@
   );
 }
 
-.heroPattern::after {
+.barPattern::after {
   position: absolute;
   inset: 0 36% 0 21%;
   background: repeating-linear-gradient(0deg, #ffffff0d 0 1px, transparent 1px 5px);
@@ -115,23 +87,21 @@
 
 .navigation {
   display: flex;
+  justify-content: center;
   gap: 4px;
-  padding: 9px var(--ark-gutter) 0;
-  border-bottom: 1px solid var(--ark-line);
-  background: #e6e6e1;
 }
 
 .navLink {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 8px clamp(12px, 2.8vw, 36px);
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 16px;
   border-bottom: 3px solid transparent;
-  background: #d6d8d9;
-  color: var(--ark-ink);
-  clip-path: polygon(0 12px, 12px 0, 100% 0, 100% 100%, 0 100%);
+  background: #282c31;
+  color: #d7d8d9;
+  clip-path: polygon(0 8px, 8px 0, 100% 0, 100% 100%, 0 100%);
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
@@ -139,13 +109,13 @@
 }
 
 .navLink:hover {
-  background: var(--ark-panel);
-  color: var(--ark-ink);
+  background: #30343a;
+  color: var(--ark-panel);
 }
 
 .navLink[aria-current="page"] {
-  border-bottom-color: var(--ark-signal);
-  background: var(--ark-ink);
+  border-bottom-color: #ef7d50;
+  background: #30343a;
   color: var(--ark-panel);
 }
 
@@ -157,10 +127,6 @@
 .content {
   min-width: 0;
   padding: clamp(16px, 2.5vw, 32px) var(--ark-gutter) var(--ark-gutter);
-}
-
-.shell[data-pane="protocol"] .content {
-  padding-block-start: clamp(10px, 1.2vw, 16px);
 }
 
 .sectionHeader {
@@ -220,29 +186,26 @@
   outline: 2px solid var(--ark-signal);
 }
 
-@media (max-width: 576px) {
-  .hero {
-    padding-block-end: 18px;
+@container arknights (max-width: 620px) {
+  .topBar {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    row-gap: 3px;
+    padding-block-start: 6px;
   }
 
-  .heroPattern {
-    inset-inline-end: -19%;
-    width: 59%;
-  }
-
-  .navigation {
-    padding-inline: 5px;
+  .topBar h1 {
+    font-size: 20px;
   }
 
   .navLink {
-    flex: 1 1 0;
     gap: 5px;
-    min-width: 0;
-    min-height: 46px;
-    padding-inline: 3px;
+    padding-inline: 6px;
     font-size: 13px;
   }
+}
 
+@media (max-width: 576px) {
   .compare :global(.operator-compare-member) {
     width: 126px !important;
     min-width: 126px !important;

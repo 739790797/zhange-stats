@@ -15,7 +15,9 @@ const jointSeats = 4;
 
 function Strategy({ record }: { record: StrongholdRecordDetail }) {
   const name = record.strategy_name ?? record.strategy_id;
-  const icon = <BattleIcon src={record.strategy_icon_url} fallback={<FlagOutlined />} />;
+  const icon = (
+    <BattleIcon kind="strategy" src={record.strategy_icon_url} fallback={<FlagOutlined />} />
+  );
   if (!name && !record.strategy_icon_url && !record.strategy_description) {
     return (
       <div className={styles.seatStrategy}>

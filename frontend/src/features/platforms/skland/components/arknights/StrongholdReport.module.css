@@ -114,8 +114,9 @@
 .seat {
   --seat-rail: var(--sh-line);
   box-shadow: inset 3px 0 var(--seat-rail);
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   align-content: stretch;
+  container: stronghold-seat / inline-size;
 }
 .seat[data-own="true"] {
   border-color: var(--sh-amber);
@@ -214,10 +215,6 @@ button.seatStrategy:hover,
 button.seatStrategy[aria-expanded="true"] {
   color: var(--sh-win);
   background: #0f2428;
-}
-.seatStrategy > span:first-child {
-  width: 30px;
-  height: 30px;
 }
 .emptySeat {
   grid-template-columns: auto 1fr;
@@ -551,10 +548,6 @@ button.seatStrategy[aria-expanded="true"] {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
-.barLabel > span:first-child {
-  width: 23px;
-  height: 23px;
-}
 .emptyLine {
   padding: 10px;
   color: var(--sh-muted);
@@ -626,7 +619,7 @@ button.seatStrategy[aria-expanded="true"] {
   gap: 8px;
   padding-block-end: 5px;
 }
-.effectHeading > span {
+.effectHeading > span:not([data-kind]) {
   width: 37px;
   height: 37px;
   border-color: #528f87;
@@ -770,5 +763,21 @@ button.seatStrategy[aria-expanded="true"] {
     gap: 4px;
     padding-inline: 5px;
     font-size: 13px;
+  }
+}
+
+@container stronghold-report (max-width: 320px) {
+  .board .seatList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container stronghold-seat (max-width: 200px) {
+  .seatSelect strong {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .ownMark {
+    grid-row: 1;
   }
 }

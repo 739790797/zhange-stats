@@ -1,6 +1,18 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Space, Spin, Tag, Tooltip, Typography, message } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
+  notification,
+} from "antd";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Dayjs } from "dayjs";
 import { fetchSklandGameEvents } from "@/features/platforms/skland/api/sklandApi";
@@ -129,7 +141,7 @@ function EventTimeline({ events, arknights }: { events: GameScheduleEvent[]; ark
         overflowY: "hidden",
         border: arknights ? "1px solid var(--ark-line)" : "1px solid rgba(0,0,0,0.06)",
         borderRadius: arknights ? 0 : 8,
-        background: arknights ? "var(--ark-panel)" : "#fafafa",
+        background: arknights ? "transparent" : "#fafafa",
       }}
     >
       <div style={{ minWidth: trackWidth }}>
@@ -276,7 +288,7 @@ function EventTimeline({ events, arknights }: { events: GameScheduleEvent[]; ark
                 width: arknights ? "100%" : trackWidth,
                 height: ROW_HEIGHT,
                 borderBottom: "1px solid rgba(0,0,0,0.04)",
-                background: "#fff",
+                backgroundColor: arknights ? "transparent" : "#fff",
                 backgroundImage: "linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px)",
                 backgroundSize: `${DAY_WIDTH}px 100%`,
               }}
@@ -331,13 +343,20 @@ function GameEventsTimeline({ game, arknights = false }: { game: GameTab; arknig
   });
 
   const onRefresh = async () => {
+    const notify = (type: "success" | "error", text: string) => {
+      if (arknights) {
+        notification[type]({ message: text, placement: "bottomRight", duration: 3 });
+      } else {
+        message[type](text);
+      }
+    };
     setRefreshing(true);
     try {
       const data = await fetchSklandGameEvents(game, true);
       queryClient.setQueryData(["skland-game-events", game], data);
-      message.success("已刷新活动日历");
+      notify("success", "已刷新活动日历");
     } catch (e: unknown) {
-      message.error(apiError(e, "刷新活动日历失败"));
+      notify("error", apiError(e, "刷新活动日历失败"));
     } finally {
       setRefreshing(false);
     }
@@ -421,7 +440,7 @@ function GameEventsTimeline({ game, arknights = false }: { game: GameTab; arknig
                     border: "1px solid rgba(0,0,0,0.06)",
                     borderRadius: arknights ? 0 : 8,
                     borderLeft: arknights ? "3px solid var(--ark-line)" : undefined,
-                    background: "#fff",
+                    background: arknights ? "transparent" : "#fff",
                   }}
                 >
                   {event.banner ? (

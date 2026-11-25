@@ -226,23 +226,26 @@ def _battle(
     scene="scene-a",
     season="s1",
     version="V3_1",
+    difficulty="abyss",
     start=START,
     end=T0,
     passed=True,
     team_passed=True,
     rounds=15,
     bonds=None,
+    strategy_id=None,
 ):
     return RoleBattle(
         upstream_view_id=f"{role[1]}-{key}",
         season_id=season,
         season_label="规程",
-        difficulty_id="abyss",
-        difficulty_label="终极模拟",
+        difficulty_id=difficulty,
+        difficulty_label="终极模拟" if difficulty == "abyss" else "其他难度",
         ended_at=end,
         mode_type=mode,
         completed=passed,
         pass_round=rounds,
+        strategy_id=strategy_id,
         strategy_name="昆图斯",
         scene_id=scene,
         version_id=version,
@@ -321,7 +324,7 @@ def test_joint_scene_match_is_unique_and_keeps_both_perspectives(env, order):
     assert layers["layers"] == 698 and layers["team_layers"] is None
     assert [(c["member"]["id"], c["layers"]) for c in layers["contributors"]] == [(2, 397), (1, 301)]
     assert [(row["bond_id"], row["matches"]) for row in diary["popular_bonds"]] == [("a", 1)]
-    assert [r["member"]["id"] for r in diary["ranking"]] == [2]
+    assert [(r["member"]["id"], r["matches"], r["wins"]) for r in diary["ranking"]] == [(1, 1, 0), (2, 1, 1)]
     match = diary["matches"][0]
     assert match["ended_at"] == "2026-11-23T20:00:00+08:00"
     assert match["success"] and "provisional" not in match
@@ -356,7 +359,15 @@ def test_team_result_uses_latest_known_settlement_without_affecting_personal_win
     assert match["success"] is expected
     assert env.get(4, f"/reports/{match['id']}")["success"] is expected
     assert match["ended_at"] == "2026-11-23T20:00:00+08:00"
-    assert not diary["ranking"]
+    assert [(r["member"]["id"], r["matches"], r["wins"]) for r in diary["ranking"]] == [
+        (1, 1, 0),
+        (2, 1, 0),
+        (3, 1, 0),
+    ]
+    for result, success in (("complete", True), ("interrupted", False)):
+        filtered = env.get(4, params={"result": result})
+        assert filtered["total"] == filtered["coverage"]["matches"] == int(expected is success)
+        assert filtered["matches"] == ([match] if expected is success else [])
 
 
 def test_missing_scene_skips_only_that_record(env):
@@ -532,10 +543,20 @@ def test_unbind_replace_and_rebind_preserve_history_and_prevent_reinsert(env, mo
         assert env.get(4) == old_diary
 
 
-def test_diary_filters_only_affect_the_feed_and_use_beijing_end_date(env):
+def test_diary_filters_apply_to_every_metric_and_use_beijing_end_date(env):
     env.enable()
     env.rows[A] = [
-        _battle(A, "solo", mode="single", scene="scene-solo", end="2026-11-23T15:59:59Z", bonds=[_bond(layer=80)]),
+        _battle(
+            A,
+            "solo",
+            mode="single",
+            scene="scene-solo",
+            end="2026-11-23T15:59:59Z",
+            difficulty="normal",
+            bonds=[_bond(layer=80)],
+            strategy_id="solo",
+            team_passed=False,
+        ),
         _battle(
             A,
             "after-midnight",
@@ -544,31 +565,195 @@ def test_diary_filters_only_affect_the_feed_and_use_beijing_end_date(env):
             end="2026-11-23T16:00:00Z",
             mode="single",
         ),
-        _battle(A, "joint", rounds=16, bonds=[_bond(layer=55, scope="unknown"), _bond("b", layer=0)]),
+        _battle(
+            A,
+            "joint",
+            rounds=16,
+            bonds=[_bond(layer=55, scope="unknown"), _bond("b", layer=0), _bond("missing", layer=None)],
+            strategy_id="joint-a",
+            team_passed=False,
+        ),
     ]
-    env.rows[ALT_A] = [_battle(ALT_A, "joint-alt", rounds=17)]
-    env.rows[B] = [_battle(B, "joint-b", rounds=None, bonds=[_bond(layer=0, scope="unknown")])]
+    env.rows[ALT_A] = [_battle(ALT_A, "joint-alt", rounds=17, team_passed=False)]
+    env.rows[B] = [_battle(B, "joint-b", rounds=None, bonds=[_bond(layer=0, scope="unknown")], team_passed=False)]
     for member, role, expected in [(1, A, 3), (1, ALT_A, 1), (2, B, 1)]:
         assert env.persist(member, *role).new_records == expected
+    with Session(env.engine) as db:
+        version = db.get(StrongholdVersion, ("s1", "V3_1"))
+        version.catalog = {"bond": {"never": {"name": "未出现盟约"}}}
+        db.commit()
     diary = env.get(4)
     assert diary["total"] == 2 and diary["coverage"]["matches"] == 2
     assert [r["ended_at"] for r in diary["matches"]] == ["2026-11-23T23:59:59+08:00", "2026-11-23T20:00:00+08:00"]
-    assert [(r["member"]["id"], r["wins"], r["rounds"]) for r in diary["ranking"]] == [(1, 2, 32), (2, 1, None)]
+    assert [(r["member"]["id"], r["matches"], r["wins"], r["rounds"]) for r in diary["ranking"]] == [
+        (1, 2, 2, 32),
+        (2, 1, 1, None),
+    ]
     assert [(row["bond_id"], row["layers"]) for row in diary["layers"]] == [("a", 135), ("b", 0)]
     assert [(c["member"]["id"], c["layers"]) for c in diary["layers"][0]["contributors"]] == [(1, 135), (2, 0)]
     assert diary["popular_bonds"][0]["matches"] == 2
-    for params, total in (
-        ({"mode": "single", "member": 2}, 0),
-        ({"mode": "multi", "member": 2}, 1),
-        ({"season": "other", "offset": 1}, 0),
-        ({"difficulty": "other"}, 0),
+
+    params = {
+        "version": "s1:V3_1",
+        "date": "2026-11-23",
+        "difficulty": "abyss",
+        "mode": "multi",
+        "result": "interrupted",
+    }
+    filtered = env.get(4, params=params)
+    assert filtered["selected_version_key"] == "s1:V3_1"
+    assert filtered["total"] == filtered["coverage"]["matches"] == 1
+    assert filtered["matches"] == diary["matches"][1:]
+    assert filtered["matches"][0]["success"] is False
+    assert [(r["member"]["id"], r["matches"], r["wins"], r["rounds"]) for r in filtered["ranking"]] == [
+        (1, 1, 1, 17),
+        (2, 1, 1, None),
+    ]
+    assert [(row["strategy_id"], row["count"]) for row in filtered["strategies"]] == [("joint-a", 1)]
+    assert [(row["bond_id"], row["layers"]) for row in filtered["layers"]] == [("a", 55), ("b", 0)]
+    assert [(row["bond_id"], row["matches"]) for row in filtered["popular_bonds"]] == [
+        ("a", 1),
+        ("b", 1),
+        ("missing", 1),
+    ]
+    assert {row["bond_id"]: row["layers"] for row in filtered["covenants"]} == {
+        "a": 55,
+        "b": 0,
+        "missing": None,
+        "never": 0,
+    }
+    assert {scope["difficulty_id"] for scope in filtered["scopes"]} == {"abyss", "normal"}
+
+    for changed in (
+        {"version": "s1:other"},
+        {"date": "2026-11-24"},
+        {"difficulty": "normal"},
+        {"mode": "single"},
+        {"result": "complete"},
+        {"season": "other"},
+        {"member": 3},
     ):
-        filtered = env.get(2, params=params)
-        assert filtered["total"] == total
-        for key in ("ranking", "popular_bonds", "layers", "coverage"):
-            assert filtered[key] == diary[key]
+        empty = env.get(4, params={**params, **changed})
+        assert empty["total"] == empty["coverage"]["matches"] == 0
+        assert not any(empty[key] for key in ("matches", "ranking", "popular_bonds", "layers", "strategies"))
+        assert all(row["layers"] == 0 and row["matches"] == 0 for row in empty["covenants"])
+    legacy_member = env.get(4, params={"member": 2})
+    for key in ("total", "matches", "ranking", "popular_bonds", "layers", "coverage", "strategies", "covenants"):
+        assert legacy_member[key] == filtered[key]
+    assert env.get(4, params={"result": "complete"})["matches"] == diary["matches"][:1]
     assert env.get(4, params={"date": "2026-11-24"})["coverage"]["matches"] == 1
     assert env.get(4, params={"date": "2026-11-22"})["coverage"]["matches"] == 0
+
+
+def test_diary_ranks_members_by_distinct_matches_across_pages(env):
+    env.enable()
+    env.rows[A] = [_battle(A, "winner")]
+    env.rows[ALT_A] = [_battle(ALT_A, "same-match", passed=False)]
+    env.rows[B] = [
+        _battle(B, "interrupted", mode="single", scene="interrupted", end="2026-11-23T12:30:00Z", passed=False),
+        _battle(B, "unknown", mode="single", scene="unknown", end="2026-11-23T12:15:00Z", passed=None),
+    ]
+    for member, role in ((1, A), (1, ALT_A), (2, B)):
+        env.persist(member, *role)
+
+    diary = env.get(4)
+    assert [row["success"] for row in diary["matches"]] == [False, None, True]
+    assert [(r["rank"], r["member"]["id"], r["matches"]) for r in diary["ranking"]] == [(1, 2, 2), (2, 1, 1)]
+    assert diary["ranking"][1]["member"]["role_names"] == [_role(A).role_name, _role(ALT_A).role_name]
+    page = env.get(4, params={"offset": 2, "limit": 1})
+    assert page["matches"] == diary["matches"][2:]
+    assert page["ranking"] == diary["ranking"]
+
+    for result, member in (("complete", 1), ("interrupted", 2)):
+        (leader,) = env.get(4, params={"result": result})["ranking"]
+        assert (leader["rank"], leader["member"]["id"], leader["matches"]) == (1, member, 1)
+
+
+def test_diary_strategy_pie_counts_all_matches_and_each_distinct_role_view(env):
+    env.enable()
+    env.rows[A] = [
+        _battle(A, strategy_id="frequent"),
+        *[_battle(A, f"solo-{i}", scene=f"solo-{i}", mode="single", strategy_id="frequent") for i in range(13)],
+        _battle(A, "old", scene="old", version="old", strategy_id="frequent"),
+        _battle(A, "missing", scene="missing", mode="single"),
+    ]
+    env.persist(1, *A)
+    env.rows[B] = [_battle(B, strategy_id="rare"), _battle(B, "conflict", scene="conflict", strategy_id="rare")]
+    env.persist(2, *B)
+    env.rows[B][1] = _battle(B, "conflict", scene="conflict", strategy_id="frequent")
+    env.persist(5, *B)
+    label = "游戏内策略名"
+    with Session(env.engine) as db:
+        version = db.get(StrongholdVersion, ("s1", "V3_1"))
+        version.catalog = {
+            "game": {"strategy": {"frequent": {"name": label}}},
+            "strategy": {"frequent": {"name": "发起者", "description": "版本效果说明", "icon_url": ICON}},
+        }
+        db.get(Member, 1).avatar_url = "/site-avatar.png"
+        db.commit()
+
+    diary = env.get(4, params={"limit": 1})
+    assert len(diary["matches"]) == 1 and diary["coverage"]["matches"] == 17
+    assert diary["ranking"][0]["member"]["avatar_url"] == "/site-avatar.png"
+    assert [(row["version_key"], row["strategy_id"], row["count"]) for row in diary["strategies"]] == [
+        ("s1:V3_1", "frequent", 14),
+        ("s1:V3_1", "rare", 1),
+        ("s1:old", "frequent", 1),
+    ]
+    main = diary["strategies"][0]
+    assert (main["name"], main["description"], main["icon_url"]) == (label, "版本效果说明", ICON)
+    params = {"version": "s1:V3_1", "mode": "single", "result": "complete"}
+    filtered = env.get(4, params=params)
+    assert len(filtered["matches"]) == 12 and filtered["total"] == filtered["coverage"]["matches"] == 14
+    assert [(row["strategy_id"], row["count"]) for row in filtered["strategies"]] == [("frequent", 13)]
+    next_page = env.get(4, params={**params, "offset": 12})
+    assert len(next_page["matches"]) == 2
+    assert not {row["id"] for row in filtered["matches"]} & {row["id"] for row in next_page["matches"]}
+    assert {**next_page, "matches": filtered["matches"]} == filtered
+    assert env.get(4, params={"date": "2026-11-22"})["strategies"] == []
+
+
+def test_diary_covenants_include_version_catalog_and_distinguish_zero_from_missing(env):
+    env.enable()
+    env.rows[A] = [
+        _battle(
+            A, bonds=[_bond("active", 75), _bond("missing", None), _bond("zero", 0), _bond("team", 12, scope="team")]
+        ),
+        _battle(
+            A, "solo", scene="solo", mode="single", bonds=[_bond("active", 45), _bond("inactive", 200, active=False)]
+        ),
+    ]
+    env.persist(1, *A)
+    with Session(env.engine) as db:
+        version = db.get(StrongholdVersion, ("s1", "V3_1"))
+        version.catalog = {
+            "bond": {"active": {"name": "版本盟约", "description": "版本盟约效果"}, "inactive": {"name": "未激活"}},
+            "game": {"bond": {"catalog-only": {"name": "游戏资料盟约", "icon_url": ICON}}},
+        }
+        unpublished_in_records = stronghold_resources.ensure_version(db, "s1", "old")
+        unpublished_in_records.catalog = {"bond": {"archived": {"name": "历史盟约"}}}
+        db.commit()
+
+    diary = env.get(4, params={"version": "s1:V3_1", "limit": 1})
+    assert [(row["bond_id"], row["layers"], row["matches"]) for row in diary["covenants"]] == [
+        ("active", 120, 2),
+        ("catalog-only", 0, 0),
+        ("inactive", 0, 0),
+        ("missing", None, 1),
+        ("team", None, 1),
+        ("zero", 0, 1),
+    ]
+    assert diary["covenants"][0]["description"] == "版本盟约效果"
+    assert diary["covenants"][1]["icon_url"] == ICON
+    assert next(row for row in diary["layers"] if row["bond_id"] == "team")["team_layers"] == 12
+    empty_day = env.get(4, params={"date": "2026-11-22"})
+    assert empty_day["coverage"]["matches"] == 0
+    assert [(row["bond_id"], row["layers"]) for row in empty_day["covenants"]] == [
+        ("active", 0),
+        ("catalog-only", 0),
+        ("inactive", 0),
+        ("archived", 0),
+    ]
 
 
 def test_known_team_layers_are_separate_and_duplicate_game_role_is_unattributed(env):
@@ -690,14 +875,19 @@ def test_unknown_mode_and_outcome_do_not_use_the_new_match_placeholder(env):
     path = f"/reports/{match['id']}"
     assert match["success"] is None
     assert env.get(4, path)["success"] is None
+    assert env.get(4, params={"result": "complete"})["total"] == 0
+    assert env.get(4, params={"result": "interrupted"})["total"] == 0
+    assert env.request(4, "GET", "/community", params={"result": "unknown"}).status_code == 422
     assert env.get(1, "/me", params={"result": "unknown"})["records"][0]["completed"] is None
 
     with Session(env.engine) as db:
         legacy = db.get(StrongholdMatch, match["id"])
         legacy.source_key = "pre-scene-source-key"
+        legacy.scene_key = None
         legacy.success = True
         db.commit()
     assert env.get(4, path)["success"] is True
+    assert [row["id"] for row in env.get(4, params={"result": "complete"})["matches"]] == [match["id"]]
 
 
 def test_anonymized_site_member_drops_out_of_history(env):
@@ -709,7 +899,46 @@ def test_anonymized_site_member_drops_out_of_history(env):
         db.get(User, 1).anonymized_at = now_naive()
         db.commit()
     assert env.get(4)["total"] == 0
+    assert env.get(4, params={"result": "complete"})["total"] == 0
     assert env.request(4, "GET", f"/reports/{match['id']}").status_code == 404
+
+
+def test_latest_version_follows_opening_time_not_selected_date_or_matching_results(env, monkeypatch):
+    env.enable()
+    monkeypatch.setattr(stronghold, "now_naive", lambda: datetime(2026, 11, 23, 22))
+    params = {"version": "latest", "difficulty": "abyss", "result": "complete"}
+    no_version = env.get(4, params=params)
+    assert no_version["selected_version_key"] is None and no_version["total"] == 0
+    assert no_version["covenants"] == []
+
+    env.rows[A] = [
+        _battle(A, "older-play", scene="older-play", version="Z_older", end="2026-11-23T11:30:00Z"),
+        _battle(A, "newer-play", scene="newer-play", version="A_recent"),
+    ]
+    env.persist(1, *A)
+    with Session(env.engine) as db:
+        future = stronghold_resources.ensure_version(db, "s1", "future")
+        future.starts_at = datetime(2026, 11, 24)
+        db.commit()
+    fallback = env.get(4, params=params)
+    assert fallback["selected_version_key"] == "s1:A_recent" and fallback["total"] == 1
+
+    with Session(env.engine) as db:
+        db.get(StrongholdVersion, ("s1", "Z_older")).starts_at = datetime(2026, 11, 20)
+        current = stronghold_resources.ensure_version(db, "s1", "A_open")
+        current.starts_at = datetime(2026, 11, 22)
+        current.catalog = {"bond": {"new-only": {"name": "新版本盟约"}}}
+        db.commit()
+    for day in (None, "2026-11-21"):
+        current_day = env.get(4, params={**params, **({"date": day} if day else {})})
+        assert current_day["date"] == (day or "2026-11-23")
+        assert current_day["selected_version_key"] == "s1:A_open"
+        assert current_day["total"] == current_day["coverage"]["matches"] == 0
+        assert [(row["bond_id"], row["layers"]) for row in current_day["covenants"]] == [("new-only", 0)]
+    assert env.get(4, params={"version": "s1:Z_older"})["total"] == 1
+    all_versions = env.get(4)
+    assert all_versions["selected_version_key"] is None and all_versions["total"] == 2
+    assert env.request(1, "GET", "/me", params={"version": "latest"}).status_code == 422
 
 
 def test_version_scope_groups_daily_statistics_and_retains_archived_effects(env):

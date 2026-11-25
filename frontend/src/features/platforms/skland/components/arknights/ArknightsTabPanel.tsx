@@ -45,28 +45,25 @@ export function ArknightsTabPanel({
   return (
     <ConfigProvider theme={arknightsTheme}>
       <section className={styles.shell} aria-label="明日方舟" data-pane={current.key}>
-        <header className={styles.hero}>
-          <div className={styles.heroTitle}>
-            <p className={styles.heroLabel} lang="en">
-              ARKNIGHTS
-            </p>
-            <h1>明日方舟</h1>
-          </div>
-          <div className={styles.heroPattern} aria-hidden="true" />
+        <header className={styles.topBar}>
+          <h1>明日方舟</h1>
+          <nav className={styles.navigation} aria-label="明日方舟功能">
+            {available.map(({ key, label, Icon }) => (
+              <Link
+                key={key}
+                className={styles.navLink}
+                to={{
+                  search: key === "calendar" ? "?tab=arknights" : `?tab=arknights&pane=${key}`,
+                }}
+                aria-current={current.key === key ? "page" : undefined}
+              >
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+              </Link>
+            ))}
+          </nav>
+          <div className={styles.barPattern} aria-hidden="true" />
         </header>
-        <nav className={styles.navigation} aria-label="明日方舟功能">
-          {available.map(({ key, label, Icon }) => (
-            <Link
-              key={key}
-              className={styles.navLink}
-              to={{ search: key === "calendar" ? "?tab=arknights" : `?tab=arknights&pane=${key}` }}
-              aria-current={current.key === key ? "page" : undefined}
-            >
-              <Icon aria-hidden="true" />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
         <div className={styles.content}>
           {current.key !== "protocol" ? (
             <header className={styles.sectionHeader}>
@@ -74,7 +71,12 @@ export function ArknightsTabPanel({
             </header>
           ) : null}
           {current.key === "protocol" ? (
-            <ArknightsStrongholdPanel bound={bound} roles={roles} bindFallback={bindFallback} />
+            <ArknightsStrongholdPanel
+              title={current.label}
+              bound={bound}
+              roles={roles}
+              bindFallback={bindFallback}
+            />
           ) : !bound ? (
             bindFallback
           ) : current.key === "compare" ? (

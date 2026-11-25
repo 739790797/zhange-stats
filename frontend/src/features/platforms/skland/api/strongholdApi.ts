@@ -1,11 +1,14 @@
 import { client } from "@/shared/api/http";
-import type { components } from "@/shared/api/generated/schema";
+import type { components, paths } from "@/shared/api/generated/schema";
 
 export const strongholdQueryKey = ["arknights-stronghold"] as const;
 
 const path = "/skland/arknights/stronghold";
 
 type Schema = components["schemas"];
+type CommunityQuery = NonNullable<
+  paths["/api/skland/arknights/stronghold/community"]["get"]["parameters"]["query"]
+>;
 export type StrongholdVersion = Schema["StrongholdVersionOut"];
 export type StrongholdBond = Schema["StrongholdBondOut"];
 export type StrongholdSyncStatus = Schema["StrongholdSyncStatus"];
@@ -17,6 +20,7 @@ export type StrongholdRecordDetail = Schema["StrongholdRecordDetailOut"];
 export type StrongholdMode = NonNullable<StrongholdScope["mode_type"]>;
 export type StrongholdOwn = Schema["StrongholdOwnOut"];
 export type StrongholdCommunity = Schema["StrongholdCommunityOut"];
+export type StrongholdCommunityResult = NonNullable<CommunityQuery["result"]>;
 export type StrongholdRoleSelection = Schema["StrongholdSyncIn"];
 export type StrongholdFilters = {
   season?: string;
@@ -28,7 +32,7 @@ export type StrongholdFilters = {
 };
 
 export async function fetchStrongholdCommunity(
-  params: StrongholdFilters & { member?: number; date?: string },
+  params: StrongholdFilters & Pick<CommunityQuery, "date" | "result">,
 ) {
   return (await client.get<StrongholdCommunity>(`${path}/community`, { params })).data;
 }

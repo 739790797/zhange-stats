@@ -57,14 +57,16 @@ export function ResultMark({ result }: { result: boolean | null }) {
 
 export function BattleIcon({
   src,
+  kind,
   fallback = <SafetyOutlined />,
 }: {
   src?: string | null;
+  kind?: "bond" | "strategy";
   fallback?: ReactNode;
 }) {
   const [failed, setFailed] = useState<string | null>(null);
   return (
-    <span className={styles.battleIcon} aria-hidden="true">
+    <span className={styles.battleIcon} data-kind={kind} aria-hidden="true">
       {src && src !== failed ? (
         <img
           src={src}
@@ -237,33 +239,6 @@ export function EffectPopup({
   );
 }
 
-export function EffectLabel({
-  icon,
-  name,
-  description,
-  fallback,
-}: {
-  icon?: string | null;
-  name: string;
-  description?: string | null;
-  fallback?: ReactNode;
-}) {
-  return (
-    <EffectPopup
-      label={name}
-      content={
-        <>
-          <strong>{name}</strong>
-          <p className={reportStyles.effectText}>{description || "暂无官方效果说明"}</p>
-        </>
-      }
-      className={`${styles.effectTrigger} ${styles.iconLabel}`}
-    >
-      <BattleIcon src={icon} fallback={fallback} /> <span>{name}</span>
-    </EffectPopup>
-  );
-}
-
 export function StrategyMark({
   icon,
   name,
@@ -274,7 +249,7 @@ export function StrategyMark({
   description?: string | null;
 }) {
   const title = name || "策略未记录";
-  const mark = <BattleIcon src={icon} fallback={<FlagOutlined />} />;
+  const mark = <BattleIcon kind="strategy" src={icon} fallback={<FlagOutlined />} />;
   const label = (
     <>
       {mark}

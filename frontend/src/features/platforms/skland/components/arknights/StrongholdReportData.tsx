@@ -35,7 +35,7 @@ function BondEffect({ bond, picked }: { bond: StrongholdBond; picked: Set<string
   return (
     <>
       <div className={styles.effectHeading}>
-        <BattleIcon src={bond.icon_url} />
+        <BattleIcon kind="bond" src={bond.icon_url} />
         <div>
           <strong>{bond.name ?? bond.bond_id}</strong>
           <small>
@@ -166,7 +166,7 @@ export function ReportBondChart({ record }: { record: StrongholdRecordDetail }) 
                         </span>
                       </span>
                       <span className={styles.barLabel} aria-hidden="true">
-                        <BattleIcon src={bond.icon_url} /> <span>{name}</span>
+                        <BattleIcon kind="bond" src={bond.icon_url} /> <span>{name}</span>
                       </span>
                     </EffectPopup>
                   );

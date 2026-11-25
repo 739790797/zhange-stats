@@ -12031,6 +12031,8 @@ export interface components {
             scopes: components["schemas"]["StrongholdScopeOut"][];
             /** Versions */
             versions: components["schemas"]["StrongholdVersionOut"][];
+            /** Selected Version Key */
+            selected_version_key?: string | null;
             /**
              * Date
              * Format: date
@@ -12050,6 +12052,10 @@ export interface components {
             /** Layers */
             layers: components["schemas"]["StrongholdLayerOut"][];
             coverage: components["schemas"]["StrongholdCoverageOut"];
+            /** Strategies */
+            strategies: components["schemas"]["StrongholdDiaryStrategyOut"][];
+            /** Covenants */
+            covenants: components["schemas"]["StrongholdDiaryBondOut"][];
         };
         /** StrongholdCoverageOut */
         StrongholdCoverageOut: {
@@ -12071,6 +12077,48 @@ export interface components {
              * @default 0
              */
             roles_with_conflicting_layers: number;
+        };
+        /** StrongholdDiaryBondOut */
+        StrongholdDiaryBondOut: {
+            /** Bond Id */
+            bond_id: string;
+            /** Name */
+            name: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Version Label */
+            version_label?: string | null;
+            /** Matches */
+            matches: number;
+            /**
+             * Layers
+             * @description Recorded role-view layer sum; null if active without a usable value.
+             */
+            layers: number | null;
+        };
+        /** StrongholdDiaryStrategyOut */
+        StrongholdDiaryStrategyOut: {
+            /** Strategy Id */
+            strategy_id: string;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Icon Url */
+            icon_url?: string | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Version Label */
+            version_label?: string | null;
+            /**
+             * Count
+             * @description Number of distinct role views with this strategy in the diary scope.
+             */
+            count: number;
         };
         /** StrongholdEquipmentOut */
         StrongholdEquipmentOut: {
@@ -12268,6 +12316,8 @@ export interface components {
             /** Rank */
             rank: number;
             member: components["schemas"]["StrongholdMemberOut"];
+            /** Matches */
+            matches: number;
             /** Wins */
             wins: number;
             /** Rounds */
@@ -21800,6 +21850,7 @@ export interface operations {
                 difficulty?: string | null;
                 mode?: ("single" | "multi" | "local") | null;
                 version?: string | null;
+                result?: ("complete" | "interrupted") | null;
                 date?: string | null;
                 member?: number | null;
                 offset?: number;

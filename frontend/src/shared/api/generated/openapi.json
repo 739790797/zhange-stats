@@ -5779,13 +5779,33 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128}$"
+                  "pattern": "^(?:latest|[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128})$"
                 },
                 {
                   "type": "null"
                 }
               ],
               "title": "Version"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "complete",
+                    "interrupted"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result"
             }
           },
           {
@@ -32950,6 +32970,18 @@
             "type": "array",
             "title": "Versions"
           },
+          "selected_version_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Version Key"
+          },
           "date": {
             "type": "string",
             "format": "date",
@@ -32990,6 +33022,20 @@
           },
           "coverage": {
             "$ref": "#/components/schemas/StrongholdCoverageOut"
+          },
+          "strategies": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdDiaryStrategyOut"
+            },
+            "type": "array",
+            "title": "Strategies"
+          },
+          "covenants": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdDiaryBondOut"
+            },
+            "type": "array",
+            "title": "Covenants"
           }
         },
         "type": "object",
@@ -33003,7 +33049,9 @@
           "ranking",
           "popular_bonds",
           "layers",
-          "coverage"
+          "coverage",
+          "strategies",
+          "covenants"
         ],
         "title": "StrongholdCommunityOut"
       },
@@ -33045,6 +33093,167 @@
           "records_with_unknown_layers"
         ],
         "title": "StrongholdCoverageOut"
+      },
+      "StrongholdDiaryBondOut": {
+        "properties": {
+          "bond_id": {
+            "type": "string",
+            "title": "Bond Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "layers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layers",
+            "description": "Recorded role-view layer sum; null if active without a usable value."
+          }
+        },
+        "type": "object",
+        "required": [
+          "bond_id",
+          "name",
+          "matches",
+          "layers"
+        ],
+        "title": "StrongholdDiaryBondOut"
+      },
+      "StrongholdDiaryStrategyOut": {
+        "properties": {
+          "strategy_id": {
+            "type": "string",
+            "title": "Strategy Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of distinct role views with this strategy in the diary scope."
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy_id",
+          "count"
+        ],
+        "title": "StrongholdDiaryStrategyOut"
       },
       "StrongholdEquipmentOut": {
         "properties": {
@@ -33774,6 +33983,10 @@
           "member": {
             "$ref": "#/components/schemas/StrongholdMemberOut"
           },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
           "wins": {
             "type": "integer",
             "title": "Wins"
@@ -33794,6 +34007,7 @@
         "required": [
           "rank",
           "member",
+          "matches",
           "wins",
           "rounds"
         ],

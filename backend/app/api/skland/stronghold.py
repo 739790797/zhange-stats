@@ -15,6 +15,7 @@ from app.models.member import Member
 from app.models.user import User
 from app.schemas.stronghold import (
     StrongholdCommunityOut,
+    StrongholdCommunityResult,
     StrongholdMatchOut,
     StrongholdMode,
     StrongholdOwnOut,
@@ -46,7 +47,9 @@ router = APIRouter(
 )
 
 ReportId = Annotated[str, Path(pattern=r"^[a-f0-9]{32}$")]
-VersionFilter = Annotated[str | None, Query(pattern=r"^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\-]{1,128}$")]
+_VERSION_KEY = r"[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\-]{1,128}"
+VersionFilter = Annotated[str | None, Query(pattern=rf"^{_VERSION_KEY}$")]
+CommunityVersionFilter = Annotated[str | None, Query(pattern=rf"^(?:latest|{_VERSION_KEY})$")]
 _MAX_DATABASE_ID = 2_147_483_647
 
 
@@ -61,7 +64,8 @@ def stronghold_community(
     season: Annotated[StrongholdScopeId | None, Query()] = None,
     difficulty: Annotated[StrongholdScopeId | None, Query()] = None,
     mode: Annotated[StrongholdMode | None, Query()] = None,
-    version: VersionFilter = None,
+    version: CommunityVersionFilter = None,
+    result: Annotated[StrongholdCommunityResult | None, Query()] = None,
     selected_date: Annotated[date | None, Query(alias="date", ge=date(2019, 1, 1), le=date(2100, 12, 31))] = None,
     member: int | None = Query(default=None, gt=0, le=_MAX_DATABASE_ID),
     offset: int = Query(default=0, ge=0, le=_MAX_DATABASE_ID),
@@ -75,6 +79,7 @@ def stronghold_community(
         difficulty=difficulty,
         mode=mode,
         version=version,
+        result=result,
         offset=offset,
         limit=limit,
         contributor=member,

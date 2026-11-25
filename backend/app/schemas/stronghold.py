@@ -8,6 +8,7 @@ StrongholdScopeId = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 StrongholdVersionKey = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\-]{1,128}$")]
 StrongholdChannel = Literal["1", "2"]
 StrongholdMode = Literal["single", "multi", "local"]
+StrongholdCommunityResult = Literal["complete", "interrupted"]
 StrongholdResult = Literal["complete", "interrupted", "unknown"]
 
 
@@ -194,6 +195,7 @@ class StrongholdMatchOut(StrongholdScopeOut):
 class StrongholdRankOut(BaseModel):
     rank: int
     member: StrongholdMemberOut
+    matches: int
     wins: int
     rounds: int | None
 
@@ -206,6 +208,20 @@ class StrongholdPopularBondOut(BaseModel):
     version_key: str | None = None
     version_label: str | None = None
     matches: int
+
+
+class StrongholdDiaryStrategyOut(BaseModel):
+    strategy_id: str
+    name: str | None = None
+    description: str | None = None
+    icon_url: str | None = None
+    version_key: str | None = None
+    version_label: str | None = None
+    count: int = Field(description="Number of distinct role views with this strategy in the diary scope.")
+
+
+class StrongholdDiaryBondOut(StrongholdPopularBondOut):
+    layers: int | None = Field(description="Recorded role-view layer sum; null if active without a usable value.")
 
 
 class StrongholdLayerMemberOut(BaseModel):
@@ -240,6 +256,7 @@ class StrongholdCommunityOut(BaseModel):
     total: int
     scopes: list[StrongholdScopeOut]
     versions: list[StrongholdVersionOut]
+    selected_version_key: StrongholdVersionKey | None = None
     date: date
     today: date
     ranking: list[StrongholdRankOut]
@@ -247,6 +264,8 @@ class StrongholdCommunityOut(BaseModel):
     popular_bonds: list[StrongholdPopularBondOut]
     layers: list[StrongholdLayerOut]
     coverage: StrongholdCoverageOut
+    strategies: list[StrongholdDiaryStrategyOut]
+    covenants: list[StrongholdDiaryBondOut]
 
 
 class StrongholdOwnOut(BaseModel):

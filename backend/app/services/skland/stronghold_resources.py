@@ -308,10 +308,14 @@ def _catalog_entry(catalog: dict, group: str, key: str) -> dict:
     return {field: value for field, value in entry.items() if value is not None}
 
 
-def _catalog_entries(catalog: dict, group: str) -> dict:
+def catalog_entry_ids(catalog: dict, group: str) -> tuple[str, ...]:
     game = catalog.get("game", {}).get(group, {})
     official = catalog.get(group, {})
-    return {key: _catalog_entry(catalog, group, key) for key in dict.fromkeys((*official, *game))}
+    return tuple(dict.fromkeys((*official, *game)))
+
+
+def _catalog_entries(catalog: dict, group: str) -> dict:
+    return {key: _catalog_entry(catalog, group, key) for key in catalog_entry_ids(catalog, group)}
 
 
 def save_resources(db: Session, activity: str, versions: dict[str, dict], now: datetime) -> None:
