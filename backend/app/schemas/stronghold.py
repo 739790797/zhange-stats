@@ -107,6 +107,8 @@ class StrongholdOperatorOut(BaseModel):
     skill: StrongholdOperatorEffectOut | None = None
     module: StrongholdOperatorEffectOut | None = None
     profession: str | None = None
+    branch_id: str | None = None
+    branch_name: str | None = None
     merge_level: int | None = None
     equipment: list[StrongholdEquipmentOut] | None = None
     traits: list[StrongholdTraitOut] | None = None
@@ -171,6 +173,10 @@ class StrongholdRecordOut(StrongholdScopeOut):
 class StrongholdRecordDetailOut(StrongholdRecordOut):
     roster: list[StrongholdOperatorOut] | None
     bonds: list[StrongholdBondOut] | None
+    available_bonds: list[StrongholdBondOut] | None = Field(
+        default=None,
+        description="Additional roster affiliations from the same-version catalog, without recorded layers.",
+    )
     battle: StrongholdBattleData
     author: StrongholdMemberOut | None = None
     role_name: str | None = None
@@ -190,6 +196,22 @@ class StrongholdMatchOut(StrongholdScopeOut):
     participants: list[StrongholdMemberOut]
     views: list[StrongholdRecordDetailOut] = Field(default_factory=list)
     my_record_id: str | None = None
+
+
+class StrongholdHistoryEntryOut(StrongholdScopeOut):
+    id: str
+    ended_at: datetime
+    success: bool | None
+    preview: StrongholdRecordOut | None = Field(description="A visible perspective to preview and open.")
+
+
+class StrongholdHistoryOut(BaseModel):
+    matches: list[StrongholdHistoryEntryOut]
+    total: int
+    scopes: list[StrongholdScopeOut]
+    versions: list[StrongholdVersionOut]
+    selected_version_key: StrongholdVersionKey | None = None
+    today: date
 
 
 class StrongholdRankOut(BaseModel):
@@ -258,6 +280,8 @@ class StrongholdCommunityOut(BaseModel):
     versions: list[StrongholdVersionOut]
     selected_version_key: StrongholdVersionKey | None = None
     date: date
+    start_date: date
+    end_date: date
     today: date
     ranking: list[StrongholdRankOut]
     filtered_role_names: list[str] = Field(default_factory=list)

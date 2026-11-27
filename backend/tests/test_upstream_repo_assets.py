@@ -58,19 +58,22 @@ def test_arknights_catalog_reads_local_files(tmp_path: Path, monkeypatch) -> Non
     assert operators[0].avatar_url == "/api/skland/arknights/assets/avatar/char_fixture.png"
 
 
-def test_arknights_asset_route_distinguishes_missing_and_unavailable(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize(("kind", "filename"), [("avatar", "char_fixture.png"), ("skin", "char_fixture_2b.png")])
+def test_arknights_asset_route_distinguishes_missing_and_unavailable(
+    tmp_path: Path, monkeypatch, kind: str, filename: str
+) -> None:
     root = _local_repo(tmp_path, monkeypatch, upstream_repos.REPO_ARKNIGHTS)
-    avatar = root / "avatar" / "char_fixture.png"
-    avatar.parent.mkdir()
-    avatar.write_bytes(b"png")
+    image = root / kind / filename
+    image.parent.mkdir()
+    image.write_bytes(b"png")
 
-    response = skland_arknights_asset("avatar", "char_fixture.png")
-    assert Path(response.path) == avatar
+    response = skland_arknights_asset(kind, filename)
+    assert Path(response.path) == image
     with pytest.raises(HTTPException) as missing:
-        skland_arknights_asset("avatar", "missing.png")
+        skland_arknights_asset(kind, "missing.png")
     assert missing.value.status_code == 404
     with pytest.raises(HTTPException) as illegal:
-        skland_arknights_asset("avatar", "../private.png")
+        skland_arknights_asset(kind, "../private.png")
     assert illegal.value.status_code == 404
 
     monkeypatch.setattr(
@@ -79,7 +82,7 @@ def test_arknights_asset_route_distinguishes_missing_and_unavailable(tmp_path: P
         lambda _repo: (_ for _ in ()).throw(upstream_repos.RepoError("clone failed")),
     )
     with pytest.raises(HTTPException) as unavailable:
-        skland_arknights_asset("avatar", "char_fixture.png")
+        skland_arknights_asset(kind, filename)
     assert unavailable.value.status_code == 503
 
 

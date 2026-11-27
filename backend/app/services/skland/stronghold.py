@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 from hashlib import sha256
 from uuid import uuid4
 
 from sqlalchemy import String, and_, case, cast, false, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.core.timeutil import day_bounds, ensure, now_naive, to_naive, today
 from app.models.arknights_stronghold import (
@@ -30,6 +30,8 @@ from app.schemas.stronghold import (
     StrongholdBondOut,
     StrongholdCommunityOut,
     StrongholdCommunityResult,
+    StrongholdHistoryEntryOut,
+    StrongholdHistoryOut,
     StrongholdMatchOut,
     StrongholdMemberOut,
     StrongholdOwnOut,
@@ -491,6 +493,31 @@ def _record_bonds(db, ids):
     return result
 
 
+def _available_roster_bonds(
+    version: StrongholdVersion | None,
+    roster: list[dict] | None,
+    recorded_ids: set[str],
+    bonds_known: bool,
+) -> list[StrongholdBondOut] | None:
+    if version is None or roster is None or not (keys := catalog_entry_ids(version.catalog, "bond")):
+        return None
+    chess_ids = {unit.get("normal_chess_id") or unit["id"] for unit in roster}
+    has_golden = any(unit.get("is_elite") is True for unit in roster)
+    additional = []
+    for key in keys:
+        if key in recorded_ids:
+            continue
+        entry = display_entry(version, "bond", key)
+        if entry.get("activation_rule") == "golden":
+            eligible = has_golden
+        else:
+            eligible = any(unit["id"] in chess_ids for unit in (entry.get("operators") or []))
+        if eligible:
+            # Unlisted affiliations remain separate from the battle snapshot and carry no measured layer.
+            additional.append(StrongholdBondOut(bond_id=key, active=False if bonds_known else None, **entry))
+    return additional
+
+
 def _record_detail(db, record, bonds, *, role_name=None, author=None, player_group_id=None, is_own=False):
     version = _version(db, record.season_id, record.version_id)
     strategy = display_entry(version, "strategy", record.strategy_id)
@@ -523,6 +550,11 @@ def _record_detail(db, record, bonds, *, role_name=None, author=None, player_gro
             for field in ("char_id", "name", "profession"):
                 if operator.get(field) is None and field in unit:
                     operator[field] = unit[field]
+        branch = display_entry(version, "operator_branch", operator.get("char_id"))
+        if not operator.get("branch_id"):
+            operator["branch_id"] = branch.get("branch_id")
+        if operator["branch_id"] == branch.get("branch_id"):
+            operator["branch_name"] = branch.get("branch_name")
         if operator.get("tier") is None:
             operator["tier"] = unit.get("tier")
         if operator.get("traits") is None and "traits" in unit:
@@ -547,6 +579,7 @@ def _record_detail(db, record, bonds, *, role_name=None, author=None, player_gro
         strategy_initial_hp=strategy.get("initial_hp"),
         roster=roster,
         bonds=result if record.bonds_known else None,
+        available_bonds=_available_roster_bonds(version, roster, {bond.bond_id for bond in result}, record.bonds_known),
         battle=StrongholdBattleData.model_validate(
             {
                 **facts,
@@ -644,10 +677,12 @@ def _visible_views(*columns):
     )
 
 
-def _has_record(member_id: int | None = None):
+def _has_record(member_id: int | None = None, role_id: int | None = None):
     query = _visible_views(StrongholdRecord.id).where(StrongholdRecord.match_id == StrongholdMatch.id)
     if member_id is not None:
         query = query.where(StrongholdRole.member_id == member_id)
+    if role_id is not None:
+        query = query.where(StrongholdRecord.role_id == role_id)
     return query.exists()
 
 
@@ -798,11 +833,17 @@ def _latest_version_key(versions):
     return max(undated)[1] if undated else None
 
 
+def _match_end_date_filters(start_date: date, end_date: date):
+    start, _ = day_bounds(start_date)
+    _, end = day_bounds(end_date)
+    return StrongholdMatch.ended_at >= to_naive(start), StrongholdMatch.ended_at < to_naive(end)
+
+
 def community(
     db,
     member_id,
     *,
-    selected_date,
+    date_range: tuple[date, date] | None,
     season,
     difficulty,
     mode,
@@ -813,8 +854,7 @@ def community(
     limit=12,
 ):
     current = today()
-    selected_date = selected_date or current
-    start, end = (to_naive(value) for value in day_bounds(selected_date))
+    start_date, end_date = date_range or (current, current)
     visible = _has_record()
     versions = _version_rows(db, StrongholdMatch, (visible,))
     selected_version = _latest_version_key(versions) if version == "latest" else version
@@ -824,8 +864,7 @@ def community(
         version_scope = (*version_scope, false())
     filters = (
         *version_scope,
-        StrongholdMatch.ended_at >= start,
-        StrongholdMatch.ended_at < end,
+        *_match_end_date_filters(start_date, end_date),
         *_filters(StrongholdMatch, season, difficulty, mode, None),
     )
     if contributor is not None:
@@ -856,9 +895,107 @@ def community(
         scopes=_scopes(db, StrongholdMatch, *version_scope),
         versions=[version_out(row, last_played) for row, last_played in versions],
         selected_version_key=selected_version,
-        date=selected_date,
+        date=start_date,
+        start_date=start_date,
+        end_date=end_date,
         today=current,
         **metrics,
+    )
+
+
+def _history_previews(db, match_ids, member_id, role_id):
+    # Fetch one perspective per match. Prefer the viewer's own report, or the exact role filter.
+    ranked = _visible_views(
+        StrongholdRecord.id,
+        func.row_number()
+        .over(
+            partition_by=StrongholdRecord.match_id,
+            order_by=(
+                case((StrongholdRole.member_id == member_id, 0), else_=1),
+                StrongholdRecord.ended_at.desc(),
+                StrongholdRecord.id.desc(),
+            ),
+        )
+        .label("position"),
+    ).where(StrongholdRecord.match_id.in_(match_ids))
+    if role_id is not None:
+        ranked = ranked.where(StrongholdRole.member_id == member_id, StrongholdRecord.role_id == role_id)
+    previews = ranked.subquery()
+    records = db.scalars(
+        select(StrongholdRecord)
+        .options(defer(StrongholdRecord.roster))
+        .join(previews, previews.c.id == StrongholdRecord.id)
+        .where(previews.c.position == 1)
+    )
+    return {record.match_id: _record_out(db, record) for record in records}
+
+
+def history(
+    db,
+    member_id,
+    *,
+    date_range: tuple[date, date] | None,
+    season,
+    difficulty,
+    mode,
+    version=None,
+    result=None,
+    related=False,
+    role_id=None,
+    offset=0,
+    limit=12,
+):
+    visible = _has_record()
+    versions = _version_rows(db, StrongholdMatch, (visible,))
+    selected_version = _latest_version_key(versions) if version == "latest" else version
+    scope = (visible, *_filters(StrongholdMatch, None, None, None, selected_version))
+    if version == "latest" and selected_version is None:
+        scope = (*scope, false())
+    filters = (*scope, *_filters(StrongholdMatch, season, difficulty, mode, None))
+    if related:
+        filters = (*filters, _has_record(member_id, role_id) if member_id is not None else false())
+    if date_range is not None:
+        filters = (*filters, *_match_end_date_filters(*date_range))
+
+    candidates = select(StrongholdMatch).where(*filters)
+    matching = candidates
+    if result is not None:
+        outcomes = _match_outcomes(candidates.cte()).subquery()
+        condition = (
+            outcomes.c.success.is_(None) if result == "unknown" else outcomes.c.success == int(result == "complete")
+        )
+        matching = select(StrongholdMatch).join(outcomes, outcomes.c.id == StrongholdMatch.id).where(condition)
+    total = db.scalar(select(func.count()).select_from(matching.with_only_columns(StrongholdMatch.id).subquery()))
+    matches = db.scalars(
+        matching.order_by(StrongholdMatch.ended_at.desc(), StrongholdMatch.id.desc()).offset(offset).limit(limit)
+    ).all()
+    matches_out = []
+    if matches:
+        match_ids = [match.id for match in matches]
+        previews = _history_previews(db, match_ids, member_id, role_id if related else None)
+        if result is None:
+            on_page = select(StrongholdMatch).where(StrongholdMatch.id.in_(match_ids)).cte()
+            successes = dict(db.execute(_match_outcomes(on_page)).all())
+        else:
+            filtered_success = None if result == "unknown" else result == "complete"
+            successes = dict.fromkeys(match_ids, filtered_success)
+        matches_out = [
+            StrongholdHistoryEntryOut(
+                **_scope_out(match).model_dump(),
+                id=match.id,
+                ended_at=ensure(match.ended_at),
+                success=successes.get(match.id),
+                preview=previews.get(match.id),
+            )
+            for match in matches
+        ]
+    return StrongholdHistoryOut(
+        matches=matches_out,
+        total=total,
+        scopes=_scopes(db, StrongholdMatch, *scope),
+        versions=[version_out(row, last_played) for row, last_played in versions],
+        selected_version_key=selected_version,
+        today=today(),
     )
 
 
@@ -869,13 +1006,27 @@ def _owned_record(member_id):
 
 
 def own_matches(
-    db, member_id, *, season, difficulty, mode, version=None, role_id=None, result=None, offset=0, limit=12
+    db,
+    member_id,
+    *,
+    season,
+    difficulty,
+    mode,
+    version=None,
+    role_id=None,
+    result=None,
+    offset=0,
+    limit=12,
+    date_range: tuple[date, date] | None = None,
 ):
     from app.services.skland.stronghold_sync import member_sync_status
 
     own = _owned_record(member_id)
     role_scope = (own, StrongholdRecord.role_id == role_id) if role_id is not None else (own,)
     scoped = (*role_scope, *_filters(StrongholdRecord, season, difficulty, mode, version))
+    if date_range is not None:
+        matches_in_range = select(StrongholdMatch.id).where(*_match_end_date_filters(*date_range))
+        scoped = (*scoped, StrongholdRecord.match_id.in_(matches_in_range))
     scoped_total, wins, known_results = db.execute(
         select(
             func.count(),

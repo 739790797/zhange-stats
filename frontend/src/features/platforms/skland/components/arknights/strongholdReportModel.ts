@@ -1,7 +1,11 @@
 import type {
+  StrongholdBond,
   StrongholdMatch,
   StrongholdRecordDetail,
 } from "@/features/platforms/skland/api/strongholdApi";
+
+import { parseBeijing } from "@/shared/lib/time";
+import { portraitSrc } from "./assets";
 
 export type ReportPlayer = { id: string; own: boolean; records: StrongholdRecordDetail[] };
 
@@ -35,18 +39,39 @@ export function initialReportView(match: StrongholdMatch, requestedView?: string
   );
 }
 
-export function pickedChessIds(roster: StrongholdRecordDetail["roster"]) {
-  // Without the version mapping only an exact chess ID is safe to mark.
-  return new Set(roster?.map((operator) => operator.normal_chess_id ?? operator.id));
+type Operator = NonNullable<StrongholdRecordDetail["roster"]>[number];
+
+export function chessKey(operator: Pick<Operator, "id" | "normal_chess_id">) {
+  return operator.normal_chess_id ?? operator.id;
 }
 
-export function bondLayerScale(peak: number) {
-  let step = 250;
-  if (peak > 1000) {
-    const target = peak / 4;
-    const magnitude = 10 ** Math.floor(Math.log10(target));
-    step = ([1, 2, 2.5, 5, 10].find((value) => value * magnitude >= target) ?? 10) * magnitude;
-  }
-  const ticks = [4, 3, 2, 1, 0].map((multiple) => multiple * step);
-  return { ceiling: ticks[0], ticks };
+export function belongsToBond(operator: Operator, bond: StrongholdBond) {
+  if (bond.activation_rule === "golden") return operator.is_elite === true;
+  return bond.operators?.some(({ id }) => id === chessKey(operator)) ?? false;
+}
+
+export function reportBondBars(bonds: readonly StrongholdBond[]) {
+  const ordered = [...bonds].sort((a, b) => (b.layer ?? -1) - (a.layer ?? -1));
+  const peak = Math.max(0, ...ordered.map(({ layer }) => layer ?? 0));
+  return ordered.map((bond) => ({
+    bond,
+    fill: peak ? Math.max(0, bond.layer ?? 0) / peak : 0,
+  }));
+}
+
+export function reportDuration(start?: string | null, end?: string | null) {
+  const elapsed = (parseBeijing(end).valueOf() - parseBeijing(start).valueOf()) / 1000;
+  if (!Number.isFinite(elapsed) || elapsed < 0) return null;
+  return { minutes: Math.floor(elapsed / 60), seconds: Math.floor(elapsed % 60) };
+}
+
+export function reportPortraits(id?: string | null, phase?: number | null) {
+  if (!id) return [];
+  const key = encodeURIComponent(id);
+  const base = portraitSrc(key, 0);
+  return phase === 2 ? [portraitSrc(key, 2), base] : [base];
+}
+
+export function bondStatus(active?: boolean | null) {
+  return active == null ? "点亮状态未知" : active ? "本局已点亮" : "本局未点亮";
 }

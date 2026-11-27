@@ -132,13 +132,13 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
 
       # The Stronghold fixture creates and drops its tables on the empty CI database.
-      - name: Stronghold result filters on MariaDB
+      - name: Stronghold statistics and history on MariaDB
         working-directory: backend
         env:
           ZHANGE_TEST_STRONGHOLD_MYSQL_URL: ${{ env.DATABASE_URL }}
         run: >-
           python -m pytest -q tests/test_skland_stronghold.py
-          -k 'mariadb and (diary or team_result or unknown_mode or latest_version)'
+          -k 'mariadb and (diary or history or team_result or unknown_mode or latest_version)'
 
       - name: Alembic upgrade head (twice for idempotency)
         working-directory: backend

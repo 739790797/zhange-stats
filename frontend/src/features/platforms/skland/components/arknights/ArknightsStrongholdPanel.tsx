@@ -1,11 +1,5 @@
-import {
-  ArrowLeftOutlined,
-  FilterOutlined,
-  LeftOutlined,
-  RightOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
-import { Alert, App, Button, DatePicker, Drawer, Empty, Spin } from "antd";
+import { FilterOutlined, LeftOutlined, RightOutlined, SyncOutlined } from "@ant-design/icons";
+import { Alert, App, Button, DatePicker, Drawer, Empty, Spin, Switch } from "antd";
 import {
   keepPreviousData,
   useMutation,
@@ -17,32 +11,36 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   fetchStrongholdCommunity,
+  fetchStrongholdHistory,
   fetchStrongholdOwn,
   fetchStrongholdRecord,
   fetchStrongholdReport,
   strongholdQueryKey as queryKey,
   syncStrongholdRole,
   type StrongholdCommunity,
-  type StrongholdCommunityResult,
+  type StrongholdHistory,
+  type StrongholdHistoryResult,
   type StrongholdMatch,
   type StrongholdMode,
   type StrongholdOwn,
   type StrongholdRecordDetail,
   type StrongholdRoleSelection,
-  type StrongholdScope,
 } from "@/features/platforms/skland/api/strongholdApi";
 import type { SklandStatus } from "@/features/platforms/skland/api/types";
 import { apiError, apiStatus } from "@/shared/api/apiError";
 import { formatBeijing, nowBeijing, parseBeijing } from "@/shared/lib/time";
-import { BattleScope, ResultMark, StrategyMark } from "./StrongholdBattleUI";
+import { BattleScope, ResultMark } from "./StrongholdBattleUI";
 import { DiaryMember, StrongholdDiaryMetrics } from "./StrongholdDiaryMetrics";
 import { StrongholdReportBoard } from "./StrongholdReportBoard";
 import {
@@ -56,18 +54,22 @@ import arkStyles from "./Arknights.module.css";
 import styles from "./ArknightsStronghold.module.css";
 import reportStyles from "./StrongholdReport.module.css";
 
-const pageSize = 12;
+const diaryPageSize = 12;
+const historyPageSize = 10;
 const scopePattern = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
 const versionPattern = /^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.-]{1,128}$/;
 const recordPattern = /^[a-f0-9]{32}$/;
 const queryOptions = { staleTime: 0, gcTime: 0, retry: false };
 const results = { complete: "模拟完成", interrupted: "模拟中断", unknown: "结果未知" } as const;
 const defaultDifficulty = "abyss";
+const diaryDateFormat = "YYYY-MM-DD";
+const earliestDiaryDate = "2019-01-01";
 const retiredDiaryFilters = { member: null, season: null, role: null };
+const resetDiaryDates = { date: null, start_date: null, end_date: null };
 const resetViewFilters = {
   ...retiredDiaryFilters,
+  ...resetDiaryDates,
   version: null,
-  date: null,
   difficulty: null,
   mode: null,
   result: null,
@@ -75,19 +77,15 @@ const resetViewFilters = {
 
 type SearchPatch = Record<string, string | number | null | undefined>;
 type SearchLink = (updates: SearchPatch) => string;
-type RememberList = (event: MouseEvent<HTMLAnchorElement>) => void;
-type ScopeFilters = {
+type ReportLinkClick = (event: MouseEvent<HTMLAnchorElement>, id: string) => void;
+type DiaryDateRange = { start: string; end: string };
+type ReportFilters = {
   season?: string;
-  difficulty?: string;
-  mode?: StrongholdMode;
-  version?: string;
-};
-type DiarySelection = {
   version: string;
   difficulty: string;
   mode?: StrongholdMode;
-  date?: string;
-  result?: StrongholdCommunityResult;
+  dateRange?: DiaryDateRange;
+  result?: StrongholdHistoryResult;
 };
 type ControlProps = { bound: boolean; bindFallback: ReactNode; roles?: SklandStatus["roles"] };
 type BindingNames = ReadonlyMap<string, string>;
@@ -113,9 +111,22 @@ function positiveParam(value: string | null) {
 }
 
 function validDate(value: string | null) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value < "2019-01-01" || value > "2100-12-31")
+  if (
+    !value ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    value < earliestDiaryDate ||
+    value > "2100-12-31"
+  )
     return undefined;
-  return parseBeijing(value).format("YYYY-MM-DD") === value ? value : undefined;
+  return parseBeijing(value).format(diaryDateFormat) === value ? value : undefined;
+}
+
+function diaryDateRange(params: URLSearchParams): DiaryDateRange | undefined {
+  const start = validDate(params.get("start_date"));
+  const end = validDate(params.get("end_date"));
+  if (start && end && start <= end) return { start, end };
+  const date = validDate(params.get("date"));
+  return date ? { start: date, end: date } : undefined;
 }
 
 function Loading() {
@@ -179,57 +190,20 @@ function SelectField({
   );
 }
 
-function ScopeFields({
-  scopes,
-  filters,
-  update,
-}: {
-  scopes: StrongholdScope[];
-  filters: ScopeFilters;
-  update: (patch: SearchPatch) => void;
-}) {
-  const { season, difficulty, mode, version } = filters;
-  const difficulties = new Map(
-    scopes
-      .filter(
-        (scope) =>
-          (!season || scope.season_id === season) && (!version || scope.version_key === version),
-      )
-      .map((scope) => [scope.difficulty_id, scope.difficulty_label]),
-  );
-  return (
-    <>
-      {season ? (
-        <Button className={styles.legacyScope} onClick={() => update({ season: null })}>
-          清除旧赛季筛选
-        </Button>
-      ) : null}
-      <SelectField
-        label="模式"
-        value={mode ?? ""}
-        options={[["", "全部模式"], ...Object.entries(modeLabels)]}
-        onChange={(value) => update({ mode: value })}
-      />
-      <SelectField
-        label="难度"
-        value={difficulty ?? ""}
-        options={[["", "全部难度"], ...difficulties]}
-        onChange={(value) => update({ difficulty: value })}
-      />
-    </>
-  );
-}
-
 function Pager({
   total,
   offset,
+  pageSize,
   change,
+  showSinglePage = false,
 }: {
   total: number;
   offset: number;
+  pageSize: number;
   change: (offset: number) => void;
+  showSinglePage?: boolean;
 }) {
-  return offset || total > pageSize ? (
+  return offset > 0 || total > pageSize || (showSinglePage && total > 0) ? (
     <nav className={styles.pager} aria-label="战报分页">
       <Button
         aria-label="上一页"
@@ -350,109 +324,130 @@ function OwnControls({
   );
 }
 
-function OwnDesk({
-  data,
-  loading,
-  controls,
-  names,
-  offset,
-  link,
-  selectedBattle,
-  detail,
-  changePage,
-}: {
-  data: StrongholdOwn;
-  controls: ControlProps;
-  names: BindingNames;
-  loading: boolean;
-  offset: number;
-  link: SearchLink;
-  selectedBattle: string | null;
-  detail: ReactNode;
-  changePage: (offset: number) => void;
-}) {
+function PersonalSummary({ data }: { data: StrongholdOwn }) {
   const rate = data.known_results
     ? `${((data.wins * 100) / data.known_results).toFixed(1).replace(/\.0$/, "")}%`
     : "—";
   return (
-    <>
-      <div className={styles.overviewTools}>
-        <OwnControls {...controls} data={data} names={names} />
-        <dl className={styles.recordStats} aria-busy={loading}>
-          <div>
-            <dt>已同步战报</dt>
-            <dd>{data.scoped_total}</dd>
-          </div>
-          <div>
-            <dt>模拟完成</dt>
-            <dd>
-              {data.wins} <small>/ {data.known_results} 局已知结果</small>
-            </dd>
-          </div>
-          <div>
-            <dt>已知胜率</dt>
-            <dd>{rate}</dd>
-          </div>
-        </dl>
+    <dl className={styles.recordStats} aria-label="个人战绩统计">
+      <div>
+        <dt>已同步个人战报</dt>
+        <dd>{data.scoped_total}</dd>
       </div>
-      <div className={styles.ownWorkbench} data-has-detail={detail != null}>
-        <section className={`${styles.feed} ${styles.history}`} aria-label="个人战绩列表">
-          <header className={styles.bandHeader}>
-            <h3>战绩列表</h3>
-            <span>共 {data.total} 条</span>
-          </header>
-          {loading ? (
-            <Loading />
-          ) : data.records.length ? (
-            <ul className={styles.recordList}>
-              {data.records.map((record) => (
-                <li
-                  key={record.id}
-                  className={styles.recordItem}
-                  data-result={
-                    record.completed == null ? "unknown" : record.completed ? "win" : "loss"
-                  }
-                  data-selected={record.id === selectedBattle}
-                >
-                  <div className={styles.recordStrategy}>
-                    <StrategyMark
-                      icon={record.strategy_icon_url}
-                      name={record.strategy_name ?? record.strategy_id}
-                      description={record.strategy_description}
-                    />
-                  </div>
-                  <Link
-                    className={styles.recordRow}
-                    to={link({ report: record.match_id, battle: record.id })}
-                    preventScrollReset
-                    aria-current={record.id === selectedBattle ? "true" : undefined}
-                  >
-                    <span className={styles.recordRowTop}>
-                      <strong>{record.difficulty_label}</strong>
-                      <span>{record.pass_round == null ? "—" : `${record.pass_round} 回合`}</span>
-                    </span>
-                    <span className={styles.recordRowTop}>
-                      <span>{record.mode_type ? modeLabels[record.mode_type] : "模式未记录"}</span>
-                      <ResultMark result={record.completed} />
-                    </span>
-                    <time dateTime={record.ended_at}>
-                      {formatBeijing(record.ended_at, "YYYY-MM-DD HH:mm")}
-                    </time>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={data.scoped_total ? "当前筛选无战报" : "暂无已同步的个人战报"}
-            />
-          )}
-          {!loading ? <Pager total={data.total} offset={offset} change={changePage} /> : null}
-        </section>
-        {detail}
+      <div>
+        <dt>个人模拟完成</dt>
+        <dd>
+          {data.wins} <small>/ {data.known_results} 局已知结果</small>
+        </dd>
       </div>
-    </>
+      <div>
+        <dt>个人已知胜率</dt>
+        <dd>{rate}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function isPlainLinkClick(event: MouseEvent<HTMLAnchorElement>) {
+  return (
+    !event.defaultPrevented &&
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    !event.ctrlKey
+  );
+}
+
+function isStackedHistory(element: HTMLElement) {
+  return getComputedStyle(element).getPropertyValue("--sh-history-stacked").trim() === "1";
+}
+
+function focusHistoryReport(heading: HTMLHeadingElement | null) {
+  if (heading && isStackedHistory(heading)) {
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({ block: "start", behavior: "instant" });
+  }
+}
+
+function HistoryList({
+  request,
+  related,
+  toggleRelated,
+  selected,
+  offset,
+  link,
+  onSelect,
+  changePage,
+}: {
+  request: UseQueryResult<StrongholdHistory>;
+  related: boolean;
+  toggleRelated: (checked: boolean) => void;
+  selected: string | null;
+  offset: number;
+  link: SearchLink;
+  onSelect: ReportLinkClick;
+  changePage: (offset: number) => void;
+}) {
+  const relatedId = useId();
+  const busy = request.isPending || request.isPlaceholderData;
+  const data = busy ? undefined : request.data;
+  return (
+    <section className={`${styles.feed} ${styles.history}`} aria-label="战绩列表" aria-busy={busy}>
+      <header className={`${styles.bandHeader} ${styles.historyHeader}`}>
+        <div>
+          <h3>战绩列表</h3>
+          {data ? <small>共 {data.total} 局</small> : null}
+        </div>
+        <label className={styles.relatedToggle} htmlFor={relatedId}>
+          <Switch id={relatedId} size="small" checked={related} onChange={toggleRelated} />
+          <span>与我相关</span>
+        </label>
+      </header>
+      {busy ? (
+        <Loading />
+      ) : request.isError ? (
+        <Failed error={request.error} retry={() => void request.refetch()} />
+      ) : data?.matches.length ? (
+        <ul
+          className={styles.recordList}
+          style={{ "--history-page-size": historyPageSize } as CSSProperties}
+        >
+          {data.matches.map(({ id, preview, success, difficulty_label, mode_type, ended_at }) => (
+            <li key={id} className={styles.recordItem} data-selected={id === selected}>
+              <Link
+                className={styles.recordRow}
+                to={link({ report: id, battle: preview?.id ?? null })}
+                preventScrollReset
+                onClick={(event) => onSelect(event, id)}
+                aria-current={id === selected ? "true" : undefined}
+              >
+                <span className={styles.recordRowTop}>
+                  <strong title={difficulty_label}>{difficulty_label}</strong>
+                  <span>{preview?.pass_round == null ? "—" : `${preview.pass_round} 回合`}</span>
+                </span>
+                <span className={styles.recordRowTop}>
+                  <span>{mode_type ? modeLabels[mode_type] : "模式未记录"}</span>
+                  <ResultMark result={success} />
+                </span>
+                <time dateTime={ended_at}>{formatBeijing(ended_at, "YYYY-MM-DD HH:mm")}</time>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前检索条件下没有战绩" />
+      )}
+      {data && !request.isError ? (
+        <Pager
+          total={data.total}
+          offset={offset}
+          pageSize={historyPageSize}
+          change={changePage}
+          showSinglePage
+        />
+      ) : null}
+    </section>
   );
 }
 
@@ -497,7 +492,6 @@ function SearchControl({
         width="min(420px, 100%)"
         open={open}
         onClose={close}
-        destroyOnClose
         footer={
           <div className={styles.searchFooter}>
             <Button onClick={reset} disabled={!filtered}>
@@ -515,72 +509,57 @@ function SearchControl({
   );
 }
 
-function OwnSearchFields({
-  data,
-  names,
-  filters,
-  roleId,
-  result,
-  update,
-}: {
-  data?: StrongholdOwn;
-  names: BindingNames;
-  filters: ScopeFilters;
-  roleId?: number;
-  result?: string;
-  update: (patch: SearchPatch) => void;
-}) {
-  return (
-    <div className={styles.searchFields}>
-      <SelectField
-        label="查看角色"
-        wide
-        value={String(roleId ?? "")}
-        options={[
-          ["", "全部角色"],
-          ...(data?.roles ?? []).map(({ id, channel_id, uid, role_name }): [string, string] => {
-            const name = preferredRoleName(names.get(`${channel_id}:${uid}`), role_name, uid);
-            return [String(id), `${roleLabel(name)} · ${channel_id === "1" ? "官服" : "B 服"}`];
-          }),
-        ]}
-        onChange={(value) => update({ role: value })}
-      />
-      <SelectField
-        label="版本"
-        wide
-        value={filters.version ?? ""}
-        options={[
-          ["", "全部版本"],
-          ...(data?.versions ?? []).map(({ key, label }): [string, string] => [key, label]),
-        ]}
-        onChange={(version) => update({ version, season: null, difficulty: null })}
-      />
-      <ScopeFields scopes={data?.scopes ?? []} filters={filters} update={update} />
-      <SelectField
-        label="结果"
-        wide
-        value={result ?? ""}
-        options={[["", "全部结果"], ...Object.entries(results)]}
-        onChange={(value) => update({ result: value })}
-      />
-    </div>
-  );
-}
-
-function DiarySearchFields({
+function ReportSearchFields({
   filters,
   data,
   applied,
   update,
+  history,
+  roles,
+  roleId,
+  names,
 }: {
-  filters: DiarySelection;
-  data?: StrongholdCommunity;
+  filters: ReportFilters;
+  data?: StrongholdCommunity | StrongholdHistory;
   applied: boolean;
   update: (patch: SearchPatch) => void;
+  history: boolean;
+  roles?: StrongholdOwn["roles"];
+  roleId?: number;
+  names: BindingNames;
 }) {
   const dateId = useId();
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const today = data?.today ?? nowBeijing().format("YYYY-MM-DD");
+  const [calendarOpen, setCalendarOpen] = useState<keyof DiaryDateRange | null>(null);
+  const today = data?.today ?? nowBeijing().format(diaryDateFormat);
+  const day = { start: today, end: today };
+  const appliedDates = filters.dateRange ?? (history ? undefined : day);
+  // Keep a selected range while URL navigation is pending so the picker cannot restore an older range.
+  const [pendingDates, setPendingDates] = useState<{
+    previous?: DiaryDateRange;
+    selected: DiaryDateRange;
+  }>();
+  const editing =
+    pendingDates &&
+    pendingDates.previous?.start === appliedDates?.start &&
+    pendingDates.previous?.end === appliedDates?.end;
+  if (pendingDates && !editing) setPendingDates(undefined);
+  const dates = editing ? pendingDates.selected : appliedDates;
+  const startValue = useMemo(
+    () => (dates?.start ? parseBeijing(dates.start) : null),
+    [dates?.start],
+  );
+  const endValue = useMemo(() => (dates?.end ? parseBeijing(dates.end) : null), [dates?.end]);
+  const updateDate = (edge: keyof DiaryDateRange, value: string) => {
+    if (value === dates?.[edge]) return;
+    const selected = dates
+      ? {
+          start: edge === "start" || value < dates.start ? value : dates.start,
+          end: edge === "end" || value > dates.end ? value : dates.end,
+        }
+      : { start: value, end: value };
+    setPendingDates({ previous: appliedDates, selected });
+    update({ ...resetDiaryDates, start_date: selected.start, end_date: selected.end });
+  };
   const latest =
     filters.version === "latest" && applied
       ? data?.versions.find(({ key }) => key === data.selected_version_key)
@@ -593,6 +572,26 @@ function DiarySearchFields({
   }
   return (
     <div className={styles.searchFields}>
+      {roles ? (
+        <SelectField
+          label="查看角色"
+          wide
+          value={String(roleId ?? "")}
+          options={[
+            ["", "全部角色"],
+            ...roles.map(({ id, channel_id, uid, role_name }): [string, string] => {
+              const name = preferredRoleName(names.get(`${channel_id}:${uid}`), role_name, uid);
+              return [String(id), `${roleLabel(name)} · ${channel_id === "1" ? "官服" : "B 服"}`];
+            }),
+          ]}
+          onChange={(role) => update({ role })}
+        />
+      ) : null}
+      {filters.season ? (
+        <Button className={styles.legacyScope} onClick={() => update({ season: null })}>
+          清除旧赛季筛选
+        </Button>
+      ) : null}
       <SelectField
         label="版本"
         wide
@@ -609,31 +608,70 @@ function DiarySearchFields({
           ["all", "全部版本"],
           ...(data?.versions ?? []).map(({ key, label }): [string, string] => [key, label]),
         ]}
-        onChange={(version) => update({ version: version === "latest" ? null : version })}
+        onChange={(version) =>
+          update({
+            version: (history ? version === "all" : version === "latest") ? null : version,
+            season: null,
+          })
+        }
       />
-      <div className={styles.diaryDate}>
-        <label className={styles.field} htmlFor={dateId}>
-          <span>
-            日期 <small>北京时间</small>
+      <div className={styles.diaryDate} role="group" aria-labelledby={dateId}>
+        <div className={styles.diaryDateHeader}>
+          <span id={dateId}>
+            日期范围 <small>北京时间</small>
           </span>
-          <DatePicker
-            id={dateId}
-            aria-label="战报日期"
-            value={parseBeijing(filters.date ?? today)}
-            format="YYYY-MM-DD"
-            allowClear={false}
-            onOpenChange={setCalendarOpen}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && calendarOpen) event.stopPropagation();
-            }}
-            disabledDate={(day) => {
-              const date = day.format("YYYY-MM-DD");
-              return date < "2019-01-01" || date > today;
-            }}
-            onChange={(day) => update({ date: day?.format("YYYY-MM-DD") })}
-          />
-        </label>
-        <Button onClick={() => update({ date: null })}>今日</Button>
+          <div className={styles.dateShortcuts}>
+            {history ? (
+              <Button
+                disabled={!appliedDates}
+                onClick={() => {
+                  setPendingDates(undefined);
+                  update(resetDiaryDates);
+                }}
+              >
+                全部日期
+              </Button>
+            ) : null}
+            <Button
+              onClick={() => {
+                setPendingDates(undefined);
+                update(
+                  history
+                    ? { ...resetDiaryDates, start_date: today, end_date: today }
+                    : resetDiaryDates,
+                );
+              }}
+            >
+              今日
+            </Button>
+          </div>
+        </div>
+        {(["start", "end"] as const).map((edge) => {
+          const inputId = `${dateId}-${edge}`;
+          return (
+            <div key={edge} className={styles.field}>
+              <label htmlFor={inputId}>{edge === "start" ? "开始日期" : "结束日期"}</label>
+              <DatePicker
+                id={inputId}
+                value={edge === "start" ? startValue : endValue}
+                format={diaryDateFormat}
+                allowClear={false}
+                placeholder={history ? "不限" : undefined}
+                onOpenChange={(open) =>
+                  setCalendarOpen((current) => (open ? edge : current === edge ? null : current))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && calendarOpen === edge) event.stopPropagation();
+                }}
+                disabledDate={(day) => {
+                  const date = day.format(diaryDateFormat);
+                  return date < earliestDiaryDate || date > today;
+                }}
+                onChange={(day) => day && updateDate(edge, day.format(diaryDateFormat))}
+              />
+            </div>
+          );
+        })}
       </div>
       <SelectField
         label="难度"
@@ -655,6 +693,7 @@ function DiarySearchFields({
           ["", "全部结局"],
           ["interrupted", results.interrupted],
           ["complete", results.complete],
+          ...(history ? [["unknown", results.unknown] as [string, string]] : []),
         ]}
         onChange={(result) => update({ result })}
       />
@@ -666,18 +705,19 @@ function Diary({
   data,
   loadingFeed,
   offset,
-  link,
+  reportLink,
   changePage,
   rememberList,
 }: {
   data?: StrongholdCommunity;
   loadingFeed: boolean;
   offset: number;
-  link: SearchLink;
+  reportLink: (id: string, index: number) => string;
   changePage: (offset: number) => void;
-  rememberList: RememberList;
+  rememberList: ReportLinkClick;
 }) {
   if (!data) return null;
+  const timeFormat = data.start_date === data.end_date ? "HH:mm:ss" : "YYYY-MM-DD HH:mm:ss";
   return (
     <>
       <StrongholdDiaryMetrics data={data} />
@@ -690,10 +730,10 @@ function Diary({
           <Loading />
         ) : data.matches.length ? (
           <ol className={styles.feedList}>
-            {data.matches.map((match) => (
+            {data.matches.map((match, index) => (
               <li className={styles.feedRow} key={match.id}>
                 <div className={styles.feedMatch}>
-                  <time dateTime={match.ended_at}>{formatBeijing(match.ended_at, "HH:mm:ss")}</time>
+                  <time dateTime={match.ended_at}>{formatBeijing(match.ended_at, timeFormat)}</time>
                   <BattleScope scope={match} version={match.version?.label} />
                   <ResultMark result={match.success} />
                 </div>
@@ -705,10 +745,10 @@ function Diary({
                 <Link
                   id={`stronghold-feed-${match.id}`}
                   className={styles.feedAction}
-                  to={link({ report: match.id, battle: null })}
+                  to={reportLink(match.id, index)}
                   preventScrollReset
-                  onClick={rememberList}
-                  aria-label={`查看 ${formatBeijing(match.ended_at, "HH:mm:ss")} 的战报详情`}
+                  onClick={(event) => rememberList(event, match.id)}
+                  aria-label={`查看 ${formatBeijing(match.ended_at, timeFormat)} 的战报详情`}
                 >
                   战报详情 <RightOutlined aria-hidden="true" />
                 </Link>
@@ -718,7 +758,9 @@ function Diary({
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前筛选暂无对局" />
         )}
-        {loadingFeed ? null : <Pager total={data.total} offset={offset} change={changePage} />}
+        {loadingFeed ? null : (
+          <Pager total={data.total} offset={offset} pageSize={diaryPageSize} change={changePage} />
+        )}
       </section>
     </>
   );
@@ -726,7 +768,7 @@ function Diary({
 
 function Report({
   id,
-  backTo,
+  headingRef,
   report,
   battle,
   legacy,
@@ -734,7 +776,7 @@ function Report({
   names,
 }: {
   id: string;
-  backTo?: string;
+  headingRef: RefObject<HTMLHeadingElement>;
   report: UseQueryResult<StrongholdMatch>;
   battle: string | null;
   legacy?: UseQueryResult<StrongholdRecordDetail>;
@@ -742,40 +784,14 @@ function Report({
   names: BindingNames;
 }) {
   const valid = recordPattern.test(id);
-  const heading = useRef<HTMLHeadingElement>(null);
-  useLayoutEffect(() => {
-    if (!backTo) return;
-    heading.current?.focus({ preventScroll: true });
-    document.getElementById("app-main")?.scrollTo({ top: 0 });
-  }, [id, backTo]);
   const match = report.data;
   const request = legacy ?? report;
   return (
-    <section
-      className={`${reportStyles.report} ${styles.battleReport}`}
-      data-embedded={!backTo}
-      aria-label="对局战报"
-    >
+    <section className={reportStyles.report} data-embedded="true" aria-label="对局战报">
       <header className={reportStyles.reportHeader}>
-        <div className={reportStyles.reportTitle}>
-          {backTo ? (
-            <Link to={backTo} preventScrollReset>
-              <ArrowLeftOutlined /> 返回卫戍战报
-            </Link>
-          ) : null}
-          <h3 ref={heading} tabIndex={-1}>
-            对局战报
-          </h3>
-        </div>
-        {match ? (
-          <div className={reportStyles.matchMeta}>
-            <BattleScope scope={match} version={match.version?.label} />
-            <ResultMark result={match.success} />
-            <time dateTime={match.ended_at}>
-              {formatBeijing(match.ended_at, "YYYY-MM-DD HH:mm:ss")}
-            </time>
-          </div>
-        ) : null}
+        <h3 ref={headingRef} className={reportStyles.reportTitle} tabIndex={-1}>
+          对局战报
+        </h3>
       </header>
       {!valid || apiStatus(request.error) === 404 ? (
         <Empty
@@ -799,46 +815,49 @@ function Report({
 
 export function ArknightsStrongholdPanel({ title, ...controls }: ControlProps & { title: string }) {
   const [params, setParams] = useSearchParams();
-  const mine = params.get("view") === "mine";
+  const oldMine = params.get("view") === "mine";
   const report = params.get("report");
-  const battle = report !== null || mine ? params.get("battle") : null;
+  const battle = params.get("battle");
+  const historyView =
+    params.get("view") === "history" || oldMine || report !== null || battle !== null;
+  const related = historyView && (oldMine || params.get("related") === "1");
   const legacyId = report === null ? battle : null;
-  const explicitDetail = report ?? legacyId;
   const season = params.get("season") ?? "";
   const difficulty = params.get("difficulty") ?? "";
   const mode = params.get("mode");
   const version = params.get("version") ?? "";
+  const defaultVersion = historyView ? "all" : "latest";
+  const baseDifficulty = historyView ? "all" : defaultDifficulty;
   const activeVersion = versionPattern.test(version) ? version : undefined;
   const resultParam = params.get("result");
-  const result: keyof typeof results | undefined =
-    resultParam === "complete" || resultParam === "interrupted" || resultParam === "unknown"
+  const result: StrongholdHistoryResult | undefined =
+    resultParam === "complete" ||
+    resultParam === "interrupted" ||
+    (historyView && resultParam === "unknown")
       ? resultParam
       : undefined;
-  const date = validDate(params.get("date"));
-  const roleId = positiveParam(params.get("role"));
-  const offset = positiveParam(params.get("offset")) ?? 0;
-  const scope: ScopeFilters = {
-    version: activeVersion,
-    season: scopePattern.test(season) ? season : undefined,
-    difficulty: scopePattern.test(difficulty) ? difficulty : undefined,
+  const roleId = related ? positiveParam(params.get("role")) : undefined;
+  const pageSize = historyView ? historyPageSize : diaryPageSize;
+  const offset = Math.floor((positiveParam(params.get("offset")) ?? 0) / pageSize) * pageSize;
+  const filters: ReportFilters = {
+    version:
+      version === "all" || version === "latest" ? version : (activeVersion ?? defaultVersion),
+    season: historyView && scopePattern.test(season) ? season : undefined,
+    difficulty: scopePattern.test(difficulty) ? difficulty : baseDifficulty,
     mode: mode === "single" || mode === "multi" || mode === "local" ? mode : undefined,
+    dateRange: diaryDateRange(params),
+    result,
   };
-  const diaryFilters: DiarySelection = {
-    version: version === "all" ? version : (activeVersion ?? "latest"),
-    difficulty: scope.difficulty ?? defaultDifficulty,
-    mode: scope.mode,
-    date,
-    result: result === "unknown" ? undefined : result,
+  const conditions = {
+    version: filters.version === "all" ? undefined : filters.version,
+    difficulty: filters.difficulty === "all" ? undefined : filters.difficulty,
+    start_date: filters.dateRange?.start,
+    end_date: filters.dateRange?.end,
+    mode: filters.mode,
   };
-  const page = { offset, limit: pageSize };
-  const diaryConditions = {
-    ...diaryFilters,
-    version: diaryFilters.version === "all" ? undefined : diaryFilters.version,
-    difficulty: diaryFilters.difficulty === "all" ? undefined : diaryFilters.difficulty,
-  };
+  const diaryConditions = { ...conditions, result: result === "unknown" ? undefined : result };
   const diaryScopeKey = JSON.stringify(diaryConditions);
-  const diaryParams = { ...diaryConditions, ...page };
-  const ownParams = { ...scope, ...page, role_id: roleId, result };
+  const diaryParams = { ...diaryConditions, offset, limit: diaryPageSize };
   const diary = useQuery({
     ...queryOptions,
     queryKey: [...queryKey, "diary", diaryParams],
@@ -846,17 +865,43 @@ export function ArknightsStrongholdPanel({ title, ...controls }: ControlProps & 
       scopeKey: diaryScopeKey,
       data: await fetchStrongholdCommunity(diaryParams),
     }),
-    enabled: !mine && explicitDetail === null,
+    enabled: !historyView,
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
   });
-  // Previous results are safe to display while paging, not after changing a filter.
   const appliedDiary = diary.data?.scopeKey === diaryScopeKey ? diary.data.data : undefined;
+
+  const historyParams = {
+    ...conditions,
+    offset,
+    limit: historyPageSize,
+    season: filters.season,
+    result,
+    related,
+    role_id: roleId,
+  };
+  const history = useQuery({
+    ...queryOptions,
+    queryKey: [...queryKey, "history", historyParams],
+    queryFn: () => fetchStrongholdHistory(historyParams),
+    enabled: historyView,
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  });
+  const historyData = history.isPlaceholderData ? undefined : history.data;
+  const latest = filters.version === "latest";
+  const resolvedVersion = latest ? (historyData?.selected_version_key ?? undefined) : activeVersion;
+  const ownParams = {
+    limit: 1,
+    ...(related
+      ? { ...conditions, version: resolvedVersion, season: filters.season, role_id: roleId }
+      : {}),
+  };
   const own = useQuery({
     ...queryOptions,
     queryKey: [...queryKey, "own", ownParams],
     queryFn: () => fetchStrongholdOwn(ownParams),
-    enabled: mine,
+    enabled: historyView,
     placeholderData: keepPreviousData,
     refetchInterval: ({ state }) =>
       state.data?.sync_status.some(
@@ -866,21 +911,33 @@ export function ArknightsStrongholdPanel({ title, ...controls }: ControlProps & 
         ? 8_000
         : 60_000,
   });
-  const pageRecords = own.isPlaceholderData ? undefined : own.data?.records;
-  const selectedRecord = mine
-    ? explicitDetail === null
-      ? pageRecords?.[0]
-      : pageRecords?.find((record) => (battle ? record.id === battle : record.match_id === report))
-    : undefined;
-  const reportId = report ?? (legacyId === null ? selectedRecord?.match_id : null) ?? null;
+  const selectedEntry =
+    report === null
+      ? historyData?.matches[0]
+      : historyData?.matches.find(({ id }) => id === report);
+  const reportId = report ?? (legacyId === null ? selectedEntry?.id : null) ?? null;
   const detailId = reportId ?? legacyId;
-  const requestedView = battle ?? selectedRecord?.id ?? null;
+  const requestedView = battle ?? selectedEntry?.preview?.id ?? null;
   const reportQuery = useQuery({
     ...queryOptions,
     queryKey: [...queryKey, "report", reportId],
     queryFn: () => fetchStrongholdReport(reportId!),
-    enabled: reportId !== null && recordPattern.test(reportId),
+    enabled: historyView && reportId !== null && recordPattern.test(reportId),
   });
+  const reportHeading = useRef<HTMLHeadingElement>(null);
+  const pendingHistoryFocus = useRef<string | null>(null);
+  const selectHistoryReport: ReportLinkClick = (event, id) => {
+    if (!isPlainLinkClick(event) || !isStackedHistory(event.currentTarget)) return;
+    if (report === id && !reportQuery.isPending) focusHistoryReport(reportHeading.current);
+    else pendingHistoryFocus.current = id;
+  };
+  useLayoutEffect(() => {
+    if (!historyView || pendingHistoryFocus.current !== report) pendingHistoryFocus.current = null;
+    if (pendingHistoryFocus.current === null || reportQuery.isPending) return;
+    // Wait for the detail to occupy its final space before scrolling past the list.
+    pendingHistoryFocus.current = null;
+    focusHistoryReport(reportHeading.current);
+  }, [historyView, report, reportQuery.isPending]);
   const legacy = useQuery({
     ...queryOptions,
     queryKey: [...queryKey, "record", legacyId],
@@ -890,24 +947,33 @@ export function ArknightsStrongholdPanel({ title, ...controls }: ControlProps & 
   useEffect(() => {
     if (!legacyId || !legacy.data) return;
     const { id, match_id } = legacy.data;
-    setParams((previous) => searchWith(previous, { report: match_id, battle: id }), {
-      replace: true,
-      preventScrollReset: true,
-    });
-  }, [legacyId, legacy.data, setParams]);
+    setParams(
+      (previous) =>
+        searchWith(previous, {
+          view: "history",
+          related: related ? 1 : null,
+          report: match_id,
+          battle: id,
+        }),
+      { replace: true, preventScrollReset: true },
+    );
+  }, [legacyId, legacy.data, related, setParams]);
 
   const listKey = diaryListKey(params);
   const listPosition = useRef<{ key: string; id: string; page: number } | null>(null);
-  const rememberList: RememberList = (event) => {
-    if (event.button !== 0 || event.metaKey || event.altKey || event.shiftKey || event.ctrlKey)
-      return;
+  const rememberList: ReportLinkClick = (event, id) => {
+    if (!isPlainLinkClick(event)) return;
+    pendingHistoryFocus.current = id;
     listPosition.current = {
       key: listKey,
       id: event.currentTarget.id,
       page: document.getElementById("app-main")?.scrollTop ?? 0,
     };
+    document.getElementById("app-main")?.scrollTo({ top: 0 });
   };
-  const pageSearch: SearchPatch = mine ? {} : retiredDiaryFilters;
+  const pageSearch: SearchPatch = historyView
+    ? { view: "history", related: related ? 1 : null }
+    : retiredDiaryFilters;
   const link: SearchLink = (patch) => `?${searchWith(params, { ...pageSearch, ...patch })}`;
   const update = (patch: SearchPatch) =>
     setParams((previous) => searchWith(previous, { ...pageSearch, ...patch }), {
@@ -916,137 +982,164 @@ export function ArknightsStrongholdPanel({ title, ...controls }: ControlProps & 
   const updateFilters = (patch: SearchPatch) =>
     update({ ...patch, offset: null, report: null, battle: null });
   const changePage = (next: number) => update({ offset: next, report: null, battle: null });
-  const query = mine ? own : diary;
+  const statsLink =
+    historyView && listPosition.current
+      ? `?${listPosition.current.key}`
+      : link({
+          view: null,
+          related: null,
+          report: null,
+          battle: null,
+          ...retiredDiaryFilters,
+          offset: historyView ? null : offset,
+          result: result === "unknown" ? null : result,
+        });
+  const diaryReportLink = (id: string, index: number) =>
+    link({
+      view: "history",
+      related: null,
+      version: filters.version,
+      difficulty: filters.difficulty,
+      ...resetDiaryDates,
+      start_date: appliedDiary?.start_date,
+      end_date: appliedDiary?.end_date,
+      offset: Math.floor((offset + index) / historyPageSize) * historyPageSize || null,
+      report: id,
+      battle: null,
+    });
   useLayoutEffect(() => {
     const old = listPosition.current;
-    if (mine || explicitDetail !== null || !old) return;
+    if (historyView || !old) return;
     if (old.key !== listKey) {
       listPosition.current = null;
       return;
     }
-    if (!query.data || query.isPlaceholderData) return;
+    if (!appliedDiary || diary.isPlaceholderData) return;
     document.getElementById("app-main")?.scrollTo({ top: old.page });
     document.getElementById(old.id)?.focus({ preventScroll: true });
     listPosition.current = null;
-  }, [mine, explicitDetail, listKey, query.data, query.isPlaceholderData]);
+  }, [historyView, listKey, appliedDiary, diary.isPlaceholderData]);
 
   const names = boundRoleNames(controls.roles);
+  const filtered = Boolean(
+    filters.version !== defaultVersion ||
+      filters.difficulty !== baseDifficulty ||
+      filters.season ||
+      filters.dateRange ||
+      filters.mode ||
+      filters.result ||
+      roleId,
+  );
   const reportPanel =
     detailId !== null ? (
       <Report
         id={detailId}
-        backTo={mine ? undefined : link({ report: null, battle: null })}
+        headingRef={reportHeading}
         report={reportQuery}
         battle={requestedView}
         legacy={legacyId !== null ? legacy : undefined}
-        ownRoles={mine ? own.data?.roles : undefined}
+        ownRoles={own.data?.roles}
         names={names}
       />
     ) : null;
-  if (!mine && reportPanel) {
-    return (
-      <div className={styles.protocol}>
-        <header className={arkStyles.sectionHeader}>
-          <h2>{title}</h2>
-        </header>
-        {reportPanel}
-      </div>
-    );
-  }
-  const filtered = mine
-    ? Boolean(activeVersion || scope.season || scope.difficulty || scope.mode || roleId || result)
-    : Boolean(
-        diaryFilters.version !== "latest" ||
-          diaryFilters.difficulty !== defaultDifficulty ||
-          diaryFilters.date ||
-          diaryFilters.mode ||
-          diaryFilters.result,
-      );
+
   return (
-    <div className={styles.protocol} data-view={mine ? "mine" : "diary"}>
+    <div className={styles.protocol} data-view={historyView ? "history" : "diary"}>
       <header className={`${arkStyles.sectionHeader} ${styles.protocolHeader}`}>
         <h2>{title}</h2>
         <div className={styles.headerActions}>
           <nav className={styles.viewNav} aria-label="卫戍协议视图">
-            <Link
-              aria-current={!mine ? "page" : undefined}
-              to={link({
-                ...(mine ? resetViewFilters : {}),
-                view: null,
-                report: null,
-                battle: null,
-                offset: mine ? null : offset,
-              })}
-            >
-              卫戍战报
+            <Link aria-current={!historyView ? "page" : undefined} to={statsLink}>
+              统计
             </Link>
             <Link
-              aria-current={mine ? "page" : undefined}
-              to={link({
-                ...(!mine ? resetViewFilters : {}),
-                view: "mine",
-                report: null,
-                battle: null,
-                offset: mine ? offset : null,
-              })}
+              aria-current={historyView ? "page" : undefined}
+              to={link(
+                historyView ? {} : { view: "history", report: null, battle: null, offset: null },
+              )}
             >
-              我的战绩
+              历史战绩
             </Link>
           </nav>
           <SearchControl
-            key={mine ? "mine" : "diary"}
+            key={historyView ? "history" : "diary"}
             filtered={filtered}
             reset={() => updateFilters(resetViewFilters)}
           >
-            {mine ? (
-              <OwnSearchFields
-                data={own.data}
-                names={names}
-                filters={scope}
-                roleId={roleId}
-                result={result}
-                update={updateFilters}
-              />
-            ) : (
-              <DiarySearchFields
-                filters={diaryFilters}
-                data={diary.data?.data}
-                applied={appliedDiary !== undefined}
-                update={updateFilters}
-              />
-            )}
+            <ReportSearchFields
+              filters={filters}
+              data={historyView ? history.data : diary.data?.data}
+              applied={historyView ? historyData !== undefined : appliedDiary !== undefined}
+              history={historyView}
+              roles={related ? (own.data?.roles ?? []) : undefined}
+              roleId={roleId}
+              names={names}
+              update={updateFilters}
+            />
+            {historyView ? (
+              <section className={styles.syncSection} aria-label="战绩同步">
+                <h3>战绩同步</h3>
+                {own.data ? (
+                  <OwnControls {...controls} data={own.data} names={names} />
+                ) : own.isError ? (
+                  <Failed error={own.error} retry={() => void own.refetch()} />
+                ) : (
+                  <Loading />
+                )}
+              </section>
+            ) : null}
           </SearchControl>
         </div>
       </header>
-      {mine && own.data ? (
-        <OwnDesk
-          data={own.data}
-          loading={own.isPlaceholderData}
-          controls={controls}
-          names={names}
-          offset={offset}
-          link={link}
-          selectedBattle={selectedRecord?.id ?? null}
-          detail={reportPanel}
-          changePage={changePage}
-        />
-      ) : mine ? (
-        reportPanel
+      {historyView ? (
+        <>
+          {related && own.data && !own.isPlaceholderData && (!latest || resolvedVersion) ? (
+            <PersonalSummary data={own.data} />
+          ) : null}
+          <div className={styles.historyWorkbench}>
+            <HistoryList
+              request={history}
+              related={related}
+              toggleRelated={(checked) =>
+                updateFilters({ related: checked ? 1 : null, role: null })
+              }
+              selected={reportQuery.data?.id ?? reportId}
+              offset={offset}
+              link={link}
+              onSelect={selectHistoryReport}
+              changePage={changePage}
+            />
+            {reportPanel ?? (
+              <section className={reportStyles.report} data-embedded="true" aria-label="对局战报">
+                <header className={reportStyles.reportHeader}>
+                  <h3 className={reportStyles.reportTitle}>对局战报</h3>
+                </header>
+                {history.isPending || history.isPlaceholderData ? (
+                  <Loading />
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无战报可查看" />
+                )}
+              </section>
+            )}
+          </div>
+        </>
       ) : (
-        <Diary
-          data={appliedDiary}
-          loadingFeed={diary.isPlaceholderData}
-          offset={offset}
-          link={link}
-          changePage={changePage}
-          rememberList={rememberList}
-        />
+        <>
+          <Diary
+            data={appliedDiary}
+            loadingFeed={diary.isPlaceholderData}
+            offset={offset}
+            reportLink={diaryReportLink}
+            changePage={changePage}
+            rememberList={rememberList}
+          />
+          {diary.isError ? (
+            <Failed error={diary.error} retry={() => void diary.refetch()} />
+          ) : diary.isPending || (diary.isPlaceholderData && !appliedDiary) ? (
+            <Loading />
+          ) : null}
+        </>
       )}
-      {query.isError ? (
-        <Failed error={query.error} retry={() => void query.refetch()} />
-      ) : query.isPending || (!mine && diary.isPlaceholderData && !appliedDiary) ? (
-        <Loading />
-      ) : null}
     </div>
   );
 }

@@ -40,7 +40,7 @@ def version_key(activity: str, version: str | None) -> str | None:
 
 
 def _game_catalog(
-    shared: dict, content: dict, characters: dict, skills: dict, modules: dict, effects: dict, enemies: dict
+    shared: dict, content: dict, characters: dict, skills: dict, equipment: dict, effects: dict, enemies: dict
 ) -> dict:
     strategies = {}
     bands = _obj(shared.get("bandDataDict"))
@@ -159,6 +159,15 @@ def _game_catalog(
     for shop in map(_obj, chess.values()):
         char_ids.update(filter(None, (_key(shop.get("charId")), _key(shop.get("backupCharId")))))
         module_ids.update(filter(None, (_key(shop.get("defaultUniEquipId")), _key(shop.get("backupCharUniEquipId")))))
+    sub_professions = _obj(equipment.get("subProfDict"))
+    branches = {}
+    for char_id in sorted(char_ids):
+        character = _obj(characters.get(char_id))
+        if branch_id := _key(character.get("subProfessionId")):
+            branches[char_id] = {
+                "branch_id": branch_id,
+                "branch_name": _label(_obj(sub_professions.get(branch_id)).get("subProfessionName")),
+            }
     skill_ids = {
         key
         for char_id in char_ids
@@ -167,6 +176,7 @@ def _game_catalog(
     }
     # Select exact references for this release, including substitutes. Do not attach one to a view unless its ID was recorded.
     skill_entries = {key: skill_reference(_obj(skills.get(key))) for key in sorted(skill_ids & skills.keys())}
+    modules = _obj(equipment.get("equipDict"))
     module_entries = {
         key: module_reference(_obj(modules.get(key)), _obj(effects.get(key)))
         for key in sorted(module_ids & modules.keys())
@@ -177,6 +187,7 @@ def _game_catalog(
             ("strategy", strategies),
             ("bond", bonds),
             ("operator", units),
+            ("operator_branch", branches),
             ("trait", traits),
             ("boss_display", bosses),
             ("title_display", titles),
@@ -203,7 +214,7 @@ def discover_activity_versions() -> list[tuple[str, str, dict, dict]]:
         return []
     characters = _optional_game_table(CHARACTER_TABLE_REL)
     skills = _optional_game_table("gamedata/excel/skill_table.json")
-    modules = _obj(_optional_game_table("gamedata/excel/uniequip_table.json").get("equipDict"))
+    equipment = _optional_game_table("gamedata/excel/uniequip_table.json")
     effects = _optional_game_table("gamedata/excel/battle_equip_table.json")
     enemies = _obj(_optional_game_table("gamedata/excel/enemy_handbook_table.json").get("enemyData"))
     entries = []
@@ -218,7 +229,7 @@ def discover_activity_versions() -> list[tuple[str, str, dict, dict]]:
                     activity,
                     version,
                     entry,
-                    _game_catalog(shared, content, characters, skills, modules, effects, enemies),
+                    _game_catalog(shared, content, characters, skills, equipment, effects, enemies),
                 )
             )
     return entries

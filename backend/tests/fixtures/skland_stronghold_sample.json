@@ -105,6 +105,7 @@
           "evolvePhase": 1,
           "chessLevel": 3,
           "charProfession": "CASTER",
+          "charSubProfession": "corecaster",
           "garrisonIds": [
             "trait_test"
           ]

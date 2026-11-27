@@ -8,7 +8,15 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { Popover, type PopoverProps } from "antd";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { StrongholdScope } from "@/features/platforms/skland/api/strongholdApi";
 import { modeLabels } from "./strongholdLabels";
 import styles from "./ArknightsStronghold.module.css";
@@ -58,20 +66,23 @@ export function ResultMark({ result }: { result: boolean | null }) {
 export function BattleIcon({
   src,
   kind,
+  className,
   fallback = <SafetyOutlined />,
 }: {
   src?: string | null;
   kind?: "bond" | "strategy";
+  className?: string;
   fallback?: ReactNode;
 }) {
   const [failed, setFailed] = useState<string | null>(null);
   return (
-    <span className={styles.battleIcon} data-kind={kind} aria-hidden="true">
+    <span className={className ?? styles.battleIcon} data-kind={kind} aria-hidden="true">
       {src && src !== failed ? (
         <img
           src={src}
           alt=""
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailed(src)}
         />
@@ -82,18 +93,24 @@ export function BattleIcon({
   );
 }
 
+const effectMaxWidth = 520;
+
 export function EffectPopup({
   className,
   label,
   children,
   content,
   placement = "top",
+  tone = "dark",
+  onOpenChange,
 }: {
   className: string;
   label: string;
   children: ReactNode;
   content: ReactNode;
   placement?: PopoverProps["placement"];
+  tone?: "dark" | "paper";
+  onOpenChange?: (open: boolean) => void;
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -102,16 +119,16 @@ export function EffectPopup({
   const pinned = useRef(false);
   const restoringFocus = useRef(false);
   const [open, setOpen] = useState(false);
-  const [fitsRight, setFitsRight] = useState(false);
-  const checkRight = useCallback(() => {
+  const [hasSideRoom, setHasSideRoom] = useState(false);
+  const checkSideRoom = useCallback(() => {
     if (placement !== "right" || !trigger.current) return;
     const width = document.documentElement.clientWidth;
-    setFitsRight(
-      width - trigger.current.getBoundingClientRect().right >= Math.min(415, width - 46) + 16,
-    );
+    const rect = trigger.current.getBoundingClientRect();
+    const needed = Math.min(effectMaxWidth, width - 32) + 16;
+    setHasSideRoom(Math.max(width - rect.right, rect.left) >= needed);
   }, [placement]);
   const show = () => {
-    checkRight();
+    checkSideRoom();
     setOpen(true);
   };
   const cancelClose = () => clearTimeout(timer.current);
@@ -155,26 +172,34 @@ export function EffectPopup({
     };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
-    window.addEventListener("resize", checkRight);
+    window.addEventListener("resize", checkSideRoom);
     return () => {
       clearTimeout(timer.current);
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", escape);
-      window.removeEventListener("resize", checkRight);
+      window.removeEventListener("resize", checkSideRoom);
     };
-  }, [open, checkRight]);
+  }, [open, checkSideRoom]);
 
+  useEffect(() => {
+    if (!open || !onOpenChange) return;
+    onOpenChange(true);
+    return () => onOpenChange(false);
+  }, [open, onOpenChange]);
+
+  // The placement offset is kept when Ant shifts the bubble at viewport edges.
   return (
     <Popover
-      placement={placement === "right" && !fitsRight ? "bottom" : placement}
-      color="#152326"
+      placement={placement === "right" && !hasSideRoom ? "bottom" : placement}
+      align={{ offset: [0, 0] }}
+      color={tone === "paper" ? "#fffdf7" : "#152326"}
       trigger={[]}
       open={open}
       destroyTooltipOnHide
-      rootClassName={reportStyles.effectPopover}
+      rootClassName={tone === "paper" ? reportStyles.paperPopover : reportStyles.effectPopover}
       content={
         <div
-          className={reportStyles.effectContent}
+          className={reportStyles.effectViewport}
           ref={popup}
           id={id}
           tabIndex={-1}
@@ -190,7 +215,12 @@ export function EffectPopup({
             }
           }}
         >
-          {content}
+          <div
+            className={reportStyles.effectContent}
+            style={{ "--effect-max-width": `${effectMaxWidth}px` } as CSSProperties}
+          >
+            {content}
+          </div>
         </div>
       }
     >
@@ -236,44 +266,5 @@ export function EffectPopup({
         {children}
       </button>
     </Popover>
-  );
-}
-
-export function StrategyMark({
-  icon,
-  name,
-  description,
-}: {
-  icon?: string | null;
-  name?: string | null;
-  description?: string | null;
-}) {
-  const title = name || "策略未记录";
-  const mark = <BattleIcon kind="strategy" src={icon} fallback={<FlagOutlined />} />;
-  const label = (
-    <>
-      {mark}
-      <span>{title}</span>
-    </>
-  );
-  if (!name && !icon && !description)
-    return <span className={styles.historyStrategy}>{label}</span>;
-  return (
-    <EffectPopup
-      className={styles.historyStrategy}
-      label={`策略：${title}`}
-      placement="right"
-      content={
-        <>
-          <div className={reportStyles.effectHeading}>
-            {mark}
-            <strong>{title}</strong>
-          </div>
-          <p className={reportStyles.effectText}>{description || "同版本策略效果未收录"}</p>
-        </>
-      }
-    >
-      {label}
-    </EffectPopup>
   );
 }

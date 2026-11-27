@@ -5826,6 +5826,40 @@
             }
           },
           {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
             "name": "member",
             "in": "query",
             "required": false,
@@ -5875,6 +5909,240 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StrongholdCommunityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skland/arknights/stronghold/history": {
+      "get": {
+        "tags": [
+          "skland"
+        ],
+        "summary": "Stronghold History",
+        "operationId": "stronghold_history_api_skland_arknights_stronghold_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "single",
+                    "multi",
+                    "local"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:latest|[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128})$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "complete",
+                    "interrupted",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "name": "related",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Related"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2147483647,
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483647,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 40,
+              "minimum": 1,
+              "default": 12,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StrongholdHistoryOut"
                 }
               }
             }
@@ -6037,6 +6305,40 @@
                 }
               ],
               "title": "Result"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
             }
           },
           {
@@ -32987,6 +33289,16 @@
             "format": "date",
             "title": "Date"
           },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
           "today": {
             "type": "string",
             "format": "date",
@@ -33045,6 +33357,8 @@
           "scopes",
           "versions",
           "date",
+          "start_date",
+          "end_date",
           "today",
           "ranking",
           "popular_bonds",
@@ -33311,6 +33625,151 @@
           "id"
         ],
         "title": "StrongholdEquipmentOut"
+      },
+      "StrongholdHistoryEntryOut": {
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "title": "Season Id"
+          },
+          "season_label": {
+            "type": "string",
+            "title": "Season Label"
+          },
+          "difficulty_id": {
+            "type": "string",
+            "title": "Difficulty Id"
+          },
+          "difficulty_label": {
+            "type": "string",
+            "title": "Difficulty Label"
+          },
+          "mode_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "multi",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode Type"
+          },
+          "version_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Key"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrongholdRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A visible perspective to preview and open."
+          }
+        },
+        "type": "object",
+        "required": [
+          "season_id",
+          "season_label",
+          "difficulty_id",
+          "difficulty_label",
+          "id",
+          "ended_at",
+          "success",
+          "preview"
+        ],
+        "title": "StrongholdHistoryEntryOut"
+      },
+      "StrongholdHistoryOut": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdHistoryEntryOut"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdScopeOut"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/StrongholdVersionOut"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "selected_version_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}:[A-Za-z0-9_:.\\-]{1,128}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Version Key"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches",
+          "total",
+          "scopes",
+          "versions",
+          "today"
+        ],
+        "title": "StrongholdHistoryOut"
       },
       "StrongholdLayerMemberOut": {
         "properties": {
@@ -33781,6 +34240,28 @@
             ],
             "title": "Profession"
           },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          },
+          "branch_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Name"
+          },
           "merge_level": {
             "anyOf": [
               {
@@ -34164,6 +34645,21 @@
               }
             ],
             "title": "Bonds"
+          },
+          "available_bonds": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StrongholdBondOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Bonds",
+            "description": "Additional roster affiliations from the same-version catalog, without recorded layers."
           },
           "battle": {
             "$ref": "#/components/schemas/StrongholdBattleData"

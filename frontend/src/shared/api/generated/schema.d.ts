@@ -1988,6 +1988,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skland/arknights/stronghold/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stronghold History */
+        get: operations["stronghold_history_api_skland_arknights_stronghold_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skland/arknights/stronghold/assets/{digest}": {
         parameters: {
             query?: never;
@@ -12039,6 +12056,16 @@ export interface components {
              */
             date: string;
             /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
              * Today
              * Format: date
              */
@@ -12132,6 +12159,50 @@ export interface components {
             description?: string | null;
             /** Icon Url */
             icon_url?: string | null;
+        };
+        /** StrongholdHistoryEntryOut */
+        StrongholdHistoryEntryOut: {
+            /** Season Id */
+            season_id: string;
+            /** Season Label */
+            season_label: string;
+            /** Difficulty Id */
+            difficulty_id: string;
+            /** Difficulty Label */
+            difficulty_label: string;
+            /** Mode Type */
+            mode_type?: ("single" | "multi" | "local") | null;
+            /** Version Key */
+            version_key?: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /** Success */
+            success: boolean | null;
+            /** @description A visible perspective to preview and open. */
+            preview: components["schemas"]["StrongholdRecordOut"] | null;
+        };
+        /** StrongholdHistoryOut */
+        StrongholdHistoryOut: {
+            /** Matches */
+            matches: components["schemas"]["StrongholdHistoryEntryOut"][];
+            /** Total */
+            total: number;
+            /** Scopes */
+            scopes: components["schemas"]["StrongholdScopeOut"][];
+            /** Versions */
+            versions: components["schemas"]["StrongholdVersionOut"][];
+            /** Selected Version Key */
+            selected_version_key?: string | null;
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
         };
         /** StrongholdLayerMemberOut */
         StrongholdLayerMemberOut: {
@@ -12264,6 +12335,10 @@ export interface components {
             module?: components["schemas"]["StrongholdOperatorEffectOut"] | null;
             /** Profession */
             profession?: string | null;
+            /** Branch Id */
+            branch_id?: string | null;
+            /** Branch Name */
+            branch_name?: string | null;
             /** Merge Level */
             merge_level?: number | null;
             /** Equipment */
@@ -12362,6 +12437,11 @@ export interface components {
             roster: components["schemas"]["StrongholdOperatorOut"][] | null;
             /** Bonds */
             bonds: components["schemas"]["StrongholdBondOut"][] | null;
+            /**
+             * Available Bonds
+             * @description Additional roster affiliations from the same-version catalog, without recorded layers.
+             */
+            available_bonds?: components["schemas"]["StrongholdBondOut"][] | null;
             battle: components["schemas"]["StrongholdBattleData"];
             author?: components["schemas"]["StrongholdMemberOut"] | null;
             /** Role Name */
@@ -21852,6 +21932,8 @@ export interface operations {
                 version?: string | null;
                 result?: ("complete" | "interrupted") | null;
                 date?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
                 member?: number | null;
                 offset?: number;
                 limit?: number;
@@ -21869,6 +21951,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StrongholdCommunityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stronghold_history_api_skland_arknights_stronghold_history_get: {
+        parameters: {
+            query?: {
+                season?: string | null;
+                difficulty?: string | null;
+                mode?: ("single" | "multi" | "local") | null;
+                version?: string | null;
+                result?: ("complete" | "interrupted" | "unknown") | null;
+                date?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                related?: boolean;
+                role_id?: number | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrongholdHistoryOut"];
                 };
             };
             /** @description Validation Error */
@@ -21921,6 +22045,8 @@ export interface operations {
                 mode?: ("single" | "multi" | "local") | null;
                 version?: string | null;
                 result?: ("complete" | "interrupted" | "unknown") | null;
+                start_date?: string | null;
+                end_date?: string | null;
                 role_id?: number | null;
                 offset?: number;
                 limit?: number;

@@ -233,6 +233,7 @@ def _operators(raw: object, resource: dict) -> list[StrongholdOperatorOut] | Non
                 phase=_number(info.get("evolvePhase")),
                 tier=_number(info.get("chessLevel")),
                 profession=_key(info.get("charProfession")),
+                branch_id=_key(info.get("charSubProfession")),
                 skill_id=_key(entry.get("skillId")),
                 module_id=_key(entry.get("moduleId")),
                 merge_level=_number(entry.get("mergeLevel")),

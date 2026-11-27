@@ -6,10 +6,14 @@ import type {
 } from "@/features/platforms/skland/api/strongholdApi";
 import { boundRoleNames, preferredRoleName, withOwnRoleNames } from "./strongholdLabels";
 import {
-  bondLayerScale,
+  belongsToBond,
+  bondStatus,
+  chessKey,
   groupReportPlayers,
   initialReportView,
-  pickedChessIds,
+  reportBondBars,
+  reportDuration,
+  reportPortraits,
 } from "./strongholdReportModel";
 
 const scope = {
@@ -75,33 +79,75 @@ describe("Stronghold report perspectives", () => {
     expect(initialReportView(match([first]))).toBe(first);
     expect(initialReportView(match([]))).toBeUndefined();
   });
-
-  it("matches canonical and exact chess IDs, not shared names, phases, or guessed suffixes", () => {
-    const keys = pickedChessIds([
-      { id: "signal_piece", normal_chess_id: "known", is_elite: true },
-      { id: "other_piece_gold", char_id: "char_002_amiya", merge_level: 3, phase: 2 },
-      { id: "normal" },
-      { id: "known" },
-    ]);
-    expect(keys).toEqual(new Set(["known", "other_piece_gold", "normal"]));
-    expect(keys.has("other_piece")).toBe(false);
-    expect(pickedChessIds(null).size).toBe(0);
-  });
 });
 
-describe("Stronghold bond axis", () => {
-  it.each([0, 397, 999, 1000])("keeps the same zero-based scale at %d layers", (peak) => {
-    expect(bondLayerScale(peak)).toEqual({ ceiling: 1000, ticks: [1000, 750, 500, 250, 0] });
+describe("Stronghold report combat data", () => {
+  it("matches canonical or exact chess IDs and evaluates golden rules independently of evolve phase", () => {
+    const ordinaryBond = {
+      bond_id: "known_bond",
+      operators: [{ id: "known", char_id: "char_original" }],
+    };
+    const goldenBond = { bond_id: "gold_bond", activation_rule: "golden" as const };
+    const substitute = {
+      id: "signal_piece",
+      normal_chess_id: "known",
+      char_id: "char_backup",
+      is_elite: true,
+      phase: 0,
+    };
+    const unknown = { id: "known_gold", char_id: "char_original", phase: 2 };
+    expect(chessKey(substitute)).toBe("known");
+    expect(belongsToBond(substitute, ordinaryBond)).toBe(true);
+    expect(belongsToBond(substitute, goldenBond)).toBe(true);
+    expect(belongsToBond({ id: "known" }, ordinaryBond)).toBe(true);
+    expect(belongsToBond(unknown, ordinaryBond)).toBe(false);
+    expect(belongsToBond(unknown, goldenBond)).toBe(false);
+    expect([true, false, null].map(bondStatus)).toEqual([
+      "本局已点亮",
+      "本局未点亮",
+      "点亮状态未知",
+    ]);
   });
 
-  it.each([1001, 5326, 2_147_483_647])(
-    "expands to readable equal intervals for %d layers",
-    (peak) => {
-      const { ceiling, ticks } = bondLayerScale(peak);
-      expect(ceiling).toBeGreaterThanOrEqual(peak);
-      expect(ticks).toEqual([1, 0.75, 0.5, 0.25, 0].map((fraction) => ceiling * fraction));
-    },
-  );
+  it("sorts relative bars by recorded layers and retains zero and missing values", () => {
+    const bonds = [
+      { bond_id: "missing", layer: null },
+      { bond_id: "zero", layer: 0 },
+      { bond_id: "peak", layer: 124 },
+      { bond_id: "half", layer: 62 },
+    ];
+    expect(reportBondBars(bonds).map(({ bond, fill }) => [bond.layer, fill])).toEqual([
+      [124, 1],
+      [62, 0.5],
+      [0, 0],
+      [null, 0],
+    ]);
+    expect(reportBondBars(bonds.slice(0, 2)).map(({ fill }) => fill)).toEqual([0, 0]);
+  });
+
+  it("uses the same Beijing clock for naive and offset dates, including at midnight", () => {
+    expect(reportDuration("2026-11-26T23:43:01", "2026-11-26T16:33:41Z")).toEqual({
+      minutes: 50,
+      seconds: 40,
+    });
+    expect(reportDuration(ended_at, ended_at)).toEqual({ minutes: 0, seconds: 0 });
+    expect(reportDuration(ended_at, "2026-11-24T19:00:00+08:00")).toBeNull();
+    expect(reportDuration(null, ended_at)).toBeNull();
+    expect(reportDuration("invalid", ended_at)).toBeNull();
+  });
+
+  it("uses only roster portraits and falls back from elite phase 2 to the base portrait", () => {
+    for (const phase of [0, 1, 3, null, undefined]) {
+      expect(reportPortraits("char_example", phase)).toEqual([
+        "/api/skland/arknights/assets/portrait/char_example_1.png",
+      ]);
+    }
+    expect(reportPortraits("char_example", 2)).toEqual([
+      "/api/skland/arknights/assets/portrait/char_example_2.png",
+      "/api/skland/arknights/assets/portrait/char_example_1.png",
+    ]);
+    expect(reportPortraits(null, 2)).toEqual([]);
+  });
 });
 
 describe("Stronghold binding names", () => {

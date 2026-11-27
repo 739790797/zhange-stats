@@ -1,0 +1,384 @@
+.section {
+  width: var(--report-roster-width);
+  max-width: 100%;
+  min-width: 0;
+}
+.heading,
+.tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+}
+.heading {
+  justify-content: space-between;
+}
+.section .heading h4 {
+  font: inherit;
+}
+.heading h4 small {
+  margin-inline-start: 4px;
+  letter-spacing: normal;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 13px;
+  margin-bottom: 7px;
+  color: #575e65;
+  font-size: 11px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend span::before {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #266453;
+  border-radius: 50%;
+  background: #266453;
+  content: "";
+}
+.legend [data-state="false"]::before {
+  border: 1px dashed #e7e6e1;
+  background: #555b5c;
+}
+.legend [data-state="unknown"]::before {
+  border: 1px dotted #e7e6e1;
+  background: #736443;
+}
+.section .scrollHint {
+  display: none;
+  margin-block: 2px 5px;
+  color: #575e65;
+  font-size: 11px;
+}
+.scroll {
+  max-width: 100%;
+  padding: 1px 1px 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-color: #a9aaa4 transparent;
+}
+.grid {
+  display: grid;
+  width: max-content;
+  grid-template-columns: repeat(5, 180px);
+  grid-auto-rows: 360px;
+  gap: 8px;
+}
+.grid > li {
+  min-width: 0;
+}
+.card,
+.empty {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.card {
+  container-type: inline-size;
+  --inset: clamp(4px, 2.1cqi, 7px);
+  --rank-size: clamp(29px, 14.5cqi, 44px);
+  --promotion-width: clamp(33px, 14.4cqi, 44px);
+  --promotion-symbol-size: clamp(26px, 10.9cqi, 33px);
+  --level-size: clamp(13px, 5.15cqi, 16px);
+  --badge-gap: clamp(3px, 1.2cqi, 4px);
+  --base-promotion-height: calc(var(--promotion-symbol-size) * 21 / 24 + var(--level-size) + 5px);
+  --gold-sprite-height: calc((var(--promotion-width) - 2px) * 49 / 39);
+  --gold-glow-y: calc(var(--gold-sprite-height) * 29 / 49);
+  --gold-promotion-height: calc(var(--gold-glow-y) + var(--level-size) / 2 + 6px);
+  --badge-rail: calc(
+    var(--inset) + var(--rank-size) + var(--badge-gap) +
+      max(var(--base-promotion-height), var(--gold-promotion-height)) + 4px
+  );
+  --bond-size: clamp(24px, 15.3cqi, 45px);
+  --bond-gap: clamp(2px, 1.4cqi, 4px);
+  --name-size: clamp(19px, 11cqi, 32px);
+  --profession-size: clamp(28px, 16.75cqi, 49px);
+  --branch-size: clamp(25px, 12.25cqi, 36px);
+  --detail-icon-size: clamp(23px, 11cqi, 32px);
+  --detail-text-size: clamp(12px, 5cqi, 15px);
+  background: #dfdbce;
+  box-shadow: 0 0 0 1px #adada4;
+}
+.art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #7e7f78;
+  font-size: 36px;
+}
+.art img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+}
+.trigger {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: end;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.card .trigger:focus-visible {
+  outline-offset: -3px;
+}
+.namePlate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 13px clamp(7px, 3.25cqi, 11px) 6px;
+  background: linear-gradient(transparent, #131718f2 92%);
+  color: #fff;
+  font-size: var(--name-size);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: left;
+  text-shadow: 0 1px 3px #111;
+}
+.ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profession {
+  width: var(--profession-size);
+  height: var(--profession-size);
+  flex: none;
+  background: transparent;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px #101413de);
+}
+.insignia,
+.bonds {
+  position: absolute;
+  top: var(--inset);
+  z-index: 3;
+}
+.insignia {
+  left: var(--inset);
+  display: grid;
+  gap: var(--badge-gap);
+  justify-items: center;
+  pointer-events: none;
+}
+.rank {
+  width: var(--rank-size);
+  height: var(--rank-size);
+  object-fit: contain;
+}
+.promotion {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  width: var(--promotion-width);
+  padding: 2px 0 1px;
+  border: 1px solid #545857;
+  border-radius: 5px;
+  background: #171b1cf2;
+  color: #f5f4ef;
+  font: 750 var(--level-size) / 1 var(--ark-mono);
+}
+.promotionIcon {
+  display: block;
+  width: var(--promotion-symbol-size);
+  height: auto;
+}
+.promotion[data-tone="gold"] {
+  display: block;
+  height: var(--gold-promotion-height);
+  overflow: hidden;
+  padding: 0;
+  color: #ffedb7;
+  border-color: #71613e;
+}
+.promotion[data-tone="gold"] .promotionIcon {
+  width: 100%;
+  height: var(--gold-sprite-height);
+}
+.promotion[data-tone="gold"] .level {
+  /* Align the number to the uncut sprite's light, even when the frame crops its fade. */
+  position: absolute;
+  top: var(--gold-glow-y);
+  left: 50%;
+  translate: -50% -50%;
+  text-shadow: 0 1px 2px #171b1c;
+}
+.bonds {
+  right: var(--inset);
+  display: flex;
+  justify-content: end;
+  flex-wrap: wrap;
+  gap: var(--bond-gap);
+  max-width: calc(100% - var(--rank-size) - 3 * var(--inset));
+}
+.bondButton {
+  display: block;
+  width: var(--bond-size);
+  height: var(--bond-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.bondButton > span {
+  width: 100%;
+  height: 100%;
+}
+.bondButton:is(:hover, :focus-visible) {
+  outline: 1px solid #f9f5e6;
+  outline-offset: 1px;
+}
+.drawer {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  max-height: calc(100% - var(--badge-rail));
+  overflow: auto;
+  translate: 0 101%;
+  opacity: 0;
+  border-top: 2px solid var(--sh-signal);
+  background: #fffef9f7;
+  transition:
+    translate 0.2s ease-out,
+    opacity 0.16s ease-out;
+  scrollbar-width: thin;
+}
+.drawer[inert] {
+  pointer-events: none;
+}
+.card[data-open="true"] .drawer {
+  translate: 0 0;
+  opacity: 1;
+}
+.bio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  padding: 3px 7px 0;
+}
+.bio strong {
+  font-size: var(--name-size);
+  font-weight: 800;
+  line-height: 1.2;
+}
+.branch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #43494e;
+  font-size: var(--detail-text-size);
+  line-height: 1.25;
+}
+.branch img {
+  width: var(--branch-size);
+  height: var(--branch-size);
+  flex: none;
+  background: transparent;
+  object-fit: contain;
+  filter: brightness(0);
+  opacity: 0.84;
+}
+.drawer .cardLevel {
+  padding: 1px 7px 3px;
+  color: #50565b;
+  font-size: var(--detail-text-size);
+}
+.drawer .kit {
+  margin-inline: 7px;
+  padding-bottom: 5px;
+}
+.kitRow {
+  display: grid;
+  grid-template-columns: 2.15em minmax(0, 1fr);
+  align-items: start;
+  gap: 4px;
+  border-top: 1px solid #e9e8e0;
+  font-size: var(--detail-text-size);
+}
+.kitRow dt,
+.unavailable {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--detail-icon-size) + 4px);
+  color: #575e65;
+  white-space: nowrap;
+}
+.kitItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-weight: 680;
+  line-height: 1.25;
+  text-align: left;
+}
+.kitItem:hover,
+.kitItem[aria-expanded="true"] {
+  background: #f4efe6;
+}
+.kitItem > span:first-child {
+  width: var(--detail-icon-size);
+  height: var(--detail-icon-size);
+  padding: 1px;
+  background: #30363a;
+  color: #fff;
+}
+.equipment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 6px;
+}
+.empty {
+  display: grid;
+  place-items: center;
+  border: 1px dashed #bcbbb1;
+  background: linear-gradient(150deg, #efeee7, #eae8dd);
+  color: #6f7068;
+  font-size: 12px;
+}
+.empty::before {
+  position: absolute;
+  width: 46%;
+  height: 1px;
+  background: #d7d5ca;
+  rotate: -48deg;
+  transform: translateY(-15px);
+  content: "";
+}
+.empty span {
+  margin-top: 30px;
+}
+@container stronghold-report (width < 934px) {
+  .section .scrollHint {
+    display: block;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    transition: none;
+  }
+}

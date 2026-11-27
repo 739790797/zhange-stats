@@ -9,6 +9,12 @@ type Schema = components["schemas"];
 type CommunityQuery = NonNullable<
   paths["/api/skland/arknights/stronghold/community"]["get"]["parameters"]["query"]
 >;
+type HistoryQuery = NonNullable<
+  paths["/api/skland/arknights/stronghold/history"]["get"]["parameters"]["query"]
+>;
+type OwnQuery = NonNullable<
+  paths["/api/skland/arknights/stronghold/me"]["get"]["parameters"]["query"]
+>;
 export type StrongholdVersion = Schema["StrongholdVersionOut"];
 export type StrongholdBond = Schema["StrongholdBondOut"];
 export type StrongholdSyncStatus = Schema["StrongholdSyncStatus"];
@@ -20,6 +26,8 @@ export type StrongholdRecordDetail = Schema["StrongholdRecordDetailOut"];
 export type StrongholdMode = NonNullable<StrongholdScope["mode_type"]>;
 export type StrongholdOwn = Schema["StrongholdOwnOut"];
 export type StrongholdCommunity = Schema["StrongholdCommunityOut"];
+export type StrongholdHistory = Schema["StrongholdHistoryOut"];
+export type StrongholdHistoryResult = NonNullable<HistoryQuery["result"]>;
 export type StrongholdCommunityResult = NonNullable<CommunityQuery["result"]>;
 export type StrongholdRoleSelection = Schema["StrongholdSyncIn"];
 export type StrongholdFilters = {
@@ -32,14 +40,16 @@ export type StrongholdFilters = {
 };
 
 export async function fetchStrongholdCommunity(
-  params: StrongholdFilters & Pick<CommunityQuery, "date" | "result">,
+  params: StrongholdFilters & Pick<CommunityQuery, "date" | "start_date" | "end_date" | "result">,
 ) {
   return (await client.get<StrongholdCommunity>(`${path}/community`, { params })).data;
 }
 
-export async function fetchStrongholdOwn(
-  params: StrongholdFilters & { role_id?: number; result?: "complete" | "interrupted" | "unknown" },
-) {
+export async function fetchStrongholdHistory(params: HistoryQuery) {
+  return (await client.get<StrongholdHistory>(`${path}/history`, { params })).data;
+}
+
+export async function fetchStrongholdOwn(params: OwnQuery) {
   return (await client.get<StrongholdOwn>(`${path}/me`, { params })).data;
 }
 

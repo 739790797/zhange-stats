@@ -62,6 +62,7 @@ def test_official_battle_fields_and_asset_projection(fixture):
     assert solo.bonds[1].icon_url is None
     operator = solo.roster[0]
     assert (operator.tier, operator.merge_level, operator.profession) == (3, 2, "CASTER")
+    assert operator.branch_id == "corecaster"
     assert (operator.skill_id, operator.module_id) == ("skcom_charge_1", "uniequip_002_amiya")
     equipment = operator.equipment[0]
     assert (equipment.id, equipment.name, equipment.tier) == ("item_training", "测试道具", 2)

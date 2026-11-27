@@ -12,7 +12,7 @@ from app.services.upstream_repos import (
 )
 
 ASSET_URL_PREFIX = "/api/skland/arknights/assets"
-_KINDS = frozenset({"avatar", "enemy", "item", "portrait", "skill"})
+_KINDS = frozenset({"avatar", "enemy", "item", "portrait", "skill", "skin"})
 _NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

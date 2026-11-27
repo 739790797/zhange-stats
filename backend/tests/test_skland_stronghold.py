@@ -645,6 +645,183 @@ def test_diary_filters_apply_to_every_metric_and_use_beijing_end_date(env):
     assert env.get(4, params={"date": "2026-11-22"})["coverage"]["matches"] == 0
 
 
+def test_diary_date_range_includes_both_beijing_days_and_keeps_metrics_across_pages(env):
+    env.enable()
+    env.rows[A] = [
+        _battle(
+            A,
+            f"range-{layer}",
+            mode="single",
+            scene=f"scene-range-{layer}",
+            start=(datetime.fromisoformat(end) - timedelta(minutes=15)).isoformat(),
+            end=end,
+            passed=layer != 20,
+            strategy_id="shared",
+            bonds=[_bond(layer=layer)],
+        )
+        for layer, end in (
+            (100, "2026-11-22T15:59:59Z"),  # Before the first day in Beijing.
+            (10, "2026-11-22T16:00:00Z"),
+            (20, "2026-11-24T15:59:59Z"),
+            (1000, "2026-11-24T16:00:00Z"),  # After the last day in Beijing.
+        )
+    ]
+    assert env.persist(1, *A).new_records == 4
+
+    params = {"start_date": "2026-11-23", "end_date": "2026-11-24", "limit": 1}
+    first = env.get(4, params=params)
+    second = env.get(4, params={**params, "offset": 1})
+    assert first["date"] == first["start_date"] == params["start_date"]
+    assert first["end_date"] == params["end_date"]
+    assert [page["matches"][0]["ended_at"] for page in (first, second)] == [
+        "2026-11-24T23:59:59+08:00",
+        "2026-11-23T00:00:00+08:00",
+    ]
+    assert len(first["matches"]) == len(second["matches"]) == 1
+    assert first["total"] == first["coverage"]["matches"] == first["ranking"][0]["matches"] == 2
+    assert first["strategies"][0]["count"] == 2
+    assert first["covenants"][0]["layers"] == 30
+    for key in ("total", "coverage", "ranking", "strategies", "covenants"):
+        assert first[key] == second[key]
+
+    completed = env.get(4, params={**params, "mode": "single", "result": "complete"})
+    assert completed["matches"] == second["matches"]
+    assert completed["total"] == completed["ranking"][0]["matches"] == 1
+    assert completed["covenants"][0]["layers"] == 10
+
+    legacy = env.get(4, params={"date": "2026-11-24"})
+    assert legacy == env.get(4, params={"start_date": "2026-11-24", "end_date": "2026-11-24"})
+    assert legacy["matches"] == first["matches"]
+    default = env.get(4)
+    assert default["date"] == default["start_date"] == default["end_date"] == default["today"] == "2026-11-23"
+    assert default["matches"] == second["matches"]
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"start_date": "2026-11-23"},
+        {"end_date": "2026-11-24"},
+        {"start_date": "2026-11-24", "end_date": "2026-11-23"},
+        {"start_date": "2026-02-30", "end_date": "2026-11-24"},
+        {"start_date": "2026-11-23", "end_date": "2101-01-01"},
+        {"date": "2026-11-23", "start_date": "2026-11-23", "end_date": "2026-11-24"},
+    ],
+)
+def test_diary_date_range_rejects_invalid_filters(env, params):
+    env.enable()
+    assert env.request(4, "GET", "/community", params=params).status_code == 422
+
+
+def test_history_paginates_distinct_matches_and_combines_search_filters(env):
+    env.enable()
+    env.rows[A] = [
+        _battle(A, "before", mode="single", scene="before", end="2026-11-22T15:59:59Z"),
+        _battle(A, "joint", scene="joint", end="2026-11-23T15:59:59Z", passed=False, team_passed=True),
+        _battle(A, "after", mode="single", scene="after", end="2026-11-24T16:00:00Z"),
+    ]
+    env.rows[B] = [
+        _battle(B, "joint", scene="joint", end="2026-11-24T00:00:00Z", team_passed=True),
+        _battle(B, "unknown", scene="unknown", end="2026-11-24T03:00:00Z", team_passed=None),
+        _battle(B, "single", mode="single", scene="single", end="2026-11-24T15:59:59Z", passed=False),
+        _battle(B, "normal", mode="single", scene="normal", end="2026-11-24T13:00:00Z", difficulty="normal"),
+    ]
+    env.persist(1, *A)
+    env.persist(2, *B)
+
+    default = env.get(4, "/history")
+    assert default["total"] == len(default["matches"]) == 6
+    assert default["selected_version_key"] is None
+    assert default["matches"][0]["ended_at"] == "2026-11-25T00:00:00+08:00"
+    assert default["matches"][-1]["ended_at"] == "2026-11-22T23:59:59+08:00"
+
+    filters = {"start_date": "2026-11-23", "end_date": "2026-11-24", "difficulty": "abyss", "limit": 1}
+    pages = [env.get(4, "/history", {**filters, "offset": offset}) for offset in range(3)]
+    assert all(page["total"] == 3 and len(page["matches"]) == 1 for page in pages)
+    interrupted, unknown, joint = [page["matches"][0] for page in pages]
+    assert [row["success"] for row in (interrupted, unknown, joint)] == [False, None, True]
+    assert [row["ended_at"] for row in (interrupted, unknown, joint)] == [
+        "2026-11-24T23:59:59+08:00",
+        "2026-11-24T11:00:00+08:00",
+        "2026-11-24T08:00:00+08:00",
+    ]
+    for result, row in [("complete", joint), ("interrupted", interrupted), ("unknown", unknown)]:
+        scope = {
+            **filters,
+            "mode": row["mode_type"],
+            "result": result,
+            "season": row["season_id"],
+            "version": row["version_key"],
+        }
+        filtered = env.get(4, "/history", scope)
+        assert filtered["matches"] == [row]
+        assert filtered["total"] == 1
+
+    latest = env.get(4, "/history", {**filters, "version": "latest"})
+    assert latest["selected_version_key"] == joint["version_key"]
+    assert latest["total"] == 3
+    assert env.get(4, "/history", {"date": "2026-11-24", "difficulty": "abyss"})["total"] == 3
+
+
+def test_history_related_uses_the_viewers_roles_and_whole_match_result(env):
+    env.enable()
+    env.rows[A] = [_battle(A, "shared", scene="shared", passed=False, team_passed=True, rounds=8)]
+    env.rows[ALT_A] = [_battle(ALT_A, "shared-alt", scene="shared", passed=True, team_passed=True, rounds=11)]
+    env.rows[B] = [
+        _battle(B, "shared", scene="shared", passed=True, team_passed=True, rounds=15),
+        _battle(B, "other", mode="single", scene="other"),
+    ]
+    for member, role in [(1, A), (1, ALT_A), (2, B)]:
+        env.persist(member, *role)
+
+    assert env.get(1, "/history")["total"] == 2
+    own = env.get(1, "/me")
+    role_a = next(role["id"] for role in own["roles"] if role["uid"] == A[1])
+    role_b = env.get(2, "/me")["roles"][0]["id"]
+    day = {"start_date": "2026-11-23", "end_date": "2026-11-23"}
+    related = env.get(1, "/history", {**day, "related": True, "role_id": role_a, "result": "complete"})
+    assert related["total"] == 1
+    assert related["matches"][0]["success"] is True
+    assert related["matches"][0]["preview"]["pass_round"] == 8
+    assert env.get(1, "/history", {"related": True})["total"] == 1
+    assert env.get(1, "/history", {"related": True, "role_id": role_b})["total"] == 0
+    assert env.get(4, "/history", {"related": True})["matches"] == []
+    assert env.get(1, "/me", {**day, "role_id": role_a})["total"] == 1
+    assert env.get(1, "/me", {"start_date": "2026-11-24", "end_date": "2026-11-24"})["total"] == 0
+
+    response = env.request(1, "GET", "/history")
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert env.request(None, "GET", "/history").status_code == 401
+    assert env.request(1, "GET", "/history", params={"role_id": role_a}).status_code == 422
+    assert env.request(1, "GET", "/history", params={"start_date": day["start_date"]}).status_code == 422
+    assert env.request(1, "GET", "/me", params={"end_date": day["end_date"]}).status_code == 422
+
+
+def test_history_related_summary_uses_match_end_day_and_personal_result(env):
+    env.enable()
+    env.rows[A] = [_battle(A, "overnight-a", end="2026-11-23T15:59:59Z", passed=False)]
+    env.rows[B] = [_battle(B, "overnight-b", end="2026-11-23T16:00:15Z")]
+    env.persist(1, *A)
+    env.persist(2, *B)
+
+    def day(value):
+        return {"start_date": value, "end_date": value}
+
+    before = day("2026-11-23")
+    assert env.get(1, "/history", {**before, "related": True})["total"] == 0
+    assert env.get(1, "/me", before)["scoped_total"] == 0
+
+    after = day("2026-11-24")
+    listing = env.get(1, "/history", {**after, "related": True})
+    personal = env.get(1, "/me", after)
+    assert listing["total"] == personal["total"] == personal["scoped_total"] == 1
+    assert listing["matches"][0]["id"] == personal["records"][0]["match_id"]
+    assert listing["matches"][0]["success"] is True
+    assert personal["records"][0]["ended_at"] == "2026-11-23T23:59:59+08:00"
+    assert personal["records"][0]["completed"] is False
+    assert (personal["known_results"], personal["wins"]) == (1, 0)
+
+
 def test_diary_ranks_members_by_distinct_matches_across_pages(env):
     env.enable()
     env.rows[A] = [_battle(A, "winner")]
@@ -1156,15 +1333,24 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
                                 "activeConditionTemplate": "count_threshold_upward",
                                 "chessIdList": ["amiya", "signal_piece"],
                             },
-                            "suntShip": {"bondId": "suntShip", "name": "绝技", "chessIdList": []},
+                            "suntShip": {
+                                "bondId": "suntShip",
+                                "name": "绝技",
+                                "chessIdList": [],
+                                "activeConditionTemplate": "count_threshold_upward_golden",
+                            },
+                            "dormantShip": {"bondId": "dormantShip", "name": "未点亮测试", "chessIdList": ["amiya"]},
+                            "unrelatedShip": {"bondId": "unrelatedShip", "name": "未上阵测试", "chessIdList": ["lane"]},
                         },
                         "charShopChessDatas": {
                             "amiya": {
                                 "goldenChessId": "signal_piece",
                                 "charId": "char_002_amiya",
+                                "backupCharId": "char_1001_amiya2",
                                 "chessLevel": 2,
                                 "defaultUniEquipId": "uniequip_test",
-                            }
+                            },
+                            "lane": {"charId": "char_333_lane"},
                         },
                         "chessNormalIdLookupDict": {"amiya": "amiya", "signal_piece": "amiya"},
                         "charChessDataDict": {
@@ -1184,7 +1370,15 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
     }
     tables = {
         "activity_table.json": game_data,
-        "character_table.json": {"char_002_amiya": {"name": "阿米娅", "skills": [{"skillId": "sk_test"}]}},
+        "character_table.json": {
+            "char_002_amiya": {"name": "阿米娅", "subProfessionId": "corecaster"},
+            "char_1001_amiya2": {
+                "name": "近卫阿米娅",
+                "subProfessionId": "artsfghter",
+                "skills": [{"skillId": "sk_test"}],
+            },
+            "char_333_lane": {"name": "未上阵"},
+        },
         "skill_table.json": {
             "sk_test": {
                 "levels": [
@@ -1198,7 +1392,11 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
             }
         },
         "uniequip_table.json": {
-            "equipDict": {"uniequip_test": {"uniEquipName": "模组名", "uniEquipIcon": "uniequip_test"}}
+            "equipDict": {"uniequip_test": {"uniEquipName": "模组名", "uniEquipIcon": "uniequip_test"}},
+            "subProfDict": {
+                "corecaster": {"subProfessionName": "中坚术师"},
+                "artsfghter": {"subProfessionName": "术战者"},
+            },
         },
         "battle_equip_table.json": {
             "uniequip_test": {
@@ -1259,8 +1457,14 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
                 "strategy_name": None,
                 "battle": StrongholdBattleData(bosses=[{"id": "boss_test", "killed": True}]),
                 "roster": [
-                    StrongholdOperatorOut(id="amiya", phase=2, equipment=[]),
-                    StrongholdOperatorOut(id="signal_piece", phase=2, skill_id="sk_test", module_id="uniequip_test"),
+                    StrongholdOperatorOut(id="amiya", char_id="char_002_amiya", phase=2, equipment=[]),
+                    StrongholdOperatorOut(
+                        id="signal_piece",
+                        char_id="char_1001_amiya2",
+                        phase=1,
+                        skill_id="sk_test",
+                        module_id="uniequip_test",
+                    ),
                     StrongholdOperatorOut(id="fake_gold", phase=2),
                 ],
             }
@@ -1289,10 +1493,17 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
     assert bond["icon_url"].endswith("/bond_icon/yanShip.png")
     assert bond["operators"] == [{"id": "amiya", "char_id": "char_002_amiya", "name": "阿米娅", "tier": 2}]
     assert hidden["show_operators"] is False and hidden["operators"] is None
+    assert hidden["activation_rule"] == "golden"
+    (dormant,) = current["available_bonds"]
+    assert (dormant["bond_id"], dormant["active"], dormant["layer"]) == ("dormantShip", False, None)
+    assert dormant["operators"] == bond["operators"]
     normal, elite, unknown = current["roster"]
     assert (normal["normal_chess_id"], normal["is_elite"], normal["equipment"]) == ("amiya", False, [])
     assert (elite["normal_chess_id"], elite["is_elite"], elite["equipment"]) == ("amiya", True, None)
     assert (unknown["normal_chess_id"], unknown["is_elite"]) == (None, None)
+    assert (normal["branch_id"], normal["branch_name"]) == ("corecaster", "中坚术师")
+    assert (elite["branch_id"], elite["branch_name"]) == ("artsfghter", "术战者")
+    assert unknown["branch_id"] is None
     assert normal["module"] is None and normal["skill"] is None  # configuration is not proof of an equipped module
     assert elite["skill"] == {
         "name": "技能名",
@@ -1308,6 +1519,7 @@ def test_game_catalog_enriches_only_the_matching_battle_version(env, monkeypatch
     assert current["battle"]["bosses"][0]["name"] == "测试首领"
     old = reports["s1:old"]
     assert old["strategy_promoter"] is None and old["strategy_initial_hp"] is None
+    assert old["available_bonds"] is None and old["roster"][0]["branch_name"] is None
     assert old["battle"]["strategy_description"] is None and old["bonds"][0]["operators"] is None
     assert all(unit["is_elite"] is None and unit["normal_chess_id"] is None for unit in old["roster"])
     assert all(unit["module"] is None and unit["skill"] is None for unit in old["roster"])
