@@ -12,7 +12,7 @@ import {
   screenshotWalkCandidatesFrom,
   type TarkovLogSessionStub,
 } from "@/features/guides/tarkov/model/tarkovGameLogs";
-import { notifyTarkovLiveDirsChanged } from "@/features/guides/tarkov/model/tarkovLiveWatch";
+import { TARKOV_LIVE_DIRS_EVENT } from "@/features/guides/tarkov/model/tarkovLiveWatch";
 import {
   readTarkovLogText,
   type TarkovLogTextEntry,
@@ -21,10 +21,13 @@ import {
 const DB_NAME = "zhange-tarkov-game-logs";
 const DB_VERSION = 1;
 const STORE = "kv";
-const LOGS_HANDLE_KEY = "logs-dir";
-const SHOTS_HANDLE_KEY = "screenshots-dir";
-const LOGS_PATH_KEY = "logs-dir-path";
-const SHOTS_PATH_KEY = "screenshots-dir-path";
+const BINDING_KEYS = {
+  logs: { handle: "logs-dir", path: "logs-dir-path" },
+  screenshots: { handle: "screenshots-dir", path: "screenshots-dir-path" },
+} as const;
+const DIRECTORY_TIMEOUT_MS = 5000;
+
+export type TarkovDirectoryKind = keyof typeof BINDING_KEYS;
 
 type FsPermission = "granted" | "denied" | "prompt";
 type FsMode = "read" | "readwrite";
@@ -106,23 +109,6 @@ type PickerWindow = Window & {
   }) => Promise<ReadableDir>;
 };
 
-type FileSystemObserverCtor = new (
-  callback: (records: readonly FileSystemChangeRecord[]) => void,
-) => {
-  observe: (handle: ReadableDir, opts?: { recursive?: boolean }) => void | Promise<void>;
-  disconnect: () => void;
-};
-
-type FileSystemChangeRecord = {
-  type?: string;
-  relativePathComponents?: readonly string[];
-  changedHandle?: { name?: string; kind?: string };
-};
-
-type ObserverWindow = Window & {
-  FileSystemObserver?: FileSystemObserverCtor;
-};
-
 export type ResolvedTarkovDir = {
   dir: ReadableDir;
   walk: string[];
@@ -140,108 +126,139 @@ export function isFileSystemAccessSupported(): boolean {
   return typeof (window as PickerWindow).showDirectoryPicker === "function";
 }
 
-function openDb(): Promise<IDBDatabase> {
+/** 文件系统的非交互操作不能让页面或轮询一直等；不限制用户处理原生授权弹窗的时间。 */
+export async function withTarkovDirectoryTimeout<T>(work: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("读取本机目录超时，请重试或重新选择目录。"));
+        }, DIRECTORY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function bindingTransaction<T>(
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore) => () => T,
+): Promise<T> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+    let db: IDBDatabase | undefined;
+    let transaction: IDBTransaction | undefined;
+    let finished = false;
+    const fail = (message: string) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      try {
+        transaction?.abort();
+      } catch {
+        // 浏览器可能已经终止事务。
+      }
+      db?.close();
+      reject(new Error(message));
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error("打开日志授权存储失败"));
+    const failure = mode === "readonly" ? "无法读取浏览器保存的目录。" : "无法保存目录授权。";
+    const timer = setTimeout(
+      () => fail(`${failure} 浏览器存储响应超时，请重试。`),
+      DIRECTORY_TIMEOUT_MS,
+    );
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onblocked = () => fail(`${failure} 请关闭其他战鸽数据标签页后重试。`);
+      req.onerror = () => fail(failure);
+      req.onupgradeneeded = () => {
+        if (finished) {
+          req.transaction?.abort();
+          return;
+        }
+        if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
+      };
+      req.onsuccess = () => {
+        const connection = req.result;
+        if (finished) {
+          connection.close();
+          return;
+        }
+        db = connection;
+        connection.onversionchange = () => connection.close();
+        try {
+          const txn = connection.transaction(STORE, mode);
+          transaction = txn;
+          txn.onerror = txn.onabort = () => fail(failure);
+          const result = run(txn.objectStore(STORE));
+          txn.oncomplete = () => {
+            if (finished) return;
+            try {
+              const value = result();
+              finished = true;
+              clearTimeout(timer);
+              connection.close();
+              resolve(value);
+            } catch {
+              fail(failure);
+            }
+          };
+        } catch {
+          fail(failure);
+        }
+      };
+    } catch {
+      fail(failure);
+    }
   });
 }
 
-async function idbGet<T>(key: string): Promise<T | undefined> {
-  const db = await openDb();
-  try {
-    return await new Promise((resolve, reject) => {
-      const req = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
-      req.onsuccess = () => resolve(req.result as T | undefined);
-      req.onerror = () => reject(req.error || new Error("读取授权目录失败"));
+type TarkovDirectoryBinding = { handle: ReadableDir | null; path: string };
+
+export function loadTarkovDirectoryBinding(
+  kind: TarkovDirectoryKind,
+): Promise<TarkovDirectoryBinding> {
+  const keys = BINDING_KEYS[kind];
+  return bindingTransaction("readonly", (store) => {
+    const handle = store.get(keys.handle);
+    const path = store.get(keys.path);
+    return () => ({
+      handle: (handle.result as ReadableDir | undefined) ?? null,
+      path: typeof path.result === "string" ? path.result : "",
     });
-  } finally {
-    db.close();
-  }
+  });
 }
 
-async function idbSet(key: string, value: unknown): Promise<void> {
-  const db = await openDb();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const req = db.transaction(STORE, "readwrite").objectStore(STORE).put(value, key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error || new Error("保存授权目录失败"));
-    });
-  } finally {
-    db.close();
-  }
+export async function saveTarkovDirectoryBinding(
+  kind: TarkovDirectoryKind,
+  handle: ReadableDir,
+  path: string,
+): Promise<void> {
+  const keys = BINDING_KEYS[kind];
+  await bindingTransaction("readwrite", (store) => {
+    store.put(handle, keys.handle);
+    store.put(path, keys.path);
+    return () => undefined;
+  });
+  window.dispatchEvent(
+    new CustomEvent<TarkovDirectoryKind>(TARKOV_LIVE_DIRS_EVENT, { detail: kind }),
+  );
 }
 
-export async function loadStoredLogsDir(): Promise<ReadableDir | null> {
-  try {
-    const handle = await idbGet<ReadableDir>(LOGS_HANDLE_KEY);
-    return handle || null;
-  } catch {
-    return null;
-  }
-}
-
-async function saveDirHandle(key: string, handle: ReadableDir): Promise<void> {
-  await idbSet(key, handle);
-  notifyTarkovLiveDirsChanged();
-}
-
-export async function saveLogsDir(handle: ReadableDir): Promise<void> {
-  await saveDirHandle(LOGS_HANDLE_KEY, handle);
-}
-
-export async function loadStoredLogsPath(): Promise<string> {
-  try {
-    const path = await idbGet<string>(LOGS_PATH_KEY);
-    return typeof path === "string" ? path : "";
-  } catch {
-    return "";
-  }
-}
-
-export async function saveLogsDisplayPath(path: string): Promise<void> {
-  await idbSet(LOGS_PATH_KEY, path);
-}
-
-export async function loadStoredScreenshotsDir(): Promise<ReadableDir | null> {
-  try {
-    const handle = await idbGet<ReadableDir>(SHOTS_HANDLE_KEY);
-    return handle || null;
-  } catch {
-    return null;
-  }
-}
-
-export async function saveScreenshotsDir(handle: ReadableDir): Promise<void> {
-  await saveDirHandle(SHOTS_HANDLE_KEY, handle);
-}
-
-export async function loadStoredScreenshotsPath(): Promise<string> {
-  try {
-    const path = await idbGet<string>(SHOTS_PATH_KEY);
-    return typeof path === "string" ? path : "";
-  } catch {
-    return "";
-  }
-}
-
-export async function saveScreenshotsDisplayPath(path: string): Promise<void> {
-  await idbSet(SHOTS_PATH_KEY, path);
+export function saveTarkovDirectoryDisplayPath(
+  kind: TarkovDirectoryKind,
+  path: string,
+): Promise<void> {
+  return bindingTransaction("readwrite", (store) => {
+    store.put(path, BINDING_KEYS[kind].path);
+    return () => undefined;
+  });
 }
 
 async function queryDirPermission(handle: ReadableDir, mode: FsMode): Promise<FsPermission> {
   if (typeof handle.queryPermission !== "function") return "granted";
-  try {
-    return await handle.queryPermission({ mode });
-  } catch {
-    return "prompt";
-  }
+  return withTarkovDirectoryTimeout(() => handle.queryPermission({ mode }));
 }
 
 async function requestDirPermission(handle: ReadableDir, mode: FsMode): Promise<FsPermission> {
@@ -257,21 +274,22 @@ export async function requestLogsDirPermission(handle: ReadableDir): Promise<FsP
   return requestDirPermission(handle, "read");
 }
 
-/** 截图目录要能删已读文件；旧授权只有读权限时仍可定位。 */
 export async function queryScreenshotsDirPermission(handle: ReadableDir): Promise<FsPermission> {
-  const write = await queryDirPermission(handle, "readwrite");
-  if (write === "granted") return write;
   return queryDirPermission(handle, "read");
 }
 
-export async function requestScreenshotsDirPermission(handle: ReadableDir): Promise<FsPermission> {
-  const write = await requestDirPermission(handle, "readwrite");
-  if (write === "granted") return write;
-  return requestDirPermission(handle, "read");
+export async function requestScreenshotsDirPermission(
+  handle: ReadableDir,
+  mode: FsMode = "read",
+): Promise<FsPermission> {
+  const permission = await requestDirPermission(handle, mode);
+  if (mode === "readwrite" && permission !== "granted")
+    return queryScreenshotsDirPermission(handle);
+  return permission;
 }
 
 export async function screenshotsDirCanWrite(handle: ReadableDir): Promise<boolean> {
-  return (await queryDirPermission(handle, "readwrite")) === "granted";
+  return (await queryDirPermission(handle, "readwrite").catch(() => "denied")) === "granted";
 }
 
 function requirePicker() {
@@ -279,7 +297,7 @@ function requirePicker() {
   if (!picker) {
     throw new Error("当前浏览器不支持授权本地目录，请用 Chrome 或 Edge。");
   }
-  return picker;
+  return picker.bind(window);
 }
 
 export async function pickLogsDirectory(startIn?: ReadableDir | null): Promise<ReadableDir> {
@@ -290,43 +308,15 @@ export async function pickLogsDirectory(startIn?: ReadableDir | null): Promise<R
   });
 }
 
-export async function pickScreenshotsDirectory(startIn?: ReadableDir | null): Promise<ReadableDir> {
+export async function pickScreenshotsDirectory(
+  startIn?: ReadableDir | null,
+  mode: FsMode = "read",
+): Promise<ReadableDir> {
   return requirePicker()({
     id: "zhange-tarkov-screenshots",
-    mode: "readwrite",
+    mode,
     startIn: startIn || "documents",
   });
-}
-
-export async function observeDirectory(
-  handle: ReadableDir,
-  onChange: (appeared: string[]) => void,
-): Promise<(() => void) | null> {
-  const Ctor = (window as ObserverWindow).FileSystemObserver;
-  if (!Ctor) return null;
-  let dead = false;
-  const observer = new Ctor((records) => {
-    if (dead) return;
-    const appeared: string[] = [];
-    for (const record of records) {
-      const type = String(record.type || "");
-      if (type && type !== "appeared" && type !== "modified") continue;
-      const name = record.relativePathComponents?.[0] || record.changedHandle?.name || "";
-      if (name && !isScreenshotFileName(name)) continue;
-      if (name) appeared.push(name);
-    }
-    onChange(appeared);
-  });
-  try {
-    await Promise.resolve(observer.observe(handle));
-  } catch {
-    observer.disconnect();
-    return null;
-  }
-  return () => {
-    dead = true;
-    observer.disconnect();
-  };
 }
 
 export function isPickerAbort(error: unknown): boolean {
@@ -460,12 +450,18 @@ export async function resolveScreenshotsDirDetailed(
   handle: ReadableDir,
 ): Promise<ResolvedTarkovDir> {
   const children = await listDirEntries(handle);
-  const names = children.map((child) => child.name);
-  const found = await resolveByWalks(handle, screenshotWalkCandidatesFrom(names), (inner, walk) => {
-    if (inner.some((name) => isScreenshotFileName(name))) return true;
-    return (walk[walk.length - 1] || "").toLowerCase() === "screenshots";
-  });
+  if (handle.name.toLowerCase() === "screenshots") {
+    return { dir: handle, walk: [], pickedName: handle.name };
+  }
+  const dirNames = children
+    .filter((child) => child.kind === "directory")
+    .map((child) => child.name);
+  const walks = screenshotWalkCandidatesFrom(dirNames).filter((walk) => walk.length > 0);
+  const found = await resolveByWalks(handle, walks, () => true);
   if (found) return found;
+  if (children.some((child) => child.kind === "file" && isScreenshotFileName(child.name))) {
+    return { dir: handle, walk: [], pickedName: handle.name };
+  }
   throw new Error(
     "这个目录里找不到截图。常见位置是「文档\\Escape from Tarkov\\Screenshots」。选择器会打开「文档」，选文档或 Escape from Tarkov 即可。",
   );
@@ -728,18 +724,17 @@ export async function readScreenshotByName(
 export async function removeScreenshotFiles(
   dir: ReadableDir,
   names: readonly string[],
-): Promise<string[]> {
-  if (typeof dir.removeEntry !== "function") return [];
-  const removed: string[] = [];
+  canRemove: () => boolean,
+): Promise<void> {
+  if (typeof dir.removeEntry !== "function") return;
   for (const name of names) {
+    if (!canRemove()) return;
     try {
       await dir.removeEntry(name);
-      removed.push(name);
     } catch {
       /* 游戏可能还占着文件 */
     }
   }
-  return removed;
 }
 
 export async function listScreenshotFileNames(dir: ReadableDir): Promise<string[]> {
@@ -756,19 +751,20 @@ export async function pollLatestScreenshot(
 ): Promise<{
   names: string[];
   latest: TarkovScreenshotRead | null;
+  seen: Set<string>;
   dir: ReadableDir;
 }> {
   const dir = cachedDir || (await resolveScreenshotsDirDetailed(handle)).dir;
   const names = await listScreenshotFileNames(dir);
-  const inspect = screenshotNamesToInspect(
-    names.map((name) => ({ name })),
-    seenNames,
-  );
+  const inspect = screenshotNamesToInspect(names, seenNames);
+  const pending = new Set(inspect);
+  const seen = new Set(names.filter((name) => !pending.has(name)));
   let latest: TarkovScreenshotRead | null = null;
   for (const name of inspect) {
     const row = await readScreenshotByName(dir, name);
     if (!row) continue;
+    seen.add(name);
     if (!latest || isNewerScreenshot(latest, row)) latest = row;
   }
-  return { names, latest, dir };
+  return { names, latest, seen, dir };
 }

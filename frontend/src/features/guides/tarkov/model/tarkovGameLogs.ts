@@ -346,7 +346,7 @@ export function isScreenshotFileName(name: string): boolean {
 
 const TARKOV_SCREENSHOT_STAMP_RE = /^\d{4}-\d{2}-\d{2}/;
 
-/** 日志路径页打开时，检查截图目录的间隔。 */
+/** 塔科夫页面可见时，检查本机截图和日志的间隔。 */
 export const TARKOV_SCREENSHOT_POLL_MS = 2000;
 
 /** 一次轮询最多删多少张已读游戏截图，避免卡死主线程。 */

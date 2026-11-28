@@ -238,6 +238,54 @@ describe("browser directory access", () => {
     expect(counters.wholeReads).toBe(0);
   });
 
+  it("finds the actual Screenshots subfolder before unrelated pictures in Documents", async () => {
+    const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
+    const shot = "2026-10-13[21-35]_175.30, 1.37, 150.68 (0).png";
+    const documents = memoryDir(
+      "Documents",
+      dirNode({
+        "wallpaper.png": fileNode("other", 900),
+        "Escape from Tarkov": dirNode({ Screenshots: dirNode({ [shot]: fileNode("png", 700) }) }),
+      }),
+      counters,
+    );
+
+    const result = await pollLatestScreenshot(documents, new Set());
+    expect(result.names).toEqual([shot]);
+    expect(result.latest?.name).toBe(shot);
+  });
+
+  it("accepts an empty Screenshots folder and detects the first shot after it is created", async () => {
+    const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
+    const storage = dirNode({});
+    const dir = memoryDir("Screenshots", storage, counters);
+    const first = await pollLatestScreenshot(dir, new Set());
+    expect(first.latest).toBeNull();
+
+    const shot = "2026-10-13[21-35]_175.30, 1.37, 150.68 (0).png";
+    storage.children.set(shot, fileNode("png", 700));
+    const next = await pollLatestScreenshot(dir, first.seen, first.dir);
+    expect(next.latest?.name).toBe(shot);
+  });
+
+  it("retries a new screenshot whose metadata was temporarily unavailable", async () => {
+    const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
+    const shot = "2026-10-13[21-35]_175.30, 1.37, 150.68 (0).png";
+    const dir = memoryDir("Screenshots", dirNode({ [shot]: fileNode("png", 700) }), counters);
+    const getFileHandle = dir.getFileHandle;
+    let locked = true;
+    dir.getFileHandle = async (name) => {
+      if (locked) throw new DOMException("File is busy", "NotReadableError");
+      return getFileHandle(name);
+    };
+
+    const first = await pollLatestScreenshot(dir, new Set());
+    expect(first.latest).toBeNull();
+    locked = false;
+    const next = await pollLatestScreenshot(dir, first.seen, first.dir);
+    expect(next.latest?.name).toBe(shot);
+  });
+
   it("still reads metadata through file handles for browser-granted folders", async () => {
     const counters: Counters = { lists: 0, wholeReads: 0, slicedFrom: [] };
     const shot = "2026-10-13[21-35]_19.91 (0).png";

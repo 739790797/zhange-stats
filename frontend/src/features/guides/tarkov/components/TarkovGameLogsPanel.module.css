@@ -5,11 +5,6 @@
   max-width: 640px;
 }
 
-.status {
-  padding: 48px;
-  text-align: center;
-}
-
 .row {
   display: flex;
   flex-direction: column;

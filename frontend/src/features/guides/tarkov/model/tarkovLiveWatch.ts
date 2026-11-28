@@ -40,11 +40,6 @@ export type LogPollCursor = {
   fingerprint: string;
 };
 
-export function notifyTarkovLiveDirsChanged() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(TARKOV_LIVE_DIRS_EVENT));
-}
-
 export function notifyTarkovTaskProgress(detail: TarkovTaskProgressDetail) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(

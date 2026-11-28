@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { message } from "antd";
 import {
   fetchTarkovTaskDonesFor,
   fetchTarkovTasks,
@@ -15,22 +16,16 @@ import { apiError } from "@/shared/api/apiError";
 import { useAuthStore } from "@/features/auth/model/authStore";
 import {
   createTarkovLogReadCache,
-  forgetTarkovLogDirs,
+  displayPathForResolved,
   isFileSystemAccessSupported,
   isPickerAbort,
-  loadStoredLogsDir,
-  loadStoredLogsPath,
-  loadStoredScreenshotsDir,
-  loadStoredScreenshotsPath,
-  listScreenshotFileNames,
-  observeDirectory,
+  loadTarkovDirectoryBinding,
   peekSessionFingerprint,
   pickLogsDirectory,
   pickScreenshotsDirectory,
   pollLatestScreenshot,
   queryLogsDirPermission,
   queryScreenshotsDirPermission,
-  readScreenshotByName,
   removeScreenshotFiles,
   readLogsIndex,
   readSessionApplicationLogs,
@@ -38,16 +33,17 @@ import {
   readStattedSessionLogs,
   requestLogsDirPermission,
   requestScreenshotsDirPermission,
+  resolveScreenshotsDirDetailed,
   retainTarkovLogFolders,
-  saveLogsDir,
-  saveScreenshotsDir,
+  saveTarkovDirectoryBinding,
   screenshotsDirCanWrite,
   statSessionLogs,
+  withTarkovDirectoryTimeout,
   type ReadableDir,
+  type TarkovDirectoryKind,
 } from "@/features/guides/tarkov/model/tarkovGameLogAccess";
 import {
   TARKOV_SCREENSHOT_POLL_MS,
-  TARKOV_SCREENSHOT_PRUNE_BATCH,
   TARKOV_SCREENSHOT_PRUNE_EVENT,
   isNewerScreenshot,
   latestLogMapId,
@@ -66,6 +62,7 @@ import {
   type TarkovLogQuestDrop,
   type TarkovLogQuestEvent,
   type TarkovRaidLogImportRow,
+  type TarkovScreenshotStamp,
 } from "@/features/guides/tarkov/model/tarkovGameLogs";
 import {
   defaultLogSyncRange,
@@ -210,22 +207,14 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const supported = isFileSystemAccessSupported();
   const gameMode = useTarkovGameMode();
   const queryClient = useQueryClient();
-  const shotRef = useRef<ReadableDir | null>(null);
-  const shotDirRef = useRef<ReadableDir | null>(null);
-  const shotCanWriteRef = useRef(false);
-  const shotPruneRef = useRef<string[]>([]);
-  const shotWatchingRef = useRef(false);
-  const shotNeedListRef = useRef(false);
-  // useRef(loadScreenshotPrunePref()) 每次渲染都会读一遍 localStorage；惰性 useState 只在首帧读，之后靠事件刷新 ref
+  // 惰性读取一次；后续由清理设置的事件刷新。
   const [initialPrunePref] = useState(loadScreenshotPrunePref);
   const shotPrunePrefRef = useRef(initialPrunePref);
+  const shotPromptBusy = useRef(false);
   const logRef = useRef<ReadableDir | null>(null);
-  const seenShotNamesRef = useRef<Set<string>>(new Set());
-  const shotStampRef = useRef<{ name: string; lastModified: number } | null>(null);
   const logCursorRef = useRef<LogPollCursor | null>(null);
   const lastParsedRef = useRef<Array<{ parsed: ReturnType<typeof parseTarkovLogBundle> }>>([]);
   const endedRaidKeysRef = useRef<Set<string>>(new Set());
-  const shotTickBusyRef = useRef(false);
   const logTickBusyRef = useRef(false);
   const syncAbortRef = useRef<AbortController | null>(null);
   /** 实时轮询触发的完整同步失败后，到这个时刻（ms）之前不再自动重试；按 模式|ProfileId 记。 */
@@ -241,7 +230,10 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   const catalogItemsRef = useRef<TarkovTaskListItem[]>([]);
   gameModeRef.current = gameMode;
 
-  const [shotPerm, setShotPerm] = useState<LiveWatchPerm>(supported ? "unknown" : "none");
+  const [{ handle: shotHandle, perm: shotPerm }, setShotAccess] = useState<{
+    handle: ReadableDir | null;
+    perm: LiveWatchPerm;
+  }>({ handle: null, perm: supported ? "unknown" : "none" });
   const [logPerm, setLogPerm] = useState<LiveWatchPerm>(supported ? "unknown" : "none");
   const [shotLabel, setShotLabel] = useState("");
   const [logLabel, setLogLabel] = useState("");
@@ -581,78 +573,61 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const hydrate = useCallback(async () => {
-    if (!supported) {
-      setShotPerm("none");
-      setLogPerm("none");
-      return;
-    }
-    const [storedShot, storedLog, shotPath, logPath] = await Promise.all([
-      loadStoredScreenshotsDir(),
-      loadStoredLogsDir(),
-      loadStoredScreenshotsPath(),
-      loadStoredLogsPath(),
-    ]);
-    if (!storedShot) {
-      shotRef.current = null;
-      shotDirRef.current = null;
-      shotCanWriteRef.current = false;
-      setShotPerm("none");
-      setShotLabel("");
-    } else {
-      shotRef.current = storedShot;
-      shotDirRef.current = null;
-      seenShotNamesRef.current = new Set();
-      shotStampRef.current = null;
-      setShotLabel(shotPath || storedShot.name);
-      const current = await queryScreenshotsDirPermission(storedShot);
-      setShotPerm(current === "granted" ? "granted" : "prompt");
-      shotCanWriteRef.current = current === "granted" && (await screenshotsDirCanWrite(storedShot));
-      if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
-        shotNeedListRef.current = true;
-      }
-    }
-    if (!storedLog) {
-      logRef.current = null;
-      setLogPerm("none");
-      setLogLabel("");
-      setLastLogPhase(null);
-      endedRaidKeysRef.current = new Set();
-    } else {
-      logRef.current = storedLog;
-      logCursorRef.current = null;
-      endedRaidKeysRef.current = new Set();
-      setLogLabel(logPath || storedLog.name);
-      const current = await queryLogsDirPermission(storedLog);
-      setLogPerm(current === "granted" ? "granted" : "prompt");
-    }
-  }, [supported]);
-
   useEffect(() => {
-    void hydrate();
-    const onDirs = () => {
-      void hydrate();
+    if (!supported) return;
+    const revision = { logs: 0, screenshots: 0 };
+    let cancelled = false;
+    const hydrate = async (kind: TarkovDirectoryKind) => {
+      const turn = ++revision[kind];
+      const isCurrent = () => !cancelled && turn === revision[kind];
+      let handle: ReadableDir | null = null;
+      let label = "";
+      let perm: LiveWatchPerm = "none";
+      try {
+        const stored = await loadTarkovDirectoryBinding(kind);
+        handle = stored.handle;
+        label = stored.path || handle?.name || "";
+        if (handle) {
+          const query =
+            kind === "screenshots" ? queryScreenshotsDirPermission : queryLogsDirPermission;
+          perm = (await query(handle)) === "granted" ? "granted" : "prompt";
+        }
+      } catch {
+        if (handle) perm = "prompt";
+      }
+      if (!isCurrent()) return;
+      if (kind === "screenshots") {
+        setShotAccess({ handle, perm });
+        setShotLabel(label);
+      } else {
+        logRef.current = handle;
+        logCursorRef.current = null;
+        endedRaidKeysRef.current = new Set();
+        setLogPerm(perm);
+        setLogLabel(label);
+        if (!handle) setLastLogPhase(null);
+      }
+    };
+    void hydrate("screenshots");
+    void hydrate("logs");
+    const onDirs = (event: Event) => {
+      const kind = (event as CustomEvent<TarkovDirectoryKind>).detail;
+      if (kind === "screenshots" || kind === "logs") void hydrate(kind);
     };
     const onPrune = () => {
       shotPrunePrefRef.current = loadScreenshotPrunePref();
-      if (!shotPrunePrefRef.current.enabled) {
-        shotPruneRef.current = [];
-        return;
-      }
-      shotNeedListRef.current = true;
     };
+    const onOfflineMap = () => setOfflineMapId(loadOfflineMapId());
     window.addEventListener(TARKOV_LIVE_DIRS_EVENT, onDirs);
     window.addEventListener(TARKOV_SCREENSHOT_PRUNE_EVENT, onPrune);
-    const onOfflineMap = () => {
-      setOfflineMapId(loadOfflineMapId());
-    };
     window.addEventListener(TARKOV_OFFLINE_MAP_EVENT, onOfflineMap);
     return () => {
+      cancelled = true;
       window.removeEventListener(TARKOV_LIVE_DIRS_EVENT, onDirs);
       window.removeEventListener(TARKOV_SCREENSHOT_PRUNE_EVENT, onPrune);
       window.removeEventListener(TARKOV_OFFLINE_MAP_EVENT, onOfflineMap);
     };
-  }, [hydrate]);
+  }, [supported]);
 
   useEffect(() => {
     if (logSyncBusy) return;
@@ -667,163 +642,120 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   }, [applyParsedMap, offlineMapId]);
 
   useEffect(() => {
-    if (!supported || shotPerm !== "granted") return;
-    seenShotNamesRef.current = new Set();
-    shotStampRef.current = null;
-    shotDirRef.current = null;
-    shotPruneRef.current = [];
-    shotWatchingRef.current = false;
+    if (!shotHandle || shotPerm !== "granted") return;
+    let dir: ReadableDir | null = null;
+    let seen = new Set<string>();
+    let stamp: TarkovScreenshotStamp | null = null;
+    let busy = false;
+    let pruning = false;
+    let canWrite = false;
     let cancelled = false;
-    let stopObserve: (() => void) | null = null;
-    const applyLatest = (latest: { name: string; lastModified: number }) => {
-      setLastShotName(latest.name);
-      setLastShotAt(latest.lastModified);
-      if (!isNewerScreenshot(shotStampRef.current, latest)) return;
-      shotStampRef.current = {
-        name: latest.name,
-        lastModified: latest.lastModified,
-      };
-      const parsed = parseTarkovScreenshotName(latest.name);
-      if (!parsed) return;
-      setFix({
-        ...parsed,
-        fileName: latest.name,
-        lastModified: latest.lastModified,
-      });
-    };
-
-    const queuePrune = (names: readonly string[], keepLatest: string | null) => {
-      const pref = shotPrunePrefRef.current;
-      if (!pref.enabled) {
-        shotPruneRef.current = [];
-        return;
-      }
-      const queued = new Set(shotPruneRef.current);
-      for (const name of screenshotNamesToPrune(names, keepLatest, pref.keepMax)) {
-        if (queued.has(name)) continue;
-        queued.add(name);
-        shotPruneRef.current.push(name);
-      }
-    };
-
-    const drainPrune = async () => {
-      const dir = shotDirRef.current;
-      if (
-        !dir ||
-        !shotCanWriteRef.current ||
-        !shotPrunePrefRef.current.enabled ||
-        !shotPruneRef.current.length
-      ) {
-        return;
-      }
-      const batch = shotPruneRef.current.splice(0, TARKOV_SCREENSHOT_PRUNE_BATCH);
-      const removed = await removeScreenshotFiles(dir, batch);
-      for (const name of removed) seenShotNamesRef.current.delete(name);
-    };
-
-    const tick = async (forceList = false, appeared: string[] = []) => {
-      if (cancelled || document.hidden || shotTickBusyRef.current) return;
-      const handle = shotRef.current;
-      if (!handle) return;
-      shotTickBusyRef.current = true;
+    void screenshotsDirCanWrite(shotHandle).then((granted) => {
+      canWrite = granted;
+    });
+    const tick = async () => {
+      if (cancelled || document.hidden || busy) return;
+      busy = true;
       try {
-        if (appeared.length && shotDirRef.current) {
-          for (const name of appeared) {
-            const row = await readScreenshotByName(shotDirRef.current, name);
-            if (!row) continue;
-            seenShotNamesRef.current.add(row.name);
-            applyLatest(row);
-          }
-          const names = await listScreenshotFileNames(shotDirRef.current);
-          queuePrune(names, shotStampRef.current?.name || latestScreenshotName(names));
-        } else if (forceList || !shotWatchingRef.current) {
-          const { names, latest, dir } = await pollLatestScreenshot(
-            handle,
-            seenShotNamesRef.current,
-            shotDirRef.current,
-          );
-          if (cancelled) return;
-          shotDirRef.current = dir;
-          for (const name of names) seenShotNamesRef.current.add(name);
-          const keepLatest = latest?.name || latestScreenshotName(names);
-          if (latest) applyLatest(latest);
-          queuePrune(names, keepLatest);
-          if (!stopObserve) {
-            stopObserve = await observeDirectory(dir, (next) => {
-              shotWatchingRef.current = true;
-              void tick(next.length === 0, next);
+        const result = await withTarkovDirectoryTimeout(() =>
+          pollLatestScreenshot(shotHandle, seen, dir),
+        );
+        if (cancelled) return;
+        dir = result.dir;
+        seen = result.seen;
+        const { latest, names } = result;
+        if (latest && isNewerScreenshot(stamp, latest)) {
+          stamp = latest;
+          setLastShotName(latest.name);
+          setLastShotAt(latest.lastModified);
+          const parsed = parseTarkovScreenshotName(latest.name);
+          if (parsed)
+            setFix({ ...parsed, fileName: latest.name, lastModified: latest.lastModified });
+        }
+        const pref = shotPrunePrefRef.current;
+        if (pref.enabled && canWrite && !pruning) {
+          const keepLatest = stamp?.name || latestScreenshotName(names);
+          const pending = screenshotNamesToPrune(names, keepLatest, pref.keepMax);
+          if (pending.length) {
+            pruning = true;
+            void removeScreenshotFiles(
+              result.dir,
+              pending,
+              () => !cancelled && shotPrunePrefRef.current.enabled,
+            ).finally(() => {
+              pruning = false;
             });
-            if (stopObserve) shotWatchingRef.current = true;
           }
         }
-        await drainPrune();
-      } catch {
-        /* 保留上一次定位 */
+      } catch (error) {
+        // 重新解析可能已搬动的子目录，为下一次读取保留已发布的定位。
+        dir = null;
+        if (!cancelled && error instanceof DOMException && error.name === "NotAllowedError") {
+          setShotAccess((current) =>
+            current.handle === shotHandle ? { handle: shotHandle, perm: "prompt" } : current,
+          );
+        }
       } finally {
-        shotTickBusyRef.current = false;
+        busy = false;
       }
     };
-    const onVisible = () => {
-      if (!document.hidden) void tick(true);
-    };
-    void tick(true);
-    const timer = window.setInterval(() => {
-      if (shotNeedListRef.current) {
-        shotNeedListRef.current = false;
-        void tick(true);
-        return;
-      }
-      if (
-        shotWatchingRef.current &&
-        !(shotPrunePrefRef.current.enabled && shotCanWriteRef.current)
-      ) {
-        void drainPrune();
-        return;
-      }
-      void tick(true);
-    }, TARKOV_SCREENSHOT_POLL_MS);
+    const onVisible = () => void tick();
+    void tick();
+    const timer = window.setInterval(onVisible, TARKOV_SCREENSHOT_POLL_MS);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
-      stopObserve?.();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [shotPerm, supported]);
+  }, [shotHandle, shotPerm]);
+
+  useEffect(() => {
+    setFix(null);
+    setLastShotAt(null);
+    setLastShotName("");
+  }, [shotHandle]);
 
   useEffect(() => {
     if (!supported || logPerm !== "granted") return;
     logCursorRef.current = null;
     let cancelled = false;
-    const readCache = createTarkovLogReadCache();
+    let readCache = createTarkovLogReadCache();
     const parseMemo: TarkovLogBundleMemo = new WeakMap();
     const tick = async () => {
       if (cancelled || document.hidden || logTickBusyRef.current) return;
       const handle = logRef.current;
       if (!handle) return;
+      const isCurrent = () => !cancelled && logRef.current === handle;
       logTickBusyRef.current = true;
       try {
-        const { sessions } = await readLogsIndex(handle, readCache);
-        if (cancelled) return;
+        const { sessions } = await withTarkovDirectoryTimeout(() =>
+          readLogsIndex(handle, readCache),
+        );
+        if (!isCurrent()) return;
         const newest = sessions[0] || null;
         if (!newest) return;
-        const newestStat = await statSessionLogs(handle, newest.folder, readCache);
-        if (cancelled) return;
+        const newestStat = await withTarkovDirectoryTimeout(() =>
+          statSessionLogs(handle, newest.folder, readCache),
+        );
+        if (!isCurrent()) return;
         const { fingerprint } = newestStat;
         const plan = planLogSessionReads(newest.folder, fingerprint, logCursorRef.current);
-        logCursorRef.current = { folder: newest.folder, fingerprint };
         if (plan.skip) return;
         const parsedSessions = [];
         for (const folder of plan.folders) {
           const stat =
             folder === newest.folder
               ? newestStat
-              : await statSessionLogs(handle, folder, readCache);
-          const read = await readStattedSessionLogs(stat, readCache);
-          if (cancelled) return;
+              : await withTarkovDirectoryTimeout(() => statSessionLogs(handle, folder, readCache));
+          const read = await withTarkovDirectoryTimeout(() =>
+            readStattedSessionLogs(stat, readCache),
+          );
+          if (!isCurrent()) return;
           const parsed = parseTarkovLogBundle(read.files, parseMemo);
           parsedSessions.push({ parsed, read });
         }
+        logCursorRef.current = { folder: newest.folder, fingerprint };
         retainTarkovLogFolders(readCache, plan.folders);
         const newestRead =
           parsedSessions.find((row) => row.read.folder === newest.folder) ||
@@ -881,7 +813,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         // 保留上一次任务进度；目录句柄可能已失效，下一轮重新解析。
-        forgetTarkovLogDirs(readCache);
+        readCache = createTarkovLogReadCache();
       } finally {
         logTickBusyRef.current = false;
       }
@@ -899,85 +831,68 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
     };
   }, [applyParsedMap, applySessions, logPerm, queryClient, supported]);
 
-  const resume = useCallback(async () => {
-    if (!supported) return;
-    const shot = shotRef.current;
-    if (shot) {
-      const next = await requestScreenshotsDirPermission(shot);
-      if (next === "granted") {
-        await saveScreenshotsDir(shot);
-        shotCanWriteRef.current = await screenshotsDirCanWrite(shot);
-        if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
-          shotNeedListRef.current = true;
-        }
-        setShotPerm("granted");
-      } else {
-        setShotPerm("prompt");
-      }
-    }
-    const logs = logRef.current;
-    if (logs) {
-      const next = await requestLogsDirPermission(logs);
-      if (next === "granted") {
-        setLogPerm("granted");
-      } else {
-        setLogPerm("prompt");
-      }
-    }
-  }, [supported]);
-
-  useEffect(() => {
-    if (!supported) return;
-    if (shotPerm !== "prompt" && logPerm !== "prompt") return;
-    const onDown = () => {
-      void resume();
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [logPerm, resume, shotPerm, supported]);
-
-  const enableShots = useCallback(async () => {
-    if (!supported) return;
+  const resumeShots = useCallback(async (handle: ReadableDir) => {
+    if (shotPromptBusy.current) return;
+    shotPromptBusy.current = true;
     setShotBusy(true);
     try {
-      const existing = shotRef.current;
-      if (existing) {
-        const next = await requestScreenshotsDirPermission(existing);
-        if (next === "granted") {
-          await saveScreenshotsDir(existing);
-          shotCanWriteRef.current = await screenshotsDirCanWrite(existing);
-          if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
-            shotNeedListRef.current = true;
-          }
-          setShotPerm("granted");
-          return;
-        }
-        setShotPerm("prompt");
-        return;
-      }
-      const picked = await pickScreenshotsDirectory(null);
-      const next = await requestScreenshotsDirPermission(picked);
-      if (next !== "granted") {
-        setShotPerm("prompt");
-        return;
-      }
-      shotRef.current = picked;
-      shotDirRef.current = null;
-      seenShotNamesRef.current = new Set();
-      shotStampRef.current = null;
-      shotCanWriteRef.current = await screenshotsDirCanWrite(picked);
-      if (shotCanWriteRef.current && shotPrunePrefRef.current.enabled) {
-        shotNeedListRef.current = true;
-      }
-      setShotLabel(picked.name);
-      await saveScreenshotsDir(picked);
-      setShotPerm("granted");
-    } catch (error) {
-      if (!isPickerAbort(error) && !shotRef.current) setShotPerm("none");
+      const permission = await requestScreenshotsDirPermission(handle).catch(() => "prompt");
+      const perm = permission === "granted" ? "granted" : "prompt";
+      setShotAccess((current) => (current.handle === handle ? { handle, perm } : current));
     } finally {
+      shotPromptBusy.current = false;
       setShotBusy(false);
     }
-  }, [supported]);
+  }, []);
+
+  const resume = useCallback(async () => {
+    // 两个原生请求都从这次点击发起，避免前一个弹窗耗尽后一个所需的用户激活。
+    const operations: Promise<void>[] = [];
+    if (shotHandle && shotPerm === "prompt") operations.push(resumeShots(shotHandle));
+    const logs = logRef.current;
+    if (logs && logPerm === "prompt") {
+      operations.push(
+        requestLogsDirPermission(logs).then(
+          (next) => {
+            if (logRef.current === logs) setLogPerm(next === "granted" ? "granted" : "prompt");
+          },
+          () => {
+            if (logRef.current === logs) setLogPerm("prompt");
+          },
+        ),
+      );
+    }
+    await Promise.all(operations);
+  }, [logPerm, resumeShots, shotHandle, shotPerm]);
+
+  const enableShots = useCallback(async () => {
+    if (!supported || shotPromptBusy.current) return;
+    if (shotHandle && shotPerm === "prompt") {
+      await resumeShots(shotHandle);
+      return;
+    }
+    shotPromptBusy.current = true;
+    setShotBusy(true);
+    try {
+      const mode = shotPrunePrefRef.current.enabled ? "readwrite" : "read";
+      const picked = await pickScreenshotsDirectory(shotHandle, mode);
+      if ((await requestScreenshotsDirPermission(picked, mode)) !== "granted") {
+        message.error("浏览器没有批准读取截图目录。");
+        return;
+      }
+      const path = await withTarkovDirectoryTimeout(async () =>
+        displayPathForResolved(picked, await resolveScreenshotsDirDetailed(picked)),
+      );
+      await saveTarkovDirectoryBinding("screenshots", picked, path);
+    } catch (error) {
+      if (!isPickerAbort(error)) {
+        message.error(error instanceof Error ? error.message : "无法读取截图目录，请重新选择。");
+      }
+    } finally {
+      shotPromptBusy.current = false;
+      setShotBusy(false);
+    }
+  }, [resumeShots, shotHandle, shotPerm, supported]);
 
   const ensureLogsHandle = useCallback(async (): Promise<
     { ok: true; handle: NonNullable<typeof logRef.current> } | { ok: false; hint: string }
@@ -1004,9 +919,9 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
       setLogPerm("prompt");
       return { ok: false, hint: "浏览器没有批准读取日志目录。" };
     }
+    await saveTarkovDirectoryBinding("logs", picked, picked.name);
     logRef.current = picked;
     setLogLabel(picked.name);
-    await saveLogsDir(picked);
     setLogPerm("granted");
     return { ok: true, handle: picked };
   }, [supported]);
@@ -1458,7 +1373,7 @@ export function TarkovLiveWatchProvider({ children }: { children: ReactNode }) {
   );
   syncLogsRef.current = syncLogs;
 
-  const hasStoredShots = Boolean(shotRef.current) || Boolean(shotLabel);
+  const hasStoredShots = Boolean(shotHandle);
   const hasStoredLogs = Boolean(logRef.current) || Boolean(logLabel);
   const visible =
     supported &&

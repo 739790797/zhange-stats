@@ -1,27 +1,24 @@
-import { Alert, Button, Input, InputNumber, Spin, message } from "antd";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Button, Input, InputNumber, message } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   displayPathForResolved,
   isFileSystemAccessSupported,
   isPickerAbort,
-  loadStoredLogsDir,
-  loadStoredLogsPath,
-  loadStoredScreenshotsDir,
-  loadStoredScreenshotsPath,
+  loadTarkovDirectoryBinding,
   pickLogsDirectory,
   pickScreenshotsDirectory,
   queryLogsDirPermission,
   queryScreenshotsDirPermission,
-  readLogsIndex,
   requestLogsDirPermission,
   requestScreenshotsDirPermission,
+  resolveLogsDirDetailed,
   resolveScreenshotsDirDetailed,
-  saveLogsDir,
-  saveLogsDisplayPath,
-  saveScreenshotsDir,
-  saveScreenshotsDisplayPath,
+  saveTarkovDirectoryBinding,
+  saveTarkovDirectoryDisplayPath,
   screenshotsDirCanWrite,
+  withTarkovDirectoryTimeout,
   type ReadableDir,
+  type TarkovDirectoryKind,
 } from "@/features/guides/tarkov/model/tarkovGameLogAccess";
 import {
   TARKOV_LOGS_PATH_HINT,
@@ -45,7 +42,12 @@ type BindField = "shots" | "logs";
 type Action = "" | "replace-shots" | "verify-shots" | "replace-logs" | "verify-logs";
 
 function friendlyError(error: unknown, fallback: string): string {
-  if (isPickerAbort(error)) return "";
+  if (error instanceof DOMException) {
+    if (error.name === "NotFoundError") return "找不到本机目录，请点「更换」重新选择。";
+    if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+      return "浏览器无法读取此目录，请继续授权或重新选择目录。";
+    }
+  }
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
@@ -64,10 +66,10 @@ export function TarkovGameLogsPanel() {
   const [pruneKeepMax, setPruneKeepMax] = useState(() => loadScreenshotPrunePref().keepMax);
   const [action, setAction] = useState<Action>("");
   const [error, setError] = useState("");
+  const [restoreErrors, setRestoreErrors] = useState({ logs: "", screenshots: "" });
   const [active, setActive] = useState<BindField>("shots");
   const [offlineMapId, setOfflineMapId] = useState(loadOfflineMapId);
-  const dirNameRef = useRef("");
-  const shotLabelRef = useRef("");
+  const savedPaths = useRef({ logs: "", screenshots: "" });
 
   const mapOptions = useMemo(() => raidPrepMapOptions(), []);
 
@@ -80,197 +82,127 @@ export function TarkovGameLogsPanel() {
   }, []);
 
   const busy = Boolean(action);
-  dirNameRef.current = dirName;
-  shotLabelRef.current = shotLabel;
-
-  const ensureGranted = useCallback(async (handle: ReadableDir) => {
-    const current = await queryLogsDirPermission(handle);
-    if (current === "granted") return "granted" as const;
-    return requestLogsDirPermission(handle);
-  }, []);
-
-  const loadSessions = useCallback(async (handle: ReadableDir) => {
-    const { resolved } = await readLogsIndex(handle);
-    const nextPath = await displayPathForResolved(handle, resolved, dirNameRef.current);
-    setDirName(nextPath);
-    await saveLogsDisplayPath(nextPath);
-  }, []);
-
-  const loadShots = useCallback(async (handle: ReadableDir) => {
-    const resolved = await resolveScreenshotsDirDetailed(handle);
-    const nextPath = await displayPathForResolved(handle, resolved, shotLabelRef.current);
-    setShotLabel(nextPath);
-    await saveScreenshotsDisplayPath(nextPath);
-  }, []);
-
-  const bootGranted = useCallback(
-    async (handle: ReadableDir) => {
-      handleRef.current = handle;
-      setPerm("granted");
-      await loadSessions(handle);
-    },
-    [loadSessions],
-  );
 
   useEffect(() => {
-    if (!supported) {
-      setPerm("none");
-      setShotPerm("none");
-      return;
-    }
+    if (!supported) return;
     let cancelled = false;
-    void (async () => {
-      const [stored, storedShot, storedPath, storedShotPath] = await Promise.all([
-        loadStoredLogsDir(),
-        loadStoredScreenshotsDir(),
-        loadStoredLogsPath(),
-        loadStoredScreenshotsPath(),
-      ]);
-      if (cancelled) return;
-      if (!stored) {
-        setPerm("none");
-      } else {
-        handleRef.current = stored;
-        setDirName(storedPath || stored.name);
-        const current = await queryLogsDirPermission(stored);
+    const restore = async (kind: TarkovDirectoryKind) => {
+      const isShots = kind === "screenshots";
+      const setPermission = isShots ? setShotPerm : setPerm;
+      const handleRefForKind = isShots ? shotRef : handleRef;
+      try {
+        const { handle, path } = await loadTarkovDirectoryBinding(kind);
         if (cancelled) return;
-        if (current === "granted") {
-          try {
-            await bootGranted(stored);
-          } catch (err) {
-            if (!cancelled) {
-              setPerm("prompt");
-              setError(friendlyError(err, "无法读取已授权目录"));
-            }
-          }
-        } else {
-          setPerm("prompt");
+        const label = path || handle?.name || "";
+        savedPaths.current[kind] = label;
+        handleRefForKind.current = handle;
+        (isShots ? setShotLabel : setDirName)(label);
+        if (!handle) {
+          setPermission("none");
+          return;
         }
-      }
-      const prune = loadScreenshotPrunePref();
-      if (!cancelled) {
-        setPruneEnabled(prune.enabled);
-        setPruneKeepMax(prune.keepMax);
-      }
-      if (!storedShot) {
-        setShotPerm("none");
-        setShotCanWrite(false);
-        return;
-      }
-      shotRef.current = storedShot;
-      setShotLabel(storedShotPath || storedShot.name);
-      const shotCurrent = await queryScreenshotsDirPermission(storedShot);
-      if (cancelled) return;
-      if (shotCurrent === "granted") {
-        try {
-          await loadShots(storedShot);
-          setShotPerm("granted");
-          setShotCanWrite(await screenshotsDirCanWrite(storedShot));
-        } catch {
-          if (!cancelled) {
-            setShotPerm("prompt");
-            setShotCanWrite(false);
-          }
+        const query = isShots ? queryScreenshotsDirPermission : queryLogsDirPermission;
+        const permission = await query(handle);
+        if (cancelled) return;
+        setPermission(permission === "granted" ? "granted" : "prompt");
+        if (isShots && permission === "granted") {
+          const canWrite = await screenshotsDirCanWrite(handle);
+          if (!cancelled && shotRef.current === handle) setShotCanWrite(canWrite);
         }
-        return;
+      } catch (err) {
+        if (cancelled) return;
+        setPermission(handleRefForKind.current ? "prompt" : "none");
+        setRestoreErrors((prev) => ({
+          ...prev,
+          [kind]: friendlyError(err, "无法恢复目录授权，请重新选择目录。"),
+        }));
       }
-      setShotPerm("prompt");
-      setShotCanWrite(false);
-    })();
+    };
+    void restore("logs");
+    void restore("screenshots");
     return () => {
       cancelled = true;
     };
-  }, [supported, bootGranted, loadShots]);
+  }, [supported]);
 
-  const bindLogs = async (opts: { existingOnly?: boolean }): Promise<boolean> => {
-    if (opts.existingOnly) {
-      if (!handleRef.current) return false;
-      const next = await ensureGranted(handleRef.current);
-      if (next === "granted") {
-        await saveLogsDir(handleRef.current);
-        await bootGranted(handleRef.current);
-        return true;
-      }
-      setPerm("prompt");
-      setError("浏览器没有批准读取该目录。");
-      return false;
-    }
+  const saveDisplayPath = async (kind: TarkovDirectoryKind, path: string) => {
+    if (savedPaths.current[kind] === path) return;
     try {
-      const picked = await pickLogsDirectory(handleRef.current);
-      const next = await ensureGranted(picked);
-      if (next !== "granted") {
-        setError("浏览器没有批准读取该目录。");
-        return false;
-      }
-      await saveLogsDir(picked);
-      await bootGranted(picked);
-      return true;
+      await saveTarkovDirectoryDisplayPath(kind, path);
+      savedPaths.current[kind] = path;
     } catch (err) {
-      if (isPickerAbort(err)) return false;
-      throw err;
+      setError(friendlyError(err, "无法保存显示路径。"));
     }
   };
 
-  const finishShotBind = async (handle: ReadableDir): Promise<boolean> => {
-    await saveScreenshotsDir(handle);
-    await loadShots(handle);
-    const canWrite = await screenshotsDirCanWrite(handle);
-    setShotPerm("granted");
-    setShotCanWrite(canWrite);
-    const check = screenshotPruneVerifyResult({
-      pruneEnabled: loadScreenshotPrunePref().enabled,
-      canWrite,
-    });
-    if (!check.ok) {
-      setError(check.text);
+  const bindLogs = async (existingOnly: boolean): Promise<boolean> => {
+    const handle = existingOnly ? handleRef.current : await pickLogsDirectory(handleRef.current);
+    if (!handle) return false;
+    if ((await requestLogsDirPermission(handle)) !== "granted") {
+      if (existingOnly) setPerm("prompt");
+      setError("浏览器没有批准读取日志目录。");
       return false;
     }
+    const path = await withTarkovDirectoryTimeout(async () =>
+      displayPathForResolved(
+        handle,
+        await resolveLogsDirDetailed(handle),
+        existingOnly ? dirName : "",
+      ),
+    );
+    await saveTarkovDirectoryBinding("logs", handle, path);
+    savedPaths.current.logs = path;
+    handleRef.current = handle;
+    setDirName(path);
+    setPerm("granted");
     return true;
   };
 
-  const bindShots = async (opts: { existingOnly?: boolean }): Promise<boolean> => {
-    if (opts.existingOnly) {
-      if (!shotRef.current) return false;
-      const next = await requestScreenshotsDirPermission(shotRef.current);
-      if (next === "granted") {
-        return finishShotBind(shotRef.current);
+  const bindShots = async (existingOnly: boolean): Promise<boolean> => {
+    const mode = pruneEnabled ? "readwrite" : "read";
+    const handle = existingOnly
+      ? shotRef.current
+      : await pickScreenshotsDirectory(shotRef.current, mode);
+    if (!handle) return false;
+    if ((await requestScreenshotsDirPermission(handle, mode)) !== "granted") {
+      if (existingOnly) {
+        setShotPerm("prompt");
+        setShotCanWrite(false);
       }
-      setShotPerm("prompt");
-      setShotCanWrite(false);
       setError("浏览器没有批准读取截图目录。");
       return false;
     }
-    try {
-      const picked = await pickScreenshotsDirectory(shotRef.current);
-      const next = await requestScreenshotsDirPermission(picked);
-      if (next !== "granted") {
-        setError("浏览器没有批准读取截图目录。");
-        return false;
-      }
-      shotRef.current = picked;
-      return finishShotBind(picked);
-    } catch (err) {
-      if (isPickerAbort(err)) return false;
-      throw err;
-    }
+    const path = await withTarkovDirectoryTimeout(async () =>
+      displayPathForResolved(
+        handle,
+        await resolveScreenshotsDirDetailed(handle),
+        existingOnly ? shotLabel : "",
+      ),
+    );
+    await saveTarkovDirectoryBinding("screenshots", handle, path);
+    savedPaths.current.screenshots = path;
+    shotRef.current = handle;
+    setShotLabel(path);
+    setShotPerm("granted");
+    const canWrite = await screenshotsDirCanWrite(handle);
+    setShotCanWrite(canWrite);
+    const check = screenshotPruneVerifyResult({ pruneEnabled, canWrite });
+    if (!check.ok) setError(check.text);
+    if (check.ok && existingOnly) message.success(check.text);
+    return check.ok;
   };
 
   const runBind = async (nextAction: Action, work: () => Promise<boolean>) => {
-    if (!supported) return;
+    const kind = nextAction.endsWith("shots") ? "screenshots" : "logs";
+    setRestoreErrors((prev) => ({ ...prev, [kind]: "" }));
     setError("");
     setAction(nextAction);
     try {
-      const ok = await work();
-      if (ok && (nextAction === "verify-shots" || nextAction === "verify-logs")) {
-        const shotOk = screenshotPruneVerifyResult({
-          pruneEnabled: loadScreenshotPrunePref().enabled,
-          canWrite: shotRef.current ? await screenshotsDirCanWrite(shotRef.current) : false,
-        });
-        message.success(nextAction === "verify-shots" ? shotOk.text : "日志目录校验通过");
-      }
+      if ((await work()) && nextAction === "verify-logs") message.success("日志目录校验通过");
     } catch (err) {
-      const text = friendlyError(err, "授权目录失败");
-      if (text) setError(text);
+      if (!isPickerAbort(err)) {
+        setError(friendlyError(err, "授权目录失败，请重新选择目录。"));
+      }
     } finally {
       setAction("");
     }
@@ -284,14 +216,6 @@ export function TarkovGameLogsPanel() {
         message="当前浏览器不能授权本地目录"
         description="请用 Chrome 或 Edge 打开本页。Firefox / Safari 还没有完整的目录授权接口。"
       />
-    );
-  }
-
-  if (perm === "unknown") {
-    return (
-      <div className={styles.status}>
-        <Spin />
-      </div>
     );
   }
 
@@ -310,19 +234,18 @@ export function TarkovGameLogsPanel() {
             title={pathInputTitle}
             className={`${styles.pathInput}${active === "shots" ? ` ${styles.pathOn}` : ""}`}
             onFocus={() => setActive("shots")}
+            disabled={shotPerm === "unknown"}
             onChange={(event) => setShotLabel(event.target.value)}
-            onBlur={() => {
-              void saveScreenshotsDisplayPath(shotLabelRef.current);
-            }}
+            onBlur={() => void saveDisplayPath("screenshots", shotLabel)}
           />
           <Button
             className={styles.sideBtn}
-            disabled={busy}
+            disabled={busy || shotPerm === "unknown"}
             loading={action === "replace-shots"}
             title="重新选择本机目录，选中上一级即可自动往下走"
             onClick={() => {
               setActive("shots");
-              void runBind("replace-shots", () => bindShots({}));
+              void runBind("replace-shots", () => bindShots(false));
             }}
           >
             更换
@@ -330,17 +253,25 @@ export function TarkovGameLogsPanel() {
           <Button
             className={styles.sideBtn}
             type={shotPerm === "prompt" || (pruneEnabled && !shotCanWrite) ? "primary" : "default"}
-            disabled={busy || shotPerm === "none"}
+            disabled={busy || shotPerm === "none" || shotPerm === "unknown"}
             loading={action === "verify-shots"}
             title={pruneEnabled ? "校验读取，并检查删除所需的写入授权" : "继续读取已保存的截图目录"}
             onClick={() => {
               setActive("shots");
-              void runBind("verify-shots", () => bindShots({ existingOnly: true }));
+              void runBind("verify-shots", () => bindShots(true));
             }}
           >
             {shotPerm === "prompt" ? "继续授权" : "校验"}
           </Button>
         </div>
+        {restoreErrors.screenshots ? (
+          <Alert type="warning" showIcon message={restoreErrors.screenshots} />
+        ) : null}
+        {shotPerm === "unknown" ? (
+          <p role="status" className={styles.hint}>
+            正在恢复截图目录授权…
+          </p>
+        ) : null}
         <div className={styles.pruneRow}>
           <label className={styles.pruneLabel} htmlFor="tarkov-shot-prune">
             <input
@@ -407,36 +338,41 @@ export function TarkovGameLogsPanel() {
             title={pathInputTitle}
             className={`${styles.pathInput}${active === "logs" ? ` ${styles.pathOn}` : ""}`}
             onFocus={() => setActive("logs")}
+            disabled={perm === "unknown"}
             onChange={(event) => setDirName(event.target.value)}
-            onBlur={() => {
-              void saveLogsDisplayPath(dirNameRef.current);
-            }}
+            onBlur={() => void saveDisplayPath("logs", dirName)}
           />
           <Button
             className={styles.sideBtn}
-            disabled={busy}
+            disabled={busy || perm === "unknown"}
             loading={action === "replace-logs"}
             title="重新选择本机目录，选中上一级即可自动往下走"
             onClick={() => {
               setActive("logs");
-              void runBind("replace-logs", () => bindLogs({}));
+              void runBind("replace-logs", () => bindLogs(false));
             }}
           >
             更换
           </Button>
           <Button
             className={styles.sideBtn}
-            disabled={busy || perm === "none"}
+            disabled={busy || perm === "none" || perm === "unknown"}
             loading={action === "verify-logs"}
             title="重新授权并读取最新一条日志"
             onClick={() => {
               setActive("logs");
-              void runBind("verify-logs", () => bindLogs({ existingOnly: true }));
+              void runBind("verify-logs", () => bindLogs(true));
             }}
           >
             校验
           </Button>
         </div>
+        {restoreErrors.logs ? <Alert type="warning" showIcon message={restoreErrors.logs} /> : null}
+        {perm === "unknown" ? (
+          <p role="status" className={styles.hint}>
+            正在恢复日志目录授权…
+          </p>
+        ) : null}
         <p className={styles.hint}>常见位置：{TARKOV_LOGS_PATH_HINT}</p>
       </div>
       <div className={styles.row}>
